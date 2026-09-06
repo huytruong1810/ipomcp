@@ -1,0 +1,28 @@
+[project]
+name = "i-pomcp-py"
+version = "0.1.0"
+description = "Infinite POMDP and I-POMCP solver suite"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "graphviz>=0.21",
+    "matplotlib>=3.11.0",
+    "pandas>=3.0.1",
+    "plotly>=6.6.0",
+    "scipy>=1.18.0",
+    "seaborn>=0.13.2",
+    "tqdm>=4.67.3",
+]
+
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["core", "ipomdp", "solvers", "utils", "examples"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+]

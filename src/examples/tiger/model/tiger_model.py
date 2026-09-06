@@ -1,0 +1,235 @@
+# Absolute Path: <project_root>/examples/tiger/model/tiger_model.py
+
+"""
+tiger_model.py — Interactive Multi-Agent Tiger Domain.
+
+DESIGN DECISION RECORD (Phase 5 Overhaul):
+------------------------------------------
+1. STRICT ABSTRACT COMPLIANCE:
+   Explicitly implemented `get_all_actions` and `get_all_observations` to satisfy
+   the `POMDPModel` interface, preventing the instantiation crashes seen in batch execution.
+
+2. OBSERVATION TUPLES & SYMMETRY:
+   Observations are now strictly typed as Tuples: `(growl_obs, creak_obs)`.
+   The `get_observation_prob` (used for Particle Filter weighting) has been meticulously
+   aligned line-by-line with `sample_observation` (used for MCTS generation) to guarantee
+   mathematical purity. Without this, Interactive Particle Filters diverge.
+
+3. RESET DYNAMICS:
+   Restored the standard infinite-horizon reset dynamics. If anyone opens a door,
+   the state instantly transitions to a uniform random distribution, and the episode continues.
+"""
+
+import random
+from typing import Dict, List, Tuple
+from core.pomdp_model import POMDPModel, State, Action, Observation, AgentID
+
+# --- CONSTANTS ---
+# States
+TIGER_LEFT = "TL"
+TIGER_RIGHT = "TR"
+
+# Actions
+LISTEN = "L"
+OPEN_LEFT = "OL"
+OPEN_RIGHT = "OR"
+
+# Observation Signals
+GROWL_LEFT = "GL"
+GROWL_RIGHT = "GR"
+CREAK_LEFT = "CL"
+CREAK_RIGHT = "CR"
+SILENCE = "S"
+
+# Type Aliases for Clarity
+TigerState = str
+TigerAction = str
+TigerObservation = Tuple[str, str]  # (Growl, Creak)
+
+
+class TigerModel(POMDPModel):
+    def __init__(self, growl_accuracy: dict = None, creak_accuracy: float = 0.90, persistent: bool = False):
+        """
+        Initializes the Multi-Agent Tiger domain.
+
+        Args:
+            growl_accuracy: Dict mapping agent_id to their ability to hear the tiger.
+                            Default is 0.85 (standard benchmark).
+            creak_accuracy: The probability of correctly hearing the opponent open a door.
+            persistent: If True, the tiger does not reset its position after a door is opened.
+        """
+        if growl_accuracy is None:
+            self.growl_acc = {'i': 0.85, 'j': 0.85}
+        else:
+            self.growl_acc = growl_accuracy
+
+        self.creak_acc = creak_accuracy
+        self.persistent = persistent
+
+    def get_initial_state(self, rng=None) -> TigerState:
+        """The episode begins with the tiger uniformly distributed."""
+        choice_fn = rng.choice if rng is not None else random.choice
+        return choice_fn([TIGER_LEFT, TIGER_RIGHT])
+
+    def sample_transition(self, state: TigerState, joint_action: Dict[AgentID, TigerAction], rng=None) -> TigerState:
+        """
+        If *anyone* opens a door, the episode conceptually resets, and the tiger
+        is placed randomly behind one of the two doors (unless persistent is True).
+        """
+        if not self.persistent:
+            for act in joint_action.values():
+                if act in (OPEN_LEFT, OPEN_RIGHT):
+                    choice_fn = rng.choice if rng is not None else random.choice
+                    return choice_fn([TIGER_LEFT, TIGER_RIGHT])
+        return state
+
+    def sample_observation(self, state: TigerState, joint_action: Dict[AgentID, TigerAction],
+                           agent_id: AgentID, rng=None) -> TigerObservation:
+        """
+        Generative observation model. Used during MCTS rollout simulation and environment stepping.
+        """
+        my_action = joint_action.get(agent_id, LISTEN)
+
+        # If I open a door, the noise deafens me. I hear absolutely nothing.
+        if my_action != LISTEN:
+            return (SILENCE, SILENCE)
+
+        # Identify the opponent's action (assumes 2-player for this logic)
+        other_action = LISTEN
+        for aid, act in joint_action.items():
+            if aid != agent_id:
+                other_action = act
+                break
+
+        rand_fn = rng.random if rng is not None else random.random
+
+        # 1. Sample Growl (Tiger Noise)
+        acc = self.growl_acc.get(agent_id, 0.85)
+        if state == TIGER_LEFT:
+            obs_growl = GROWL_LEFT if rand_fn() < acc else GROWL_RIGHT
+        else:
+            obs_growl = GROWL_RIGHT if rand_fn() < acc else GROWL_LEFT
+
+        # 2. Sample Creak (Opponent Door Noise)
+        r = rand_fn()
+        if other_action == LISTEN:
+            obs_creak = SILENCE
+        elif other_action == OPEN_LEFT:
+            if r < self.creak_acc:
+                obs_creak = CREAK_LEFT
+            elif r < self.creak_acc + 0.05:
+                obs_creak = CREAK_RIGHT
+            else:
+                obs_creak = SILENCE
+        elif other_action == OPEN_RIGHT:
+            if r < self.creak_acc:
+                obs_creak = CREAK_RIGHT
+            elif r < self.creak_acc + 0.05:
+                obs_creak = CREAK_LEFT
+            else:
+                obs_creak = SILENCE
+        else:
+            obs_creak = SILENCE
+
+        return (obs_growl, obs_creak)
+
+    def get_observation_prob(self, observation: TigerObservation, state: TigerState,
+                             joint_action: Dict[AgentID, TigerAction], agent_id: AgentID) -> float:
+        """
+        Evaluative observation model. Used to re-weight beliefs in the Particle Filter.
+        MUST perfectly match the probability distribution generated by `sample_observation`.
+        """
+        obs_growl, obs_creak = observation
+        my_action = joint_action.get(agent_id, LISTEN)
+
+        # Deafened agents have 100% probability of hearing Silence
+        if my_action != LISTEN:
+            return 1.0 if observation == (SILENCE, SILENCE) else 0.0
+
+        other_action = LISTEN
+        for aid, act in joint_action.items():
+            if aid != agent_id:
+                other_action = act
+                break
+
+        # 1. Evaluate Growl Probability
+        acc = self.growl_acc.get(agent_id, 0.85)
+        if state == TIGER_LEFT:
+            if obs_growl == GROWL_LEFT:
+                p_growl = acc
+            elif obs_growl == GROWL_RIGHT:
+                p_growl = 1.0 - acc
+            else:
+                p_growl = 0.0
+        else:
+            if obs_growl == GROWL_RIGHT:
+                p_growl = acc
+            elif obs_growl == GROWL_LEFT:
+                p_growl = 1.0 - acc
+            else:
+                p_growl = 0.0
+
+        # 2. Evaluate Creak Probability
+        if other_action == LISTEN:
+            p_creak = 1.0 if obs_creak == SILENCE else 0.0
+        elif other_action == OPEN_LEFT:
+            if obs_creak == CREAK_LEFT:
+                p_creak = self.creak_acc
+            elif obs_creak == CREAK_RIGHT:
+                p_creak = 0.05
+            elif obs_creak == SILENCE:
+                p_creak = 1.0 - self.creak_acc - 0.05
+            else:
+                p_creak = 0.0
+        elif other_action == OPEN_RIGHT:
+            if obs_creak == CREAK_RIGHT:
+                p_creak = self.creak_acc
+            elif obs_creak == CREAK_LEFT:
+                p_creak = 0.05
+            elif obs_creak == SILENCE:
+                p_creak = 1.0 - self.creak_acc - 0.05
+            else:
+                p_creak = 0.0
+        else:
+            p_creak = 1.0 if obs_creak == SILENCE else 0.0
+
+        # Assume conditional independence between Tiger noise and Opponent noise
+        return p_growl * p_creak
+
+    def get_reward(self, state: TigerState, joint_action: Dict[AgentID, TigerAction],
+                   next_state: TigerState, agent_id: AgentID) -> float:
+        """
+        Standard Tiger Benchmark Rewards:
+        Listen = -1
+        Open Door w/ Tiger = -100
+        Open Door w/ Gold = +10
+        """
+        my_action = joint_action.get(agent_id)
+
+        if my_action == LISTEN:
+            return -1.0
+
+        if my_action == OPEN_LEFT:
+            return -100.0 if state == TIGER_LEFT else 10.0
+
+        if my_action == OPEN_RIGHT:
+            return -100.0 if state == TIGER_RIGHT else 10.0
+
+        return 0.0
+
+    def is_terminal(self, state: TigerState) -> bool:
+        """Tiger is an infinite-horizon task. The state resets, it never terminates."""
+        return False
+
+    def get_all_actions(self, agent_id: AgentID) -> List[TigerAction]:
+        """Satisfies POMDPModel abstract method."""
+        return [LISTEN, OPEN_LEFT, OPEN_RIGHT]
+
+    def get_all_observations(self, agent_id: AgentID) -> List[TigerObservation]:
+        """
+        Satisfies POMDPModel abstract method.
+        Returns the Cartesian product of all possible (Growl, Creak) tuples.
+        """
+        growls = [GROWL_LEFT, GROWL_RIGHT, SILENCE]
+        creaks = [CREAK_LEFT, CREAK_RIGHT, SILENCE]
+        return [(g, c) for g in growls for c in creaks]
