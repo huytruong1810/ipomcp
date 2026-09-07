@@ -29,3 +29,21 @@ def test_normalized_ucb_scale_invariance():
     # Normalized UCB uses local bounds
     chosen = strategy.select_action(node, ["A1", "A2"], q_min=900.0, q_max=1000.0)
     assert chosen in ["A1", "A2"]
+
+
+def test_normalized_ucb_degenerate_and_uninitialized_bounds():
+    strategy = NormalizedUCB(exploration_const=1.414)
+    node = POMCPNode()
+    node.visit_count = 10
+    node.action_counts["A1"] = 5
+    node.action_values["A1"] = 10.0
+    node.action_counts["A2"] = 5
+    node.action_values["A2"] = 10.0
+
+    # 1. Equal bounds (q_min == q_max)
+    chosen_equal = strategy.select_action(node, ["A1", "A2"], q_min=10.0, q_max=10.0)
+    assert chosen_equal in ["A1", "A2"]
+
+    # 2. Inverted / uninitialized bounds (q_min > q_max, e.g. inf / -inf)
+    chosen_inv = strategy.select_action(node, ["A1", "A2"], q_min=float("inf"), q_max=float("-inf"))
+    assert chosen_inv in ["A1", "A2"]

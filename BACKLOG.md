@@ -132,24 +132,28 @@ While the codebase has undergone significant hardening (e.g., resolving the expo
 ## Prioritized Remediation Backlog
 
 ### Priority 0: Critical (Theoretical Integrity & Runtime Safety)
-- [ ] **P0-1**: Fix `NormalizedUCB` division-by-zero / NaN calculation when `q_max <= q_min` ([`exploration.py:86-105`](file:///home/andyj1810/projects/ipomcp/src/solvers/exploration.py#L86-L105)).
-- [ ] **P0-2**: Prevent caller dictionary mutation and zero-weight crash in `DictDistribution` ([`distribution.py:150-165`](file:///home/andyj1810/projects/ipomcp/src/core/distribution.py#L150-L165)).
-- [ ] **P0-3**: Resolve opponent particle starvation in `InteractiveGenerativeModel.tree_step` by replenishing `child_j.belief_particles` across multiple simulations ([`generative_model.py:103-110`](file:///home/andyj1810/projects/ipomcp/src/solvers/generative_model.py#L103-L110)).
+- [x] **P0-1**: Fix `NormalizedUCB` division-by-zero / NaN calculation when `q_max <= q_min` ([`exploration.py:86-105`](file:///home/andyj1810/projects/ipomcp/src/solvers/exploration.py#L86-L105)). *(Resolved & Tested)*
+- [x] **P0-2**: Prevent caller dictionary mutation and zero-weight crash in `DictDistribution` ([`distribution.py:150-165`](file:///home/andyj1810/projects/ipomcp/src/core/distribution.py#L150-L165)). *(Resolved & Tested)*
+- [x] **P0-3**: Resolve opponent particle starvation in `InteractiveGenerativeModel.tree_step` by replenishing `child_j.belief_particles` via Algorithm R reservoir sampling across multiple simulations ([`generative_model.py:103-110`](file:///home/andyj1810/projects/ipomcp/src/solvers/generative_model.py#L103-L110)). *(Resolved & Tested)*
+- [x] **P0-4**: Accumulate particles at boundary leaf nodes (`max_depth` and terminal states) before truncating ([`i_pomcp.py:75-85`](file:///home/andyj1810/projects/ipomcp/src/solvers/i_pomcp.py#L75-L85)). *(Resolved & Tested)*
 
 ### Priority 1: High (Convergence & Domain Accuracy)
-- [ ] **P1-1**: Implement `get_legal_actions` in `UAVModel` to prune impossible boundary moves from MCTS trees ([`uav_model.py:49-54`](file:///home/andyj1810/projects/ipomcp/src/examples/uav/model/uav_model.py#L49-L54)).
-- [ ] **P1-2**: Inject RNG instances into `UAVModel` and `WumpusModel` methods to ensure Common Random Numbers (CRN) provide true variance reduction across parallel workers ([`uav_model.py:42-89`](file:///home/andyj1810/projects/ipomcp/src/examples/uav/model/uav_model.py#L42-L89)).
+- [x] **P1-1**: Implement `get_legal_actions` in `UAVModel` to prune impossible boundary moves from MCTS trees ([`uav_model.py:49-54`](file:///home/andyj1810/projects/ipomcp/src/examples/uav/model/uav_model.py#L49-L54)). *(Resolved & Tested)*
+- [x] **P1-2**: Inject RNG instances into `UAVModel` and `WumpusModel` methods to ensure Common Random Numbers (CRN) provide true variance reduction across parallel workers ([`uav_model.py:42-89`](file:///home/andyj1810/projects/ipomcp/src/examples/uav/model/uav_model.py#L42-L89), [`wumpus_model.py:41-70`](file:///home/andyj1810/projects/ipomcp/src/examples/wumpus/model/wumpus_model.py#L41-L70)). *(Resolved & Tested)*
 - [ ] **P1-3**: Implement trial-level checkpointing in `GenericBatchRunner` to allow resuming partially completed batches ([`generic_batch_runner.py:349-385`](file:///home/andyj1810/projects/ipomcp/src/utils/generic_batch_runner.py#L349-L385)).
-- [ ] **P1-4**: Fix `ParticleDistribution.get_support()` to filter out particles with `weight == 0.0` ([`distribution.py:114-121`](file:///home/andyj1810/projects/ipomcp/src/core/distribution.py#L114-L121)).
+- [x] **P1-4**: Fix `ParticleDistribution.get_support()` to filter out particles with `weight == 0.0` ([`distribution.py:114-121`](file:///home/andyj1810/projects/ipomcp/src/core/distribution.py#L114-L121)). *(Resolved & Tested)*
+- [x] **P1-5**: Fix `persistent_tiger_runner.py` uninstantiated `agent_config` causing `NameError` ([`persistent_tiger_runner.py:35`](file:///home/andyj1810/projects/ipomcp/src/examples/tiger/runners/persistent_tiger_runner.py#L35)). *(Resolved)*
+- [x] **P1-6**: Fix `run_wumpus.py` uninstantiated `forest_viz` and particle counts ([`run_wumpus.py:57-60`](file:///home/andyj1810/projects/ipomcp/src/examples/wumpus/runners/run_wumpus.py#L57-L60)). *(Resolved)*
+- [x] **P1-7**: Remove duplicate `run_master_benchmark` function definition in `master_nested_ipomdp_benchmark.py` and unify results pathing. *(Resolved)*
 
 ### Priority 2: Medium (Architecture & Code Cleanliness)
-- [ ] **P2-1**: Centralize `SIM_SCHEDULE` and `PARTICLE_SCHEDULE` into `src/core/config.py` to eliminate drift across runner scripts.
-- [ ] **P2-2**: Wrap `import graphviz` in `try-except ImportError` inside `src/utils/visualizer.py` with informative fallback warnings.
-- [ ] **P2-3**: Make `InteractiveParticle` truly immutable by storing `models` as an immutable mapping (e.g. `tuple` of pairs or `MappingProxyType`) and implementing `__hash__` / `__eq__`.
+- [x] **P2-1**: Centralize `SIM_SCHEDULE` and `PARTICLE_SCHEDULE` into `src/core/config.py` to eliminate drift across runner scripts. *(Resolved)*
+- [x] **P2-2**: Wrap `import graphviz` in `try-except ImportError` inside `src/utils/visualizer.py` with informative fallback warnings and structured logger. *(Resolved)*
+- [x] **P2-3**: Make `InteractiveParticle` hashable with explicit `__hash__` and `__eq__` and freeze `AgentFrame`. *(Resolved & Tested)*
 
 ### Priority 3: Low (Optimization & Tech Debt)
 - [ ] **P3-1**: Transition `batch_results.csv` export to Apache Parquet format to eliminate string-serialized dictionaries and accelerate post-hoc analysis.
-- [ ] **P3-2**: Expand test coverage in `tests/test_distribution.py` and `tests/test_solvers.py` for edge-case degenerate inputs (empty particle sets, zero weights, out-of-bound Q-ranges).
+- [x] **P3-2**: Expand test coverage in `tests/test_distribution.py`, `tests/test_exploration.py`, and `tests/test_models.py` for edge-case degenerate inputs (degenerate Q-ranges, zero weights, caller dict immutability, legal action masking, RNG determinism). *(Resolved: 43/43 tests passing)*
 
 ---
 

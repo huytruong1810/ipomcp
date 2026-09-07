@@ -38,7 +38,9 @@ class WumpusModel(POMDPModel):
         self.height = height
         self.n_pits = n_pits
 
-    def get_initial_state(self) -> State:
+    def get_initial_state(self, rng=None) -> State:
+        choice_fn = rng.choice if rng is not None else random.choice
+
         # 1. Human (0, 0) East
         h_pose = AgentPose(0, 0, EAST)
 
@@ -48,17 +50,17 @@ class WumpusModel(POMDPModel):
         available_cells = [c for c in all_cells if c not in safe_cells]
 
         # 3. Wumpus Random
-        w_pos = random.choice(available_cells)
-        w_pose = AgentPose(w_pos[0], w_pos[1], random.choice([NORTH, SOUTH, EAST, WEST]))
+        w_pos = choice_fn(available_cells)
+        w_pose = AgentPose(w_pos[0], w_pos[1], choice_fn([NORTH, SOUTH, EAST, WEST]))
 
         # 4. Gold Random
-        g_pos = random.choice(available_cells)
+        g_pos = choice_fn(available_cells)
 
         # 5. Pits Random
         pits = set()
         curr_available = list(available_cells)
         for _ in range(min(self.n_pits, len(curr_available))):
-            p = random.choice(curr_available)
+            p = choice_fn(curr_available)
             pits.add(p)
             curr_available.remove(p)
 

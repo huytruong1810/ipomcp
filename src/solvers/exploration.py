@@ -83,12 +83,17 @@ class NormalizedUCB(ExplorationStrategy):
 
         log_n = math.log(node.visit_count) if node.visit_count > 0 else 0
 
-        # We extract the dynamically discovered local bounds provided by the planner
+        # Extract dynamically discovered local bounds provided by the planner.
+        # Rigorously guard against uninitialized (inf / -inf), invalid, or degenerate (q_max <= q_min) bounds.
         q_min = kwargs.get('q_min', 0.0)
         q_max = kwargs.get('q_max', 0.0)
 
-        # Denominator for normalization (with epsilon to prevent div-by-zero)
-        q_range = (q_max - q_min) + self.epsilon
+        degenerate_bounds = (
+            math.isinf(q_min) or math.isinf(q_max) or
+            math.isnan(q_min) or math.isnan(q_max) or
+            q_max <= q_min
+        )
+        q_range = (q_max - q_min) + self.epsilon if not degenerate_bounds else 1.0
 
         for action in available_actions:
             if action not in node.action_counts:
@@ -97,8 +102,9 @@ class NormalizedUCB(ExplorationStrategy):
             q_raw = node.action_values.get(action, 0.0)
             n = node.action_counts[action]
 
-            # 1. Normalize Q to [0, 1] relative to the current tree's discoveries
-            q_norm = (q_raw - q_min) / q_range
+            # 1. Normalize Q to [0, 1] relative to the current tree's discoveries.
+            # If bounds are degenerate, assign neutral value 0.5 to avoid biasing exploration.
+            q_norm = 0.5 if degenerate_bounds else ((q_raw - q_min) / q_range)
 
             # 2. Standard UCB calculation on normalized value
             ucb_val = q_norm + self.c * math.sqrt(log_n / n)

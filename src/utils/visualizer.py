@@ -1,8 +1,17 @@
-import graphviz
 from typing import Set, Dict, List
+from core.logger import get_logger
 from solvers.solver_bank import SolverBank
 from solvers.i_pomcp import IPOMCPPlanner
 from solvers.node import POMCPNode
+
+try:
+    import graphviz
+    GRAPHVIZ_AVAILABLE = True
+except ImportError:
+    graphviz = None
+    GRAPHVIZ_AVAILABLE = False
+
+logger = get_logger("ForestVisualizer")
 
 
 class ForestVisualizer:
@@ -23,6 +32,10 @@ class ForestVisualizer:
             filename: Output filename prefix.
             step: Current simulation step (for labeling).
         """
+        if not GRAPHVIZ_AVAILABLE or graphviz is None:
+            logger.warning("graphviz package is not installed; skipping forest visualization.")
+            return
+
         # Create Digraph
         dot = graphviz.Digraph(comment=f'I-POMCP Forest Step {step}')
         dot.attr(rankdir='LR')  # Left-to-Right layout
@@ -68,9 +81,9 @@ class ForestVisualizer:
         # Render
         try:
             output_path = dot.render(filename, view=False, format='png', cleanup=True)
-            print(f"[Viz] Forest visualized to {output_path}")
+            logger.info(f"Forest visualized to {output_path}")
         except Exception as e:
-            print(f"[Viz] Visualization failed (Graphviz installed?): {e}")
+            logger.warning(f"Visualization failed (Graphviz installed?): {e}")
 
     def _add_tree_to_dot(self, dot, node: POMCPNode, name_prefix: str, visited: Set[int], depth_limit: int,
                          is_root=False, label_prefix=""):

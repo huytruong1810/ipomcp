@@ -78,3 +78,30 @@ def test_particle_distribution_resample_boundary_stability():
     resampled = dist.resample(n)
     assert len(resampled) == n
 
+
+def test_dict_distribution_immutability_and_zero_weight():
+    # Test caller immutability
+    raw = {"A": 1.0, "B": 3.0}
+    dist = DictDistribution(raw)
+    raw["A"] = 999.0
+    raw["C"] = 100.0
+    assert dist["A"] == pytest.approx(0.25)
+    assert dist["B"] == pytest.approx(0.75)
+    assert dist["C"] == 0.0
+
+    # Test all-zero weights fallback to uniform
+    zero_dist = DictDistribution({"X": 0.0, "Y": 0.0})
+    assert zero_dist["X"] == pytest.approx(0.5)
+    assert zero_dist["Y"] == pytest.approx(0.5)
+
+
+def test_particle_distribution_zero_weight_support():
+    # Support should only include particles with positive weight
+    particles = ["A", "B", "C"]
+    weights = [0.5, 0.5, 0.0]
+    dist = ParticleDistribution(particles, weights)
+    dist.normalize()
+    support = set(dist.get_support())
+    assert "A" in support and "B" in support
+    assert "C" not in support
+

@@ -17,6 +17,7 @@ from typing import Dict, Any, List, Tuple
 
 from core.pomdp_model import POMDPModel, State
 from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, JITConfig
+from core.paths import get_results_dir
 from core.logger import get_logger
 from solvers.solver_bank import SolverBank
 from solvers.exploration import NormalizedUCB
@@ -181,123 +182,9 @@ def compute_statistical_significance(combined_df: pd.DataFrame, out_dir: str):
         json.dump(results, f, indent=2)
 
 
-def run_master_benchmark(n_trials: int = 200, max_steps: int = 6):
-    from core.paths import get_results_dir
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    master_dir = get_results_dir("deep_prior", f"master_benchmark_{timestamp}_N{n_trials}")
-
-    logger.info(f"=== STARTING MASTER FINITELY NESTED I-POMDP BENCHMARK (N={n_trials}, T={max_steps}) ===")
-    logger.info(f"Master Results Directory: {master_dir}")
-
-    conditions = [
-        {
-            "name": "C1: Level-1 (100% L0) vs L1 Opponent",
-            "protagonist_level": 1,
-            "opponent_level": 1,
-            "protagonist_weights": {"level_weights": {0: 1.0}},
-            "opponent_weights": {"level_weights": {0: 1.0}}
-        },
-        {
-            "name": "C2: Level-2 (100% L1) vs L1 Opponent",
-            "protagonist_level": 2,
-            "opponent_level": 1,
-            "protagonist_weights": {"level_weights": {1: 1.0, 0: 0.0}},
-            "opponent_weights": {"level_weights": {0: 1.0}}
-        },
-        {
-            "name": "C3: Level-2 (50% L0 / 50% L1) vs L1 Opponent",
-            "protagonist_level": 2,
-            "opponent_level": 1,
-            "protagonist_weights": {"level_weights": {0: 0.5, 1: 0.5}},
-            "opponent_weights": {"level_weights": {0: 1.0}}
-        },
-        {
-            "name": "C4: Level-2 (10% L0 / 90% L1) vs L1 Opponent",
-            "protagonist_level": 2,
-            "opponent_level": 1,
-            "protagonist_weights": {"level_weights": {0: 0.1, 1: 0.9}},
-            "opponent_weights": {"level_weights": {0: 1.0}}
-        },
-        {
-            "name": "C5: Level-3 (Uniform 1/3 Prior) vs L1 Opponent",
-            "protagonist_level": 3,
-            "opponent_level": 1,
-            "protagonist_weights": {
-                "nested_level_weights": {
-                    3: {0: 1/3, 1: 1/3, 2: 1/3},
-                    2: {0: 0.5, 1: 0.5},
-                    1: {0: 1.0}
-                }
-            },
-            "opponent_weights": {"level_weights": {0: 1.0}}
-        },
-        {
-            "name": "C6: Level-3 (Uniform 1/3 Prior) vs L2 Opponent (50/50)",
-            "protagonist_level": 3,
-            "opponent_level": 2,
-            "protagonist_weights": {
-                "nested_level_weights": {
-                    3: {0: 1/3, 1: 1/3, 2: 1/3},
-                    2: {0: 0.5, 1: 0.5},
-                    1: {0: 1.0}
-                }
-            },
-            "opponent_weights": {"level_weights": {0: 0.5, 1: 0.5}}
-        }
-    ]
-
-    all_dfs = []
-    exp_config = ExperimentConfig(n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False)
-
-    for cond_idx, cond in enumerate(conditions, 1):
-        cond_name = cond["name"]
-        cond_dir = os.path.join(master_dir, f"cond_{cond_idx}_{cond_name.split(':')[0].strip()}")
-        logger.info(f"[{cond_idx}/{len(conditions)}] Running Condition: {cond_name} (Horizon T={max_steps}, Planning Depth D={planning_depth})...")
-
-        runner = ConfigurableTigerRunner(
-            config=exp_config,
-            log_dir=cond_dir,
-            protagonist_level=cond["protagonist_level"],
-            opponent_level=cond["opponent_level"],
-            protagonist_weights=cond["protagonist_weights"],
-            opponent_weights=cond["opponent_weights"],
-            planning_depth=planning_depth
-        )
-
-        # 1. Capture snapshot for Sunburst visualization (Trial 0)
-        _, snapshots = runner.run_single_trial_with_snapshots(trial_id=0)
-        if snapshots:
-            if 0 in snapshots:
-                plot_nested_belief_sunburst(snapshots[0], title=f"{cond_name} - Prior Hierarchy (t=0)", save_dir=cond_dir, filename="sunburst_t0")
-                generate_nested_sunburst_pdf(snapshots[0], os.path.join(cond_dir, "fig_sunburst_t0.pdf"), title=f"{cond_name} (t=0)")
-            final_step = max(snapshots.keys())
-            plot_nested_belief_sunburst(snapshots[final_step], title=f"{cond_name} - Posterior Hierarchy (t={final_step})", save_dir=cond_dir, filename="sunburst_final")
-            generate_nested_sunburst_pdf(snapshots[final_step], os.path.join(cond_dir, "fig_sunburst_final.pdf"), title=f"{cond_name} (t={final_step})")
-            plot_episode_sunburst_slider(snapshots, title_prefix=cond_name, save_dir=cond_dir, filename="sunburst_animated")
-
-        # 2. Run full batch
-        df = runner.run_batch()
-        if not df.empty:
-            df["condition"] = cond_name
-            all_dfs.append(df)
-            plot_all_metrics(df, agent_labels={"i": "Agent I", "j": "Agent J"}, title_prefix=cond_name, save_dir=cond_dir)
-            generate_paper_plots(os.path.join(cond_dir, "batch_results.csv"), cond_dir)
-
-    if all_dfs:
-        combined = pd.concat(all_dfs, ignore_index=True)
-        combined.to_csv(os.path.join(master_dir, "master_benchmark_summary.csv"), index=False)
-
-        logger.info("Generating Cross-Condition Meta-Visualizations & Statistical Tests...")
-        plot_cross_condition_comparisons(combined, master_dir)
-        compute_statistical_significance(combined, master_dir)
-        logger.info(f"=== MASTER BENCHMARK COMPLETE. ALL ARTIFACTS IN: {master_dir} ===")
-
-
 def run_master_benchmark(n_trials: int = 100, max_steps: int = 20, planning_depth: int = 20):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    master_dir = os.path.join(script_dir, "..", "results", f"master_benchmark_{timestamp}_N{n_trials}_T{max_steps}_D{planning_depth}")
-    os.makedirs(master_dir, exist_ok=True)
+    master_dir = get_results_dir("deep_prior", f"master_benchmark_{timestamp}_N{n_trials}_T{max_steps}_D{planning_depth}")
 
     logger.info(f"=== STARTING MASTER FINITELY NESTED I-POMDP BENCHMARK (N={n_trials}, Horizon T={max_steps}, Depth D={planning_depth}) ===")
     logger.info(f"Master Results Directory: {master_dir}")

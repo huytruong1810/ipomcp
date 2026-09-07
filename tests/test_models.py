@@ -1,6 +1,6 @@
 import pytest
 from examples.tiger.model.tiger_model import TigerModel, TIGER_LEFT, TIGER_RIGHT, LISTEN, OPEN_LEFT, OPEN_RIGHT, GROWL_LEFT, GROWL_RIGHT, SILENCE, CREAK_LEFT, CREAK_RIGHT
-from examples.uav.model.uav_model import UAVModel, UAVState, MOVE_N, MOVE_S, LISTEN as UAV_LISTEN
+from examples.uav.model.uav_model import UAVModel, UAVState, MOVE_N, MOVE_S, MOVE_E, MOVE_W, LISTEN as UAV_LISTEN
 from examples.wumpus.model.wumpus_model import WumpusModel
 from examples.wumpus.model.constants import *
 
@@ -56,3 +56,39 @@ def test_wumpus_model_mechanics():
     assert len(model.get_all_actions(AGENT_HUMAN)) == 5
     assert len(model.get_all_actions(AGENT_WUMPUS)) == 3
     assert len(model.get_all_observations(AGENT_HUMAN)) == 32
+
+
+def test_uav_model_legal_actions_and_rng():
+    import random
+    model = UAVModel(sensor_accuracy=0.85)
+
+    # At top-left corner (0, 0), MOVE_N and MOVE_W are illegal
+    s_corner = UAVState((0, 0), (2, 2))
+    legal_uav = set(model.get_legal_actions(s_corner, "i"))
+    assert MOVE_N not in legal_uav
+    assert MOVE_W not in legal_uav
+    assert MOVE_S in legal_uav
+    assert MOVE_E in legal_uav
+    assert UAV_LISTEN in legal_uav
+
+    # At center (1, 1), all moves are legal
+    s_center = UAVState((1, 1), (2, 2))
+    legal_center = set(model.get_legal_actions(s_center, "i"))
+    assert len(legal_center) == 5
+
+    # RNG reproducibility
+    rng1 = random.Random(42)
+    s1 = model.get_initial_state(rng=rng1)
+    rng2 = random.Random(42)
+    s2 = model.get_initial_state(rng=rng2)
+    assert s1 == s2
+
+
+def test_wumpus_model_rng_reproducibility():
+    import random
+    model = WumpusModel(width=4, height=4, n_pits=2)
+    rng1 = random.Random(99)
+    s1 = model.get_initial_state(rng=rng1)
+    rng2 = random.Random(99)
+    s2 = model.get_initial_state(rng=rng2)
+    assert s1 == s2

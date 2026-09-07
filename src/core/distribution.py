@@ -114,11 +114,11 @@ class ParticleDistribution(Distribution[T]):
     def get_support(self) -> Iterable[T]:
         """Returns all unique items with non-zero probability mass."""
         if self._lookup_cache is None:
-            if self._particles:
-                _ = self[self._particles[0]]
-            else:
-                return []
-        return list(self._lookup_cache.keys())
+            self._lookup_cache = {}
+            for p, w in zip(self._particles, self._weights):
+                self._lookup_cache[p] = self._lookup_cache.get(p, 0.0) + w
+
+        return [item for item, prob in self._lookup_cache.items() if prob > 0.0]
 
     def values(self) -> Tuple[List[T], List[float]]:
         return self._particles, self._weights
@@ -144,19 +144,29 @@ class ParticleDistribution(Distribution[T]):
 
 class DictDistribution(Distribution[T]):
     """
-    A distribution represented natively by a Python Dictionary mapping items to probabilities.
+    A distribution represented natively by a categorical mapping from items to probabilities.
+    Guarantees caller immutability and handles zero/empty normalization safely.
     """
 
     def __init__(self, probabilities: Dict[T, float]):
-        self._probs: Dict[T, float] = probabilities
-        self._items: List[T] = list(probabilities.keys())
-        self._weights: List[float] = list(probabilities.values())
+        # Defensive shallow copy to prevent mutating caller's data
+        self._probs: Dict[T, float] = dict(probabilities)
+        self._items: List[T] = list(self._probs.keys())
+        raw_weights: List[float] = [float(self._probs[k]) for k in self._items]
 
-        total = sum(self._weights)
-        if abs(total - 1.0) > 1e-6 and total != 0:
-            self._weights = [w / total for w in self._weights]
+        total = sum(raw_weights)
+        if total > 0.0:
+            self._weights = [w / total for w in raw_weights]
             for i, item in enumerate(self._items):
                 self._probs[item] = self._weights[i]
+        elif self._items:
+            # Fallback to uniform distribution over support when total weight is zero
+            n = len(self._items)
+            self._weights = [1.0 / n] * n
+            for item in self._items:
+                self._probs[item] = 1.0 / n
+        else:
+            self._weights = []
 
     def sample(self) -> T:
         if not self._items:
@@ -167,4 +177,4 @@ class DictDistribution(Distribution[T]):
         return self._probs.get(item, 0.0)
 
     def get_support(self) -> Iterable[T]:
-        return self._items
+        return [item for item, p in self._probs.items() if p > 0.0]

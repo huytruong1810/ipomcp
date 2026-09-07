@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from solvers.node import POMCPNode
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class AgentFrame:
     """A descriptor that pairs an agent identifier and reasoning level with a physics model.
 
@@ -37,6 +37,14 @@ class AgentFrame:
 
     def __repr__(self) -> str:
         return f"<Frame {self.agent_id} L{self.level}>"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AgentFrame):
+            return False
+        return self.agent_id == other.agent_id and self.level == other.level
+
+    def __hash__(self) -> int:
+        return hash((self.agent_id, self.level))
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,3 +73,25 @@ class InteractiveParticle:
 
     # Map of opponent AgentID -> (Their Strategy Level/Frame, Their MCTS Root Node)
     models: Dict[AgentID, Tuple[AgentFrame, Optional['POMCPNode']]]
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, InteractiveParticle):
+            return False
+        if self.state != other.state:
+            return False
+        if len(self.models) != len(other.models):
+            return False
+        for k, (f1, n1) in self.models.items():
+            if k not in other.models:
+                return False
+            f2, n2 = other.models[k]
+            if f1 != f2 or n1 is not n2:
+                return False
+        return True
+
+    def __hash__(self) -> int:
+        models_key = tuple(
+            (str(k), (f.agent_id, f.level), id(n) if n is not None else 0)
+            for k, (f, n) in sorted(self.models.items(), key=lambda x: str(x[0]))
+        )
+        return hash((self.state, models_key))

@@ -39,21 +39,37 @@ class UAVModel(POMDPModel):
     def __init__(self, sensor_accuracy=0.85):
         self.acc = sensor_accuracy
 
-    def get_initial_state(self) -> State:
-        u_r, u_c = random.randint(0, ROWS - 1), random.randint(0, COLS - 1)
-        t_r, t_c = random.randint(0, ROWS - 1), random.randint(0, COLS - 1)
+    def get_initial_state(self, rng=None) -> State:
+        rand_int = rng.randint if rng is not None else random.randint
+        u_r, u_c = rand_int(0, ROWS - 1), rand_int(0, COLS - 1)
+        t_r, t_c = rand_int(0, ROWS - 1), rand_int(0, COLS - 1)
         while (t_r, t_c) == (u_r, u_c):
-            t_r, t_c = random.randint(0, ROWS - 1), random.randint(0, COLS - 1)
+            t_r, t_c = rand_int(0, ROWS - 1), rand_int(0, COLS - 1)
         return UAVState((u_r, u_c), (t_r, t_c))
 
     def get_all_actions(self, agent_id: AgentID) -> List[Action]:
         return TARGET_ACTIONS if str(agent_id).lower() == 'j' else UAV_ACTIONS
 
+    def get_legal_actions(self, state: UAVState, agent_id: AgentID) -> List[Action]:
+        """Prunes wall-bumping actions to narrow the MCTS branching factor."""
+        pos = state.uav_pos if str(agent_id).lower() == 'i' else state.target_pos
+        r, c = pos
+        legal = [LISTEN]
+        if r > 0:
+            legal.append(MOVE_N)
+        if r < ROWS - 1:
+            legal.append(MOVE_S)
+        if c > 0:
+            legal.append(MOVE_W)
+        if c < COLS - 1:
+            legal.append(MOVE_E)
+        return legal
+
     def get_all_observations(self, agent_id: AgentID) -> List[Observation]:
         """Returns all discrete observation tokens for the UAV domain."""
         return list(OBS_POS_MAP.values())
 
-    def sample_transition(self, state: UAVState, joint_action: Dict[AgentID, Action]) -> State:
+    def sample_transition(self, state: UAVState, joint_action: Dict[AgentID, Action], rng=None) -> State:
         # Parse Actions
         u_act = joint_action.get('i')
         t_act = joint_action.get('j')
@@ -78,15 +94,17 @@ class UAVModel(POMDPModel):
         return r, c
 
     def sample_observation(self, state: UAVState, joint_action: Dict[AgentID, Action],
-                           agent_id: AgentID) -> Observation:
+                           agent_id: AgentID, rng=None) -> Observation:
+        rand_float = rng.random if rng is not None else random.random
+        choice_fn = rng.choice if rng is not None else random.choice
         my_action = joint_action.get(str(agent_id).lower())
         choices = list(OBS_POS_MAP.values())
         if my_action == LISTEN:
             true_row = state.target_pos[0] if str(agent_id).lower() == 'i' else state.uav_pos[0]
             true_obs = OBS_POS_MAP[true_row]
-            if random.random() < self.acc: return true_obs  # accurate obs
+            if rand_float() < self.acc: return true_obs  # accurate obs
             choices.remove(true_obs)  # faulty: equal likelihood of the remaining obs
-        return random.choice(choices)
+        return choice_fn(choices)
 
     def get_observation_prob(self, observation: Observation, state: UAVState,
                              joint_action: Dict[AgentID, Action], agent_id: AgentID) -> float:

@@ -16,7 +16,14 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 
 from core.pomdp_model import POMDPModel, State
-from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, JITConfig
+from core.config import (
+    ExperimentConfig,
+    IPOMCPConfig,
+    MCTSConfig,
+    JITConfig,
+    DEFAULT_SIM_SCHEDULE as SIM_SCHEDULE,
+    DEFAULT_PARTICLE_SCHEDULE as PARTICLE_SCHEDULE,
+)
 from core.paths import get_results_dir
 from core.logger import get_logger
 from solvers.solver_bank import SolverBank
@@ -29,25 +36,6 @@ from utils.paper_plots import generate_paper_plots, generate_nested_sunburst_pdf
 from examples.tiger.model.tiger_model import TigerModel
 
 logger = get_logger("LevelConvergenceMatrix")
-
-# Tractable, memory-safe simulation and particle schedule across reasoning levels
-SIM_SCHEDULE = {
-    0: 0,
-    1: 10000,
-    2: 15000,
-    3: 20000,
-    4: 25000,
-    5: 30000
-}
-
-PARTICLE_SCHEDULE = {
-    0: 0,
-    1: 1000,
-    2: 1500,
-    3: 2000,
-    4: 2000,
-    5: 2000
-}
 
 
 class MatrixCellTigerRunner(GenericBatchRunner):

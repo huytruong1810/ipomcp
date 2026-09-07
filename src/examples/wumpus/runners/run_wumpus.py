@@ -1,5 +1,7 @@
+import os
 import time
 from core.config import IPOMCPConfig, MCTSConfig
+from core.paths import get_results_dir
 from solvers.exploration import NormalizedUCB
 from examples.wumpus.model.wumpus_model import WumpusModel, AGENT_HUMAN, AGENT_WUMPUS
 from examples.wumpus.model.wumpus_viz import WumpusVisualizer
@@ -53,6 +55,11 @@ def run_interactive_wumpus():
         exploration_strategy=NormalizedUCB(exploration_const=1.0)
     )
 
+    forest_viz = ForestVisualizer(bank_human)
+    min_human_particles = 5000
+    min_wumpus_particles = 5000
+    viz_dir = get_results_dir("wumpus", "forest_viz")
+
     # 3. Initialization
     true_state = real_env.get_initial_state()
     print("Initial State:")
@@ -96,7 +103,7 @@ def run_interactive_wumpus():
 
         # Visualization Export (Every 5 steps)
         if t % 25 == 0:
-            forest_viz.export_forest(planner_human_l2, f"../results/wumpus_forest_step_{t}", t)
+            forest_viz.export_forest(planner_human_l2, os.path.join(viz_dir, f"wumpus_forest_step_{t}"), t)
 
         # Check Terminal
         if real_env.is_terminal(next_state):

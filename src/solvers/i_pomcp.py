@@ -75,6 +75,8 @@ class IPOMCPPlanner(Planner):
     def _simulate(self, particle: 'InteractiveParticle', node: POMCPNode, depth: int,
                   bounds: Dict[str, float]) -> float:
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
+            node.add_particle(particle)
+            node.visit_count += 1
             return 0.0
 
         legal_actions = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)

@@ -9,8 +9,28 @@ typed, frozen dataclasses. Supports serialization for experimental reproducibili
 """
 
 from dataclasses import dataclass, field, asdict
+from typing import Dict
 import json
 import os
+
+# Centralized, memory-safe simulation and particle schedules across reasoning levels (L0-L5)
+DEFAULT_SIM_SCHEDULE: Dict[int, int] = {
+    0: 0,
+    1: 10000,
+    2: 15000,
+    3: 20000,
+    4: 25000,
+    5: 30000
+}
+
+DEFAULT_PARTICLE_SCHEDULE: Dict[int, int] = {
+    0: 0,
+    1: 1000,
+    2: 1500,
+    3: 2000,
+    4: 2000,
+    5: 2000
+}
 
 
 @dataclass(frozen=True)

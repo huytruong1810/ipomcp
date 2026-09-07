@@ -103,9 +103,10 @@ class InteractiveGenerativeModel:
                 child_j = node_ptr.get_child(act_j, o_j)
                 if child_j is None:
                     child_j = node_ptr.create_child(act_j, o_j)
-                    if node_ptr.belief_particles:
-                        p_sample = random.choice(node_ptr.belief_particles)
-                        child_j.add_particle(InteractiveParticle(state=s_next, models=p_sample.models))
+                # Replenish opponent child belief on every traversal via Algorithm R reservoir sampling
+                if node_ptr.belief_particles:
+                    p_sample = random.choice(node_ptr.belief_particles)
+                    child_j.add_particle(InteractiveParticle(state=s_next, models=p_sample.models))
                 next_models[other_id] = (frame, child_j)
 
         p_next = InteractiveParticle(state=s_next, models=next_models)
