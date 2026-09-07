@@ -1,110 +1,96 @@
 # I-POMCP Multi-Level Reasoning: Project Status & Agent Handoff
 
-## 1. Executive Summary & Context
-
-This codebase implements a high-performance **Finitely Nested Interactive POMCP (I-POMCP)** framework in Python, modeling recursive theory-of-mind reasoning across arbitrary strategic levels $L \ge 0$ (e.g. $L0 \dots L5$).
-
-Key components include:
-- Monte Carlo Tree Search for I-POMDPs with scale-invariant Normalized UCB exploration.
-- Variance-driven Just-In-Time (JIT) expansion of opponent mental sub-trees.
-- Exact Reachability Tree Sampling (RTS) Oracle baseline reproducing Doshi & Gmytrasiewicz (JAIR 2009).
-- Automated experimental runners for Payoff Matrices ($6 \times 6$), Deep Hierarchy Prior Updates ($10$ conditions), and Apples-to-Apples Oracle benchmarks.
-
-**Current Test Status**: **$29 / 29$ Passing** (`pytest tests/ -v`).  
-**Active Execution Status**: All background tasks have been cleanly terminated (`task-2159` cancelled; zero orphaned python processes). The workspace is ready for execution.
+**Handoff Date**: September 6, 2026  
+**Repository Remote**: [https://github.com/huytruong1810/ipomcp](https://github.com/huytruong1810/ipomcp)  
+**Branch**: `main` (Clean working tree; no local code divergence)  
+**Test Suite Status**: **38 / 38 Passing** (`uv run python -m pytest tests/ -v`, ~100s execution)  
+**Codebase Audit Status**: Complete report and prioritized action items compiled in [`BACKLOG.md`](BACKLOG.md).
 
 ---
 
-## 2. Core Theoretical & Algorithmic Fixes Implemented
+## 1. Active Long-Running Benchmark (CRITICAL: DO NOT TERMINATE)
 
-Prior experimental runs exhibited subtle theoretical anomalies (payoff matrix asymmetries, flat Sunburst belief trends, and fluctuating Oracle RTS convergence). We diagnosed and resolved the root causes across the codebase:
+A master large-scale benchmark is actively executing in the background. The user has explicitly requested to keep this session and task running.
 
-```mermaid
-graph TD
-    subgraph Generative_Fixes ["1. Generative & MCTS Observation Realignment"]
-        GM["solvers/generative_model.py"] -->|Returns true joint_action| IPOMCP["solvers/i_pomcp.py"]
-        IPOMCP -->|Eliminated dummy_joint| SampleObs["sample_observation(p_next.state, joint_action, agent_id)"]
-        SampleObs --> AddP["child.add_particle(p_next) on creation"]
-    end
-
-    subgraph Memory_Fixes ["2. Recursive Mental Model Tree Progression"]
-        GM -->|Advances opponent node_ptr| ChildJ["child_j = node_ptr.get_child(act_j, o_j)"]
-        ChildJ --> DynBelief["Dynamic inner-ring belief evolution in Sunburst plots"]
-    end
-
-    subgraph Architecture_Fixes ["3. Brain Isolation & Stream Independence"]
-        Exp["Experiments"] --> BankI["bank_i = SolverBank()"]
-        Exp --> BankJ["bank_j = SolverBank()"]
-        Runner["utils/generic_batch_runner.py"] --> RNG_Iso["Isolated env_rng_trans, env_rng_obs_i, env_rng_obs_j"]
-    end
-```
-
-### Detailed Fix Inventory:
-1. **Generative Model & MCTS Observation Alignment ([`solvers/generative_model.py`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/solvers/generative_model.py), [`solvers/i_pomcp.py`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/solvers/i_pomcp.py))**:
-   - `tree_step` now returns `Tuple[InteractiveParticle, Dict[AgentID, Action], float, bool]`, preserving the opponent's intentional simulated action $a_j$.
-   - Removed `dummy_joint` entirely. Observations in MCTS are now sampled strictly using `p_next.state` and the true simulated `joint_action`.
-   - New child node creation now properly calls `child.add_particle(p_next)`.
-   - `update_root` triggers particle deprivation fallback immediately if `child` is empty or has 0 particles.
-
-2. **Dynamic Recursive Mental Model Tree Advancement ([`solvers/generative_model.py`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/solvers/generative_model.py#L97-L115))**:
-   - Previously, `p_next = InteractiveParticle(state=s_next, models=particle.models)` passed the opponent's $t=0$ root node pointer without advancing.
-   - Now, `tree_step` computes opponent observation $o_j = \text{sample\_observation}(s_{\text{next}}, \mathbf{a}, j)$ and advances `next_node_ptr = node_ptr.get_child(act_j, o_j)` (creating and populating if absent).
-   - This allows deeper rings in Sunburst plots to dynamically update across time steps rather than staying permanently frozen at the $t=0$ bootstrap distribution.
-
-3. **`SolverBank` Decoupling & Cache Isolation ([`level_convergence_matrix_experiment.py`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/examples/experiments/level_convergence_matrix_experiment.py), [`apples_to_apples_oracle_benchmark.py`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/examples/tiger/runners/apples_to_apples_oracle_benchmark.py), [`deep_hierarchy_prior_experiment.py`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/examples/experiments/deep_hierarchy_prior_experiment.py))**:
-   - Protagonist and opponent now use dedicated `bank_i = SolverBank()` and `bank_j = SolverBank()`.
-   - Eliminates cache contamination where Agent J's internal models of Agent I overwrote Agent I's target prior. Zero cross-contamination verified across all 36 cells.
-
-4. **Harness Bug Fix ([`apples_to_apples_oracle_benchmark.py:L93`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/examples/tiger/runners/apples_to_apples_oracle_benchmark.py#L93))**:
-   - Fixed `NameError: name 'boot' is not defined` $\to$ `boot_i.create_solver(...)`.
-
-5. **Common Random Numbers (CRN) Per-Agent Stream Isolation ([`utils/generic_batch_runner.py`](file:///home/andyj1810/projects/ipomcp/src/auto/i_pomcp_py/utils/generic_batch_runner.py))**:
-   - Separated RNG into `env_rng_trans`, `env_rng_obs_i`, and `env_rng_obs_j` to ensure identical noise sequences across role swaps.
+### Process Telemetry
+- **Command**:
+  ```bash
+  uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all --resume-dir results/deep_prior/deep_prior_benchmark_20260904_010926_N200_T20
+  ```
+- **Process Hierarchy**:
+  - Main Wrapper (`uv`): PID `150519`
+  - Runner Process (`python3`): PID `150522`
+  - Active Worker Processes: PIDs `155492`, `155493` (running at 93–97% CPU utilization)
+- **Current Suite**: Suite 1/3 (Deep Hierarchy Prior Benchmark, 10 conditions $\times$ 200 trials, $T=20$)
+- **Current Progress**:
+  - Condition 1 (`L3 vs L2, 80% L2 Prior`): Completed & verified.
+  - Conditions 2, 3, 4 (`L3 vs L1` variations): Completed & skipped via checkpoint.
+  - **Condition 5 (`L4 vs L3, 80% L3 Prior`)**: **Currently running at 80 / 200 trials completed**.
+- **Log Location**:
+  `~/.gemini/antigravity-cli/brain/cf2b6ec9-8616-487b-8fbd-2ad75abc06ec/.system_generated/tasks/task-823.log`
+- **Why It Must Not Be Interrupted**:
+  Batch runners write `batch_results.csv` upon batch completion. If killed mid-condition, the 80 completed trials of Condition 5 would be lost and must restart from trial 0.
 
 ---
 
-## 3. Findings on Past Benchmark Artifacts
+## 2. Recent Engineering Accomplishments
 
-### A. Sunburst Plots Flat Trends ($t=0 \to 11$)
-- **Tiger Observational Invariance**: In Tiger, agents only reveal their level through door creaks. $L1$ and $L2$ both listen for 2–3 steps before opening doors. In $T=12$, the protagonist opens doors every 2–3 steps, continuously resetting the tiger state. Opponents were kept in a perpetual listening state, producing `Silence` with probability $1.0$ under both models. The likelihood ratio $P(\text{Silence} \mid L2) / P(\text{Silence} \mid L1) = 1.0$, preventing top-level Bayesian separation.
-- **Horizon Upgrade ($T=20$)**: Extending the planning horizon to $T=20$ allows 5–7 decision cycles, providing sufficient time for opponents to reach confidence and open doors, triggering decisive Bayesian belief shifts.
-
-### B. Apples-to-Apples Oracle RTS Regressions
-- **10k Simulation Truncation**: In the historical August 28 run, the 10k condition was interrupted after only 16 trials (out of 200), resulting in an artificial drop to $7.25 \pm 9.55$.
-- **Metric Phase-Shift Artifact**: `apples_to_apples_oracle_benchmark.py` computed agreement via `action_i[t] == oracle_actions[t]`. When I-POMCP listens one extra time before opening a door, the subsequent trajectory is phase-shifted by 1 step. Both solvers achieve identical $+21.0$ reward, but the metric penalizes both steps as disagreements.
-- **Pre-Fix Model Bias**: In the old run, `dummy_joint` caused high-simulation MCTS ($100\text{k}$) to overfit to a random-opponent model, listening excessively. Our generative model fix resolves this.
-
----
-
-## 4. Preserved Historical Artifacts
-
-All prior experimental runs remain preserved in the centralized results filesystem:
-- **Prior Run ($80\%$ Informative Priors)**: `results/deep_prior/deep_prior_benchmark_20260831_171423_N200_T12`
-- **Prior Run ($6 \times 6$ Payoff Matrix)**: `results/payoff_matrix/payoff_matrix_L0toL5_20260829_122720_N200_T12`
-- **Prior Run (Apples-to-Apples Oracle RTS)**: `results/oracle/apples_to_apples_oracle_20260828_231328_N200_T12_D3`
+1. **$O(NL)$ Canonical Root Pooling**:
+   - Resolved the exponential $O(N^L)$ particle duplication in [`src/utils/bootstrapper.py`](src/utils/bootstrapper.py#L259-L272) by sharing canonical root search trees across particles with identical reasoning levels.
+   - Reduced Level-4/Level-5 RAM footprint from **14.8 GB** down to **< 200 MB** per process.
+2. **OS Telemetry & Memory Watchdog Suite**:
+   - Built [`src/core/telemetry.py`](src/core/telemetry.py) (`SystemMonitor`, `MemoryWatchdog`, `TelemetryLogger`) with real-time RSS, VMS, and host RAM detection.
+   - Integrated `process_rss_mb` tracking directly into batch result CSVs.
+   - Added 5 unit tests in [`tests/test_telemetry.py`](tests/test_telemetry.py); all passing.
+3. **CPython Allocator Arena Creep Mitigation**:
+   - Added `max_tasks_per_child=20` to `ProcessPoolExecutor` in [`src/utils/generic_batch_runner.py`](src/utils/generic_batch_runner.py#L359), ensuring worker processes are recycled periodically to prevent small-object memory fragmentation.
+4. **Resumption & Checkpoint Architecture**:
+   - Implemented `--resume-dir` and batch CSV inspection across all suites, enabling graceful recovery from interruptions.
+5. **Git Version Control & Repository Hygiene**:
+   - Initialized Git, linked to [huytruong1810/ipomcp](https://github.com/huytruong1810/ipomcp), and pushed initial commit.
+   - Cleaned local repository (`git gc --prune=now`), reducing `.git/` to 348 KB with zero local file duplication.
 
 ---
 
-## 5. Execution Guide for the Next Agent
+## 3. Systematic Codebase Review ([`BACKLOG.md`](BACKLOG.md))
 
-### Environment Setup
-- Working directory: `/home/andyj1810/projects/ipomcp`
-- Python environment: `/home/andyj1810/projects/ipomcp/.venv`
-- Run commands using `uv run python ...` or `.venv/bin/python ...`.
+A line-by-line audit across all 7 architectural phases was completed and documented in [`BACKLOG.md`](BACKLOG.md). Key findings include:
 
-### Run Test Suite
-```bash
-uv run python -m pytest tests/ -v
-```
+| Priority | Issue | Affected File | Impact |
+| :---: | :--- | :--- | :--- |
+| **P0** | Division-by-Zero / NaN on unbounded ranges | [`src/solvers/exploration.py`](src/solvers/exploration.py#L86-L105) | Action selection in `NormalizedUCB` degrades to random if `q_max <= q_min`. |
+| **P0** | Caller dict mutation & zero-weight crash | [`src/core/distribution.py`](src/core/distribution.py#L150-L165) | `DictDistribution` mutates caller argument; crashes if weight sum is 0.0. |
+| **P0** | Opponent particle starvation in MCTS | [`src/solvers/generative_model.py`](src/solvers/generative_model.py#L103-L110) | Existing child nodes receive only 1 initial particle, collapsing opponent beliefs. |
+| **P1** | Missing action masking in UAV domain | [`src/examples/uav/model/uav_model.py`](src/examples/uav/model/uav_model.py#L49-L54) | Out-of-bounds boundary moves are explored as valid MCTS branches. |
+| **P1** | Missing RNG injection in UAV & Wumpus | `uav_model.py`, `wumpus_model.py` | Global `random` module bypasses Common Random Numbers (CRN). |
+| **P1** | Coarse-grained condition-level checkpointing | [`src/utils/generic_batch_runner.py`](src/utils/generic_batch_runner.py#L349-L385) | Interrupted batches lose in-flight trials. |
+| **P2** | `InteractiveParticle` immutability violation | [`src/ipomdp/belief.py`](src/ipomdp/belief.py#L42-L67) | Contains mutable dict; unhashable in sets/dicts. |
 
-### Launch Master Large-Scale Benchmark Suite (Sequentially Queued)
-```bash
-# All suites sequentially (Suite 1 -> Suite 2 -> Suite 3)
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all
+---
 
-# Individual suites
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite prior
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite oracle
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite matrix
-```
-All outputs route strictly into `results/<category>/`.
+## 4. Next Agent Action Plan
+
+When you take over this workspace:
+
+1. **Verify Background Task Progress**:
+   - Check process vitals: `ps -fp 150522` and check CPU usage: `top -p 155492,155493`.
+   - Inspect the latest progress log:
+     ```bash
+     tail -n 25 ~/.gemini/antigravity-cli/brain/cf2b6ec9-8616-487b-8fbd-2ad75abc06ec/.system_generated/tasks/task-823.log
+     ```
+   - Monitor Condition 5 until it reaches `200/200` trials and progresses to Condition 6 (`L4 vs L1, 80% Over-estimated L3 Prior`).
+
+2. **Review [`BACKLOG.md`](BACKLOG.md)**:
+   - Discuss findings with the user/reviewers before modifying code.
+   - Plan implementation of **P0 items** (NormalizedUCB guard, DictDistribution hardening, generative model particle replenishment).
+
+3. **Code Quality & Testing Contract**:
+   - **Never edit code without running the full test suite afterwards**:
+     ```bash
+     uv run python -m pytest tests/ -v
+     ```
+   - All 38 tests must remain passing.
+
+4. **Preserved Artifact Directory**:
+   - All completed results live under [`results/`](results/).
+   - Prior benchmark runs from August 2026 are preserved in `results/deep_prior/`, `results/oracle/`, and `results/payoff_matrix/`.

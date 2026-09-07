@@ -1,15 +1,21 @@
 # Interactive POMCP (I-POMCP) Framework for Finitely Nested Multi-Agent Systems
 
-## 1. Theoretical Foundations of Finitely Nested I-POMDPs
+[![Tests](https://img.shields.io/badge/pytest-38%20passing-brightgreen)](https://github.com/huytruong1810/ipomcp)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![Repository](https://img.shields.io/badge/github-huytruong1810%2Fipomcp-blue)](https://github.com/huytruong1810/ipomcp)
 
-The computational formalization of multi-agent planning under partial observability requires representing an agent's recursive reasoning about other operating agents. The **Interactive Partially Observable Markov Decision Process (I-POMDP)** framework generalizes single-agent POMDPs to multi-agent settings by replacing flat state distributions with hierarchical interactive belief systems.
+An enterprise-grade, high-performance implementation of **Finitely Nested Interactive Partially Observable Markov Decision Processes (I-POMDPs)** in Python. The framework provides online Monte Carlo Tree Search (I-POMCP) with Just-In-Time (JIT) mental model expansion, alongside an exact Reachability Tree Sampling (RTS) Oracle baseline reproducing Doshi & Gmytrasiewicz (*JAIR* 2009).
 
-### 1.1 Finitely Nested Interactive State Space
-For a subject agent $i$ interacting with opponent agents $-i$ at strategy reasoning level $l \ge 1$:
+---
+
+## 1. Mathematical Foundations of Finitely Nested I-POMDPs
+
+In multi-agent systems with partial observability and strategic interactions, agents must maintain nested recursive beliefs about other agents' intentional models. An agent $i$ operating at strategic reasoning level $l \ge 1$ formalizes its environment as:
 
 $$\text{I-POMDP}_{i,l} = \langle IS_{i,l}, A, T_i, \Omega_i, O_i, R_i, \gamma \rangle$$
 
-The interactive state space $IS_{i,l}$ is strategically nested and defined inductively over the union of all lower-level opponent intentional models:
+### 1.1 Finitely Nested Interactive State Space
+The interactive state space $IS_{i,l}$ is defined inductively over physical environment states $S$ and the union of all lower-level opponent intentional models $\Theta_{-i}^{<l}$:
 
 $$IS_{i,0} = S$$
 $$IS_{i,l} = S \times \Theta_{-i}^{<l} \quad \text{for } l \ge 1$$
@@ -26,154 +32,113 @@ where $b_{-i}^k \in \Delta(IS_{-i,k})$ is the opponent's subjective nested belie
 
 $$IS_{-i,k} = S \times \Theta_i^{<k} = S \times \left( \bigcup_{j=0}^{k-1} \Theta_i^j \right)$$
 
-At the base case ($k = 0$), $\Theta^0$ represents the non-strategic, zero-intelligence baseline model governed by a uniform stochastic policy:
-
-$$\pi^0(a) = \frac{1}{|A|}$$
-
----
+At level 0 ($k = 0$), $\Theta^0$ represents the non-strategic baseline governed by a uniform random policy $\pi^0(a) = \frac{1}{|A|}$.
 
 ### 1.2 Interactive Belief Update & Private Observation Marginalization
-When agent $i$ at level $l$ executes action $a_i^{t-1}$ and receives private observation $o_i^t$, it updates its interactive belief $b_{i,l}^t(s^t, \boldsymbol{\theta}_{-i}^t)$ according to the exact Bayesian filter:
+When agent $i$ executes action $a_i^{t-1}$ and receives private observation $o_i^t$, it updates its interactive belief $b_{i,l}^t(s^t, \boldsymbol{\theta}_{-i}^t)$ via Bayesian filtering:
 
-$$b_{i,l}^t(s^t, \boldsymbol{\theta}_{-i}^t) = \eta \cdot P(o_i^t \mid s^t, a_i^{t-1}, \mathbf{a}_{-i}^{t-1}) \sum_{s^{t-1}} \sum_{\boldsymbol{\theta}_{-i}^{t-1}} b_{i,l}^{t-1}(s^{t-1}, \boldsymbol{\theta}_{-i}^{t-1}) \sum_{\mathbf{a}_{-i}^{t-1}} \left( \prod_{j \neq i} P(a_j^{t-1} \mid \theta_j^{t-1}) \right) T(s^t \mid s^{t-1}, a_i^{t-1}, \mathbf{a}_{-i}^{t-1}) \cdot \prod_{j \neq i} P(\theta_j^t \mid \theta_j^{t-1}, a_j^{t-1}, s^t, \mathbf{a}^{t-1})$$
+$$b_{i,l}^t(s^t, \boldsymbol{\theta}_{-i}^t) = \eta \cdot P(o_i^t \mid s^t, \mathbf{a}^{t-1}) \sum_{s^{t-1}, \boldsymbol{\theta}_{-i}^{t-1}} b_{i,l}^{t-1}(s^{t-1}, \boldsymbol{\theta}_{-i}^{t-1}) \left( \prod_{j \neq i} P(a_j^{t-1} \mid \theta_j^{t-1}) \right) T(s^t \mid s^{t-1}, \mathbf{a}^{t-1}) \prod_{j \neq i} P(\theta_j^t \mid \theta_j^{t-1}, a_j^{t-1}, s^t, \mathbf{a}^{t-1})$$
 
-Because opponent local observations $o_j^t$ are strictly private and unobservable to agent $i$, the transition dynamics of the opponent's intentional model must explicitly marginalize across all possible private observation signals $o_j^t \in \Omega_j$:
+Because opponent observations $o_j^t$ are strictly private, updating the opponent's intentional model requires marginalizing across all possible private observation signals $o_j^t \in \Omega_j$:
 
-$$P(\theta_j^t \mid \theta_j^{t-1}, a_j^{t-1}, s^t, \mathbf{a}^{t-1}) = \sum_{o_j^t \in \Omega_j} O_j(o_j^t \mid s^t, a_i^{t-1}, \mathbf{a}_{-i}^{t-1}) \cdot \delta_{\operatorname{SE}(\theta_j^{t-1}, a_j^{t-1}, o_j^t)}(\theta_j^t)$$
-
-where $\operatorname{SE}(\cdot)$ is the opponent's internal belief transition update function and $\delta$ is the Dirac/Kronecker indicator.
+$$P(\theta_j^t \mid \theta_j^{t-1}, a_j^{t-1}, s^t, \mathbf{a}^{t-1}) = \sum_{o_j^t \in \Omega_j} O_j(o_j^t \mid s^t, \mathbf{a}^{t-1}) \cdot \delta_{\operatorname{SE}(\theta_j^{t-1}, a_j^{t-1}, o_j^t)}(\theta_j^t)$$
 
 ---
 
-## 2. Algorithmic Invariants of the I-POMCP Architecture
-
-This codebase implements sample-based online planning via Interactive POMCP, enforcing six core invariants:
-
-1. **Invariant 1 (Joint Action Integrity)**: All physical environment transitions $T(s, \mathbf{a})$, observation likelihoods $P(o_i \mid s', \mathbf{a})$, and reward evaluations $R_i(s, \mathbf{a}, s')$ strictly consume immutable `JointAction` vectors $\mathbf{a} = \langle a_i, \mathbf{a}_{-i} \rangle$.
-2. **Invariant 2 (Union Model Space Recursion)**: Level-$l$ agents maintain explicit belief distributions across the full union $\Theta_{-i}^{<l} = \bigcup_{k=0}^{l-1} \Theta_{-i}^k$.
-3. **Invariant 3 (Slotted Particle Memory & Sub-Tree Caching)**: Particles are frozen dataclasses with `__slots__` mapping opponent frames to their respective MCTS sub-trees. JIT expansions update sub-tree search statistics, amortizing simulation work across sibling particles.
-4. **Invariant 4 (Observational Symmetry)**: The evaluative probability density $P(o_i \mid s', \mathbf{a})$ computed by `get_observation_prob` strictly matches the generative density of `sample_observation`.
-5. **Invariant 5 (Normalized Policy Entropy Standard)**: Opponent action selection uncertainty is evaluated via normalized policy entropy $H_{\text{norm}}(\pi) = \frac{-\sum p \ln p}{\ln |A|} \in [0, 1]$ to dynamically gate JIT MCTS expansions.
-6. **Invariant 6 (Scale-Invariant Normalized UCB)**: MCTS tree action selection dynamically scales local Q-values using adaptive empirical bounds $Q_{\text{norm}} = \frac{Q - q_{\min}}{(q_{\max} - q_{\min}) + \epsilon}$, keeping exploration parameter $c = \sqrt{2}$ effective across disparate reward scales.
-
----
-
-## 3. Directory Layout
+## 2. Core Architectural Components
 
 ```
-ipomcp/
-├── pyproject.toml
-├── README.md
-├── src/
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py
-│   │   ├── distribution.py
-│   │   ├── logger.py
-│   │   ├── paths.py             # Centralized results routing
-│   │   ├── telemetry.py         # Zero-overhead OS telemetry & watchdog
-│   │   └── pomdp_model.py
-│   ├── ipomdp/
-│   │   ├── __init__.py
-│   │   └── belief.py
-│   ├── solvers/
-│   │   ├── __init__.py
-│   │   ├── exploration.py
-│   │   ├── generative_model.py
-│   │   ├── i_pomcp.py
-│   │   ├── node.py
-│   │   ├── planner.py
-│   │   ├── random_planner.py
-│   │   ├── rts_planner.py
-│   │   ├── solver_bank.py
-│   │   └── solver_types.py
-│   ├── examples/
-│   │   ├── tiger/
-│   │   │   ├── model/
-│   │   │   │   └── tiger_model.py
-│   │   │   └── runners/
-│   │   │       ├── persistent_tiger_runner.py
-│   │   │       ├── tiger_baseline_runner.py
-│   │   │       ├── tiger_batch_runner.py
-│   │   │       ├── tiger_level3_experiment.py
-│   │   │       ├── tiger_mixture_experiment.py
-│   │   │       └── apples_to_apples_oracle_benchmark.py
-│   │   ├── uav/
-│   │   │   ├── model/
-│   │   │   │   ├── uav_model.py
-│   │   │   │   └── uav_viz.py
-│   │   │   └── runners/
-│   │   │       ├── run_rts.py
-│   │   │       ├── run_uav.py
-│   │   │       ├── uav_baseline_runner.py
-│   │   │       └── uav_batch_runner.py
-│   │   ├── wumpus/
-│   │   │   ├── model/
-│   │   │   │   ├── constants.py
-│   │   │   │   ├── wumpus_model.py
-│   │   │   │   ├── wumpus_state.py
-│   │   │   │   └── wumpus_viz.py
-│   │   │   └── runners/
-│   │   │       ├── run_wumpus.py
-│   │   │       ├── wumpus_baseline_runner.py
-│   │   │       └── wumpus_batch_runner.py
-│   │   └── experiments/
-│   │       ├── deep_hierarchy_prior_experiment.py
-│   │       ├── level_convergence_matrix_experiment.py
-│   │       ├── master_nested_ipomdp_benchmark.py
-│   │       └── run_all_large_scale_benchmarks_N200.py
-│   └── utils/
-│       ├── __init__.py
-│       ├── bootstrapper.py
-│       ├── generic_batch_runner.py
-│       ├── paper_plots.py
-│       ├── plotting.py
-│       ├── regenerate_all_experiment_plots.py
-│       └── visualizer.py
-├── results/                     # Centralized experimental artifact repository
-│   ├── deep_prior/
-│   ├── oracle/
-│   ├── payoff_matrix/
-│   ├── tiger/
-│   ├── uav/
-│   ├── wumpus/
-│   └── benchmarks/
-├── benchmarks/
-│   └── tiger_pre_post_benchmark.py
-└── tests/
-    ├── test_distribution.py
-    ├── test_exploration.py
-    ├── test_integration.py
-    ├── test_models.py
-    ├── test_node.py
-    ├── test_oracle_rts.py
-    ├── test_solvers.py
-    ├── test_telemetry.py
-    └── test_visualization.py
+src/
+├── core/
+│   ├── config.py              # Centralized dataclass configurations (MCTS, JIT, RTS)
+│   ├── distribution.py        # ParticleDistribution (SUS resampling) & DictDistribution
+│   ├── logger.py              # Structured logging with per-trial file routing
+│   ├── paths.py               # Centralized path resolvers for results
+│   ├── pomdp_model.py         # Abstract POMDPModel base interface
+│   └── telemetry.py           # OS-level resource monitoring & MemoryWatchdog
+├── ipomdp/
+│   └── belief.py              # InteractiveParticle and AgentFrame definitions
+├── solvers/
+│   ├── exploration.py         # StandardUCB and scale-invariant NormalizedUCB
+│   ├── generative_model.py    # InteractiveGenerativeModel with variance-driven JIT expansion
+│   ├── i_pomcp.py             # IPOMCPPlanner with reservoir sampling
+│   ├── node.py                # POMCPNode AND-OR search tree node
+│   ├── planner.py             # Abstract Planner base class
+│   ├── random_planner.py      # Sub-intentional Level-0 baseline
+│   ├── rts_planner.py         # Exact Reachability Tree Sampling (RTS) Oracle
+│   ├── solver_bank.py         # Centralized SolverKey -> Planner registry
+│   └── solver_types.py        # SolverKey and AgentFrame definitions
+├── utils/
+│   ├── bootstrapper.py        # Topological I_POMDP_Bootstrapper with O(NL) root pooling
+│   ├── generic_batch_runner.py# Multiprocessing runner with Common Random Numbers (CRN)
+│   ├── paper_plots.py         # High-DPI publication vector graphics generator (PDF)
+│   ├── plotting.py            # Interactive Plotly Sunburst and progression visualizers
+│   └── visualizer.py          # Graphviz MCTS forest exporter
+└── examples/
+    ├── tiger/                 # Multi-Agent Tiger Domain (persistent & reset modes)
+    ├── uav/                   # 2D Grid UAV Target Pursuit-Evasion Domain
+    ├── wumpus/                # Multi-Agent Wumpus World Domain
+    └── experiments/           # Master benchmark orchestration scripts
 ```
 
 ---
 
-## 4. Verification and Benchmarking
+## 3. Engineering & Production Guardrails
 
-### Running the Test Suite
+1. **$O(NL)$ Canonical Root Pooling**:
+   - Eliminates exponential $O(N^L)$ particle duplication in [`src/utils/bootstrapper.py`](src/utils/bootstrapper.py) by sharing canonical root trees across particles of identical reasoning levels. Reduces process RAM from **14.8 GB** down to **< 200 MB** for Level-4/Level-5 agents.
+2. **OS Telemetry & Memory Watchdog**:
+   - Embedded [`src/core/telemetry.py`](src/core/telemetry.py) tracks `process_rss_mb` and `host_available_ram_mb`, classifying operating regimes (`DRAM_BOUND_NORMAL`, `MEMORY_PRESSURE`, `SWAP_THRASHING`).
+3. **CPython Allocator Arena Recycling**:
+   - [`src/utils/generic_batch_runner.py`](src/utils/generic_batch_runner.py) configures `max_tasks_per_child=20` inside `ProcessPoolExecutor`, periodically recycling worker processes to completely prevent `pymalloc` memory fragmentation.
+4. **Common Random Numbers (CRN)**:
+   - Strict stream isolation (`env_rng_trans`, `env_rng_obs_i`, `env_rng_obs_j`) guarantees variance-reduced experimental comparisons under identical environmental noise.
+5. **Resumption & Checkpointing**:
+   - All benchmark runners support `--resume-dir` and verify completed condition CSVs, enabling long-running runs to resume without recomputing finished conditions.
+
+---
+
+## 4. Verification & Testing
+
+The test suite validates theoretical invariants, numerical stability, distribution properties, domain models, and OS telemetry.
+
 ```bash
+# Run the complete test suite (38 passing tests)
 uv run python -m pytest tests/ -v
 ```
 
-### Running the Tiger Pre/Post Verification Benchmark
-```bash
-uv run python benchmarks/tiger_pre_post_benchmark.py post_edits
-```
+### Test Suite Breakdown
+- `tests/test_distribution.py`: Particle distribution resampling (SUS), lazy cache invalidation, and CDF boundary conditions.
+- `tests/test_exploration.py`: Standard UCB1 and Normalized UCB scale-invariance.
+- `tests/test_models.py`: Tiger generative-evaluative symmetry, UAV mechanics, and Wumpus dynamics.
+- `tests/test_node.py`: Reservoir sampling (Algorithm R) capacity bounds and tree serialization.
+- `tests/test_oracle_rts.py`: RTS exact lookahead tree construction, action values, and batch execution.
+- `tests/test_solvers.py`: Arbitrary level recursive bootstrapping, mixture priors, and solver bank decoupling.
+- `tests/test_telemetry.py`: Process RSS, host memory detection, watchdog enforcement, and JSONL logging.
+- `tests/test_visualization.py`: Nested belief extraction, Plotly Sunburst generation, and vector PDF exports.
+- `tests/test_integration.py`: End-to-end multi-agent batch runners across Tiger, UAV, and Wumpus.
 
-### Running the Large-Scale Master Benchmark Suite
+---
+
+## 5. Running Large-Scale Experiments
+
+All experiment results, telemetry logs, and publication plots are automatically routed to `<project_root>/results/`.
+
 ```bash
-# Run all three suites sequentially (Deep Prior -> Oracle RTS -> Payoff Matrix)
+# Execute the Master Benchmark Suite (N=200 trials, T=20 steps)
+# 1. Deep Hierarchy Prior Benchmark (10 conditions)
+# 2. Apples-to-Apples Oracle RTS vs I-POMCP (7 conditions)
+# 3. Full 6x6 Strategy Level Payoff Matrix (36 conditions)
 uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all
 
-# Or run individual benchmark suites
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite prior
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite oracle
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite matrix
+# Resume an interrupted benchmark run:
+uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all --resume-dir results/deep_prior/deep_prior_benchmark_20260904_010926_N200_T20
 ```
-All outputs are automatically routed into the centralized `<project_root>/results/` directory.
+
+---
+
+## 6. Codebase Review & Quality Roadmap
+
+For reviewers and incoming engineers, see:
+- [`HANDOFF.md`](HANDOFF.md): Immediate runtime state, active process telemetry, and reviewer guidance.
+- [`BACKLOG.md`](BACKLOG.md): Comprehensive architectural, theoretical, execution, and observability audit report cataloging open P0/P1/P2/P3 action items.
