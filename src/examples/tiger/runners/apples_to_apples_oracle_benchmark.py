@@ -105,7 +105,7 @@ class ControlledConditionRunner(GenericBatchRunner):
         return env, planner_i, planner_j, env.get_initial_state()
 
 
-def run_apples_to_apples_benchmark(n_trials: int = 50, max_steps: int = 6, planning_depth: int = 3, resume_dir: Optional[str] = None):
+def run_apples_to_apples_benchmark(n_trials: int = 50, max_steps: int = 20, planning_depth: int = 3, resume_dir: Optional[str] = None):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
         logger.info(f"Resuming existing oracle benchmark from: {master_dir}")
@@ -308,8 +308,8 @@ def run_apples_to_apples_benchmark(n_trials: int = 50, max_steps: int = 6, plann
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Apples-to-Apples Controlled Oracle vs I-POMCP Benchmark")
-    parser.add_argument("--trials", type=int, default=50, help="Number of Monte Carlo trials per condition")
-    parser.add_argument("--steps", type=int, default=6, help="Number of environment steps per trial")
+    parser.add_argument("--trials", type=int, default=200, help="Number of Monte Carlo trials per condition")
+    parser.add_argument("--steps", type=int, default=20, help="Number of environment steps per trial")
     parser.add_argument("--depth", type=int, default=3, help="Planning horizon depth D for both Oracle and I-POMCP")
     args = parser.parse_args()
 

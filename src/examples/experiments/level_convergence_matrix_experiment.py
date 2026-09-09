@@ -203,7 +203,7 @@ def find_nash_equilibria(payoff_i: np.ndarray, payoff_j: np.ndarray, levels: Lis
     }
 
 
-def run_payoff_matrix_experiment(max_level: int = 4, n_trials: int = 50, max_steps: int = 6, planning_depth: int = 5, resume_dir: Optional[str] = None):
+def run_payoff_matrix_experiment(max_level: int = 4, n_trials: int = 50, max_steps: int = 20, planning_depth: int = 5, resume_dir: Optional[str] = None):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
         logger.info(f"Resuming existing payoff matrix benchmark from: {master_dir}")
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-level", type=int, default=4, help="Maximum reasoning level to evaluate (0..max_level)")
     parser.add_argument("--trials", type=int, default=200, help="Number of trials per cell")
-    parser.add_argument("--steps", type=int, default=12, help="Decision steps per trial")
+    parser.add_argument("--steps", type=int, default=20, help="Decision steps per trial")
     parser.add_argument("--planning-depth", type=int, default=5, help="MCTS tree search max depth")
     args = parser.parse_args()
 

@@ -241,7 +241,7 @@ def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--trials", type=int, default=200, help="Number of trials per condition")
-    parser.add_argument("--steps", type=int, default=12, help="Decision steps per trial")
+    parser.add_argument("--steps", type=int, default=20, help="Decision steps per trial")
     parser.add_argument("--planning-depth", type=int, default=5, help="MCTS tree search max depth")
     args = parser.parse_args()
 

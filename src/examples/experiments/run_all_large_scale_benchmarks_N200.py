@@ -1,9 +1,9 @@
 # Absolute Path: <project_root>/examples/experiments/run_all_large_scale_benchmarks_N200.py
 
 """
-run_all_large_scale_benchmarks_N200.py — Master Large-Scale Orchestration Suite (N=200 Trials, T=12 Steps).
+run_all_large_scale_benchmarks_N200.py — Master Large-Scale Orchestration Suite (N=200 Trials, T=20 Steps).
 
-Sequentially executes the three core experimental suites with high statistical power (N=200, T=12):
+Sequentially executes the three core experimental suites with high statistical power (N=200, T=20):
 1. Deep Hierarchy Prior Benchmark (7 conditions x 200 trials = 1,400 episodes, Lv1-Lv4)
 2. Apples-to-Apples Doshi-Gmytrasiewicz RTS vs I-POMCP (7 conditions x 200 trials = 1,400 episodes)
 3. Full 5x5 Strategy-Level Payoff Matrix (25 cells x 200 trials = 5,000 episodes, Lv0-Lv4)
@@ -24,7 +24,7 @@ from examples.experiments.level_convergence_matrix_experiment import run_payoff_
 logger = get_logger("MasterLargeScaleRunnerN200")
 
 
-def run_all(n_trials: int = 200, max_steps: int = 12, run_suite: str = "all", resume_dir: Optional[str] = None):
+def run_all(n_trials: int = 200, max_steps: int = 20, run_suite: str = "all", resume_dir: Optional[str] = None):
     start_time = time.time()
     logger.info(f"================================================================================")
     logger.info(f"=== MASTER LARGE-SCALE BENCHMARK SUITE: N={n_trials} TRIALS, T={max_steps} STEPS ===")
@@ -63,9 +63,9 @@ def run_all(n_trials: int = 200, max_steps: int = 12, run_suite: str = "all", re
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Master Large-Scale Runner (N=200 Trials, T=12 Steps)")
+    parser = argparse.ArgumentParser(description="Master Large-Scale Runner (N=200 Trials, T=20 Steps)")
     parser.add_argument("--trials", type=int, default=200, help="Number of trials per condition")
-    parser.add_argument("--steps", type=int, default=12, help="Environment steps per trial (default: 12)")
+    parser.add_argument("--steps", type=int, default=20, help="Environment steps per trial (default: 20)")
     parser.add_argument("--suite", type=str, default="all", choices=["all", "prior", "oracle", "matrix"], help="Which suite to execute")
     parser.add_argument("--resume-dir", type=str, default=None, help="Directory of an existing benchmark run to resume")
     args = parser.parse_args()

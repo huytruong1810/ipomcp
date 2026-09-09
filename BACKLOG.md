@@ -164,7 +164,7 @@ While the codebase has undergone significant hardening (e.g., resolving the expo
 
 ## Active Benchmark Execution
 
-- **Suite**: Master Large-Scale Benchmark Suite ($N=200, T=12$, Lv0-Lv4)
+- **Suite**: Master Large-Scale Benchmark Suite ($N=200, T=20$, Lv0-Lv4)
 - **Configuration**: `creak_accuracy = 1.0`, `n_sims = 50k..200k`, `n_particles = 2.5k..10k`, `JIT sims = 50`.
-- **Command**: `uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 12 --suite all`
+- **Command**: `uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all`
 - **Integrity Guarantee**: Atomic trial-count resume checks with non-colliding output directories.
