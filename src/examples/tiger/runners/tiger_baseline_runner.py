@@ -25,7 +25,7 @@ class TigerBaselineRunner(GenericBatchRunner):
     """
 
     def _setup_domain(self):
-        env = TigerModel(creak_accuracy=0.90)
+        env = TigerModel(creak_accuracy=1.0)
         bank = SolverBank()
         boot = I_POMDP_Bootstrapper(bank)
 

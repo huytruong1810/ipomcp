@@ -30,7 +30,7 @@ from solvers.solver_bank import SolverBank
 from solvers.exploration import NormalizedUCB
 from solvers.planner import Planner
 from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.generic_batch_runner import GenericBatchRunner, extract_nested_belief_hierarchy
+from utils.generic_batch_runner import GenericBatchRunner, extract_nested_belief_hierarchy, is_batch_complete
 from utils.plotting import plot_all_metrics, plot_nested_belief_sunburst, plot_episode_sunburst_slider
 from utils.paper_plots import generate_paper_plots, generate_nested_sunburst_pdf
 from examples.tiger.model.tiger_model import TigerModel
@@ -53,7 +53,7 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
 
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
         growl_dict = {"i": 0.85, "j": 0.85}
-        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=0.90)
+        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         # 1. Opponent Agent J Setup
         bank_j = SolverBank()
@@ -62,16 +62,16 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
             planner_j = boot_j.create_solver(agent_id="j", level=0, model=env, other_agent_ids=["i"])
         else:
             sims_j = SIM_SCHEDULE.get(self.level_j, 50000 * self.level_j)
-            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 5000 * self.level_j)
+            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 2500 * self.level_j)
             cfg_j = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=2000),
-                jit=JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
+                jit=JITConfig()
             )
 
             planner_j = boot_j.create_solver(
                 agent_id="j",
                 level=self.level_j,
-                model=TigerModel(growl_accuracy=growl_dict),
+                model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["i"],
                 level_weights=self.prior_weights_j,
                 n_particles=particles_j,
@@ -86,16 +86,16 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
             planner_i = boot_i.create_solver(agent_id="i", level=0, model=env, other_agent_ids=["j"])
         else:
             sims_i = SIM_SCHEDULE.get(self.level_i, 50000 * self.level_i)
-            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 5000 * self.level_i)
+            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 2500 * self.level_i)
             cfg_i = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=2000),
-                jit=JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
+                jit=JITConfig()
             )
 
             planner_i = boot_i.create_solver(
                 agent_id="i",
                 level=self.level_i,
-                model=TigerModel(growl_accuracy=growl_dict),
+                model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["j"],
                 level_weights=self.prior_weights_i,
                 n_particles=particles_i,
@@ -162,26 +162,6 @@ def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_
             "level_i": 4, "level_j": 1,
             "prior_i": {0: 0.25, 1: 0.25, 2: 0.25, 3: 0.25},
             "prior_j": {0: 1.0}
-        },
-
-        # Level 5 Variations
-        {
-            "name": "L5 vs L4 (80% L4 Prior)",
-            "level_i": 5, "level_j": 4,
-            "prior_i": {4: 0.80, 3: 0.05, 2: 0.05, 1: 0.05, 0: 0.05},
-            "prior_j": {3: 0.80, 2: 0.20/3, 1: 0.20/3, 0: 0.20/3}
-        },
-        {
-            "name": "L5 vs L1 (80% Over-estimated L4 Prior)",
-            "level_i": 5, "level_j": 1,
-            "prior_i": {4: 0.80, 3: 0.05, 2: 0.05, 1: 0.05, 0: 0.05},
-            "prior_j": {0: 1.0}
-        },
-        {
-            "name": "L5 vs L1 (Uniform 1/5 Mixture Prior)",
-            "level_i": 5, "level_j": 1,
-            "prior_i": {0: 0.2, 1: 0.2, 2: 0.2, 3: 0.2, 4: 0.2},
-            "prior_j": {0: 1.0}
         }
     ]
 
@@ -193,8 +173,8 @@ def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_
         sanitized_name = cond_name.replace("/", "_div_").replace(" ", "_").replace("(", "").replace(")", "").replace("%", "pct")
         cond_dir = os.path.join(master_dir, f"cond_{cond_idx}_{sanitized_name}")
         csv_path = os.path.join(cond_dir, "batch_results.csv")
-        if os.path.exists(csv_path) and os.path.getsize(csv_path) > 1000:
-            logger.info(f"[{cond_idx}/{len(conditions)}] Condition '{cond_name}' already completed. Skipping batch execution.")
+        if is_batch_complete(csv_path, n_trials):
+            logger.info(f"[{cond_idx}/{len(conditions)}] Condition '{cond_name}' already completed ({n_trials} trials). Skipping batch execution.")
             df = pd.read_csv(csv_path)
             df["condition"] = cond_name
             all_dfs.append(df)

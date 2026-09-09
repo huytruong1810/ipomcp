@@ -48,7 +48,7 @@ TigerObservation = Tuple[str, str]  # (Growl, Creak)
 
 
 class TigerModel(POMDPModel):
-    def __init__(self, growl_accuracy: dict = None, creak_accuracy: float = 0.90, persistent: bool = False):
+    def __init__(self, growl_accuracy: dict = None, creak_accuracy: float = 1.0, persistent: bool = False):
         """
         Initializes the Multi-Agent Tiger domain.
 
@@ -112,19 +112,21 @@ class TigerModel(POMDPModel):
 
         # 2. Sample Creak (Opponent Door Noise)
         r = rand_fn()
+        err = max(0.0, 1.0 - self.creak_acc)
+        p_wrong = min(0.05, err)
         if other_action == LISTEN:
             obs_creak = SILENCE
         elif other_action == OPEN_LEFT:
             if r < self.creak_acc:
                 obs_creak = CREAK_LEFT
-            elif r < self.creak_acc + 0.05:
+            elif r < self.creak_acc + p_wrong:
                 obs_creak = CREAK_RIGHT
             else:
                 obs_creak = SILENCE
         elif other_action == OPEN_RIGHT:
             if r < self.creak_acc:
                 obs_creak = CREAK_RIGHT
-            elif r < self.creak_acc + 0.05:
+            elif r < self.creak_acc + p_wrong:
                 obs_creak = CREAK_LEFT
             else:
                 obs_creak = SILENCE
@@ -170,24 +172,28 @@ class TigerModel(POMDPModel):
                 p_growl = 0.0
 
         # 2. Evaluate Creak Probability
+        err = max(0.0, 1.0 - self.creak_acc)
+        p_wrong = min(0.05, err)
+        p_silence = max(0.0, err - p_wrong)
+
         if other_action == LISTEN:
             p_creak = 1.0 if obs_creak == SILENCE else 0.0
         elif other_action == OPEN_LEFT:
             if obs_creak == CREAK_LEFT:
                 p_creak = self.creak_acc
             elif obs_creak == CREAK_RIGHT:
-                p_creak = 0.05
+                p_creak = p_wrong
             elif obs_creak == SILENCE:
-                p_creak = 1.0 - self.creak_acc - 0.05
+                p_creak = p_silence
             else:
                 p_creak = 0.0
         elif other_action == OPEN_RIGHT:
             if obs_creak == CREAK_RIGHT:
                 p_creak = self.creak_acc
             elif obs_creak == CREAK_LEFT:
-                p_creak = 0.05
+                p_creak = p_wrong
             elif obs_creak == SILENCE:
-                p_creak = 1.0 - self.creak_acc - 0.05
+                p_creak = p_silence
             else:
                 p_creak = 0.0
         else:

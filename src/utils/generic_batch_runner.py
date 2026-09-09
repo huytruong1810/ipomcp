@@ -21,6 +21,19 @@ from solvers.planner import Planner
 logger = get_logger("BatchRunner")
 
 
+def is_batch_complete(csv_path: str, expected_trials: int) -> bool:
+    """Verifies that a batch results CSV exists and contains the expected number of completed trials."""
+    if not os.path.exists(csv_path):
+        return False
+    try:
+        df = pd.read_csv(csv_path)
+        if "trial" not in df.columns:
+            return False
+        return int(df["trial"].nunique()) >= expected_trials
+    except Exception:
+        return False
+
+
 def _get_n_particles(planner: Planner) -> int:
     if hasattr(planner, 'root') and hasattr(planner.root, 'belief_particles'):
         return len(planner.root.belief_particles)
@@ -365,6 +378,7 @@ class GenericBatchRunner(ABC):
             completed = 0
             log_interval = max(1, self.config.n_trials // 10)
 
+            failed_trials = 0
             for future in concurrent.futures.as_completed(futures):
                 try:
                     records = future.result()
@@ -373,9 +387,17 @@ class GenericBatchRunner(ABC):
                     if completed % log_interval == 0 or completed == self.config.n_trials:
                         logger.info(f"Progress: {completed}/{self.config.n_trials} trials completed.")
                 except Exception as exc:
+                    failed_trials += 1
                     logger.error(f"Trial failed with exception: {exc}", exc_info=True)
 
         df = pd.DataFrame(all_records)
+        if completed < self.config.n_trials:
+            if self.log_dir and not df.empty:
+                partial_path = os.path.join(self.log_dir, "batch_results_partial.csv")
+                df.to_csv(partial_path, index=False)
+                logger.warning(f"Batch incomplete ({completed}/{self.config.n_trials} trials). Saved to {partial_path}")
+            raise RuntimeError(f"Batch execution incomplete: {completed}/{self.config.n_trials} completed, {failed_trials} failed.")
+
         if self.log_dir and not df.empty:
             csv_path = os.path.join(self.log_dir, "batch_results.csv")
             df.to_csv(csv_path, index=False)

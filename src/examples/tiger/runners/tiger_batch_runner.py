@@ -23,7 +23,7 @@ class TigerBatchRunner(GenericBatchRunner):
 
     def _setup_domain(self):
         growl_dict = {'i': 0.85, 'j': 0.85}
-        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=0.90)
+        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=6, node_capacity=500)
         jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)

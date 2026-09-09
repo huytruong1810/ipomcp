@@ -47,7 +47,7 @@ class ConfigurableTigerRunner(GenericBatchRunner):
 
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
         growl_dict = {"i": 0.85, "j": 0.85}
-        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=0.90)
+        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=self.planning_depth, node_capacity=2000)
         jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)

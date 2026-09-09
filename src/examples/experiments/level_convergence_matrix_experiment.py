@@ -30,7 +30,7 @@ from solvers.solver_bank import SolverBank
 from solvers.exploration import NormalizedUCB
 from solvers.planner import Planner
 from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.generic_batch_runner import GenericBatchRunner, extract_nested_belief_hierarchy
+from utils.generic_batch_runner import GenericBatchRunner, extract_nested_belief_hierarchy, is_batch_complete
 from utils.plotting import plot_all_metrics, plot_nested_belief_sunburst, plot_episode_sunburst_slider
 from utils.paper_plots import generate_paper_plots, generate_nested_sunburst_pdf
 from examples.tiger.model.tiger_model import TigerModel
@@ -53,7 +53,7 @@ class MatrixCellTigerRunner(GenericBatchRunner):
 
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
         growl_dict = {"i": 0.85, "j": 0.85}
-        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=0.90)
+        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         # 1. Independent Opponent Agent J Setup
         bank_j = SolverBank()
@@ -62,10 +62,10 @@ class MatrixCellTigerRunner(GenericBatchRunner):
             planner_j = boot_j.create_solver(agent_id="j", level=0, model=env, other_agent_ids=["i"])
         else:
             sims_j = SIM_SCHEDULE.get(self.level_j, 50000 * self.level_j)
-            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 5000 * self.level_j)
+            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 2500 * self.level_j)
             cfg_j = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=2000),
-                jit=JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
+                jit=JITConfig()
             )
 
             # Determine J prior over I
@@ -75,7 +75,7 @@ class MatrixCellTigerRunner(GenericBatchRunner):
             planner_j = boot_j.create_solver(
                 agent_id="j",
                 level=self.level_j,
-                model=TigerModel(growl_accuracy=growl_dict),
+                model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["i"],
                 level_weights=weights_j,
                 n_particles=particles_j,
@@ -90,10 +90,10 @@ class MatrixCellTigerRunner(GenericBatchRunner):
             planner_i = boot_i.create_solver(agent_id="i", level=0, model=env, other_agent_ids=["j"])
         else:
             sims_i = SIM_SCHEDULE.get(self.level_i, 50000 * self.level_i)
-            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 5000 * self.level_i)
+            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 2500 * self.level_i)
             cfg_i = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=2000),
-                jit=JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
+                jit=JITConfig()
             )
 
             # Determine I prior over J
@@ -103,7 +103,7 @@ class MatrixCellTigerRunner(GenericBatchRunner):
             planner_i = boot_i.create_solver(
                 agent_id="i",
                 level=self.level_i,
-                model=TigerModel(growl_accuracy=growl_dict),
+                model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["j"],
                 level_weights=weights_i,
                 n_particles=particles_i,
@@ -203,7 +203,7 @@ def find_nash_equilibria(payoff_i: np.ndarray, payoff_j: np.ndarray, levels: Lis
     }
 
 
-def run_payoff_matrix_experiment(max_level: int = 5, n_trials: int = 50, max_steps: int = 6, planning_depth: int = 5, resume_dir: Optional[str] = None):
+def run_payoff_matrix_experiment(max_level: int = 4, n_trials: int = 50, max_steps: int = 6, planning_depth: int = 5, resume_dir: Optional[str] = None):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
         logger.info(f"Resuming existing payoff matrix benchmark from: {master_dir}")
@@ -232,8 +232,8 @@ def run_payoff_matrix_experiment(max_level: int = 5, n_trials: int = 50, max_ste
             cell_name = f"Cell_L{m}_vs_L{n}"
             cell_dir = os.path.join(master_dir, cell_name)
             csv_path = os.path.join(cell_dir, "batch_results.csv")
-            if os.path.exists(csv_path) and os.path.getsize(csv_path) > 1000:
-                logger.info(f"[{cell_count}/{total_cells}] Cell '{cell_name}' already completed. Skipping batch execution.")
+            if is_batch_complete(csv_path, n_trials):
+                logger.info(f"[{cell_count}/{total_cells}] Cell '{cell_name}' already completed ({n_trials} trials). Skipping batch execution.")
                 df = pd.read_csv(csv_path)
                 df["cell"] = cell_name
                 df["level_i"] = m
@@ -331,9 +331,9 @@ def run_payoff_matrix_experiment(max_level: int = 5, n_trials: int = 50, max_ste
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-level", type=int, default=5, help="Maximum reasoning level to evaluate (0..max_level)")
-    parser.add_argument("--trials", type=int, default=30, help="Number of trials per cell")
-    parser.add_argument("--steps", type=int, default=10, help="Decision steps per trial")
+    parser.add_argument("--max-level", type=int, default=4, help="Maximum reasoning level to evaluate (0..max_level)")
+    parser.add_argument("--trials", type=int, default=200, help="Number of trials per cell")
+    parser.add_argument("--steps", type=int, default=12, help="Decision steps per trial")
     parser.add_argument("--planning-depth", type=int, default=5, help="MCTS tree search max depth")
     args = parser.parse_args()
 

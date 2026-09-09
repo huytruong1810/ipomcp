@@ -21,7 +21,7 @@ from solvers.planner import Planner
 from solvers.solver_bank import SolverBank
 from solvers.exploration import NormalizedUCB
 from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.generic_batch_runner import GenericBatchRunner
+from utils.generic_batch_runner import GenericBatchRunner, is_batch_complete
 from utils.plotting import plot_all_metrics
 from utils.paper_plots import generate_paper_plots
 from examples.tiger.model.tiger_model import TigerModel
@@ -37,7 +37,7 @@ class ControlledConditionRunner(GenericBatchRunner):
     def __init__(self, config: ExperimentConfig, log_dir: str,
                  solver_type: str, level_i: int, level_j: int,
                  n_sims: int, planning_depth: int,
-                 n_particles: int = 2000, obs_branching: int = 6):
+                 n_particles: int = 5000, obs_branching: int = 6):
         super().__init__(config=config, log_dir=log_dir)
         self.solver_type = solver_type
         self.level_i = level_i
@@ -49,21 +49,21 @@ class ControlledConditionRunner(GenericBatchRunner):
 
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
         growl_dict = {"i": 0.85, "j": 0.85}
-        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=0.90)
+        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         # 1. Opponent Agent J Setup (Level-1 I-POMCP)
         bank_j = SolverBank()
         boot_j = I_POMDP_Bootstrapper(bank_j)
         cfg_j = IPOMCPConfig(
             mcts=MCTSConfig(n_sims=50000, max_depth=self.planning_depth, node_capacity=2000),
-            jit=JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
+            jit=JITConfig()
         )
         planner_j = boot_j.create_solver(
             agent_id="j",
             level=self.level_j,
-            model=TigerModel(growl_accuracy=growl_dict),
+            model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
             other_agent_ids=["i"],
-            n_particles=2000,
+            n_particles=2500,
             config=cfg_j,
             exploration_strategy=NormalizedUCB(exploration_const=2**0.5)
         )
@@ -80,7 +80,7 @@ class ControlledConditionRunner(GenericBatchRunner):
             planner_i = boot_i.create_rts_solver(
                 agent_id="i",
                 level=self.level_i,
-                model=TigerModel(growl_accuracy=growl_dict),
+                model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["j"],
                 level_weights={1: 1.0},
                 n_particles=self.n_particles,
@@ -89,12 +89,12 @@ class ControlledConditionRunner(GenericBatchRunner):
         else:
             cfg_i = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=self.n_sims, max_depth=self.planning_depth, node_capacity=2000),
-                jit=JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
+                jit=JITConfig()
             )
             planner_i = boot_i.create_solver(
                 agent_id="i",
                 level=self.level_i,
-                model=TigerModel(growl_accuracy=growl_dict),
+                model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["j"],
                 level_weights={1: 1.0},
                 n_particles=self.n_particles,
@@ -135,8 +135,8 @@ def run_apples_to_apples_benchmark(n_trials: int = 50, max_steps: int = 6, plann
         sanitized_name = cond_name.replace(" ", "_").replace("(", "").replace(")", "").replace(":", "")
         cond_dir = os.path.join(master_dir, f"cond_{cond_idx}_{sanitized_name}")
         csv_path = os.path.join(cond_dir, "batch_results.csv")
-        if os.path.exists(csv_path) and os.path.getsize(csv_path) > 1000:
-            logger.info(f"[{cond_idx}/{len(conditions)}] Condition '{cond_name}' already completed. Skipping batch execution.")
+        if is_batch_complete(csv_path, n_trials):
+            logger.info(f"[{cond_idx}/{len(conditions)}] Condition '{cond_name}' already completed ({n_trials} trials). Skipping batch execution.")
             df = pd.read_csv(csv_path)
             all_dfs.append(df)
             condition_dfs[cond_name] = df

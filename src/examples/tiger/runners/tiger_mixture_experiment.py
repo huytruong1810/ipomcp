@@ -30,7 +30,7 @@ class TigerMixtureRunner(GenericBatchRunner):
 
     def _setup_domain(self):
         growl_dict = {"i": 0.85, "j": 0.85}
-        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=0.90)
+        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         bank = SolverBank()
         boot = I_POMDP_Bootstrapper(bank)

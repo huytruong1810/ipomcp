@@ -31,7 +31,7 @@ class PersistentTigerRunner(GenericBatchRunner):
         growl_dict = {'i': 0.5, 'j': 1.0}
 
         # persistent=True keeps the gold behind the same door forever
-        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=0.90, persistent=True)
+        env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0, persistent=True)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=6, node_capacity=500)
         jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)

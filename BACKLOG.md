@@ -136,31 +136,35 @@ While the codebase has undergone significant hardening (e.g., resolving the expo
 - [x] **P0-2**: Prevent caller dictionary mutation and zero-weight crash in `DictDistribution` ([`distribution.py:150-165`](file:///home/andyj1810/projects/ipomcp/src/core/distribution.py#L150-L165)). *(Resolved & Tested)*
 - [x] **P0-3**: Resolve opponent particle starvation in `InteractiveGenerativeModel.tree_step` by replenishing `child_j.belief_particles` via Algorithm R reservoir sampling across multiple simulations ([`generative_model.py:103-110`](file:///home/andyj1810/projects/ipomcp/src/solvers/generative_model.py#L103-L110)). *(Resolved & Tested)*
 - [x] **P0-4**: Accumulate particles at boundary leaf nodes (`max_depth` and terminal states) before truncating ([`i_pomcp.py:75-85`](file:///home/andyj1810/projects/ipomcp/src/solvers/i_pomcp.py#L75-L85)). *(Resolved & Tested)*
+- [x] **P0-5**: Enforce 100% deterministic creak observation accuracy (`creak_accuracy = 1.0`) and resolve negative probability bug in `TigerModel.get_observation_prob` ([`tiger_model.py:51,113-195`](file:///home/andyj1810/projects/ipomcp/src/examples/tiger/model/tiger_model.py#L51)). *(Resolved & Tested)*
+- [x] **P0-6**: Harden `GenericBatchRunner.run_batch` against silent batch truncation; save incomplete runs to `batch_results_partial.csv` and raise `RuntimeError` ([`generic_batch_runner.py:368-385`](file:///home/andyj1810/projects/ipomcp/src/utils/generic_batch_runner.py#L368-L385)). *(Resolved & Tested)*
 
 ### Priority 1: High (Convergence & Domain Accuracy)
 - [x] **P1-1**: Implement `get_legal_actions` in `UAVModel` to prune impossible boundary moves from MCTS trees ([`uav_model.py:49-54`](file:///home/andyj1810/projects/ipomcp/src/examples/uav/model/uav_model.py#L49-L54)). *(Resolved & Tested)*
 - [x] **P1-2**: Inject RNG instances into `UAVModel` and `WumpusModel` methods to ensure Common Random Numbers (CRN) provide true variance reduction across parallel workers ([`uav_model.py:42-89`](file:///home/andyj1810/projects/ipomcp/src/examples/uav/model/uav_model.py#L42-L89), [`wumpus_model.py:41-70`](file:///home/andyj1810/projects/ipomcp/src/examples/wumpus/model/wumpus_model.py#L41-L70)). *(Resolved & Tested)*
-- [ ] **P1-3**: Implement trial-level checkpointing in `GenericBatchRunner` to allow resuming partially completed batches ([`generic_batch_runner.py:349-385`](file:///home/andyj1810/projects/ipomcp/src/utils/generic_batch_runner.py#L349-L385)).
+- [x] **P1-3**: Implement atomic trial-count verification `is_batch_complete(csv_path, expected_trials)` across all experiment runners ([`generic_batch_runner.py:24-34`](file:///home/andyj1810/projects/ipomcp/src/utils/generic_batch_runner.py#L24-L34)). *(Resolved & Tested)*
 - [x] **P1-4**: Fix `ParticleDistribution.get_support()` to filter out particles with `weight == 0.0` ([`distribution.py:114-121`](file:///home/andyj1810/projects/ipomcp/src/core/distribution.py#L114-L121)). *(Resolved & Tested)*
 - [x] **P1-5**: Fix `persistent_tiger_runner.py` uninstantiated `agent_config` causing `NameError` ([`persistent_tiger_runner.py:35`](file:///home/andyj1810/projects/ipomcp/src/examples/tiger/runners/persistent_tiger_runner.py#L35)). *(Resolved)*
 - [x] **P1-6**: Fix `run_wumpus.py` uninstantiated `forest_viz` and particle counts ([`run_wumpus.py:57-60`](file:///home/andyj1810/projects/ipomcp/src/examples/wumpus/runners/run_wumpus.py#L57-L60)). *(Resolved)*
 - [x] **P1-7**: Remove duplicate `run_master_benchmark` function definition in `master_nested_ipomdp_benchmark.py` and unify results pathing. *(Resolved)*
+- [x] **P1-8**: Prune Level-5 reasoning from all experimental suites (focusing on L0-L4 asymptotic convergence) and eliminate cross-suite resume path collision in `run_all_large_scale_benchmarks_N200.py`. *(Resolved & Tested)*
+- [x] **P1-9**: Upgrade simulation schedule ($50\text{k} \times \text{level}$) and escalating particle schedule ($2,500 \times \text{level}$) to support the combinatorial union of nested opponent models. *(Resolved & Tested)*
 
 ### Priority 2: Medium (Architecture & Code Cleanliness)
 - [x] **P2-1**: Centralize `SIM_SCHEDULE` and `PARTICLE_SCHEDULE` into `src/core/config.py` to eliminate drift across runner scripts. *(Resolved)*
 - [x] **P2-2**: Wrap `import graphviz` in `try-except ImportError` inside `src/utils/visualizer.py` with informative fallback warnings and structured logger. *(Resolved)*
 - [x] **P2-3**: Make `InteractiveParticle` hashable with explicit `__hash__` and `__eq__` and freeze `AgentFrame`. *(Resolved & Tested)*
+- [x] **P2-4**: Upgrade `JITConfig` defaults (`sims=50`, `visit_threshold=10`, `entropy_threshold=0.5`) to eliminate opponent passivity artifacts. *(Resolved & Tested)*
 
 ### Priority 3: Low (Optimization & Tech Debt)
 - [ ] **P3-1**: Transition `batch_results.csv` export to Apache Parquet format to eliminate string-serialized dictionaries and accelerate post-hoc analysis.
-- [x] **P3-2**: Expand test coverage in `tests/test_distribution.py`, `tests/test_exploration.py`, and `tests/test_models.py` for edge-case degenerate inputs (degenerate Q-ranges, zero weights, caller dict immutability, legal action masking, RNG determinism). *(Resolved: 43/43 tests passing)*
+- [x] **P3-2**: Expand test coverage in `tests/test_distribution.py`, `tests/test_exploration.py`, and `tests/test_models.py` for edge-case degenerate inputs (degenerate Q-ranges, zero weights, caller dict immutability, legal action masking, RNG determinism, deterministic creak). *(Resolved: 44/44 tests passing)*
 
 ---
 
-## Active Benchmark Telemetry Status (Background Task)
+## Active Benchmark Execution
 
-- **Task**: Master Large-Scale Benchmark Suite ($N=200, T=20$)
-- **Command**: `uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all --resume-dir results/deep_prior/deep_prior_benchmark_20260904_010926_N200_T20`
-- **Active Phase**: Suite 1 (Deep Hierarchy Prior Benchmark), Condition 5/10 (`L4 vs L3, 80% L3 Prior`).
-- **Progress**: 80 / 200 trials completed (Conditions 1-4 completed/cached).
-- **Resource Status**: 2 worker processes operating stably at 93–97% CPU utilization; OS memory healthy (6.8 GB available RAM).
+- **Suite**: Master Large-Scale Benchmark Suite ($N=200, T=12$, Lv0-Lv4)
+- **Configuration**: `creak_accuracy = 1.0`, `n_sims = 50k..200k`, `n_particles = 2.5k..10k`, `JIT sims = 50`.
+- **Command**: `uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 12 --suite all`
+- **Integrity Guarantee**: Atomic trial-count resume checks with non-colliding output directories.

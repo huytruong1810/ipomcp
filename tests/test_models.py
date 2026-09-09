@@ -92,3 +92,24 @@ def test_wumpus_model_rng_reproducibility():
     rng2 = random.Random(99)
     s2 = model.get_initial_state(rng=rng2)
     assert s1 == s2
+
+
+def test_tiger_deterministic_creak():
+    """Tests 100% deterministic creak observation fidelity and sum-to-one property."""
+    model = TigerModel(growl_accuracy={"i": 0.85, "j": 0.85}, creak_accuracy=1.0)
+
+    # Opponent opens left: listener must hear CREAK_LEFT with 100% conditional creak probability
+    p_cl = model.get_observation_prob((GROWL_LEFT, CREAK_LEFT), TIGER_LEFT, {"i": LISTEN, "j": OPEN_LEFT}, "i")
+    assert p_cl == pytest.approx(0.85 * 1.0)
+
+    p_cr = model.get_observation_prob((GROWL_LEFT, CREAK_RIGHT), TIGER_LEFT, {"i": LISTEN, "j": OPEN_LEFT}, "i")
+    assert p_cr == 0.0
+
+    p_sil = model.get_observation_prob((GROWL_LEFT, SILENCE), TIGER_LEFT, {"i": LISTEN, "j": OPEN_LEFT}, "i")
+    assert p_sil == 0.0
+
+    # Sum across all observations when opponent opens left must equal 1.0
+    all_obs = model.get_all_observations("i")
+    total_prob = sum(model.get_observation_prob(o, TIGER_LEFT, {"i": LISTEN, "j": OPEN_LEFT}, "i") for o in all_obs)
+    assert total_prob == pytest.approx(1.0)
+
