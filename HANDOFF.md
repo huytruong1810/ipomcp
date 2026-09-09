@@ -13,22 +13,22 @@
 A master large-scale benchmark is actively executing in the background. The user has explicitly requested to run this unified, simplified experimental suite.
 
 ### Process Telemetry
-- **Task ID**: `task-1552`
+- **Task ID**: `task-1621`
 - **Command**:
   ```bash
-  uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 12 --suite all
+  uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all
   ```
 - **Process Hierarchy**:
-  - Main Wrapper (`uv`): PID `269474`
-  - Runner Process (`python3`): PID `269477`
+  - Main Wrapper (`uv`): PID `269726`
+  - Runner Process (`python3`): PID `269729`
   - Active Worker Processes: Dispatched via `ProcessPoolExecutor` (`max_tasks_per_child=20`)
-- **Current Suite**: Suite 1/3 (Deep Hierarchy Prior Benchmark, 7 conditions $\times$ 200 trials, $T=12$, Lv1-Lv4)
+- **Current Suite**: Suite 1/3 (Deep Hierarchy Prior Benchmark, 7 conditions $\times$ 200 trials, $T=20$, Lv1-Lv4)
 - **Current Progress**:
   - Condition 1 (`L3 vs L2, 80% L2 Prior`): Actively executing.
 - **Log Location**:
-  `~/.gemini/antigravity-cli/brain/cf2b6ec9-8616-487b-8fbd-2ad75abc06ec/.system_generated/tasks/task-1552.log`
+  `~/.gemini/antigravity-cli/brain/cf2b6ec9-8616-487b-8fbd-2ad75abc06ec/.system_generated/tasks/task-1621.log`
 - **Results Directory**:
-  `results/deep_prior/deep_prior_benchmark_20260909_163059_N200_T12/`
+  `results/deep_prior/deep_prior_benchmark_20260909_163530_N200_T20/`
 
 ---
 
