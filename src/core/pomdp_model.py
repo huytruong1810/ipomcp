@@ -26,7 +26,7 @@ DESIGN DECISION RECORD (Phase 1 Overhaul):
 """
 
 import abc
-from typing import Dict, List, Hashable, Any
+from typing import Dict, List, Hashable, Any, Optional
 
 # Type Aliases for strict typing in downstream planners.
 # States, Actions, and Observations should strictly be Hashable to allow for dictionary
@@ -151,3 +151,20 @@ class POMDPModel(abc.ABC):
         massively reduces MCTS branching factors and speeds up planning.
         """
         return self.get_all_actions(agent_id)
+
+    def is_epoch_reset(self, action: Action, observation: Observation) -> bool:
+        """Evaluates whether the given action and observation indicate an environment epoch reset.
+
+        In episodic or resetting domains (such as Tiger), opening a door resets the underlying
+        physical state and restarts the observation-gathering epoch. Overridden by domains with reset dynamics.
+        """
+        return False
+
+    def sample_state_consistent_with_obs(self, action: Action, observation: Observation,
+                                         agent_id: Optional[AgentID] = None, rng: Any = None) -> State:
+        """Samples a physical state consistent with the post-transition observation.
+
+        Overridden by concrete domains to perform fast, exact analytical Bayesian sampling.
+        Defaults to sampling an initial state from P(S_0).
+        """
+        return self.get_initial_state()

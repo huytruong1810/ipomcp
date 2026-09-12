@@ -21,7 +21,7 @@ DESIGN DECISION RECORD (Phase 5 Overhaul):
 """
 
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional, Any
 from core.pomdp_model import POMDPModel, State, Action, Observation, AgentID
 
 # --- CONSTANTS ---
@@ -239,3 +239,32 @@ class TigerModel(POMDPModel):
         growls = [GROWL_LEFT, GROWL_RIGHT, SILENCE]
         creaks = [CREAK_LEFT, CREAK_RIGHT, SILENCE]
         return [(g, c) for g in growls for c in creaks]
+
+    def is_epoch_reset(self, action: TigerAction, observation: TigerObservation) -> bool:
+        """Returns True if this action or observation indicates a door was opened (state reset)."""
+        if not self.persistent:
+            if action in (OPEN_LEFT, OPEN_RIGHT):
+                return True
+            if isinstance(observation, tuple) and len(observation) >= 2:
+                if observation[1] in (CREAK_LEFT, CREAK_RIGHT):
+                    return True
+        return False
+
+    def sample_state_consistent_with_obs(self, action: TigerAction, observation: TigerObservation,
+                                         agent_id: Optional[AgentID] = None, rng: Any = None) -> TigerState:
+        """Direct, exact Bayesian sampling of physical state given action and observation."""
+        choice_fn = rng.choice if rng is not None else random.choice
+        rand_fn = rng.random if rng is not None else random.random
+
+        if action != LISTEN or not isinstance(observation, tuple) or len(observation) < 1:
+            return choice_fn([TIGER_LEFT, TIGER_RIGHT])
+
+        obs_growl = observation[0]
+        acc = self.growl_acc.get(agent_id, 0.85) if agent_id is not None else 0.85
+
+        if obs_growl == GROWL_LEFT:
+            return TIGER_LEFT if rand_fn() < acc else TIGER_RIGHT
+        elif obs_growl == GROWL_RIGHT:
+            return TIGER_RIGHT if rand_fn() < acc else TIGER_LEFT
+        else:
+            return choice_fn([TIGER_LEFT, TIGER_RIGHT])

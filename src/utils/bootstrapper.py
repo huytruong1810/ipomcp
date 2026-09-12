@@ -295,5 +295,8 @@ class I_POMDP_Bootstrapper:
         for p in particles:
             solver.root.add_particle(p)
 
+        solver.initial_particles = list(solver.root.belief_particles)
+        solver.prior_level_weights = dict(weights)
+
         self.bank.register_solver(key, solver)
         return solver

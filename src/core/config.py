@@ -57,6 +57,9 @@ class ReinvigorationConfig:
     enabled: bool = True
     visit_threshold: int = 20
     sims: int = 20
+    alpha: float = 0.20
+    min_particles: int = 100
+    preserve_levels: bool = True
 
 
 @dataclass(frozen=True)

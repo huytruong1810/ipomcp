@@ -50,18 +50,28 @@ def _get_opponent_level_distribution(planner: Any, opponent_id: str) -> Dict[str
     elif hasattr(planner, 'belief') and planner.belief:
         particles = planner.belief
 
+    max_lvl = 1
+    if hasattr(planner, 'key') and hasattr(planner.key, 'level'):
+        max_lvl = max(1, planner.key.level)
+    elif hasattr(planner, 'level'):
+        max_lvl = max(1, planner.level)
+
+    res = {f"prob_l{lvl}_{opponent_id}": 0.0 for lvl in range(max_lvl)}
+
     if not particles:
-        return {}
+        return res
     total = len(particles)
     if total == 0:
-        return {}
+        return res
     counts: Dict[int, int] = {}
     for p in particles:
         if hasattr(p, 'models') and opponent_id in p.models:
             frame, _ = p.models[opponent_id]
             lvl = frame.level
             counts[lvl] = counts.get(lvl, 0) + 1
-    return {f"prob_l{lvl}_{opponent_id}": count / total for lvl, count in sorted(counts.items())}
+    for lvl, count in counts.items():
+        res[f"prob_l{lvl}_{opponent_id}"] = count / total
+    return dict(sorted(res.items()))
 
 
 def _extract_recursive(node: Any, curr_agent: str, curr_path_id: str, curr_weight: float, depth: int,
@@ -234,6 +244,8 @@ class GenericBatchRunner(ABC):
         initial_stats_j = planner_j.get_detailed_stats() if hasattr(planner_j, 'get_detailed_stats') else {}
         n_i = _get_n_particles(planner_i)
         n_j = _get_n_particles(planner_j)
+        initial_n_i = n_i
+        initial_n_j = n_j
 
         init_record = {
             "trial": trial_id,
@@ -297,8 +309,8 @@ class GenericBatchRunner(ABC):
 
                 n_i = _get_n_particles(planner_i)
                 n_j = _get_n_particles(planner_j)
-                min_i_particles = max(10, int(n_i * 0.1)) if n_i > 0 else 0
-                min_j_particles = max(10, int(n_j * 0.1)) if n_j > 0 else 0
+                min_i_particles = max(100, int(initial_n_i * 0.1)) if initial_n_i > 0 else 0
+                min_j_particles = max(100, int(initial_n_j * 0.1)) if initial_n_j > 0 else 0
 
                 record = {
                     "trial": trial_id,
@@ -430,6 +442,8 @@ class GenericBatchRunner(ABC):
         initial_stats_j = planner_j.get_detailed_stats() if hasattr(planner_j, 'get_detailed_stats') else {}
         n_i = _get_n_particles(planner_i)
         n_j = _get_n_particles(planner_j)
+        initial_n_i = n_i
+        initial_n_j = n_j
 
         init_record = {
             "trial": trial_id,
@@ -482,8 +496,8 @@ class GenericBatchRunner(ABC):
 
                 n_i = _get_n_particles(planner_i)
                 n_j = _get_n_particles(planner_j)
-                min_i_particles = max(10, int(n_i * 0.1)) if n_i > 0 else 0
-                min_j_particles = max(10, int(n_j * 0.1)) if n_j > 0 else 0
+                min_i_particles = max(100, int(initial_n_i * 0.1)) if initial_n_i > 0 else 0
+                min_j_particles = max(100, int(initial_n_j * 0.1)) if initial_n_j > 0 else 0
 
                 record = {
                     "trial": trial_id,
