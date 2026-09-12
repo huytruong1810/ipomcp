@@ -367,9 +367,9 @@ class GenericBatchRunner(ABC):
         if not sentry["safe"]:
             logger.warning(f"OS Resource Warning prior to batch dispatch: {sentry.get('reason')}")
 
-        logger.info(f"Initialized ProcessPoolExecutor with {max_workers} worker processes (max_tasks_per_child=20).")
+        logger.info(f"Initialized ProcessPoolExecutor with {max_workers} worker processes.")
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers, max_tasks_per_child=20) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(self._run_single_trial_parallel, t_id)
                        for t_id in range(self.config.n_trials)]
 

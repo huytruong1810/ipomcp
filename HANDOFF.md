@@ -1,32 +1,31 @@
 # I-POMCP Multi-Level Reasoning: Project Status & Agent Handoff
 
-**Handoff Date**: September 9, 2026  
+**Handoff Date**: September 11, 2026  
 **Repository Remote**: [https://github.com/huytruong1810/ipomcp](https://github.com/huytruong1810/ipomcp)  
-**Branch**: `main` (Synced with origin/main at `b9f4e59`; working tree clean)  
-**Test Suite Status**: **44 / 44 Passing** (`uv run python -m pytest tests/ -v`, 78.6s execution)  
+**Branch**: `main` (Synced with origin/main at `e643686`; working tree clean)  
+**Test Suite Status**: **44 / 44 Passing** (`uv run python -m pytest tests/ -q`, 81.95s execution)  
 **Codebase Audit Status**: Complete report and prioritized action items compiled in [`BACKLOG.md`](BACKLOG.md).
 
 ---
 
 ## 1. Active Long-Running Benchmark (CRITICAL: DO NOT TERMINATE)
 
-A master large-scale benchmark is actively executing in the background. The user has explicitly requested to run this unified, simplified experimental suite.
+A master large-scale benchmark is actively executing in the background, resumed after the September 11 system reboot.
 
 ### Process Telemetry
-- **Task ID**: `task-1621`
+- **Task ID**: `6df503eb-35ad-4600-a30e-981c5e0955db/task-305`
 - **Command**:
   ```bash
-  uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all
+  uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all --resume-dir results/deep_prior/deep_prior_benchmark_20260909_163530_N200_T20
   ```
 - **Process Hierarchy**:
-  - Main Wrapper (`uv`): PID `269726`
-  - Runner Process (`python3`): PID `269729`
-  - Active Worker Processes: Dispatched via `ProcessPoolExecutor` (`max_tasks_per_child=20`)
+  - Runner Process (`python3`): PID `34815`
+  - Active Worker Processes: Dispatched via `ProcessPoolExecutor` (deadlock-free worker lifecycle)
 - **Current Suite**: Suite 1/3 (Deep Hierarchy Prior Benchmark, 7 conditions $\times$ 200 trials, $T=20$, Lv1-Lv4)
 - **Current Progress**:
   - Condition 1 (`L3 vs L2, 80% L2 Prior`): Actively executing.
 - **Log Location**:
-  `~/.gemini/antigravity-cli/brain/cf2b6ec9-8616-487b-8fbd-2ad75abc06ec/.system_generated/tasks/task-1621.log`
+  `~/.gemini/antigravity-cli/brain/6df503eb-35ad-4600-a30e-981c5e0955db/.system_generated/tasks/task-305.log`
 - **Results Directory**:
   `results/deep_prior/deep_prior_benchmark_20260909_163530_N200_T20/`
 

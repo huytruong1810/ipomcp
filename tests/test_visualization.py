@@ -63,3 +63,50 @@ def test_extract_nested_belief_hierarchy_level3(tmp_path):
     generate_nested_sunburst_pdf(data, pdf_path, title="Level-3 Mental Model Hierarchy")
     assert os.path.exists(pdf_path)
     assert os.path.getsize(pdf_path) > 0
+
+
+def test_sunburst_slice_position_stability(tmp_path):
+    """
+    Verifies that animated sunburst slider maintains identical canonical slice positions
+    across all frames (sort=False, canonical node IDs, zero-padding for pruned levels).
+    """
+    # Simulate step 0 with full hierarchy, and step 1 where j_L2 dropped to 0 particles
+    step0_data = {
+        "ids": ["i_L3", "i_L3/j_L0", "i_L3/j_L1", "i_L3/j_L2"],
+        "labels": ["i (Level-3)", "j (L0)", "j (L1)", "j (L2)"],
+        "parents": ["", "i_L3", "i_L3", "i_L3"],
+        "values": [1.0, 0.1, 0.1, 0.8],
+        "levels": [3, 0, 1, 2],
+        "hover_texts": ["i (L3)", "j (L0): 10%", "j (L1): 10%", "j (L2): 80%"]
+    }
+    step1_data = {
+        "ids": ["i_L3", "i_L3/j_L0", "i_L3/j_L1"],  # j_L2 is absent (pruned)
+        "labels": ["i (Level-3)", "j (L0)", "j (L1)"],
+        "parents": ["", "i_L3", "i_L3"],
+        "values": [1.0, 0.6, 0.4],
+        "levels": [3, 0, 1],
+        "hover_texts": ["i (L3)", "j (L0): 60%", "j (L1): 40%"]
+    }
+
+    snapshots = {0: step0_data, 1: step1_data}
+    fig = plot_episode_sunburst_slider(snapshots, title_prefix="Stability Test", save_dir=str(tmp_path), filename="stability_test")
+
+    # Base figure trace must enforce sort=False
+    assert fig.data[0].sort is False
+    assert fig.data[0].ids == ("i_L3", "i_L3/j_L0", "i_L3/j_L1", "i_L3/j_L2")
+    assert fig.data[0].values == (1.0, 0.1, 0.1, 0.8)
+
+    # Frames must maintain the identical canonical ID order and sort=False
+    assert len(fig.frames) == 2
+    frame0 = fig.frames[0].data[0]
+    frame1 = fig.frames[1].data[0]
+
+    assert frame0.sort is False
+    assert frame1.sort is False
+    assert frame0.ids == ("i_L3", "i_L3/j_L0", "i_L3/j_L1", "i_L3/j_L2")
+    assert frame1.ids == ("i_L3", "i_L3/j_L0", "i_L3/j_L1", "i_L3/j_L2")
+
+    # In frame 1, j_L2 was absent in raw data; it must be zero-padded in the canonical position
+    assert frame1.values == (1.0, 0.6, 0.4, 0.0)
+    assert "Belief: 0.0%" in frame1.hovertext[3]
+

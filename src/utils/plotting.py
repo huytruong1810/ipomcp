@@ -23,7 +23,7 @@ import pandas as pd
 import numpy as np
 import os
 import ast
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 
 
 def _maybe_save_and_show(fig, filename: str, save_dir: str = None):
@@ -144,7 +144,8 @@ def plot_nested_belief_sunburst(nested_data: Dict[str, Any], title: str = "Neste
         hovertext=nested_data.get("hover_texts"),
         hoverinfo="text",
         marker=dict(colors=colors, line=dict(color="#ffffff", width=1.5)),
-        insidetextorientation="radial"
+        insidetextorientation="radial",
+        sort=False
     ))
 
     fig.update_layout(
@@ -165,29 +166,63 @@ def plot_episode_sunburst_slider(snapshots_by_step: Dict[int, Dict[str, Any]],
     """
     Generates an interactive Plotly Sunburst visualization equipped with a timestep scrubber slider,
     allowing frame-by-frame inspection of nested mental model belief redistribution across an episode.
+    Maintains fixed slice angular positions across the entire animation sequence (sort=False with canonical hierarchy).
     """
     sorted_steps = sorted(snapshots_by_step.keys())
     if not sorted_steps:
         return go.Figure()
 
-    step0 = sorted_steps[0]
-    initial_data = snapshots_by_step[step0]
-    if not initial_data or "ids" not in initial_data:
+    # Collect the global canonical node hierarchy across all timesteps to keep slice positions constant
+    canonical_order = []
+    canonical_meta = {}
+    for step in sorted_steps:
+        snap = snapshots_by_step[step]
+        if not snap or "ids" not in snap:
+            continue
+        for idx, nid in enumerate(snap["ids"]):
+            if nid not in canonical_meta:
+                canonical_order.append(nid)
+                canonical_meta[nid] = {
+                    "label": snap["labels"][idx],
+                    "parent": snap["parents"][idx],
+                    "level": snap.get("levels", [0])[idx] if "levels" in snap and idx < len(snap["levels"]) else 0,
+                }
+
+    if not canonical_order:
         return go.Figure()
 
-    colors0 = [LEVEL_COLORS.get(lvl, "#cbd5e1") for lvl in initial_data.get("levels", [0] * len(initial_data["ids"]))]
+    canonical_colors = [LEVEL_COLORS.get(canonical_meta[nid]["level"], "#cbd5e1") for nid in canonical_order]
+
+    def _extract_aligned_frame_data(snap: Optional[Dict[str, Any]]) -> Tuple[List[float], List[str]]:
+        step_id_map = {nid: i for i, nid in enumerate(snap.get("ids", []))} if snap else {}
+        vals = []
+        hovers = []
+        for nid in canonical_order:
+            if nid in step_id_map:
+                orig_idx = step_id_map[nid]
+                vals.append(float(snap["values"][orig_idx]))
+                hovers.append(snap["hover_texts"][orig_idx] if "hover_texts" in snap and orig_idx < len(snap["hover_texts"]) else "")
+            else:
+                meta = canonical_meta[nid]
+                vals.append(0.0)
+                hovers.append(f"<b>{meta['label']}</b><br>Conditional Belief: 0.0%<br>Joint Mass: 0.000<br>Particles: 0")
+        return vals, hovers
+
+    step0 = sorted_steps[0]
+    vals0, hovers0 = _extract_aligned_frame_data(snapshots_by_step[step0])
 
     fig = go.Figure(
         data=[go.Sunburst(
-            ids=initial_data["ids"],
-            labels=initial_data["labels"],
-            parents=initial_data["parents"],
-            values=initial_data["values"],
+            ids=canonical_order,
+            labels=[canonical_meta[nid]["label"] for nid in canonical_order],
+            parents=[canonical_meta[nid]["parent"] for nid in canonical_order],
+            values=vals0,
             branchvalues="total",
-            hovertext=initial_data.get("hover_texts"),
+            hovertext=hovers0,
             hoverinfo="text",
-            marker=dict(colors=colors0, line=dict(color="#ffffff", width=1.5)),
-            insidetextorientation="radial"
+            marker=dict(colors=canonical_colors, line=dict(color="#ffffff", width=1.5)),
+            insidetextorientation="radial",
+            sort=False
         )]
     )
 
@@ -195,21 +230,20 @@ def plot_episode_sunburst_slider(snapshots_by_step: Dict[int, Dict[str, Any]],
     slider_steps = []
 
     for step in sorted_steps:
-        data = snapshots_by_step[step]
-        if not data or "ids" not in data:
-            continue
-        c = [LEVEL_COLORS.get(lvl, "#cbd5e1") for lvl in data.get("levels", [0] * len(data["ids"]))]
+        snap = snapshots_by_step[step]
+        vals, hovers = _extract_aligned_frame_data(snap)
         frame = go.Frame(
             data=[go.Sunburst(
-                ids=data["ids"],
-                labels=data["labels"],
-                parents=data["parents"],
-                values=data["values"],
+                ids=canonical_order,
+                labels=[canonical_meta[nid]["label"] for nid in canonical_order],
+                parents=[canonical_meta[nid]["parent"] for nid in canonical_order],
+                values=vals,
                 branchvalues="total",
-                hovertext=data.get("hover_texts"),
+                hovertext=hovers,
                 hoverinfo="text",
-                marker=dict(colors=c, line=dict(color="#ffffff", width=1.5)),
-                insidetextorientation="radial"
+                marker=dict(colors=canonical_colors, line=dict(color="#ffffff", width=1.5)),
+                insidetextorientation="radial",
+                sort=False
             )],
             name=f"Step_{step}"
         )
