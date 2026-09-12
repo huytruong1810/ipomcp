@@ -23,7 +23,8 @@ A master large-scale benchmark is actively executing in the background, resumed 
   - Active Worker Processes: Dispatched via `ProcessPoolExecutor` (deadlock-free worker lifecycle)
 - **Current Suite**: Suite 1/3 (Deep Hierarchy Prior Benchmark, 7 conditions $\times$ 200 trials, $T=20$, Lv1-Lv4)
 - **Current Progress**:
-  - Condition 1 (`L3 vs L2, 80% L2 Prior`): Actively executing.
+  - **Condition 1 (`L3 vs L2, 80% L2 Prior`)**: **COMPLETED (200/200 trials)** at 09:01 AM (Sept 12). Full dataset `batch_results.csv`, HTML charts, and vector PDFs saved.
+  - **Condition 2 (`L3 vs L1, 80% L1 Prior`)**: **Actively executing (140/200 trials completed, 70%)**.
 - **Log Location**:
   `~/.gemini/antigravity-cli/brain/6df503eb-35ad-4600-a30e-981c5e0955db/.system_generated/tasks/task-305.log`
 - **Results Directory**:
