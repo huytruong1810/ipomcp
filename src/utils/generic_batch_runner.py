@@ -345,16 +345,20 @@ class GenericBatchRunner(ABC):
                         planner_i.visualize(os.path.join(step_dir, "tree_i"), t)
                         planner_j.visualize(os.path.join(step_dir, "tree_j"), t)
 
+                if not is_terminal:
+                    if hasattr(planner_i, 'update_root'):
+                        planner_i.update_root(a_i, o_i, min_i_particles)
+                    if hasattr(planner_j, 'update_root'):
+                        planner_j.update_root(a_j, o_j, min_j_particles)
+                    true_state = next_state
+
                 last_custom_metrics = self._get_custom_metrics(true_state, next_state, env, planner_i, planner_j)
                 record.update(last_custom_metrics)
                 record.update(_get_opponent_level_distribution(planner_i, 'j'))
+                record["n_particles_i"] = _get_n_particles(planner_i)
+                record["n_particles_j"] = _get_n_particles(planner_j)
 
                 trial_records.append(record)
-
-                if not is_terminal:
-                    planner_i.update_root(a_i, o_i, min_i_particles)
-                    planner_j.update_root(a_j, o_j, min_j_particles)
-                    true_state = next_state
             else:
                 record = {
                     "trial": trial_id, "step": t,
@@ -518,16 +522,19 @@ class GenericBatchRunner(ABC):
                     "action_values_j": stats_j.get("action_values"),
                     "process_rss_mb": round(SystemMonitor.get_process_memory()[0] / (1024.0 * 1024.0), 2)
                 }
-                custom_metrics = self._get_custom_metrics(true_state, next_state, env, planner_i, planner_j)
-                record.update(custom_metrics)
-                record.update(_get_opponent_level_distribution(planner_i, 'j'))
-                trial_records.append(record)
-
                 # Particle filter updates
                 if hasattr(planner_i, 'update_root'):
                     planner_i.update_root(a_i, o_i, min_particles=min_i_particles)
                 if hasattr(planner_j, 'update_root'):
                     planner_j.update_root(a_j, o_j, min_particles=min_j_particles)
+
+                record["n_particles_i"] = _get_n_particles(planner_i)
+                record["n_particles_j"] = _get_n_particles(planner_j)
+
+                custom_metrics = self._get_custom_metrics(true_state, next_state, env, planner_i, planner_j)
+                record.update(custom_metrics)
+                record.update(_get_opponent_level_distribution(planner_i, 'j'))
+                trial_records.append(record)
 
                 true_state = next_state
                 snapshots_by_step[t] = extract_nested_belief_hierarchy(planner_i, 'i')

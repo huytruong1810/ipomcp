@@ -171,3 +171,55 @@ def test_deep_hierarchy_l3_vs_l2_multi_step(monkeypatch):
     min_prob_l2 = active_df["prob_l2_j"].min()
     assert min_prob_l2 > 0.10, f"Min prob_l2 was {min_prob_l2}, collapsed"
 
+
+def test_overestimated_prior_adaptation_resets_preserve_posterior():
+    """Verify that when an agent learns an empirical posterior differing from its initial prior,
+    epoch resets preserve the learned posterior rather than snapping back to the initial prior."""
+    from ipomdp.belief import InteractiveParticle, AgentFrame
+
+    # Agent initialized with 80% L2 prior
+    env, planner, bank = _setup_l3_planner(prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=300)
+
+    # Artificially set belief particles to reflect an updated posterior (60% L1, 30% L2, 10% L0)
+    particles = planner.root.belief_particles
+    new_particles = []
+    for i, p in enumerate(particles):
+        lvl = 1 if i < 180 else (2 if i < 270 else 0)
+        frame = AgentFrame("j", lvl, env)
+        node_ptr = p.models["j"][1] if lvl > 0 else None
+        new_particles.append(InteractiveParticle(state=p.state, models={"j": (frame, node_ptr)}))
+    planner.root.belief_particles = new_particles
+
+    # Trigger epoch reset via door opening
+    planner.update_root(OPEN_LEFT, (SILENCE, SILENCE), min_particles=300)
+    dist_after = planner._get_particle_level_distribution(planner.root.belief_particles, "j")
+
+    # The learned posterior must be preserved: L1 must remain dominant, not L2
+    assert dist_after.get(1, 0.0) >= 0.50, f"Expected P(L1) >= 0.50 after reset, got {dist_after.get(1, 0.0)}"
+    assert dist_after.get(2, 0.0) <= 0.40, f"Expected P(L2) <= 0.40 after reset, got {dist_after.get(2, 0.0)}"
+
+
+def test_normal_step_reinvigoration_uses_empirical_posterior():
+    """Verify that when normal step reinvigoration occurs due to small particle count in child,
+    the replenished particles reflect the child's empirical posterior distribution rather than the initial prior."""
+    from ipomdp.belief import InteractiveParticle, AgentFrame
+
+    # Agent initialized with 80% L2 prior
+    env, planner, bank = _setup_l3_planner(prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=300)
+
+    # Directly populate a child node with 20 particles reflecting 70% L1, 20% L2, 10% L0
+    child = planner.root.create_child(LISTEN, (GROWL_LEFT, SILENCE))
+    for i in range(20):
+        lvl = 1 if i < 14 else (2 if i < 18 else 0)
+        frame = AgentFrame("j", lvl, env)
+        child.add_particle(InteractiveParticle(state=TIGER_LEFT, models={"j": (frame, None)}))
+
+    # Update root (triggers reinvigoration from 20 to 300 particles)
+    planner.update_root(LISTEN, (GROWL_LEFT, SILENCE), min_particles=300)
+    dist_after = planner._get_particle_level_distribution(planner.root.belief_particles, "j")
+
+    # Replenishment must follow the child's 70% L1 distribution, not the 80% L2 prior
+    assert dist_after.get(1, 0.0) >= 0.50, f"Expected P(L1) >= 0.50, got {dist_after.get(1, 0.0)}"
+    assert dist_after.get(2, 0.0) <= 0.35, f"Expected P(L2) <= 0.35, got {dist_after.get(2, 0.0)}"
+
+

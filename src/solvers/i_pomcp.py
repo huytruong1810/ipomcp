@@ -225,32 +225,30 @@ class IPOMCPPlanner(Planner):
 
         if is_reset:
             new_root = POMCPNode(capacity=self.config.mcts.node_capacity)
-            alpha = self.config.reinvigoration.alpha
-
             opp_weights: Dict[AgentID, Dict[int, float]] = {}
             candidate_roots: Dict[AgentID, Dict[int, Optional[POMCPNode]]] = {}
 
             for other_id in other_agent_ids:
+                # Use empirical posterior accumulated in current root belief; fallback to prior
                 prev_dist = self._get_particle_level_distribution(self.root.belief_particles, other_id)
-                prior_dist = self._get_opponent_level_prior(other_id)
+                if not prev_dist:
+                    prev_dist = self._get_opponent_level_prior(other_id)
 
-                if prev_dist:
-                    weights = {
-                        lvl: (1.0 - alpha) * prev_dist.get(lvl, prior_dist.get(lvl, 0.0)) + alpha * prior_dist.get(lvl, 0.0)
-                        for lvl in prior_dist
-                    }
-                else:
-                    weights = dict(prior_dist)
+                candidate_levels = sorted(list(self._get_opponent_level_prior(other_id).keys()))
+                k_levels = max(1, len(candidate_levels))
 
-                total_w = sum(weights.values())
-                if total_w > 0:
-                    opp_weights[other_id] = {k: v / total_w for k, v in weights.items()}
-                else:
-                    opp_weights[other_id] = dict(prior_dist)
+                # Extinction floor: Laplace / uniform smoothing over candidate levels (never tethered to prior)
+                eps = 0.01 if self.config.reinvigoration.preserve_levels else 0.0
+                smoothed = {
+                    lvl: (1.0 - eps) * prev_dist.get(lvl, 1.0 / k_levels) + eps * (1.0 / k_levels)
+                    for lvl in candidate_levels
+                }
+                total_w = sum(smoothed.values())
+                opp_weights[other_id] = {lvl: w / total_w for lvl, w in smoothed.items()}
 
                 candidate_roots[other_id] = {
                     lvl: self._create_fresh_opponent_node(other_id, lvl)
-                    for lvl in opp_weights[other_id] if lvl > 0
+                    for lvl in candidate_levels if lvl > 0
                 }
 
             for _ in range(target_count):
@@ -269,9 +267,9 @@ class IPOMCPPlanner(Planner):
             if self.config.reinvigoration.preserve_levels:
                 for other_id in other_agent_ids:
                     curr_dist = self._get_particle_level_distribution(new_root.belief_particles, other_id)
-                    prior_dist = self._get_opponent_level_prior(other_id)
-                    for lvl in prior_dist:
-                        if prior_dist[lvl] > 0 and curr_dist.get(lvl, 0.0) == 0:
+                    candidate_levels = list(opp_weights[other_id].keys())
+                    for lvl in candidate_levels:
+                        if curr_dist.get(lvl, 0.0) == 0:
                             idx = random.randint(0, len(new_root.belief_particles) - 1)
                             s = self._sample_consistent_state(action, observation)
                             models = dict(new_root.belief_particles[idx].models)
@@ -287,108 +285,98 @@ class IPOMCPPlanner(Planner):
 
         # Normal step (no epoch reset)
         child = self.root.get_child(action, observation)
-        if child and len(child.belief_particles) > 0:
-            self.root = child
-            survivors = list(self.root.belief_particles)
-            current_count = len(survivors)
+        survivors = list(child.belief_particles) if child and child.belief_particles else []
+        current_count = len(survivors)
 
-            # Check for level extinction
-            has_extinct_level = False
-            for other_id in other_agent_ids:
-                prior_dist = self._get_opponent_level_prior(other_id)
-                curr_dist = self._get_particle_level_distribution(survivors, other_id)
-                if any(prior_dist[lvl] > 0 and curr_dist.get(lvl, 0.0) == 0 for lvl in prior_dist):
-                    has_extinct_level = True
-                    break
+        candidate_roots: Dict[AgentID, Dict[int, Optional[POMCPNode]]] = {}
+        post_weights: Dict[AgentID, Dict[int, float]] = {}
 
-            needs_reinvigoration = (current_count < target_count) or (self.config.reinvigoration.preserve_levels and has_extinct_level)
+        for other_id in other_agent_ids:
+            candidate_levels = sorted(list(self._get_opponent_level_prior(other_id).keys()))
+            k_levels = max(1, len(candidate_levels))
 
-            if needs_reinvigoration:
-                alpha = self.config.reinvigoration.alpha
-                n_surv_target = max(1, int(target_count * (1.0 - alpha)))
-                n_reinv = target_count - n_surv_target
+            prev_dist = self._get_particle_level_distribution(self.root.belief_particles, other_id)
+            if not prev_dist:
+                prev_dist = self._get_opponent_level_prior(other_id)
 
-                replenished = [random.choice(survivors) for _ in range(n_surv_target)]
-                surv_states = [p.state for p in survivors]
+            counts = {
+                lvl: sum(1 for p in survivors if p.models.get(other_id, (None, None))[0].level == lvl)
+                for lvl in candidate_levels
+            }
+            k = sum(counts.values())
 
-                candidate_roots: Dict[AgentID, Dict[int, Optional[POMCPNode]]] = {}
-                for other_id in other_agent_ids:
-                    candidate_roots[other_id] = {}
-                    prior_dist = self._get_opponent_level_prior(other_id)
-                    for lvl in prior_dist:
-                        if lvl > 0:
-                            surv_nodes = [
-                                p.models[other_id][1] for p in survivors
-                                if p.models.get(other_id, (None, None))[0].level == lvl and p.models[other_id][1] is not None
-                            ]
-                            if surv_nodes:
-                                candidate_roots[other_id][lvl] = surv_nodes[0]
-                            else:
-                                candidate_roots[other_id][lvl] = self._create_fresh_opponent_node(other_id, lvl)
+            # Dirichlet-Multinomial Bayesian update
+            N0 = 5
+            raw_post = {
+                lvl: (N0 * prev_dist.get(lvl, 1.0 / k_levels) + counts[lvl]) / (N0 + k)
+                for lvl in candidate_levels
+            }
 
-                for _ in range(n_reinv):
-                    s = self._sample_consistent_state(action, observation, candidate_states=surv_states)
-                    models = {}
-                    for other_id in other_agent_ids:
-                        prior_dist = self._get_opponent_level_prior(other_id)
-                        lvls = list(prior_dist.keys())
-                        probs = list(prior_dist.values())
-                        chosen_lvl = random.choices(lvls, weights=probs, k=1)[0]
-                        frame = AgentFrame(other_id, chosen_lvl, self.pomdp_model)
-                        node_ptr = candidate_roots[other_id].get(chosen_lvl) if chosen_lvl > 0 else None
-                        models[other_id] = (frame, node_ptr)
-                    replenished.append(InteractiveParticle(state=s, models=models))
+            eps = 0.01 if self.config.reinvigoration.preserve_levels else 0.0
+            smoothed = {
+                lvl: (1.0 - eps) * raw_post[lvl] + eps * (1.0 / k_levels)
+                for lvl in candidate_levels
+            }
+            total_w = sum(smoothed.values())
+            post_weights[other_id] = {lvl: w / total_w for lvl, w in smoothed.items()}
 
-                # Extinction protection guarantee
-                if self.config.reinvigoration.preserve_levels:
-                    for other_id in other_agent_ids:
-                        rep_dist = self._get_particle_level_distribution(replenished, other_id)
-                        prior_dist = self._get_opponent_level_prior(other_id)
-                        for lvl in prior_dist:
-                            if prior_dist[lvl] > 0 and rep_dist.get(lvl, 0.0) == 0:
-                                idx = random.randint(0, len(replenished) - 1)
-                                s = self._sample_consistent_state(action, observation, candidate_states=surv_states)
-                                models = dict(replenished[idx].models)
-                                frame = AgentFrame(other_id, lvl, self.pomdp_model)
-                                node_ptr = candidate_roots[other_id].get(lvl) if lvl > 0 else None
-                                models[other_id] = (frame, node_ptr)
-                                replenished[idx] = InteractiveParticle(state=s, models=models)
-
-                self.root.belief_particles = replenished
-                self.root._total_particles_routed = len(replenished)
-
-            if self.config.reinvigoration.enabled:
-                self._reinvigorate_mental_models()
-
-        else:
-            logger.warning(f"[{self.key}] Particle Deprivation (Obs: {observation}). Reinvigorating from prior.")
-            self.deprivation_events += 1
-
-            new_root = POMCPNode(capacity=self.config.mcts.node_capacity)
-            candidate_roots: Dict[AgentID, Dict[int, Optional[POMCPNode]]] = {}
-            for other_id in other_agent_ids:
-                candidate_roots[other_id] = {}
-                prior_dist = self._get_opponent_level_prior(other_id)
-                for lvl in prior_dist:
-                    if lvl > 0:
+            candidate_roots[other_id] = {}
+            for lvl in candidate_levels:
+                if lvl > 0:
+                    surv_nodes = [
+                        p.models[other_id][1] for p in survivors
+                        if p.models.get(other_id, (None, None))[0].level == lvl and p.models[other_id][1] is not None
+                    ]
+                    if surv_nodes:
+                        candidate_roots[other_id][lvl] = surv_nodes[0]
+                    else:
                         candidate_roots[other_id][lvl] = self._create_fresh_opponent_node(other_id, lvl)
 
-            for _ in range(target_count):
-                s = self._sample_consistent_state(action, observation)
-                models = {}
-                for other_id in other_agent_ids:
-                    prior_dist = self._get_opponent_level_prior(other_id)
-                    lvls = list(prior_dist.keys())
-                    probs = list(prior_dist.values())
-                    chosen_lvl = random.choices(lvls, weights=probs, k=1)[0]
-                    frame = AgentFrame(other_id, chosen_lvl, self.pomdp_model)
-                    node_ptr = candidate_roots[other_id].get(chosen_lvl) if chosen_lvl > 0 else None
-                    models[other_id] = (frame, node_ptr)
-                new_root.add_particle(InteractiveParticle(state=s, models=models))
+        if current_count == 0:
+            logger.warning(f"[{self.key}] Particle Deprivation (Obs: {observation}). Resampling consistent particles.")
+            self.deprivation_events += 1
 
-            self.root = new_root
-            if self.config.reinvigoration.enabled:
-                self._reinvigorate_mental_models()
+        new_root = POMCPNode(capacity=self.config.mcts.node_capacity)
+        alpha = self.config.reinvigoration.alpha
+        n_surv_target = min(current_count, int(target_count * (1.0 - alpha)))
+        replenished = [random.choice(survivors) for _ in range(n_surv_target)] if n_surv_target > 0 else []
+
+        surv_states = [p.state for p in survivors] if survivors else []
+        n_needed = target_count - len(replenished)
+
+        for _ in range(n_needed):
+            s = self._sample_consistent_state(action, observation, candidate_states=surv_states)
+            models = {}
+            for other_id in other_agent_ids:
+                lvls = list(post_weights[other_id].keys())
+                probs = list(post_weights[other_id].values())
+                chosen_lvl = random.choices(lvls, weights=probs, k=1)[0]
+                frame = AgentFrame(other_id, chosen_lvl, self.pomdp_model)
+                node_ptr = candidate_roots[other_id].get(chosen_lvl) if chosen_lvl > 0 else None
+                models[other_id] = (frame, node_ptr)
+            replenished.append(InteractiveParticle(state=s, models=models))
+
+        # Extinction protection guarantee
+        if self.config.reinvigoration.preserve_levels:
+            for other_id in other_agent_ids:
+                rep_dist = self._get_particle_level_distribution(replenished, other_id)
+                candidate_levels = list(post_weights[other_id].keys())
+                for lvl in candidate_levels:
+                    if rep_dist.get(lvl, 0.0) == 0:
+                        idx = random.randint(0, len(replenished) - 1)
+                        s = self._sample_consistent_state(action, observation, candidate_states=surv_states)
+                        models = dict(replenished[idx].models)
+                        frame = AgentFrame(other_id, lvl, self.pomdp_model)
+                        node_ptr = candidate_roots[other_id].get(lvl) if lvl > 0 else None
+                        models[other_id] = (frame, node_ptr)
+                        replenished[idx] = InteractiveParticle(state=s, models=models)
+
+        new_root.belief_particles = replenished
+        new_root._total_particles_routed = len(replenished)
+        self.root = new_root
+
+        if self.config.reinvigoration.enabled:
+            self._reinvigorate_mental_models()
 
     def _reinvigorate_mental_models(self) -> None:
         if not self.root.belief_particles:
