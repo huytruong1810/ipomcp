@@ -113,27 +113,36 @@ class InteractiveGenerativeModel:
         return p_next, joint_action, reward_i, is_terminal
 
     def _sample_action_from_node(self, node: POMCPNode) -> Optional[Action]:
-        if node.visit_count == 0 or not node.action_values:
+        if node.visit_count == 0:
+            return None
+
+        # Prefer visit counts (standard in MCTS literature, e.g. AlphaZero / I-POMCP)
+        if node.action_counts:
+            actions = list(node.action_counts.keys())
+            counts = [node.action_counts[a] for a in actions]
+            total_counts = sum(counts)
+            if total_counts > 0:
+                if self.config.temperature <= 1e-3:
+                    max_c = max(counts)
+                    best_actions = [a for a, c in zip(actions, counts) if c == max_c]
+                    return random.choice(best_actions)
+
+                # Temperature-scaled visit count distribution: P(a) \propto N(a)^(1/tau)
+                tau = max(self.config.temperature, 1e-3)
+                inv_tau = 1.0 / tau
+                scaled = [c ** inv_tau for c in counts]
+                tot_scaled = sum(scaled)
+                if tot_scaled > 0:
+                    probs = [s / tot_scaled for s in scaled]
+                    return random.choices(actions, weights=probs, k=1)[0]
+                return random.choice(actions)
+
+        # Fallback to action_values if action_counts is somehow empty
+        if not node.action_values:
             return None
 
         actions = list(node.action_values.keys())
         q_values = list(node.action_values.values())
         max_q = max(q_values)
         best_actions = [a for a, q in zip(actions, q_values) if q == max_q]
-
-        if self.config.temperature <= 1e-3:
-            return random.choice(best_actions)
-
-        try:
-            # FAST-MATH: Multiplication instead of division
-            exp_scaled_qs = [math.exp((q - max_q) * self._inv_temp) for q in q_values]
-            sum_exp = sum(exp_scaled_qs)
-
-            if sum_exp == 0:
-                return random.choice(best_actions)
-
-            probs = [e / sum_exp for e in exp_scaled_qs]
-            return random.choices(actions, weights=probs, k=1)[0]
-
-        except OverflowError:
-            return random.choice(best_actions)
+        return random.choice(best_actions)
