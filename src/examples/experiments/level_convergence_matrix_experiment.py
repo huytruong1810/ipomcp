@@ -61,8 +61,8 @@ class MatrixCellTigerRunner(GenericBatchRunner):
         if self.level_j == 0:
             planner_j = boot_j.create_solver(agent_id="j", level=0, model=env, other_agent_ids=["i"])
         else:
-            sims_j = SIM_SCHEDULE.get(self.level_j, 50000 * self.level_j)
-            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 2500 * self.level_j)
+            sims_j = SIM_SCHEDULE.get(self.level_j, 10000 * self.level_j)
+            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 1000 * self.level_j)
             cfg_j = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=2000),
                 jit=JITConfig()
@@ -89,8 +89,8 @@ class MatrixCellTigerRunner(GenericBatchRunner):
         if self.level_i == 0:
             planner_i = boot_i.create_solver(agent_id="i", level=0, model=env, other_agent_ids=["j"])
         else:
-            sims_i = SIM_SCHEDULE.get(self.level_i, 50000 * self.level_i)
-            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 2500 * self.level_i)
+            sims_i = SIM_SCHEDULE.get(self.level_i, 10000 * self.level_i)
+            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 1000 * self.level_i)
             cfg_i = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=2000),
                 jit=JITConfig()

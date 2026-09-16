@@ -61,10 +61,10 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
         if self.level_j == 0:
             planner_j = boot_j.create_solver(agent_id="j", level=0, model=env, other_agent_ids=["i"])
         else:
-            sims_j = SIM_SCHEDULE.get(self.level_j, 50000 * self.level_j)
-            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 2500 * self.level_j)
+            sims_j = SIM_SCHEDULE.get(self.level_j, 10000 * self.level_j)
+            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 1000 * self.level_j)
             cfg_j = IPOMCPConfig(
-                mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=2000),
+                mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=1000),
                 jit=JITConfig()
             )
 
@@ -85,10 +85,10 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
         if self.level_i == 0:
             planner_i = boot_i.create_solver(agent_id="i", level=0, model=env, other_agent_ids=["j"])
         else:
-            sims_i = SIM_SCHEDULE.get(self.level_i, 50000 * self.level_i)
-            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 2500 * self.level_i)
+            sims_i = SIM_SCHEDULE.get(self.level_i, 10000 * self.level_i)
+            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 1000 * self.level_i)
             cfg_i = IPOMCPConfig(
-                mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=2000),
+                mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=1000),
                 jit=JITConfig()
             )
 
@@ -106,13 +106,14 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
         return env, planner_i, planner_j, env.get_initial_state()
 
 
-def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_depth: int = 5, resume_dir: Optional[str] = None):
+def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_depth: int = 5, resume_dir: Optional[str] = None, condition_idx: Optional[int] = None):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
         logger.info(f"Resuming existing benchmark from: {master_dir}")
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        master_dir = get_results_dir("deep_prior", f"deep_prior_benchmark_{timestamp}_N{n_trials}_T{max_steps}")
+        cond_tag = f"_cond{condition_idx}" if condition_idx is not None else ""
+        master_dir = get_results_dir("deep_prior", f"deep_prior_benchmark_{timestamp}{cond_tag}_N{n_trials}_T{max_steps}")
 
     logger.info(f"=== STARTING DEEP HIERARCHY PRIOR BENCHMARK (N={n_trials}, T={max_steps}, Depth={planning_depth}) ===")
     logger.info(f"Results Directory: {master_dir}")
@@ -165,10 +166,20 @@ def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_
         }
     ]
 
+    if condition_idx is not None:
+        if 1 <= condition_idx <= len(conditions):
+            cond_offset = condition_idx
+            conditions = [conditions[condition_idx - 1]]
+        else:
+            raise ValueError(f"Invalid condition_idx {condition_idx}; must be between 1 and {len(conditions)}")
+    else:
+        cond_offset = 1
+
     all_dfs = []
     exp_config = ExperimentConfig(n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False)
 
-    for cond_idx, cond in enumerate(conditions, 1):
+    for idx_offset, cond in enumerate(conditions):
+        cond_idx = cond_offset + idx_offset
         cond_name = cond["name"]
         sanitized_name = cond_name.replace("/", "_div_").replace(" ", "_").replace("(", "").replace(")", "").replace("%", "pct")
         cond_dir = os.path.join(master_dir, f"cond_{cond_idx}_{sanitized_name}")
@@ -193,21 +204,23 @@ def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_
         )
 
         # 1. Capture snapshots for Sunburst (Trial 0)
-        _, snapshots = runner.run_single_trial_with_snapshots(trial_id=0)
-        if snapshots:
-            if 0 in snapshots:
-                plot_nested_belief_sunburst(snapshots[0], title=f"{cond_name} - Prior Hierarchy (t=0)", save_dir=cond_dir, filename="sunburst_t0")
-                generate_nested_sunburst_pdf(snapshots[0], os.path.join(cond_dir, "fig_sunburst_t0.pdf"), title=f"{cond_name} (t=0)")
-            final_step = max(snapshots.keys())
-            plot_nested_belief_sunburst(snapshots[final_step], title=f"{cond_name} - Posterior Hierarchy (t={final_step})", save_dir=cond_dir, filename="sunburst_final")
-            generate_nested_sunburst_pdf(snapshots[final_step], os.path.join(cond_dir, "fig_sunburst_final.pdf"), title=f"{cond_name} (t={final_step})")
-            plot_episode_sunburst_slider(snapshots, title_prefix=cond_name, save_dir=cond_dir, filename="sunburst_animated")
+        snapshots_path = os.path.join(cond_dir, "nested_belief_snapshots_trial_0.json")
+        if os.path.exists(snapshots_path) and os.path.exists(os.path.join(cond_dir, "sunburst_final.html")):
+            logger.info(f"Snapshots and Sunburst plots already exist in {cond_dir}. Skipping snapshot trial.")
+        else:
+            _, snapshots = runner.run_single_trial_with_snapshots(trial_id=0)
+            if snapshots:
+                if 0 in snapshots:
+                    plot_nested_belief_sunburst(snapshots[0], title=f"{cond_name} - Prior Hierarchy (t=0)", save_dir=cond_dir, filename="sunburst_t0")
+                    generate_nested_sunburst_pdf(snapshots[0], os.path.join(cond_dir, "fig_sunburst_t0.pdf"), title=f"{cond_name} (t=0)")
+                final_step = max(snapshots.keys())
+                plot_nested_belief_sunburst(snapshots[final_step], title=f"{cond_name} - Posterior Hierarchy (t={final_step})", save_dir=cond_dir, filename="sunburst_final")
+                generate_nested_sunburst_pdf(snapshots[final_step], os.path.join(cond_dir, "fig_sunburst_final.pdf"), title=f"{cond_name} (t={final_step})")
+                plot_episode_sunburst_slider(snapshots, title_prefix=cond_name, save_dir=cond_dir, filename="sunburst_animated")
 
         # Memory-safe worker throttling to guarantee execution inside physical RAM
         max_lvl = max(cond["level_i"], cond["level_j"])
-        if max_lvl <= 2:
-            workers = 6
-        elif max_lvl == 3:
+        if max_lvl <= 3:
             workers = 4
         else:
             workers = 2
@@ -240,9 +253,17 @@ def run_deep_prior_experiment(n_trials: int = 50, max_steps: int = 20, planning_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trials", type=int, default=200, help="Number of trials per condition")
-    parser.add_argument("--steps", type=int, default=20, help="Decision steps per trial")
+    parser.add_argument("--trials", type=int, default=50, help="Number of trials per condition")
+    parser.add_argument("--steps", type=int, default=10, help="Decision steps per trial")
     parser.add_argument("--planning-depth", type=int, default=5, help="MCTS tree search max depth")
+    parser.add_argument("--condition", type=int, default=None, help="Specific condition index (1-7) to run")
+    parser.add_argument("--resume-dir", type=str, default=None, help="Existing directory to resume")
     args = parser.parse_args()
 
-    run_deep_prior_experiment(n_trials=args.trials, max_steps=args.steps, planning_depth=args.planning_depth)
+    run_deep_prior_experiment(
+        n_trials=args.trials,
+        max_steps=args.steps,
+        planning_depth=args.planning_depth,
+        resume_dir=args.resume_dir,
+        condition_idx=args.condition
+    )

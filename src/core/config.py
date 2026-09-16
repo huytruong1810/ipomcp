@@ -13,22 +13,22 @@ from typing import Dict
 import json
 import os
 
-# Centralized, high-fidelity simulation and particle schedules across reasoning levels (L0-L4)
+# Centralized, memory-safe simulation and particle schedules across reasoning levels (L0-L4)
 DEFAULT_SIM_SCHEDULE: Dict[int, int] = {
     0: 0,
-    1: 50000,
-    2: 100000,
-    3: 150000,
-    4: 200000
+    1: 10000,
+    2: 15000,
+    3: 20000,
+    4: 25000
 }
 
-# Escalating particle budget to cover combinatorial union of nested lower-level opponent models
+# Balanced particle budget across reasoning levels (L0-L4)
 DEFAULT_PARTICLE_SCHEDULE: Dict[int, int] = {
     0: 0,
-    1: 2500,
-    2: 5000,
-    3: 7500,
-    4: 10000
+    1: 1000,
+    2: 1500,
+    3: 2000,
+    4: 2000
 }
 
 
@@ -36,9 +36,10 @@ DEFAULT_PARTICLE_SCHEDULE: Dict[int, int] = {
 class JITConfig:
     """Hyperparameters gating the Variance-Driven JIT Expansion."""
     temperature: float = 0.5
-    entropy_threshold: float = 0.5
-    visit_threshold: int = 10
-    sims: int = 50
+    entropy_threshold: float = 0.6
+    visit_threshold: int = 5
+    sims: int = 10
+
 
 
 @dataclass(frozen=True)

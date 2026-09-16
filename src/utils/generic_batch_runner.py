@@ -402,6 +402,13 @@ class GenericBatchRunner(ABC):
                     completed += 1
                     if completed % log_interval == 0 or completed == self.config.n_trials:
                         logger.info(f"Progress: {completed}/{self.config.n_trials} trials completed.")
+                        if self.log_dir and all_records:
+                            try:
+                                pd.DataFrame(all_records).to_csv(
+                                    os.path.join(self.log_dir, "batch_results_partial.csv"), index=False
+                                )
+                            except Exception as save_err:
+                                logger.warning(f"Failed to write partial batch checkpoint: {save_err}")
                 except Exception as exc:
                     failed_trials += 1
                     logger.error(f"Trial failed with exception: {exc}", exc_info=True)

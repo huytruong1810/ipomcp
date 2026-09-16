@@ -186,6 +186,9 @@ class IPOMCPPlanner(Planner):
     def _sample_consistent_state(self, action: Action, observation: Observation,
                                  candidate_states: Optional[List[State]] = None) -> State:
         """Samples a physical state consistent with the given action and observation."""
+        if candidate_states:
+            return random.choice(candidate_states)
+
         if hasattr(self.pomdp_model, 'sample_state_consistent_with_obs'):
             return self.pomdp_model.sample_state_consistent_with_obs(action, observation, agent_id=self.key.agent_id)
 
@@ -356,16 +359,14 @@ class IPOMCPPlanner(Planner):
                         if p.models.get(other_id, (None, None))[0].level == lvl and p.models[other_id][1] is not None
                     ]
                     if surv_nodes:
-                        merged = POMCPNode(capacity=self.config.mcts.node_capacity)
-                        for sn in surv_nodes:
-                            for p in sn.belief_particles:
-                                merged.add_particle(p)
-                        if len(merged.belief_particles) < self.config.reinvigoration.min_particles:
+                        canonical_opp_root = surv_nodes[0]
+                        canonical_opp_root.parent = None
+                        if len(canonical_opp_root.belief_particles) < self.config.reinvigoration.min_particles:
                             fresh = self._create_fresh_opponent_node(other_id, lvl)
                             if fresh:
                                 for p in fresh.belief_particles:
-                                    merged.add_particle(p)
-                        candidate_roots[other_id][lvl] = merged
+                                    canonical_opp_root.add_particle(p)
+                        candidate_roots[other_id][lvl] = canonical_opp_root
                     else:
                         candidate_roots[other_id][lvl] = self._create_fresh_opponent_node(other_id, lvl)
 
