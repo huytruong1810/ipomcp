@@ -1,16 +1,17 @@
-# Absolute Path: <project_root>/tests/test_reinvigoration.py
-
-import pytest
-from solvers.solver_types import SolverKey
-from core.config import IPOMCPConfig, MCTSConfig, JITConfig, ReinvigorationConfig
-from solvers.solver_bank import SolverBank
-from solvers.i_pomcp import IPOMCPPlanner
-from utils.bootstrapper import I_POMDP_Bootstrapper
+from core.config import IPOMCPConfig, JITConfig, MCTSConfig, ReinvigorationConfig
 from examples.tiger.model.tiger_model import (
-    TigerModel, LISTEN, OPEN_LEFT, OPEN_RIGHT,
-    GROWL_LEFT, GROWL_RIGHT, CREAK_LEFT, CREAK_RIGHT, SILENCE,
-    TIGER_LEFT, TIGER_RIGHT
+    CREAK_RIGHT,
+    GROWL_LEFT,
+    GROWL_RIGHT,
+    LISTEN,
+    OPEN_LEFT,
+    SILENCE,
+    TIGER_LEFT,
+    TIGER_RIGHT,
+    TigerModel,
 )
+from solvers.solver_bank import SolverBank
+from utils.bootstrapper import I_POMDP_Bootstrapper
 
 
 def _setup_l3_planner(prior_weights=None, n_particles=500):
@@ -22,7 +23,7 @@ def _setup_l3_planner(prior_weights=None, n_particles=500):
     cfg = IPOMCPConfig(
         mcts=MCTSConfig(n_sims=100, max_depth=3, node_capacity=n_particles),
         jit=JITConfig(sims=20),
-        reinvigoration=ReinvigorationConfig(alpha=0.20, min_particles=100, preserve_levels=True)
+        reinvigoration=ReinvigorationConfig(min_particles=100, preserve_levels=True),
     )
     planner = boot.create_solver(
         agent_id="i",
@@ -31,34 +32,53 @@ def _setup_l3_planner(prior_weights=None, n_particles=500):
         other_agent_ids=["j"],
         level_weights=prior_weights,
         n_particles=n_particles,
-        config=cfg
+        config=cfg,
     )
     return env, planner, bank
 
 
 def test_consistent_state_sampling():
     """Verify Bayesian physical state sampling given observations in Tiger."""
-    env = TigerModel(growl_accuracy={'i': 0.85, 'j': 0.85})
+    env = TigerModel(growl_accuracy={"i": 0.85, "j": 0.85})
 
     # When hearing GL, state should be predominantly TL (85%)
-    tl_count = sum(1 for _ in range(1000) if env.sample_state_consistent_with_obs(LISTEN, (GROWL_LEFT, SILENCE), agent_id='i') == TIGER_LEFT)
+    tl_count = sum(
+        1
+        for _ in range(1000)
+        if env.sample_state_consistent_with_obs(LISTEN, (GROWL_LEFT, SILENCE), agent_id="i")
+        == TIGER_LEFT
+    )
     assert 800 <= tl_count <= 900
 
     # When hearing GR, state should be predominantly TR (85%)
-    tr_count = sum(1 for _ in range(1000) if env.sample_state_consistent_with_obs(LISTEN, (GROWL_RIGHT, SILENCE), agent_id='i') == TIGER_RIGHT)
+    tr_count = sum(
+        1
+        for _ in range(1000)
+        if env.sample_state_consistent_with_obs(LISTEN, (GROWL_RIGHT, SILENCE), agent_id="i")
+        == TIGER_RIGHT
+    )
     assert 800 <= tr_count <= 900
 
     # When deafened, state should be uniform 50/50
-    tl_deaf = sum(1 for _ in range(1000) if env.sample_state_consistent_with_obs(OPEN_LEFT, (SILENCE, SILENCE), agent_id='i') == TIGER_LEFT)
+    tl_deaf = sum(
+        1
+        for _ in range(1000)
+        if env.sample_state_consistent_with_obs(OPEN_LEFT, (SILENCE, SILENCE), agent_id="i")
+        == TIGER_LEFT
+    )
     assert 430 <= tl_deaf <= 570
 
 
 def test_opponent_door_opening_preserves_opponent_level_prior():
     """Verify that when opponent J opens a door (CREAK heard), Level-2 does NOT collapse to Level-0."""
-    env, planner, bank = _setup_l3_planner(prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=500)
+    env, planner, bank = _setup_l3_planner(
+        prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=500
+    )
 
     # Verify initial belief
-    initial_l2_ratio = sum(1 for p in planner.root.belief_particles if p.models["j"][0].level == 2) / len(planner.root.belief_particles)
+    initial_l2_ratio = sum(
+        1 for p in planner.root.belief_particles if p.models["j"][0].level == 2
+    ) / len(planner.root.belief_particles)
     assert initial_l2_ratio >= 0.70
 
     # Simulate step: agent i listens, opponent j opens right door -> agent i observes (GL, CR)
@@ -96,7 +116,9 @@ def test_opponent_door_opening_preserves_opponent_level_prior():
 
 def test_agent_door_opening_preserves_prior():
     """Verify that when agent I opens a door, opponent level distribution is preserved."""
-    env, planner, bank = _setup_l3_planner(prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=500)
+    env, planner, bank = _setup_l3_planner(
+        prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=500
+    )
 
     a_i = OPEN_LEFT
     o_i = (SILENCE, SILENCE)
@@ -115,7 +137,9 @@ def test_agent_door_opening_preserves_prior():
 
 def test_normal_step_mixture_reinvigoration_prevents_extinction():
     """Verify that during normal listening steps, mixture reinvigoration maintains representation of all prior levels."""
-    env, planner, bank = _setup_l3_planner(prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=500)
+    env, planner, bank = _setup_l3_planner(
+        prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=500
+    )
 
     # Perform a normal update (listen, silence creak)
     a_i = LISTEN
@@ -140,18 +164,13 @@ def test_normal_step_mixture_reinvigoration_prevents_extinction():
 
 def test_deep_hierarchy_l3_vs_l2_multi_step(monkeypatch):
     """Verify end-to-end multi-step batch execution retains Level-2 modeling without collapse."""
-    from examples.experiments import deep_hierarchy_prior_experiment as dhpe
     from core.config import ExperimentConfig
+    from examples.experiments import deep_hierarchy_prior_experiment as dhpe
 
     monkeypatch.setattr(dhpe, "SIM_SCHEDULE", {0: 0, 1: 50, 2: 100, 3: 150})
     monkeypatch.setattr(dhpe, "PARTICLE_SCHEDULE", {0: 0, 1: 100, 2: 200, 3: 300})
 
-    exp_config = ExperimentConfig(
-        n_trials=2,
-        max_steps=6,
-        export_trees=False,
-        verbose=False
-    )
+    exp_config = ExperimentConfig(n_trials=2, max_steps=6, export_trees=False, verbose=False)
     runner = dhpe.DeepHierarchyTigerRunner(
         config=exp_config,
         log_dir=None,
@@ -159,7 +178,7 @@ def test_deep_hierarchy_l3_vs_l2_multi_step(monkeypatch):
         level_j=2,
         prior_weights_i={2: 0.80, 1: 0.10, 0: 0.10},
         prior_weights_j={1: 0.80, 0: 0.20},
-        planning_depth=3
+        planning_depth=3,
     )
     df = runner.run_batch(max_workers=1)
     assert not df.empty
@@ -175,10 +194,12 @@ def test_deep_hierarchy_l3_vs_l2_multi_step(monkeypatch):
 def test_overestimated_prior_adaptation_resets_preserve_posterior():
     """Verify that when an agent learns an empirical posterior differing from its initial prior,
     epoch resets preserve the learned posterior rather than snapping back to the initial prior."""
-    from ipomdp.belief import InteractiveParticle, AgentFrame
+    from ipomdp.belief import AgentFrame, InteractiveParticle
 
     # Agent initialized with 80% L2 prior
-    env, planner, bank = _setup_l3_planner(prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=300)
+    env, planner, bank = _setup_l3_planner(
+        prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=300
+    )
 
     # Artificially set belief particles to reflect an updated posterior (60% L1, 30% L2, 10% L0)
     particles = planner.root.belief_particles
@@ -195,17 +216,23 @@ def test_overestimated_prior_adaptation_resets_preserve_posterior():
     dist_after = planner._get_particle_level_distribution(planner.root.belief_particles, "j")
 
     # The learned posterior must be preserved: L1 must remain dominant, not L2
-    assert dist_after.get(1, 0.0) >= 0.50, f"Expected P(L1) >= 0.50 after reset, got {dist_after.get(1, 0.0)}"
-    assert dist_after.get(2, 0.0) <= 0.40, f"Expected P(L2) <= 0.40 after reset, got {dist_after.get(2, 0.0)}"
+    assert dist_after.get(1, 0.0) >= 0.50, (
+        f"Expected P(L1) >= 0.50 after reset, got {dist_after.get(1, 0.0)}"
+    )
+    assert dist_after.get(2, 0.0) <= 0.40, (
+        f"Expected P(L2) <= 0.40 after reset, got {dist_after.get(2, 0.0)}"
+    )
 
 
 def test_normal_step_reinvigoration_uses_empirical_posterior():
     """Verify that when normal step reinvigoration occurs due to small particle count in child,
     the replenished particles reflect the child's empirical posterior distribution rather than the initial prior."""
-    from ipomdp.belief import InteractiveParticle, AgentFrame
+    from ipomdp.belief import AgentFrame, InteractiveParticle
 
     # Agent initialized with 80% L2 prior
-    env, planner, bank = _setup_l3_planner(prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=300)
+    env, planner, bank = _setup_l3_planner(
+        prior_weights={2: 0.80, 1: 0.10, 0: 0.10}, n_particles=300
+    )
 
     # Directly populate a child node with 20 particles reflecting 70% L1, 20% L2, 10% L0
     child = planner.root.create_child(LISTEN, (GROWL_LEFT, SILENCE))
@@ -221,5 +248,3 @@ def test_normal_step_reinvigoration_uses_empirical_posterior():
     # Replenishment must follow the child's 70% L1 distribution, not the 80% L2 prior
     assert dist_after.get(1, 0.0) >= 0.50, f"Expected P(L1) >= 0.50, got {dist_after.get(1, 0.0)}"
     assert dist_after.get(2, 0.0) <= 0.35, f"Expected P(L2) <= 0.35, got {dist_after.get(2, 0.0)}"
-
-

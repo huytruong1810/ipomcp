@@ -1,35 +1,34 @@
 """
 telemetry.py — OS-Level Resource Monitoring, Performance Watchdogs, and High-Fidelity Telemetry.
 
-Provides zero-overhead, production-grade Linux systems telemetry for Monte Carlo Tree Search
+Provides Linux process and host measurements for Monte Carlo Tree Search
 and recursive multi-agent reasoning:
 - Live process RSS, VMS, CPU time, and major/minor page faults.
 - Host physical RAM, available memory, swap utilization, and load averages via `/proc`.
 - Operating regime classification:
-    * DRAM_BOUND_NORMAL: Standard CPU-bound execution.
+    * DRAM_BOUND_NORMAL: Memory thresholds were not exceeded; no CPU diagnosis.
     * MEMORY_PRESSURE: Available RAM dropping below safety margins (< 15%).
-    * SWAP_THRASHING: Heavy swap paging causing disk stalls.
+    Swap occupancy alone cannot establish active swapping or thrashing.
 - Memory watchdog sentry enforcing soft/hard limits and automated GC triggers.
 - Streaming JSONL telemetry logger for real-time benchmarking and post-hoc diagnostics.
 """
 
-import os
 import gc
 import json
-import time
+import os
 import resource
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from dataclasses import dataclass, asdict
-from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
+from typing import Any, Dict, Tuple
 
-
-PAGE_SIZE = os.sysconf("SC_PAGE_SIZE") if hasattr(os, "sysconf") else 4096
+PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
 
 
 @dataclass(slots=True)
 class SystemResourceSnapshot:
-    """Immutable snapshot of process-level and host-level system vitals."""
+    """Snapshot of process-level and host-level system vitals."""
+
     timestamp_utc: str
     process_rss_bytes: int
     process_rss_mb: float
@@ -63,17 +62,8 @@ class SystemMonitor:
         Returns (rss_bytes, vms_bytes) for the current process.
         Uses /proc/self/statm for microsecond-resolution Linux memory tracking.
         """
-        try:
-            with open("/proc/self/statm", "r") as f:
-                fields = f.read().split()
-                vms_bytes = int(fields[0]) * PAGE_SIZE
-                rss_bytes = int(fields[1]) * PAGE_SIZE
-                return rss_bytes, vms_bytes
-        except Exception:
-            # Fallback to getrusage (ru_maxrss in kilobytes on Linux)
-            usage = resource.getrusage(resource.RUSAGE_SELF)
-            rss_bytes = usage.ru_maxrss * 1024
-            return rss_bytes, rss_bytes
+        fields = Path("/proc/self/statm").read_text().split()
+        return int(fields[1]) * PAGE_SIZE, int(fields[0]) * PAGE_SIZE
 
     @staticmethod
     def get_host_memory() -> Dict[str, float]:
@@ -81,38 +71,19 @@ class SystemMonitor:
         Extracts MemTotal, MemAvailable, SwapTotal, SwapFree from /proc/meminfo.
         All returned values are in Megabytes (MB).
         """
-        data = {
-            "total_ram_mb": 0.0,
-            "available_ram_mb": 0.0,
-            "swap_total_mb": 0.0,
-            "swap_used_mb": 0.0,
-            "ram_used_pct": 0.0
+        meminfo = {}
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            key, value = line.split(":", 1)
+            meminfo[key] = float(value.split()[0]) / 1024.0
+        total = meminfo["MemTotal"]
+        available = meminfo["MemAvailable"]
+        return {
+            "total_ram_mb": total,
+            "available_ram_mb": available,
+            "swap_total_mb": meminfo["SwapTotal"],
+            "swap_used_mb": meminfo["SwapTotal"] - meminfo["SwapFree"],
+            "ram_used_pct": (total - available) / total * 100,
         }
-        try:
-            with open("/proc/meminfo", "r") as f:
-                meminfo = {}
-                for line in f:
-                    parts = line.split(":")
-                    if len(parts) == 2:
-                        key = parts[0].strip()
-                        val_str = parts[1].strip().split()[0]
-                        meminfo[key] = float(val_str) / 1024.0  # Convert kB to MB
-
-                total = meminfo.get("MemTotal", 1.0)
-                avail = meminfo.get("MemAvailable", total)
-                swap_total = meminfo.get("SwapTotal", 0.0)
-                swap_free = meminfo.get("SwapFree", 0.0)
-                swap_used = max(0.0, swap_total - swap_free)
-
-                data["total_ram_mb"] = total
-                data["available_ram_mb"] = avail
-                data["swap_total_mb"] = swap_total
-                data["swap_used_mb"] = swap_used
-                data["ram_used_pct"] = max(0.0, min(100.0, (total - avail) / total * 100.0))
-        except Exception:
-            pass
-
-        return data
 
     @classmethod
     def capture_snapshot(cls) -> SystemResourceSnapshot:
@@ -127,17 +98,14 @@ class SystemMonitor:
         minflt = int(usage.ru_minflt)
         majflt = int(usage.ru_majflt)
 
-        try:
-            load_1m = os.getloadavg()[0]
-        except Exception:
-            load_1m = 0.0
+        load_1m = os.getloadavg()[0]
 
         # Classify OS regime
         used_pct = host_mem["ram_used_pct"]
         swap_used = host_mem["swap_used_mb"]
 
         if swap_used > 500.0 and used_pct > 92.0:
-            regime = "SWAP_THRASHING"
+            regime = "MEMORY_PRESSURE"
         elif used_pct > 85.0 or host_mem["available_ram_mb"] < 2500.0:
             regime = "MEMORY_PRESSURE"
         else:
@@ -159,7 +127,7 @@ class SystemMonitor:
             host_swap_used_mb=swap_used,
             host_swap_total_mb=host_mem["swap_total_mb"],
             host_load_avg_1m=load_1m,
-            os_regime=regime
+            os_regime=regime,
         )
 
 
@@ -169,10 +137,12 @@ class MemoryWatchdog:
     Monitors process and host memory thresholds to prevent OOM events and swap thrashing.
     """
 
-    def __init__(self,
-                 max_process_rss_mb: float = 3500.0,
-                 min_host_available_mb: float = 2000.0,
-                 auto_gc_threshold_mb: float = 1500.0):
+    def __init__(
+        self,
+        max_process_rss_mb: float = 3500.0,
+        min_host_available_mb: float = 2000.0,
+        auto_gc_threshold_mb: float = 1500.0,
+    ):
         self.max_process_rss_mb = max_process_rss_mb
         self.min_host_available_mb = min_host_available_mb
         self.auto_gc_threshold_mb = auto_gc_threshold_mb
@@ -189,7 +159,7 @@ class MemoryWatchdog:
             "safe": True,
             "warning": False,
             "action_taken": "none",
-            "snapshot": snapshot.to_dict()
+            "snapshot": snapshot.to_dict(),
         }
 
         # Check soft GC threshold
@@ -203,21 +173,25 @@ class MemoryWatchdog:
         if snapshot.host_available_ram_mb < self.min_host_available_mb:
             status["warning"] = True
             status["safe"] = False
-            status["reason"] = f"Host available RAM ({snapshot.host_available_ram_mb:.1f} MB) below floor ({self.min_host_available_mb:.1f} MB)"
+            status["reason"] = (
+                f"Host available RAM ({snapshot.host_available_ram_mb:.1f} MB) below floor ({self.min_host_available_mb:.1f} MB)"
+            )
 
         # Check process RSS ceiling
         if snapshot.process_rss_mb > self.max_process_rss_mb:
             status["warning"] = True
             status["safe"] = False
-            status["reason"] = f"Process RSS ({snapshot.process_rss_mb:.1f} MB) exceeded ceiling ({self.max_process_rss_mb:.1f} MB)"
+            status["reason"] = (
+                f"Process RSS ({snapshot.process_rss_mb:.1f} MB) exceeded ceiling ({self.max_process_rss_mb:.1f} MB)"
+            )
 
         return status
 
 
 class TelemetryLogger:
     """
-    Asynchronous / append-only structured JSONL streaming logger for trial telemetry.
-    Ensures zero blocking of critical MCTS planning loops.
+    Synchronous append-only JSONL writer. Call outside critical planning loops.
+    Write errors propagate; missing evidence is not a successful experiment.
     """
 
     def __init__(self, output_file: str):
@@ -231,10 +205,7 @@ class TelemetryLogger:
             "timestamp": snapshot.timestamp_utc,
             "event": event_type,
             "system_vitals": snapshot.to_dict(),
-            "payload": data
+            "payload": data,
         }
-        try:
-            with open(self.output_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record) + "\n")
-        except Exception:
-            pass
+        with open(self.output_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, allow_nan=False) + "\n")

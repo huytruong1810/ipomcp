@@ -1,10 +1,11 @@
 import os
 import time
+
 from core.config import IPOMCPConfig, MCTSConfig
 from core.paths import get_results_dir
-from solvers.exploration import NormalizedUCB
-from examples.wumpus.model.wumpus_model import WumpusModel, AGENT_HUMAN, AGENT_WUMPUS
+from examples.wumpus.model.wumpus_model import AGENT_HUMAN, AGENT_WUMPUS, WumpusModel
 from examples.wumpus.model.wumpus_viz import WumpusVisualizer
+from solvers.exploration import NormalizedUCB
 from solvers.solver_bank import SolverBank
 from utils.bootstrapper import I_POMDP_Bootstrapper
 from utils.visualizer import ForestVisualizer
@@ -30,10 +31,12 @@ def run_interactive_wumpus():
     boot_wumpus.create_level0_solver(AGENT_HUMAN, real_env)
     boot_wumpus.create_level0_solver(AGENT_WUMPUS, real_env)
     planner_wumpus_l1 = boot_wumpus.create_level1_solver(
-        AGENT_WUMPUS, real_env, [AGENT_HUMAN],
+        AGENT_WUMPUS,
+        real_env,
+        [AGENT_HUMAN],
         n_particles=5000,
         config=config_wumpus,
-        exploration_strategy=NormalizedUCB(exploration_const=1.0)
+        exploration_strategy=NormalizedUCB(exploration_const=1.0),
     )
 
     # Isolated bank for Human (Agent I / Level 2)
@@ -42,17 +45,21 @@ def run_interactive_wumpus():
     boot_human.create_level0_solver(AGENT_HUMAN, real_env)
     boot_human.create_level0_solver(AGENT_WUMPUS, real_env)
     boot_human.create_level1_solver(
-        AGENT_WUMPUS, real_env, [AGENT_HUMAN],
+        AGENT_WUMPUS,
+        real_env,
+        [AGENT_HUMAN],
         n_particles=5000,
         config=config_wumpus,
-        exploration_strategy=NormalizedUCB(exploration_const=1.0)
+        exploration_strategy=NormalizedUCB(exploration_const=1.0),
     )
     planner_human_l2 = boot_human.create_level2_solver(
-        AGENT_HUMAN, real_env, [AGENT_WUMPUS],
+        AGENT_HUMAN,
+        real_env,
+        [AGENT_WUMPUS],
         l1_probability=0.9,
         n_particles=5000,
         config=config_human,
-        exploration_strategy=NormalizedUCB(exploration_const=1.0)
+        exploration_strategy=NormalizedUCB(exploration_const=1.0),
     )
 
     forest_viz = ForestVisualizer(bank_human)
@@ -103,7 +110,9 @@ def run_interactive_wumpus():
 
         # Visualization Export (Every 5 steps)
         if t % 25 == 0:
-            forest_viz.export_forest(planner_human_l2, os.path.join(viz_dir, f"wumpus_forest_step_{t}"), t)
+            forest_viz.export_forest(
+                planner_human_l2, os.path.join(viz_dir, f"wumpus_forest_step_{t}"), t
+            )
 
         # Check Terminal
         if real_env.is_terminal(next_state):

@@ -1,7 +1,6 @@
-import pytest
 from core.config import ExperimentConfig
-from examples.tiger.runners.tiger_batch_runner import TigerBatchRunner
 from examples.tiger.runners.tiger_baseline_runner import TigerBaselineRunner
+from examples.tiger.runners.tiger_batch_runner import TigerBatchRunner
 from examples.uav.runners.uav_batch_runner import UAVBatchRunner
 from examples.wumpus.runners.wumpus_batch_runner import WumpusBatchRunner
 
@@ -14,7 +13,7 @@ def test_tiger_batch_runner_standardized_time_axis():
     # 2 trials * (3 + 1) steps = 8 rows
     assert len(df) == 8
     assert set(df["step"].unique()) == {0, 1, 2, 3}
-    
+
     # Assert t=0 initial condition
     step0 = df[df["step"] == 0]
     assert (step0["cum_reward_i"] == 0.0).all()
@@ -29,7 +28,7 @@ def test_tiger_baseline_runner_standardized_time_axis():
     df = runner.run_batch()
     assert not df.empty
     assert len(df) == 8
-    
+
     step0 = df[df["step"] == 0]
     assert (step0["cum_reward_i"] == 0.0).all()
     assert (step0["cum_reward_j"] == 0.0).all()

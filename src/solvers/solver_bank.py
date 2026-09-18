@@ -1,22 +1,14 @@
-# Absolute Path: <project_root>/solvers/solver_bank.py
+"""Registry of planner implementations by agent identity and reasoning level.
 
-"""
-solver_bank — Central registry for multi-level agent solvers.
-
-DESIGN DECISION RECORD (Phase 5 Overhaul):
-------------------------------------------
-1. REMOVED STATE-BLIND ACTION CACHING:
-   `get_random_action` previously cached the action space and returned a random 
-   action. Because we introduced `get_legal_actions(state)` in Phase 1, global 
-   caching causes Level-0 agents to select illegal actions (like walking into walls), 
-   crashing the physics engine. We deleted this method entirely to force the Generative 
-   Model to resolve actions using the current physical state.
+A bank belongs to one experiment with one agreed model/configuration per key.
+The key is not a private-belief identity. Private histories live in particle model
+nodes; they must not be conflated merely because they share a solver in this bank.
 """
 
 from typing import Dict
 
-from solvers.solver_types import SolverKey, AgentFrame
 from solvers.planner import Planner
+from solvers.solver_types import AgentFrame, SolverKey
 
 
 class SolverBank:

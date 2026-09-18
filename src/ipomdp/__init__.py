@@ -21,6 +21,4 @@ opponents as Level-0, and so on.
 
 from ipomdp.belief import InteractiveParticle
 
-__all__ = [
-    "InteractiveParticle"
-]
+__all__ = ["InteractiveParticle"]

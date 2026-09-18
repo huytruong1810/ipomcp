@@ -1,16 +1,16 @@
 import random
-from typing import List, Optional, Dict, Tuple, TYPE_CHECKING
+from typing import Dict, List, Optional
 
-from core.pomdp_model import Action, Observation, State, AgentID, POMDPModel
 from core.config import IPOMCPConfig
 from core.logger import get_logger
-from solvers.exploration import ExplorationStrategy, StandardUCB, NormalizedUCB
-from solvers.planner import Planner
-from solvers.node import POMCPNode
-from solvers.generative_model import InteractiveGenerativeModel
-from solvers.solver_types import SolverKey, AgentFrame
-from solvers.solver_bank import SolverBank
+from core.pomdp_model import Action, AgentID, Observation, POMDPModel, State
 from ipomdp.belief import InteractiveParticle
+from solvers.exploration import ExplorationStrategy, NormalizedUCB
+from solvers.generative_model import InteractiveGenerativeModel
+from solvers.node import POMCPNode
+from solvers.planner import Planner
+from solvers.solver_bank import SolverBank
+from solvers.solver_types import AgentFrame, SolverKey
 
 logger = get_logger("IPOMCPPlanner")
 
@@ -20,13 +20,15 @@ class IPOMCPPlanner(Planner):
     Monte Carlo Tree Search planner for multi-agent I-POMDP environments.
     """
 
-    def __init__(self,
-                 solver_key: SolverKey,
-                 pomdp_model: POMDPModel,
-                 action_space: List[Action],
-                 solver_bank: SolverBank,
-                 config: Optional[IPOMCPConfig] = None,
-                 exploration_strategy: Optional[ExplorationStrategy] = None):
+    def __init__(
+        self,
+        solver_key: SolverKey,
+        pomdp_model: POMDPModel,
+        action_space: List[Action],
+        solver_bank: SolverBank,
+        config: Optional[IPOMCPConfig] = None,
+        exploration_strategy: Optional[ExplorationStrategy] = None,
+    ):
 
         self.key = solver_key
         self.pomdp_model = pomdp_model
@@ -35,7 +37,9 @@ class IPOMCPPlanner(Planner):
         self.config = config if config is not None else IPOMCPConfig()
 
         if exploration_strategy is None:
-            self.exploration_strategy = NormalizedUCB(exploration_const=self.config.mcts.exploration_fallback_const)
+            self.exploration_strategy = NormalizedUCB(
+                exploration_const=self.config.mcts.exploration_const
+            )
         else:
             self.exploration_strategy = exploration_strategy
 
@@ -44,51 +48,61 @@ class IPOMCPPlanner(Planner):
         self.gen_model = InteractiveGenerativeModel(solver_bank, config=self.config.jit)
         self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
 
-        self.initial_particles: List['InteractiveParticle'] = []
+        self.initial_particles: List["InteractiveParticle"] = []
         self.prior_level_weights: Optional[Dict[int, float]] = None
 
-    def get_action(self, belief: Optional[List['InteractiveParticle']] = None) -> Action:
+    def get_action(self, belief: Optional[List["InteractiveParticle"]] = None) -> Action:
         if not self.initial_particles and self.root.belief_particles:
             self.initial_particles = list(self.root.belief_particles)
 
         self.extend_search(self.root, n_sims=self.config.mcts.n_sims)
 
         if not self.root.action_counts:
-            state = self.root.belief_particles[0].state if self.root.belief_particles else self.pomdp_model.get_initial_state()
+            state = (
+                self.root.belief_particles[0].state
+                if self.root.belief_particles
+                else self.pomdp_model.get_initial_state()
+            )
             legal_actions = self.pomdp_model.get_legal_actions(state, self.key.agent_id)
             return random.choice(legal_actions)
 
         best_action = max(self.root.action_counts, key=self.root.action_counts.get)
         return best_action
 
-    def extend_search(self, node_ptr: POMCPNode, n_sims: int, bounds: Optional[Dict[str, float]] = None) -> None:
+    def extend_search(
+        self, node_ptr: POMCPNode, n_sims: int, bounds: Optional[Dict[str, float]] = None
+    ) -> None:
         if not node_ptr.belief_particles:
             return
 
-        local_bounds = bounds if bounds is not None else {'q_min': float('inf'), 'q_max': -float('inf')}
+        local_bounds = (
+            bounds if bounds is not None else {"q_min": float("inf"), "q_max": -float("inf")}
+        )
 
         for _ in range(n_sims):
             particle = random.choice(node_ptr.belief_particles)
             self._simulate(particle, node_ptr, depth=0, bounds=local_bounds)
 
-    def _simulate(self, particle: 'InteractiveParticle', node: POMCPNode, depth: int,
-                  bounds: Dict[str, float]) -> float:
+    def _simulate(
+        self, particle: "InteractiveParticle", node: POMCPNode, depth: int, bounds: Dict[str, float]
+    ) -> float:
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
-            node.add_particle(particle)
             node.visit_count += 1
             return 0.0
 
         legal_actions = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
 
-        action = self.exploration_strategy.select_action(node, legal_actions,
-                                                         q_min=bounds['q_min'],
-                                                         q_max=bounds['q_max'])
+        action = self.exploration_strategy.select_action(
+            node, legal_actions, q_min=bounds["q_min"], q_max=bounds["q_max"]
+        )
 
         p_next, joint_action, reward_i, is_terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model
         )
 
-        observation = self.pomdp_model.sample_observation(p_next.state, joint_action, self.key.agent_id)
+        observation = self.pomdp_model.sample_observation(
+            p_next.state, joint_action, self.key.agent_id
+        )
 
         is_new_node = False
         if action not in node.children or observation not in node.children[action]:
@@ -97,6 +111,10 @@ class IPOMCPPlanner(Planner):
         else:
             child = node.children[action][observation]
 
+        # Route once on entry to the child, including a newly expanded leaf.
+        # Do not reinsert at the end of recursion: that double-counts old child
+        # trajectories. In particular, resampling from a root and feeding those
+        # draws back into the same finite reservoir causes drift without evidence.
         child.add_particle(p_next)
 
         if is_new_node:
@@ -109,14 +127,15 @@ class IPOMCPPlanner(Planner):
         node.action_values[action] = current_q + (q - current_q) / node.action_counts[action]
 
         node.visit_count += 1
-        node.add_particle(particle)
 
-        if q < bounds['q_min']: bounds['q_min'] = q
-        if q > bounds['q_max']: bounds['q_max'] = q
+        if q < bounds["q_min"]:
+            bounds["q_min"] = q
+        if q > bounds["q_max"]:
+            bounds["q_max"] = q
 
         return q
 
-    def _rollout(self, particle: 'InteractiveParticle', depth: int) -> float:
+    def _rollout(self, particle: "InteractiveParticle", depth: int) -> float:
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             return 0.0
 
@@ -124,7 +143,9 @@ class IPOMCPPlanner(Planner):
         if not legal_actions:
             return 0.0
 
-        action = random.choice(legal_actions)
+        action = self.pomdp_model.get_rollout_action(particle.state, self.key.agent_id)
+        if action not in legal_actions:
+            raise ValueError("Domain rollout policy returned an illegal action")
         p_next, joint_action, reward_i, is_terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model
         )
@@ -149,14 +170,16 @@ class IPOMCPPlanner(Planner):
             return {k: 1.0 / self.key.level for k in range(self.key.level)}
         return {0: 1.0}
 
-    def _get_particle_level_distribution(self, particles: List['InteractiveParticle'], other_id: AgentID) -> Dict[int, float]:
+    def _get_particle_level_distribution(
+        self, particles: List["InteractiveParticle"], other_id: AgentID
+    ) -> Dict[int, float]:
         """Computes the empirical distribution over opponent levels from a particle population."""
         if not particles:
             return {}
         counts: Dict[int, int] = {}
         total = 0
         for p in particles:
-            if hasattr(p, 'models') and other_id in p.models:
+            if other_id in p.models:
                 lvl = p.models[other_id][0].level
                 counts[lvl] = counts.get(lvl, 0) + 1
                 total += 1
@@ -172,42 +195,34 @@ class IPOMCPPlanner(Planner):
         key = SolverKey(other_id, level)
         if self.solver_bank.has_solver(key):
             opp_solver = self.solver_bank.get_solver(key)
-            if hasattr(opp_solver, 'initial_particles') and opp_solver.initial_particles:
+            if hasattr(opp_solver, "initial_particles") and opp_solver.initial_particles:
                 for p in opp_solver.initial_particles:
                     node.add_particle(p)
-            elif hasattr(opp_solver, 'root') and hasattr(opp_solver.root, 'belief_particles') and opp_solver.root.belief_particles:
+            elif (
+                hasattr(opp_solver, "root")
+                and hasattr(opp_solver.root, "belief_particles")
+                and opp_solver.root.belief_particles
+            ):
                 for p in opp_solver.root.belief_particles:
                     node.add_particle(p)
-            elif hasattr(opp_solver, 'belief') and opp_solver.belief:
+            elif hasattr(opp_solver, "belief") and opp_solver.belief:
                 for p in opp_solver.belief:
                     node.add_particle(p)
         return node
 
-    def _sample_consistent_state(self, action: Action, observation: Observation,
-                                 candidate_states: Optional[List[State]] = None) -> State:
+    def _sample_consistent_state(
+        self,
+        action: Action,
+        observation: Observation,
+        candidate_states: Optional[List[State]] = None,
+    ) -> State:
         """Samples a physical state consistent with the given action and observation."""
         if candidate_states:
             return random.choice(candidate_states)
 
-        if hasattr(self.pomdp_model, 'sample_state_consistent_with_obs'):
-            return self.pomdp_model.sample_state_consistent_with_obs(action, observation, agent_id=self.key.agent_id)
-
-        candidates = list(candidate_states) if candidate_states else []
-        for _ in range(50):
-            s = random.choice(candidates) if candidates else self.pomdp_model.get_initial_state()
-            joint_action = {self.key.agent_id: action}
-            w = self.pomdp_model.get_observation_prob(observation, s, joint_action, self.key.agent_id)
-            if w > 0.0 and random.random() < w:
-                return s
-
-        for _ in range(50):
-            s = self.pomdp_model.get_initial_state()
-            joint_action = {self.key.agent_id: action}
-            w = self.pomdp_model.get_observation_prob(observation, s, joint_action, self.key.agent_id)
-            if w > 0.0 and random.random() < w:
-                return s
-
-        return candidates[0] if candidates else self.pomdp_model.get_initial_state()
+        return self.pomdp_model.sample_state_consistent_with_obs(
+            action, observation, agent_id=self.key.agent_id
+        )
 
     def update_root(self, action: Action, observation: Observation, min_particles: int = 0) -> None:
         if not self.initial_particles and self.root.belief_particles:
@@ -215,17 +230,21 @@ class IPOMCPPlanner(Planner):
 
         target_count = min(
             self.config.mcts.node_capacity,
-            max(min_particles, len(self.initial_particles), self.config.reinvigoration.min_particles)
+            max(
+                min_particles, len(self.initial_particles), self.config.reinvigoration.min_particles
+            ),
         )
         if target_count <= 0:
             target_count = self.config.reinvigoration.min_particles
 
         # Identify all opponents
-        seed_particles = self.initial_particles if self.initial_particles else self.root.belief_particles
+        seed_particles = (
+            self.initial_particles if self.initial_particles else self.root.belief_particles
+        )
         other_agent_ids = sorted(list({k for p in seed_particles for k in p.models.keys()}))
 
         # Check for domain epoch reset (e.g. door opened in Tiger)
-        is_reset = hasattr(self.pomdp_model, 'is_epoch_reset') and self.pomdp_model.is_epoch_reset(action, observation)
+        is_reset = self.pomdp_model.is_epoch_reset(action, observation)
 
         if is_reset:
             new_root = POMCPNode(capacity=self.config.mcts.node_capacity)
@@ -234,7 +253,9 @@ class IPOMCPPlanner(Planner):
 
             for other_id in other_agent_ids:
                 # Use empirical posterior accumulated in current root belief; fallback to prior
-                prev_dist = self._get_particle_level_distribution(self.root.belief_particles, other_id)
+                prev_dist = self._get_particle_level_distribution(
+                    self.root.belief_particles, other_id
+                )
                 if not prev_dist:
                     prev_dist = self._get_opponent_level_prior(other_id)
 
@@ -252,17 +273,25 @@ class IPOMCPPlanner(Planner):
 
                 candidate_roots[other_id] = {
                     lvl: self._create_fresh_opponent_node(other_id, lvl)
-                    for lvl in candidate_levels if lvl > 0
+                    for lvl in candidate_levels
+                    if lvl > 0
                 }
 
+            level_options = {
+                aid: (list(weights), list(weights.values())) for aid, weights in opp_weights.items()
+            }
+            frames = {
+                (aid, lvl): AgentFrame(aid, lvl, self.pomdp_model)
+                for aid, (lvls, _) in level_options.items()
+                for lvl in lvls
+            }
             for _ in range(target_count):
                 s = self._sample_consistent_state(action, observation)
                 models = {}
                 for other_id in other_agent_ids:
-                    lvls = list(opp_weights[other_id].keys())
-                    probs = list(opp_weights[other_id].values())
+                    lvls, probs = level_options[other_id]
                     chosen_lvl = random.choices(lvls, weights=probs, k=1)[0]
-                    frame = AgentFrame(other_id, chosen_lvl, self.pomdp_model)
+                    frame = frames[other_id, chosen_lvl]
                     node_ptr = candidate_roots[other_id].get(chosen_lvl) if chosen_lvl > 0 else None
                     models[other_id] = (frame, node_ptr)
                 new_root.add_particle(InteractiveParticle(state=s, models=models))
@@ -270,7 +299,9 @@ class IPOMCPPlanner(Planner):
             # Extinction protection guarantee
             if self.config.reinvigoration.preserve_levels:
                 for other_id in other_agent_ids:
-                    curr_dist = self._get_particle_level_distribution(new_root.belief_particles, other_id)
+                    curr_dist = self._get_particle_level_distribution(
+                        new_root.belief_particles, other_id
+                    )
                     candidate_levels = list(opp_weights[other_id].keys())
                     for lvl in candidate_levels:
                         if curr_dist.get(lvl, 0.0) == 0:
@@ -280,7 +311,9 @@ class IPOMCPPlanner(Planner):
                             frame = AgentFrame(other_id, lvl, self.pomdp_model)
                             node_ptr = candidate_roots[other_id].get(lvl) if lvl > 0 else None
                             models[other_id] = (frame, node_ptr)
-                            new_root.belief_particles[idx] = InteractiveParticle(state=s, models=models)
+                            new_root.belief_particles[idx] = InteractiveParticle(
+                                state=s, models=models
+                            )
 
             self.root = new_root
             if self.config.reinvigoration.enabled:
@@ -304,7 +337,9 @@ class IPOMCPPlanner(Planner):
                 prev_dist = self._get_opponent_level_prior(other_id)
 
             counts = {
-                lvl: sum(1 for p in survivors if p.models.get(other_id, (None, None))[0].level == lvl)
+                lvl: sum(
+                    1 for p in survivors if p.models.get(other_id, (None, None))[0].level == lvl
+                )
                 for lvl in candidate_levels
             }
             k = sum(counts.values())
@@ -314,14 +349,23 @@ class IPOMCPPlanner(Planner):
             if action in self.root.children:
                 for o, ch in self.root.children[action].items():
                     obs_counts[o] = {
-                        lvl: sum(1 for p in ch.belief_particles if p.models.get(other_id, (None, None))[0].level == lvl)
+                        lvl: sum(
+                            1
+                            for p in ch.belief_particles
+                            if p.models.get(other_id, (None, None))[0].level == lvl
+                        )
                         for lvl in candidate_levels
                     }
-            total_per_level = {lvl: sum(obs_counts[o][lvl] for o in obs_counts) if obs_counts else 0 for lvl in candidate_levels}
-            has_multi_branch = len(obs_counts) > 1 and any(total_per_level[lvl] > counts[lvl] for lvl in candidate_levels)
+            total_per_level = {
+                lvl: sum(obs_counts[o][lvl] for o in obs_counts) if obs_counts else 0
+                for lvl in candidate_levels
+            }
+            has_multi_branch = len(obs_counts) > 1 and any(
+                total_per_level[lvl] > counts[lvl] for lvl in candidate_levels
+            )
 
             if has_multi_branch:
-                # Rigorous Bayesian likelihood update across search tree:
+                # Heuristic level update: capped reservoirs are not unbiased likelihood counts.
                 # P(lvl | obs) \propto P_prev(lvl) * P_hat(obs | lvl)
                 alpha_smooth = 1.0
                 n_obs_types = max(3, len(obs_counts) + 1)
@@ -333,13 +377,19 @@ class IPOMCPPlanner(Planner):
                     unnorm_post[lvl] = prev_dist.get(lvl, 1.0 / k_levels) * lik
 
                 tot_lik = sum(unnorm_post.values())
-                raw_post = {lvl: unnorm_post[lvl] / tot_lik for lvl in candidate_levels} if tot_lik > 0 else prev_dist
+                raw_post = (
+                    {lvl: unnorm_post[lvl] / tot_lik for lvl in candidate_levels}
+                    if tot_lik > 0
+                    else prev_dist
+                )
             else:
                 # Fallback / synthetic test case (only 1 child branch or directly injected particles):
-                # Dirichlet-Multinomial Bayesian update with N0 = 2
+                # Heuristic pseudocount blend with N0 = 2; this is not an interactive Bayes filter
                 N0 = 2
                 raw_post = {
-                    lvl: (N0 * prev_dist.get(lvl, 1.0 / k_levels) + counts[lvl]) / (N0 + k) if (N0 + k) > 0 else 1.0 / k_levels
+                    lvl: (N0 * prev_dist.get(lvl, 1.0 / k_levels) + counts[lvl]) / (N0 + k)
+                    if (N0 + k) > 0
+                    else 1.0 / k_levels
                     for lvl in candidate_levels
                 }
 
@@ -355,36 +405,52 @@ class IPOMCPPlanner(Planner):
             for lvl in candidate_levels:
                 if lvl > 0:
                     surv_nodes = [
-                        p.models[other_id][1] for p in survivors
-                        if p.models.get(other_id, (None, None))[0].level == lvl and p.models[other_id][1] is not None
+                        p.models[other_id][1]
+                        for p in survivors
+                        if p.models.get(other_id, (None, None))[0].level == lvl
+                        and p.models[other_id][1] is not None
                     ]
                     if surv_nodes:
                         canonical_opp_root = surv_nodes[0]
                         canonical_opp_root.parent = None
-                        if len(canonical_opp_root.belief_particles) < self.config.reinvigoration.min_particles:
+                        if (
+                            len(canonical_opp_root.belief_particles)
+                            < self.config.reinvigoration.min_particles
+                        ):
                             fresh = self._create_fresh_opponent_node(other_id, lvl)
                             if fresh:
                                 for p in fresh.belief_particles:
                                     canonical_opp_root.add_particle(p)
                         candidate_roots[other_id][lvl] = canonical_opp_root
                     else:
-                        candidate_roots[other_id][lvl] = self._create_fresh_opponent_node(other_id, lvl)
+                        candidate_roots[other_id][lvl] = self._create_fresh_opponent_node(
+                            other_id, lvl
+                        )
 
         if current_count == 0:
-            logger.warning(f"[{self.key}] Particle Deprivation (Obs: {observation}). Resampling consistent particles.")
+            logger.warning(
+                f"[{self.key}] Particle Deprivation (Obs: {observation}). Resampling consistent particles."
+            )
             self.deprivation_events += 1
 
         new_root = POMCPNode(capacity=self.config.mcts.node_capacity)
         surv_states = [p.state for p in survivors] if survivors else []
 
+        level_options = {
+            aid: (list(weights), list(weights.values())) for aid, weights in post_weights.items()
+        }
+        frames = {
+            (aid, lvl): AgentFrame(aid, lvl, self.pomdp_model)
+            for aid, (lvls, _) in level_options.items()
+            for lvl in lvls
+        }
         for _ in range(target_count):
             s = self._sample_consistent_state(action, observation, candidate_states=surv_states)
             models = {}
             for other_id in other_agent_ids:
-                lvls = list(post_weights[other_id].keys())
-                probs = list(post_weights[other_id].values())
+                lvls, probs = level_options[other_id]
                 chosen_lvl = random.choices(lvls, weights=probs, k=1)[0]
-                frame = AgentFrame(other_id, chosen_lvl, self.pomdp_model)
+                frame = frames[other_id, chosen_lvl]
                 node_ptr = candidate_roots[other_id].get(chosen_lvl) if chosen_lvl > 0 else None
                 models[other_id] = (frame, node_ptr)
             new_root.add_particle(InteractiveParticle(state=s, models=models))
@@ -392,12 +458,16 @@ class IPOMCPPlanner(Planner):
         # Extinction protection guarantee
         if self.config.reinvigoration.preserve_levels:
             for other_id in other_agent_ids:
-                curr_dist = self._get_particle_level_distribution(new_root.belief_particles, other_id)
+                curr_dist = self._get_particle_level_distribution(
+                    new_root.belief_particles, other_id
+                )
                 candidate_levels = list(post_weights[other_id].keys())
                 for lvl in candidate_levels:
                     if curr_dist.get(lvl, 0.0) == 0:
                         idx = random.randint(0, len(new_root.belief_particles) - 1)
-                        s = self._sample_consistent_state(action, observation, candidate_states=surv_states)
+                        s = self._sample_consistent_state(
+                            action, observation, candidate_states=surv_states
+                        )
                         models = dict(new_root.belief_particles[idx].models)
                         frame = AgentFrame(other_id, lvl, self.pomdp_model)
                         node_ptr = candidate_roots[other_id].get(lvl) if lvl > 0 else None
@@ -422,8 +492,12 @@ class IPOMCPPlanner(Planner):
                         seen_nodes.add(node_id)
                         if node_ptr.visit_count < self.config.reinvigoration.visit_threshold:
                             opp_solver = self.solver_bank.get_solver_for_frame(frame)
-                            local_bounds = {'q_min': float('inf'), 'q_max': -float('inf')}
-                            opp_solver.extend_search(node_ptr, n_sims=self.config.reinvigoration.sims, bounds=local_bounds)
+                            local_bounds = {"q_min": float("inf"), "q_max": -float("inf")}
+                            opp_solver.extend_search(
+                                node_ptr,
+                                n_sims=self.config.reinvigoration.sims,
+                                bounds=local_bounds,
+                            )
 
     def get_detailed_stats(self) -> dict:
         return {
@@ -433,5 +507,5 @@ class IPOMCPPlanner(Planner):
             "root_visit_count": self.root.visit_count,
             "action_values": {str(a): v for a, v in self.root.action_values.items()},
             "action_counts": {str(a): c for a, c in self.root.action_counts.items()},
-            "belief_size": len(self.root.belief_particles)
+            "belief_size": len(self.root.belief_particles),
         }

@@ -1,16 +1,16 @@
-from utils.generic_batch_runner import GenericBatchRunner
-from examples.tiger.model.tiger_model import TigerModel
-from solvers.solver_bank import SolverBank
-from solvers.exploration import NormalizedUCB
-from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.plotting import plot_all_metrics
-from utils.paper_plots import generate_paper_plots
-from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, JITConfig
-from core.logger import get_logger
-
 import os
 from datetime import datetime
 from typing import Dict, Optional
+
+from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig
+from core.logger import get_logger
+from examples.tiger.model.tiger_model import TigerModel
+from solvers.exploration import NormalizedUCB
+from solvers.solver_bank import SolverBank
+from utils.bootstrapper import I_POMDP_Bootstrapper
+from utils.generic_batch_runner import GenericBatchRunner
+from utils.paper_plots import generate_paper_plots
+from utils.plotting import plot_all_metrics
 
 logger = get_logger("TigerMixtureExperiment")
 
@@ -21,10 +21,12 @@ class TigerMixtureRunner(GenericBatchRunner):
     IS_{i,2} = S x (Theta_j^0 union Theta_j^1)
     """
 
-    def __init__(self,
-                 config: Optional[ExperimentConfig] = None,
-                 log_dir: Optional[str] = None,
-                 agent_i_level_weights: Optional[Dict[int, float]] = None):
+    def __init__(
+        self,
+        config: Optional[ExperimentConfig] = None,
+        log_dir: Optional[str] = None,
+        agent_i_level_weights: Optional[Dict[int, float]] = None,
+    ):
         super().__init__(config=config, log_dir=log_dir)
         self.agent_i_level_weights = agent_i_level_weights or {1: 0.5, 0: 0.5}
 
@@ -33,7 +35,7 @@ class TigerMixtureRunner(GenericBatchRunner):
         env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         bank = SolverBank()
-        boot = I_POMDP_Bootstrapper(bank)
+        I_POMDP_Bootstrapper(bank)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=6, node_capacity=500)
         jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
@@ -49,7 +51,7 @@ class TigerMixtureRunner(GenericBatchRunner):
             ["i"],
             n_particles=2000,
             config=agent_config,
-            exploration_strategy=NormalizedUCB(exploration_const=2**0.5)
+            exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
         )
 
         # 2. Protagonist (Agent I) - Level-2 agent with custom mixture prior over opponent levels
@@ -62,7 +64,7 @@ class TigerMixtureRunner(GenericBatchRunner):
             ["i"],
             n_particles=2000,
             config=agent_config,
-            exploration_strategy=NormalizedUCB(exploration_const=2**0.5)
+            exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
         )
         planner_i = boot_i.create_level2_solver(
             "i",
@@ -71,7 +73,7 @@ class TigerMixtureRunner(GenericBatchRunner):
             level_weights=self.agent_i_level_weights,
             n_particles=2000,
             config=agent_config,
-            exploration_strategy=NormalizedUCB(exploration_const=2**0.5)
+            exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
         )
 
         return env, planner_i, planner_j, env.get_initial_state()
@@ -79,9 +81,14 @@ class TigerMixtureRunner(GenericBatchRunner):
 
 def run_comparative_mixture_experiment(n_trials: int = 50, max_steps: int = 6):
     from core.paths import get_results_dir
-    base_results = get_results_dir("tiger", f"tiger_mixture_comp_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
-    exp_config = ExperimentConfig(n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False)
+    base_results = get_results_dir(
+        "tiger", f"tiger_mixture_comp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
+
+    exp_config = ExperimentConfig(
+        n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False
+    )
 
     conditions = [
         ("50_50_mixture", {0: 0.5, 1: 0.5}, "50% L0 / 50% L1 Prior"),
@@ -93,16 +100,23 @@ def run_comparative_mixture_experiment(n_trials: int = 50, max_steps: int = 6):
     for name, weights, desc in conditions:
         log_dir = os.path.join(base_results, name)
         logger.info(f"Running Condition: {desc} (N={n_trials}, T={max_steps})...")
-        runner = TigerMixtureRunner(config=exp_config, log_dir=log_dir, agent_i_level_weights=weights)
+        runner = TigerMixtureRunner(
+            config=exp_config, log_dir=log_dir, agent_i_level_weights=weights
+        )
         df = runner.run_batch()
         df["condition"] = desc
         all_dfs.append(df)
 
-        plot_all_metrics(df, agent_labels={"i": f"Agent I ({desc})", "j": "Agent J (L1)"},
-                         title_prefix=f"Tiger ({desc}):", save_dir=log_dir)
+        plot_all_metrics(
+            df,
+            agent_labels={"i": f"Agent I ({desc})", "j": "Agent J (L1)"},
+            title_prefix=f"Tiger ({desc}):",
+            save_dir=log_dir,
+        )
         generate_paper_plots(os.path.join(log_dir, "batch_results.csv"), log_dir)
 
     import pandas as pd
+
     combined_df = pd.concat(all_dfs, ignore_index=True)
     combined_df.to_csv(os.path.join(base_results, "combined_mixture_results.csv"), index=False)
     logger.info(f"Mixture experiment completed. Saved to {base_results}")

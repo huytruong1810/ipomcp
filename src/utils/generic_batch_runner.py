@@ -1,43 +1,82 @@
-# Absolute Path: <project_root>/utils/generic_batch_runner.py
-
-import gc
-import time
-import pandas as pd
-import os
-import json
-import random
-import numpy as np
 import concurrent.futures
-import multiprocessing
-from typing import List, Dict, Any, Tuple, Optional
+import gc
+import hashlib
+import json
+import os
+import random
+import time
 from abc import ABC, abstractmethod
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from core.pomdp_model import POMDPModel, State
+import numpy as np
+import pandas as pd
+
 from core.config import ExperimentConfig
 from core.logger import get_logger
-from core.telemetry import SystemMonitor, MemoryWatchdog
+from core.pomdp_model import POMDPModel, State
+from core.telemetry import SystemMonitor
 from solvers.planner import Planner
 
 logger = get_logger("BatchRunner")
 
 
-def is_batch_complete(csv_path: str, expected_trials: int) -> bool:
-    """Verifies that a batch results CSV exists and contains the expected number of completed trials."""
-    if not os.path.exists(csv_path):
+def is_batch_complete(csv_path: str, expected_trials: int, expected_steps: int) -> bool:
+    """Accept only a complete rectangular trial-by-step panel and matching digest.
+
+    Counting trial identifiers alone accepts truncated episodes. The completion
+    marker is written last, after atomic CSV replacement, and binds the actual
+    bytes. A marker is evidence of completion, not of matching experimental design;
+    run_batch additionally checks the run manifest before resuming trial files.
+    """
+    path = Path(csv_path)
+    marker = path.with_suffix(".complete.json")
+    if not path.is_file() or not marker.is_file():
         return False
     try:
-        df = pd.read_csv(csv_path)
-        if "trial" not in df.columns:
+        metadata = json.loads(marker.read_text(encoding="utf-8"))
+        if metadata != dict(
+            trials=expected_trials,
+            steps=expected_steps,
+            sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        ):
             return False
-        return int(df["trial"].nunique()) >= expected_trials
-    except Exception:
+        return _valid_panel(
+            pd.read_csv(path, keep_default_na=False, na_values=[""]),
+            range(expected_trials),
+            expected_steps,
+        )
+    except (OSError, ValueError, pd.errors.ParserError, pd.errors.EmptyDataError):
         return False
+
+
+def _valid_panel(df, trials, steps):
+    expected = pd.MultiIndex.from_product([trials, range(steps + 1)], names=["trial", "step"])
+    if not {"trial", "step", "cum_reward_i", "cum_reward_j", "status"} <= set(df.columns):
+        return False
+    actual = pd.MultiIndex.from_frame(df[["trial", "step"]])
+    return (
+        actual.is_unique
+        and len(actual) == len(expected)
+        and set(actual) == set(expected)
+        and np.isfinite(df[["cum_reward_i", "cum_reward_j"]].to_numpy()).all()
+        and df["status"].isin(["Active", "Terminal"]).all()
+    )
+
+
+def _write_csv_atomic(df, path):
+    """Replace within the same directory so readers never see a partial CSV."""
+    path = Path(path)
+    temporary = path.with_suffix(".tmp")
+    df.to_csv(temporary, index=False)
+    temporary.replace(path)
 
 
 def _get_n_particles(planner: Planner) -> int:
-    if hasattr(planner, 'root') and hasattr(planner.root, 'belief_particles'):
+    if hasattr(planner, "root") and hasattr(planner.root, "belief_particles"):
         return len(planner.root.belief_particles)
-    if hasattr(planner, 'belief'):
+    if hasattr(planner, "belief"):
         return len(planner.belief)
     return -1
 
@@ -45,99 +84,90 @@ def _get_n_particles(planner: Planner) -> int:
 def _get_opponent_level_distribution(planner: Any, opponent_id: str) -> Dict[str, float]:
     """Computes online posterior distribution P(l_j = k | h_i^t) over opponent levels in the active belief."""
     particles = None
-    if hasattr(planner, 'root') and hasattr(planner.root, 'belief_particles') and planner.root.belief_particles:
+    if (
+        hasattr(planner, "root")
+        and hasattr(planner.root, "belief_particles")
+        and planner.root.belief_particles
+    ):
         particles = planner.root.belief_particles
-    elif hasattr(planner, 'belief') and planner.belief:
+    elif hasattr(planner, "belief") and planner.belief:
         particles = planner.belief
 
-    max_lvl = 1
-    if hasattr(planner, 'key') and hasattr(planner.key, 'level'):
-        max_lvl = max(1, planner.key.level)
-    elif hasattr(planner, 'level'):
-        max_lvl = max(1, planner.level)
-
-    res = {f"prob_l{lvl}_{opponent_id}": 0.0 for lvl in range(max_lvl)}
-
     if not particles:
-        return res
+        return {}
     total = len(particles)
-    if total == 0:
-        return res
-    counts: Dict[int, int] = {}
-    for p in particles:
-        if hasattr(p, 'models') and opponent_id in p.models:
-            frame, _ = p.models[opponent_id]
-            lvl = frame.level
-            counts[lvl] = counts.get(lvl, 0) + 1
-    for lvl, count in counts.items():
-        res[f"prob_l{lvl}_{opponent_id}"] = count / total
-    return dict(sorted(res.items()))
+    counts = {level: 0 for level in range(planner.key.level)}
+    for particle in particles:
+        if opponent_id in particle.models:
+            level = particle.models[opponent_id][0].level
+            counts[level] = counts.get(level, 0) + 1
+    return {
+        f"prob_l{level}_{opponent_id}": count / total for level, count in sorted(counts.items())
+    }
 
 
-def _extract_recursive(node: Any, curr_agent: str, curr_path_id: str, curr_weight: float, depth: int,
-                       ids: List[str], labels: List[str], parents: List[str], values: List[float],
-                       hover_texts: List[str], levels: List[int], agent_names: List[str]):
-    """Recursively walks particle tree and accumulates nested path probabilities."""
-    if node is None or not hasattr(node, 'belief_particles') or not node.belief_particles or depth <= 0:
-        return
+def _extract_recursive(
+    node,
+    curr_agent,
+    curr_path_id,
+    curr_weight,
+    depth,
+    ids,
+    labels,
+    parents,
+    values,
+    hover_texts,
+    levels,
+    agent_names,
+):
+    """Integrate the conditional mixture of every particle's nested belief.
 
-    particles = node.belief_particles
-    total_p = len(particles)
-    if total_p == 0 or curr_weight <= 0:
-        return
+    A shared node contributes once per parent particle referring to it. Different
+    nodes have their own normalized particle distributions, regardless of their
+    reservoir sizes. Their conditional masses must therefore be combined before
+    descending; concatenating reservoirs would overweight larger reservoirs.
+    """
 
-    sample_p = particles[0]
-    if not hasattr(sample_p, 'models'):
-        return
-
-    for opp_id in sample_p.models.keys():
-        level_groups: Dict[int, List[Any]] = {}
-        for p in particles:
-            if hasattr(p, 'models') and opp_id in p.models:
-                frame, sub_node = p.models[opp_id]
-                level_groups.setdefault(frame.level, []).append((frame, sub_node))
-
-        for opp_level, sub_entries in sorted(level_groups.items()):
-            sub_count = len(sub_entries)
-            local_prob = sub_count / total_p
-            branch_weight = curr_weight * local_prob
-
-            child_id = f"{curr_path_id}/{opp_id}_L{opp_level}"
-            child_label = f"{opp_id} (L{opp_level})"
-            hover = (f"<b>Agent {opp_id} (Level-{opp_level})</b><br>"
-                     f"Modeled by: {curr_agent}<br>"
-                     f"Conditional Belief: {local_prob:.1%}<br>"
-                     f"Joint Mass: {branch_weight:.3f}<br>"
-                     f"Particles: {sub_count}/{total_p}")
-
+    def descend(weighted_nodes, agent, path, mass, remaining):
+        if remaining <= 0 or mass <= 0:
+            return
+        groups = {}
+        for parent_node, node_mass in weighted_nodes:
+            if parent_node is None or not parent_node.belief_particles:
+                continue
+            unit_mass = node_mass / len(parent_node.belief_particles)
+            for particle in parent_node.belief_particles:
+                for opponent, (frame, child) in particle.models.items():
+                    group = groups.setdefault((opponent, frame.level), {})
+                    key = id(child)
+                    old = group.get(key, (child, 0.0))
+                    group[key] = (child, old[1] + unit_mass)
+        # Multiple opponents are distinct marginals, not mutually exclusive
+        # events. Current domains are two-agent; reject misleading sunbursts.
+        if len({opponent for opponent, _ in groups}) > 1:
+            raise ValueError("A sunburst requires a two-agent hierarchy")
+        for (opponent, level), children in sorted(groups.items()):
+            branch_mass = sum(weight for _, weight in children.values())
+            child_id = f"{path}/{opponent}_L{level}"
             ids.append(child_id)
-            labels.append(child_label)
-            parents.append(curr_path_id)
-            values.append(branch_weight)
-            hover_texts.append(hover)
-            levels.append(opp_level)
-            agent_names.append(opp_id)
+            labels.append(f"{opponent} (L{level})")
+            parents.append(path)
+            values.append(branch_mass)
+            levels.append(level)
+            agent_names.append(opponent)
+            hover_texts.append(
+                f"Modeled by: {agent}<br>Conditional mass: {branch_mass / mass:.1%}"
+                f"<br>Joint mass: {branch_mass:.6f}"
+            )
+            if level > 0:
+                descend(list(children.values()), opponent, child_id, branch_mass, remaining - 1)
 
-            if opp_level >= 1:
-                representative_sub_node = None
-                for _, sub_node in sub_entries:
-                    if sub_node is not None and hasattr(sub_node, 'belief_particles') and sub_node.belief_particles:
-                        representative_sub_node = sub_node
-                        break
-
-                if representative_sub_node is not None:
-                    _extract_recursive(
-                        node=representative_sub_node,
-                        curr_agent=opp_id,
-                        curr_path_id=child_id,
-                        curr_weight=branch_weight,
-                        depth=depth - 1,
-                        ids=ids, labels=labels, parents=parents, values=values,
-                        hover_texts=hover_texts, levels=levels, agent_names=agent_names
-                    )
+    descend([(node, curr_weight)], curr_agent, curr_path_id, curr_weight, depth)
 
 
-def extract_nested_belief_hierarchy(planner: Any, agent_id: str = "i", agent_level: int = 0, max_depth: int = 8) -> Dict[str, Any]:
+def extract_nested_belief_hierarchy(
+    planner: Any, agent_id: str = "i", agent_level: int = 0, max_depth: int = 8
+) -> Dict[str, Any]:
     """
     Recursively extracts the full multi-level nested mental model belief tree for an I-POMDP agent.
 
@@ -154,13 +184,19 @@ def extract_nested_belief_hierarchy(planner: Any, agent_id: str = "i", agent_lev
         "agent_names": List[str]
     }
     """
-    if not hasattr(planner, 'root') or not hasattr(planner.root, 'belief_particles') or not planner.root.belief_particles:
+    if (
+        not hasattr(planner, "root")
+        or not hasattr(planner.root, "belief_particles")
+        or not planner.root.belief_particles
+    ):
         return {}
 
-    lvl = getattr(planner.key, 'level', agent_level) if hasattr(planner, 'key') else agent_level
+    lvl = getattr(planner.key, "level", agent_level) if hasattr(planner, "key") else agent_level
     root_id = f"{agent_id}_L{lvl}"
     root_label = f"{agent_id} (Level-{lvl})"
-    hover = f"<b>Protagonist Agent {agent_id}</b><br>Reasoning Level: {lvl}<br>Total Belief Mass: 100%"
+    hover = (
+        f"<b>Protagonist Agent {agent_id}</b><br>Reasoning Level: {lvl}<br>Total Belief Mass: 100%"
+    )
 
     ids = [root_id]
     labels = [root_label]
@@ -176,8 +212,13 @@ def extract_nested_belief_hierarchy(planner: Any, agent_id: str = "i", agent_lev
         curr_path_id=root_id,
         curr_weight=1.0,
         depth=max_depth,
-        ids=ids, labels=labels, parents=parents, values=values,
-        hover_texts=hover_texts, levels=levels, agent_names=agent_names
+        ids=ids,
+        labels=labels,
+        parents=parents,
+        values=values,
+        hover_texts=hover_texts,
+        levels=levels,
+        agent_names=agent_names,
     )
 
     return {
@@ -189,7 +230,7 @@ def extract_nested_belief_hierarchy(planner: Any, agent_id: str = "i", agent_lev
         "values": values,
         "hover_texts": hover_texts,
         "levels": levels,
-        "agent_names": agent_names
+        "agent_names": agent_names,
     }
 
 
@@ -200,7 +241,6 @@ class GenericBatchRunner(ABC):
 
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
-            self.config.save(os.path.join(self.log_dir, "experiment_config.json"))
 
             # Attach file logger to record execution traces alongside artifacts
             global logger
@@ -210,11 +250,20 @@ class GenericBatchRunner(ABC):
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
         pass
 
-    def _get_custom_metrics(self, state: State, next_state: State, env: POMDPModel,
-                            planner_i: Planner, planner_j: Planner) -> Dict[str, Any]:
+    def _get_custom_metrics(
+        self,
+        state: State,
+        next_state: State,
+        env: POMDPModel,
+        planner_i: Planner,
+        planner_j: Planner,
+    ) -> Dict[str, Any]:
         return {}
 
     def _run_single_trial_parallel(self, trial_id: int) -> List[Dict[str, Any]]:
+        return self._run_episode(trial_id)
+
+    def _run_episode(self, trial_id: int, snapshots=None) -> List[Dict[str, Any]]:
         # Common Random Numbers (CRN): Dedicated isolated RNGs for transition and per-agent observations
         env_rng_trans = random.Random(trial_id * 10000 + 42)
         env_rng_obs_i = random.Random(trial_id * 10000 + 1042)
@@ -227,25 +276,23 @@ class GenericBatchRunner(ABC):
 
         env, planner_i, planner_j, true_state = self._setup_domain()
 
-        # Sample initial true state using CRN generator if supported
-        if hasattr(env, 'get_initial_state'):
-            try:
-                true_state = env.get_initial_state(rng=env_rng_trans)
-            except TypeError:
-                true_state = env.get_initial_state()
+        true_state = env.get_initial_state(rng=env_rng_trans)
 
         trial_records = []
         cum_reward_i = 0.0
         cum_reward_j = 0.0
-        is_terminal = False
+        is_terminal = env.is_terminal(true_state)
 
         # Step 0: Initial condition prior to taking any action
-        initial_stats_i = planner_i.get_detailed_stats() if hasattr(planner_i, 'get_detailed_stats') else {}
-        initial_stats_j = planner_j.get_detailed_stats() if hasattr(planner_j, 'get_detailed_stats') else {}
+        initial_stats_i = (
+            planner_i.get_detailed_stats() if hasattr(planner_i, "get_detailed_stats") else {}
+        )
+        initial_stats_j = (
+            planner_j.get_detailed_stats() if hasattr(planner_j, "get_detailed_stats") else {}
+        )
         n_i = _get_n_particles(planner_i)
         n_j = _get_n_particles(planner_j)
-        initial_n_i = n_i
-        initial_n_j = n_j
+        initial_n_i, initial_n_j = n_i, n_j
 
         init_record = {
             "trial": trial_id,
@@ -263,12 +310,15 @@ class GenericBatchRunner(ABC):
             "n_particles_j": n_j,
             "status": "Active",
             "action_values_i": initial_stats_i.get("action_values"),
-            "action_values_j": initial_stats_j.get("action_values")
+            "action_values_j": initial_stats_j.get("action_values"),
         }
         init_custom = self._get_custom_metrics(true_state, true_state, env, planner_i, planner_j)
         init_record.update(init_custom)
-        init_record.update(_get_opponent_level_distribution(planner_i, 'j'))
+        init_record.update(_get_opponent_level_distribution(planner_i, "j"))
         trial_records.append(init_record)
+        last_custom_metrics = init_custom
+        if snapshots is not None:
+            snapshots[0] = extract_nested_belief_hierarchy(planner_i, "i")
 
         # Decision steps: t = 1 ... max_steps
         for t in range(1, self.config.max_steps + 1):
@@ -278,225 +328,14 @@ class GenericBatchRunner(ABC):
                 plan_time_i = time.perf_counter() - start_time_i
 
                 a_j = planner_j.get_action()
-                joint_action = {'i': a_i, 'j': a_j}
+                joint_action = {"i": a_i, "j": a_j}
 
-                # Sample transition using isolated CRN generator
-                try:
-                    next_state = env.sample_transition(true_state, joint_action, rng=env_rng_trans)
-                except TypeError:
-                    next_state = env.sample_transition(true_state, joint_action)
+                next_state = env.sample_transition(true_state, joint_action, rng=env_rng_trans)
+                o_i = env.sample_observation(next_state, joint_action, "i", rng=env_rng_obs_i)
+                o_j = env.sample_observation(next_state, joint_action, "j", rng=env_rng_obs_j)
 
-                # Sample observations using isolated per-agent CRN generators
-                try:
-                    o_i = env.sample_observation(next_state, joint_action, 'i', rng=env_rng_obs_i)
-                except TypeError:
-                    o_i = env.sample_observation(next_state, joint_action, 'i')
-
-                try:
-                    o_j = env.sample_observation(next_state, joint_action, 'j', rng=env_rng_obs_j)
-                except TypeError:
-                    o_j = env.sample_observation(next_state, joint_action, 'j')
-
-                r_i = env.get_reward(true_state, joint_action, next_state, 'i')
-                r_j = env.get_reward(true_state, joint_action, next_state, 'j')
-
-                cum_reward_i += r_i
-                cum_reward_j += r_j
-                is_terminal = env.is_terminal(next_state)
-
-                stats_i = planner_i.get_detailed_stats()
-                stats_j = planner_j.get_detailed_stats()
-
-                n_i = _get_n_particles(planner_i)
-                n_j = _get_n_particles(planner_j)
-                min_i_particles = max(100, int(initial_n_i * 0.1)) if initial_n_i > 0 else 0
-                min_j_particles = max(100, int(initial_n_j * 0.1)) if initial_n_j > 0 else 0
-
-                record = {
-                    "trial": trial_id,
-                    "step": t,
-                    "action_i": str(a_i),
-                    "action_j": str(a_j),
-                    "obs_i": str(o_i),
-                    "obs_j": str(o_j),
-                    "reward_i": r_i,
-                    "cum_reward_i": cum_reward_i,
-                    "planning_time_i": plan_time_i,
-                    "reward_j": r_j,
-                    "cum_reward_j": cum_reward_j,
-                    "n_particles_i": n_i,
-                    "n_particles_j": n_j,
-                    "status": "Active",
-                    "action_values_i": stats_i.get("action_values"),
-                    "action_values_j": stats_j.get("action_values"),
-                    "process_rss_mb": round(SystemMonitor.get_process_memory()[0] / (1024.0 * 1024.0), 2)
-                }
-
-                if self.log_dir and self.config.verbose:
-                    step_dir = os.path.join(self.log_dir, f"trial_{trial_id}", f"step_{t}")
-                    os.makedirs(step_dir, exist_ok=True)
-
-                    with open(os.path.join(step_dir, "stats_i.json"), "w") as f:
-                        json.dump(stats_i, f, indent=2)
-                    with open(os.path.join(step_dir, "stats_j.json"), "w") as f:
-                        json.dump(stats_j, f, indent=2)
-
-                    if self.config.export_trees:
-                        planner_i.visualize(os.path.join(step_dir, "tree_i"), t)
-                        planner_j.visualize(os.path.join(step_dir, "tree_j"), t)
-
-                if not is_terminal:
-                    if hasattr(planner_i, 'update_root'):
-                        planner_i.update_root(a_i, o_i, min_i_particles)
-                    if hasattr(planner_j, 'update_root'):
-                        planner_j.update_root(a_j, o_j, min_j_particles)
-                    true_state = next_state
-
-                last_custom_metrics = self._get_custom_metrics(true_state, next_state, env, planner_i, planner_j)
-                record.update(last_custom_metrics)
-                record.update(_get_opponent_level_distribution(planner_i, 'j'))
-                record["n_particles_i"] = _get_n_particles(planner_i)
-                record["n_particles_j"] = _get_n_particles(planner_j)
-
-                trial_records.append(record)
-            else:
-                record = {
-                    "trial": trial_id, "step": t,
-                    "reward_i": 0.0, "cum_reward_i": cum_reward_i,
-                    "planning_time_i": 0.0,
-                    "reward_j": 0.0, "cum_reward_j": cum_reward_j,
-                    "n_particles_i": None, "n_particles_j": None,
-                    "status": "Terminal",
-                    "action_values_i": None, "action_values_j": None
-                }
-                trial_records.append(record)
-
-        del planner_i, planner_j, env
-        gc.collect()
-        return trial_records
-
-    def run_batch(self, max_workers: Optional[int] = None) -> pd.DataFrame:
-        all_records = []
-        # OS-level memory guardrail verification
-        watchdog = MemoryWatchdog()
-        sentry = watchdog.check_and_enforce()
-        if not sentry["safe"]:
-            logger.warning(f"OS Resource Warning prior to batch dispatch: {sentry.get('reason')}")
-
-        logger.info(f"Initialized ProcessPoolExecutor with {max_workers} worker processes.")
-
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(self._run_single_trial_parallel, t_id)
-                       for t_id in range(self.config.n_trials)]
-
-            # Note: Removed standard tqdm so progress bars don't conflict with structured logs.
-            # Instead, we emit an INFO log every 10% completion.
-            completed = 0
-            log_interval = max(1, self.config.n_trials // 10)
-
-            failed_trials = 0
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    records = future.result()
-                    all_records.extend(records)
-                    completed += 1
-                    if completed % log_interval == 0 or completed == self.config.n_trials:
-                        logger.info(f"Progress: {completed}/{self.config.n_trials} trials completed.")
-                        if self.log_dir and all_records:
-                            try:
-                                pd.DataFrame(all_records).to_csv(
-                                    os.path.join(self.log_dir, "batch_results_partial.csv"), index=False
-                                )
-                            except Exception as save_err:
-                                logger.warning(f"Failed to write partial batch checkpoint: {save_err}")
-                except Exception as exc:
-                    failed_trials += 1
-                    logger.error(f"Trial failed with exception: {exc}", exc_info=True)
-
-        df = pd.DataFrame(all_records)
-        if completed < self.config.n_trials:
-            if self.log_dir and not df.empty:
-                partial_path = os.path.join(self.log_dir, "batch_results_partial.csv")
-                df.to_csv(partial_path, index=False)
-                logger.warning(f"Batch incomplete ({completed}/{self.config.n_trials} trials). Saved to {partial_path}")
-            raise RuntimeError(f"Batch execution incomplete: {completed}/{self.config.n_trials} completed, {failed_trials} failed.")
-
-        if self.log_dir and not df.empty:
-            csv_path = os.path.join(self.log_dir, "batch_results.csv")
-            df.to_csv(csv_path, index=False)
-            logger.info(f"Aggregation complete. Results successfully saved to {self.log_dir}")
-
-        return df
-
-    def run_single_trial_with_snapshots(self, trial_id: int = 0) -> Tuple[pd.DataFrame, Dict[int, Dict[str, Any]]]:
-        """
-        Executes a single detailed episode trial, capturing step telemetry and full
-        multi-level nested mental model belief snapshots at every timestep t = 0 ... T.
-
-        Returns:
-            df: DataFrame containing the episode step-by-step metrics.
-            snapshots_by_step: Dictionary mapping step index t -> nested belief hierarchy dict.
-        """
-        random.seed(trial_id)
-        np.random.seed(trial_id)
-
-        env, planner_i, planner_j, true_state = self._setup_domain()
-        trial_records = []
-        snapshots_by_step: Dict[int, Dict[str, Any]] = {}
-
-        cum_reward_i = 0.0
-        cum_reward_j = 0.0
-        is_terminal = False
-
-        # Step 0: Initial condition snapshot
-        initial_stats_i = planner_i.get_detailed_stats() if hasattr(planner_i, 'get_detailed_stats') else {}
-        initial_stats_j = planner_j.get_detailed_stats() if hasattr(planner_j, 'get_detailed_stats') else {}
-        n_i = _get_n_particles(planner_i)
-        n_j = _get_n_particles(planner_j)
-        initial_n_i = n_i
-        initial_n_j = n_j
-
-        init_record = {
-            "trial": trial_id,
-            "step": 0,
-            "action_i": None,
-            "action_j": None,
-            "obs_i": None,
-            "obs_j": None,
-            "reward_i": 0.0,
-            "cum_reward_i": 0.0,
-            "planning_time_i": 0.0,
-            "reward_j": 0.0,
-            "cum_reward_j": 0.0,
-            "n_particles_i": n_i,
-            "n_particles_j": n_j,
-            "status": "Active",
-            "action_values_i": initial_stats_i.get("action_values"),
-            "action_values_j": initial_stats_j.get("action_values")
-        }
-        init_custom = self._get_custom_metrics(true_state, true_state, env, planner_i, planner_j)
-        init_record.update(init_custom)
-        init_record.update(_get_opponent_level_distribution(planner_i, 'j'))
-        trial_records.append(init_record)
-
-        snapshots_by_step[0] = extract_nested_belief_hierarchy(planner_i, 'i')
-
-        # Decision steps: t = 1 ... max_steps
-        for t in range(1, self.config.max_steps + 1):
-            if not is_terminal:
-                start_time_i = time.perf_counter()
-                a_i = planner_i.get_action()
-                plan_time_i = time.perf_counter() - start_time_i
-
-                a_j = planner_j.get_action()
-                joint_action = {'i': a_i, 'j': a_j}
-
-                next_state = env.sample_transition(true_state, joint_action)
-                o_i = env.sample_observation(next_state, joint_action, 'i')
-                o_j = env.sample_observation(next_state, joint_action, 'j')
-
-                r_i = env.get_reward(true_state, joint_action, next_state, 'i')
-                r_j = env.get_reward(true_state, joint_action, next_state, 'j')
+                r_i = env.get_reward(true_state, joint_action, next_state, "i")
+                r_j = env.get_reward(true_state, joint_action, next_state, "j")
 
                 cum_reward_i += r_i
                 cum_reward_j += r_j
@@ -527,32 +366,168 @@ class GenericBatchRunner(ABC):
                     "status": "Terminal" if is_terminal else "Active",
                     "action_values_i": stats_i.get("action_values"),
                     "action_values_j": stats_j.get("action_values"),
-                    "process_rss_mb": round(SystemMonitor.get_process_memory()[0] / (1024.0 * 1024.0), 2)
+                    "process_rss_mb": round(
+                        SystemMonitor.get_process_memory()[0] / (1024.0 * 1024.0), 2
+                    ),
                 }
-                # Particle filter updates
-                if hasattr(planner_i, 'update_root'):
-                    planner_i.update_root(a_i, o_i, min_particles=min_i_particles)
-                if hasattr(planner_j, 'update_root'):
-                    planner_j.update_root(a_j, o_j, min_particles=min_j_particles)
 
+                if self.log_dir and self.config.verbose:
+                    step_dir = os.path.join(self.log_dir, f"trial_{trial_id}", f"step_{t}")
+                    os.makedirs(step_dir, exist_ok=True)
+
+                    with open(os.path.join(step_dir, "stats_i.json"), "w") as f:
+                        json.dump(stats_i, f, indent=2)
+                    with open(os.path.join(step_dir, "stats_j.json"), "w") as f:
+                        json.dump(stats_j, f, indent=2)
+
+                    if self.config.export_trees:
+                        planner_i.visualize(os.path.join(step_dir, "tree_i"), t)
+                        planner_j.visualize(os.path.join(step_dir, "tree_j"), t)
+
+                if not is_terminal:
+                    planner_i.update_root(a_i, o_i, min_i_particles)
+                    planner_j.update_root(a_j, o_j, min_j_particles)
+                last_custom_metrics = self._get_custom_metrics(
+                    true_state, next_state, env, planner_i, planner_j
+                )
+                record.update(last_custom_metrics)
+                record.update(_get_opponent_level_distribution(planner_i, "j"))
                 record["n_particles_i"] = _get_n_particles(planner_i)
                 record["n_particles_j"] = _get_n_particles(planner_j)
-
-                custom_metrics = self._get_custom_metrics(true_state, next_state, env, planner_i, planner_j)
-                record.update(custom_metrics)
-                record.update(_get_opponent_level_distribution(planner_i, 'j'))
                 trial_records.append(record)
-
                 true_state = next_state
-                snapshots_by_step[t] = extract_nested_belief_hierarchy(planner_i, 'i')
-                gc.collect()
+                if snapshots is not None:
+                    snapshots[t] = extract_nested_belief_hierarchy(planner_i, "i")
+            else:
+                record = {
+                    "trial": trial_id,
+                    "step": t,
+                    "reward_i": 0.0,
+                    "cum_reward_i": cum_reward_i,
+                    "planning_time_i": 0.0,
+                    "reward_j": 0.0,
+                    "cum_reward_j": cum_reward_j,
+                    "n_particles_i": None,
+                    "n_particles_j": None,
+                    "status": "Terminal",
+                    "action_values_i": None,
+                    "action_values_j": None,
+                }
+                record.update(last_custom_metrics)
+                trial_records.append(record)
+                if snapshots is not None:
+                    snapshots[t] = snapshots[t - 1]
 
-        df = pd.DataFrame(trial_records)
-        if self.log_dir:
-            json_path = os.path.join(self.log_dir, f"nested_belief_snapshots_trial_{trial_id}.json")
-            with open(json_path, "w") as f:
-                json.dump(snapshots_by_step, f, indent=2)
-
+        # Nested fields have exactly one wire representation: JSON, not Python repr.
+        for record in trial_records:
+            for key in ("action_values_i", "action_values_j"):
+                record[key] = json.dumps(record[key], allow_nan=False)
         del planner_i, planner_j, env
         gc.collect()
-        return df, snapshots_by_step
+        return trial_records
+
+    def run_batch(self, max_workers: Optional[int] = None) -> pd.DataFrame:
+        """Execute independent trials and checkpoint each successful result.
+
+        Resume is allowed only with identical source and runner configuration.
+        Worker failures are collected, completed trials stay available, and no
+        completion marker is written for an incomplete experiment. Worker recycling
+        bounds allocator retention across episodes, not the live memory of one tree.
+        """
+        source_root = Path(__file__).resolve().parents[1]
+        digest = hashlib.sha256()
+        for source in sorted(source_root.rglob("*.py")):
+            digest.update(str(source.relative_to(source_root)).encode())
+            digest.update(source.read_bytes())
+        manifest = dict(
+            source_sha256=digest.hexdigest(),
+            runner=type(self).__module__ + "." + type(self).__qualname__,
+            experiment=asdict(self.config),
+            parameters={k: v for k, v in vars(self).items() if k not in {"config", "log_dir"}},
+        )
+        # Canonical JSON converts integer mapping keys consistently before comparison.
+        manifest = json.loads(json.dumps(manifest, sort_keys=True, allow_nan=False))
+        root = Path(self.log_dir) if self.log_dir else None
+        if root:
+            path = root / "run_manifest.json"
+            if not path.exists() and (root / "batch_results.csv").exists():
+                raise ValueError(
+                    "Existing results lack a matching manifest; use a new output directory."
+                )
+            if path.exists() and json.loads(path.read_text(encoding="utf-8")) != manifest:
+                raise ValueError("Resume configuration or source differs from the saved manifest.")
+            path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            (root / "trials").mkdir(exist_ok=True)
+        frames, pending = [], []
+        for trial in range(self.config.n_trials):
+            path = root / "trials" / f"{trial:06}.csv" if root else None
+            if path and path.exists():
+                frame = pd.read_csv(path, keep_default_na=False, na_values=[""])
+                if not _valid_panel(frame, [trial], self.config.max_steps):
+                    raise ValueError(f"Invalid trial checkpoint: {path}")
+                frames.append(frame)
+            else:
+                pending.append(trial)
+        if max_workers is not None and (type(max_workers) is not int or max_workers < 1):
+            raise ValueError("max_workers must be a positive integer")
+        workers = min(max_workers or (os.cpu_count() or 1), len(pending) or 1)
+        failures = []
+        if pending and workers == 1:
+            for trial in pending:
+                frame = pd.DataFrame(self._run_single_trial_parallel(trial))
+                if not _valid_panel(frame, [trial], self.config.max_steps):
+                    raise ValueError(f"Trial {trial} returned an incomplete panel.")
+                if root:
+                    _write_csv_atomic(frame, root / "trials" / f"{trial:06}.csv")
+                frames.append(frame)
+        elif pending:
+            for start in range(0, len(pending), workers * 20):
+                with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+                    futures = {
+                        executor.submit(self._run_single_trial_parallel, trial): trial
+                        for trial in pending[start : start + workers * 20]
+                    }
+                    for future in concurrent.futures.as_completed(futures):
+                        trial = futures[future]
+                        try:
+                            frame = pd.DataFrame(future.result())
+                            if not _valid_panel(frame, [trial], self.config.max_steps):
+                                raise ValueError(f"Trial {trial} returned an incomplete panel.")
+                            if root:
+                                _write_csv_atomic(frame, root / "trials" / f"{trial:06}.csv")
+                            frames.append(frame)
+                            logger.info("Completed %s/%s trials", len(frames), self.config.n_trials)
+                        except Exception as exc:
+                            # Aggregate worker failures deliberately; never reinterpret them as data.
+                            failures.append((trial, str(exc)))
+                            logger.exception("Trial %s failed", trial)
+        df = (
+            pd.concat(frames, ignore_index=True).sort_values(["trial", "step"])
+            if frames
+            else pd.DataFrame()
+        )
+        if failures:
+            if root and not df.empty:
+                _write_csv_atomic(df, root / "batch_results_partial.csv")
+            raise RuntimeError(f"Batch failed; completed trials are checkpointed: {failures}")
+        if root:
+            path = root / "batch_results.csv"
+            _write_csv_atomic(df, path)
+            marker = dict(
+                trials=self.config.n_trials,
+                steps=self.config.max_steps,
+                sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+            )
+            temporary = path.with_suffix(".complete.tmp")
+            temporary.write_text(json.dumps(marker), encoding="utf-8")
+            temporary.replace(path.with_suffix(".complete.json"))
+        return df
+
+    def run_single_trial_with_snapshots(self, trial_id: int = 0):
+        """Run the batch episode semantics with deterministic, RNG-neutral snapshots."""
+        snapshots = {}
+        records = self._run_episode(trial_id, snapshots)
+        if self.log_dir:
+            path = Path(self.log_dir) / f"nested_belief_snapshots_trial_{trial_id}.json"
+            path.write_text(json.dumps(snapshots, indent=2), encoding="utf-8")
+        return pd.DataFrame(records), snapshots

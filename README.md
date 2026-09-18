@@ -1,144 +1,94 @@
-# Interactive POMCP (I-POMCP) Framework for Finitely Nested Multi-Agent Systems
+# Interactive POMCP research framework
 
-[![Tests](https://img.shields.io/badge/pytest-38%20passing-brightgreen)](https://github.com/huytruong1810/ipomcp)
-[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
-[![Repository](https://img.shields.io/badge/github-huytruong1810%2Fipomcp-blue)](https://github.com/huytruong1810/ipomcp)
+This project studies finite hierarchies of agent models with Monte Carlo planning
+in Tiger, UAV pursuit, and Wumpus domains. It contains an I-POMCP-style planner and
+a sampled reachability-tree comparator. **The current interactive belief update
+is heuristic and has known theoretical defects.** Neither planner is a verified
+exact I-POMDP solver. Engineering tests and favorable returns do not establish
+Bayesian correctness or convergence.
 
-An enterprise-grade, high-performance implementation of **Finitely Nested Interactive Partially Observable Markov Decision Processes (I-POMDPs)** in Python. The framework provides online Monte Carlo Tree Search (I-POMCP) with Just-In-Time (JIT) mental model expansion, alongside an exact Reachability Tree Sampling (RTS) Oracle baseline reproducing Doshi & Gmytrasiewicz (*JAIR* 2009).
+Read [the model contract and limitations](docs/THEORY.md), the
+[module-by-module review](docs/REVIEW.md), and [open work](BACKLOG.md) before using
+results in a research claim. [HANDOFF.md](HANDOFF.md) records the review workspace
+and experiment provenance without assuming old process IDs are still alive.
 
----
+## Setup and validation
 
-## 1. Mathematical Foundations of Finitely Nested I-POMDPs
-
-In multi-agent systems with partial observability and strategic interactions, agents must maintain nested recursive beliefs about other agents' intentional models. An agent $i$ operating at strategic reasoning level $l \ge 1$ formalizes its environment as:
-
-$$\text{I-POMDP}_{i,l} = \langle IS_{i,l}, A, T_i, \Omega_i, O_i, R_i, \gamma \rangle$$
-
-### 1.1 Finitely Nested Interactive State Space
-The interactive state space $IS_{i,l}$ is defined inductively over physical environment states $S$ and the union of all lower-level opponent intentional models $\Theta_{-i}^{<l}$:
-
-$$IS_{i,0} = S$$
-$$IS_{i,l} = S \times \Theta_{-i}^{<l} \quad \text{for } l \ge 1$$
-
-where the opponent model union space is formally expressed as:
-
-$$\Theta_{-i}^{<l} = \bigcup_{k=0}^{l-1} \Theta_{-i}^k$$
-
-For each strategic reasoning level $k \ge 1$, an intentional opponent model is a pair:
-
-$$\theta_{-i}^k = \langle b_{-i}^k, \widehat{\theta}_{-i} \rangle$$
-
-where $b_{-i}^k \in \Delta(IS_{-i,k})$ is the opponent's subjective nested belief over its own interactive state space:
-
-$$IS_{-i,k} = S \times \Theta_i^{<k} = S \times \left( \bigcup_{j=0}^{k-1} \Theta_i^j \right)$$
-
-At level 0 ($k = 0$), $\Theta^0$ represents the non-strategic baseline governed by a uniform random policy $\pi^0(a) = \frac{1}{|A|}$.
-
-### 1.2 Interactive Belief Update & Private Observation Marginalization
-When agent $i$ executes action $a_i^{t-1}$ and receives private observation $o_i^t$, it updates its interactive belief $b_{i,l}^t(s^t, \boldsymbol{\theta}_{-i}^t)$ via Bayesian filtering:
-
-$$b_{i,l}^t(s^t, \boldsymbol{\theta}_{-i}^t) = \eta \cdot P(o_i^t \mid s^t, \mathbf{a}^{t-1}) \sum_{s^{t-1}, \boldsymbol{\theta}_{-i}^{t-1}} b_{i,l}^{t-1}(s^{t-1}, \boldsymbol{\theta}_{-i}^{t-1}) \left( \prod_{j \neq i} P(a_j^{t-1} \mid \theta_j^{t-1}) \right) T(s^t \mid s^{t-1}, \mathbf{a}^{t-1}) \prod_{j \neq i} P(\theta_j^t \mid \theta_j^{t-1}, a_j^{t-1}, s^t, \mathbf{a}^{t-1})$$
-
-Because opponent observations $o_j^t$ are strictly private, updating the opponent's intentional model requires marginalizing across all possible private observation signals $o_j^t \in \Omega_j$:
-
-$$P(\theta_j^t \mid \theta_j^{t-1}, a_j^{t-1}, s^t, \mathbf{a}^{t-1}) = \sum_{o_j^t \in \Omega_j} O_j(o_j^t \mid s^t, \mathbf{a}^{t-1}) \cdot \delta_{\operatorname{SE}(\theta_j^{t-1}, a_j^{t-1}, o_j^t)}(\theta_j^t)$$
-
----
-
-## 2. Core Architectural Components
-
-```
-src/
-├── core/
-│   ├── config.py              # Centralized dataclass configurations (MCTS, JIT, RTS)
-│   ├── distribution.py        # ParticleDistribution (SUS resampling) & DictDistribution
-│   ├── logger.py              # Structured logging with per-trial file routing
-│   ├── paths.py               # Centralized path resolvers for results
-│   ├── pomdp_model.py         # Abstract POMDPModel base interface
-│   └── telemetry.py           # OS-level resource monitoring & MemoryWatchdog
-├── ipomdp/
-│   └── belief.py              # InteractiveParticle and AgentFrame definitions
-├── solvers/
-│   ├── exploration.py         # StandardUCB and scale-invariant NormalizedUCB
-│   ├── generative_model.py    # InteractiveGenerativeModel with variance-driven JIT expansion
-│   ├── i_pomcp.py             # IPOMCPPlanner with reservoir sampling
-│   ├── node.py                # POMCPNode AND-OR search tree node
-│   ├── planner.py             # Abstract Planner base class
-│   ├── random_planner.py      # Sub-intentional Level-0 baseline
-│   ├── rts_planner.py         # Exact Reachability Tree Sampling (RTS) Oracle
-│   ├── solver_bank.py         # Centralized SolverKey -> Planner registry
-│   └── solver_types.py        # SolverKey and AgentFrame definitions
-├── utils/
-│   ├── bootstrapper.py        # Topological I_POMDP_Bootstrapper with O(NL) root pooling
-│   ├── generic_batch_runner.py# Multiprocessing runner with Common Random Numbers (CRN)
-│   ├── paper_plots.py         # High-DPI publication vector graphics generator (PDF)
-│   ├── plotting.py            # Interactive Plotly Sunburst and progression visualizers
-│   └── visualizer.py          # Graphviz MCTS forest exporter
-└── examples/
-    ├── tiger/                 # Multi-Agent Tiger Domain (persistent & reset modes)
-    ├── uav/                   # 2D Grid UAV Target Pursuit-Evasion Domain
-    ├── wumpus/                # Multi-Agent Wumpus World Domain
-    └── experiments/           # Master benchmark orchestration scripts
-```
-
----
-
-## 3. Engineering & Production Guardrails
-
-1. **$O(NL)$ Canonical Root Pooling**:
-   - Eliminates exponential $O(N^L)$ particle duplication in [`src/utils/bootstrapper.py`](src/utils/bootstrapper.py) by sharing canonical root trees across particles of identical reasoning levels. Reduces process RAM from **14.8 GB** down to **< 200 MB** for Level-4/Level-5 agents.
-2. **OS Telemetry & Memory Watchdog**:
-   - Embedded [`src/core/telemetry.py`](src/core/telemetry.py) tracks `process_rss_mb` and `host_available_ram_mb`, classifying operating regimes (`DRAM_BOUND_NORMAL`, `MEMORY_PRESSURE`, `SWAP_THRASHING`).
-3. **CPython Allocator Arena Recycling**:
-   - [`src/utils/generic_batch_runner.py`](src/utils/generic_batch_runner.py) configures `max_tasks_per_child=20` inside `ProcessPoolExecutor`, periodically recycling worker processes to completely prevent `pymalloc` memory fragmentation.
-4. **Common Random Numbers (CRN)**:
-   - Strict stream isolation (`env_rng_trans`, `env_rng_obs_i`, `env_rng_obs_j`) guarantees variance-reduced experimental comparisons under identical environmental noise.
-5. **Resumption & Checkpointing**:
-   - All benchmark runners support `--resume-dir` and verify completed condition CSVs, enabling long-running runs to resume without recomputing finished conditions.
-
----
-
-## 4. Verification & Testing
-
-The test suite validates theoretical invariants, numerical stability, distribution properties, domain models, and OS telemetry.
+The supported execution environment is Linux, including WSL, with Python 3.12+.
+Resource measurements use Linux `/proc`; unavailable measurements raise errors.
+Install `uv`, then run from the repository root:
 
 ```bash
-# Run the complete test suite (38 passing tests)
-uv run python -m pytest tests/ -v
+uv sync --frozen
+uv run pytest -q -rxX
+uv run ruff check src tests benchmarks
+uv run ruff format --check src tests benchmarks
+uv build --wheel
 ```
 
-### Test Suite Breakdown
-- `tests/test_distribution.py`: Particle distribution resampling (SUS), lazy cache invalidation, and CDF boundary conditions.
-- `tests/test_exploration.py`: Standard UCB1 and Normalized UCB scale-invariance.
-- `tests/test_models.py`: Tiger generative-evaluative symmetry, UAV mechanics, and Wumpus dynamics.
-- `tests/test_node.py`: Reservoir sampling (Algorithm R) capacity bounds and tree serialization.
-- `tests/test_oracle_rts.py`: RTS exact lookahead tree construction, action values, and batch execution.
-- `tests/test_solvers.py`: Arbitrary level recursive bootstrapping, mixture priors, and solver bank decoupling.
-- `tests/test_telemetry.py`: Process RSS, host memory detection, watchdog enforcement, and JSONL logging.
-- `tests/test_visualization.py`: Nested belief extraction, Plotly Sunburst generation, and vector PDF exports.
-- `tests/test_integration.py`: End-to-end multi-agent batch runners across Tiger, UAV, and Wumpus.
+Graphviz tree rendering also requires the system `dot` executable. Python's
+`graphviz` package is required; a failed rendering is reported rather than silently
+omitted. Rendering is optional when tree export is disabled.
 
----
+The two strict expected failures in `tests/test_theory_gaps.py` are executable
+counterexamples for unresolved theoretical defects. They must not be counted as
+successful correctness tests. `tests/reference_tiger.py` is an exact finite-state
+reference only for fixed subintentional opponent policies.
 
-## 5. Running Large-Scale Experiments
+## Experiments
 
-All experiment results, telemetry logs, and publication plots are automatically routed to `<project_root>/results/`.
+Level zero means **uniform-random behavior** in this codebase. It is not the
+optimizing level-zero POMDP used in some I-POMDP literature. Higher levels model
+mixtures over lower levels. Separate solver banks isolate the two real agents.
+Tiger uses 85% growl accuracy and 100% creak accuracy in the principal experiments;
+an opening resets the physical tiger before observations unless persistent mode
+is explicitly selected. Its leaf rollout always listens, a finite-budget heuristic.
 
 ```bash
-# Execute the Master Benchmark Suite (N=200 trials, T=20 steps)
-# 1. Deep Hierarchy Prior Benchmark (10 conditions)
-# 2. Apples-to-Apples Oracle RTS vs I-POMCP (7 conditions)
-# 3. Full 6x6 Strategy Level Payoff Matrix (36 conditions)
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all
+# One condition: L3 versus L2, with 80% prior mass on L2.
+uv run python -m examples.experiments.deep_hierarchy_prior_experiment --trials 30 --steps 20 --condition 1
 
-# Resume an interrupted benchmark run:
-uv run python src/examples/experiments/run_all_large_scale_benchmarks_N200.py --trials 200 --steps 20 --suite all --resume-dir results/deep_prior/deep_prior_benchmark_20260904_010926_N200_T20
+# Full suite; potentially expensive at higher levels.
+uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite all
+
+# Resume exactly one suite, using its actual output directory.
+uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite prior --resume-dir /absolute/run/directory
+
+# Audit driver, explicitly binding the source checkout and output directory.
+uv run python benchmarks/tiger_pre_post_benchmark.py --repo "$PWD" --out results/tiger-audit --trials 30 --steps 20 --workers 4
 ```
 
----
+`run_benchmarks` supports `prior`, `comparison`, `matrix`, or `all`. Resuming `all`
+with a single suite directory is rejected. Batch manifests bind source and
+configuration; per-trial CSV checkpoints must contain every step, including step
+zero and absorbing terminal padding. Completion markers bind final CSV bytes.
+Incompatible old results require a fresh output directory; there is no schema
+migration or compatibility reader.
 
-## 6. Codebase Review & Quality Roadmap
+Interaction horizon and planning depth are different quantities. The audit uses
+20 environment decisions and depth-five search, with 20,000 L3 and 15,000 L2 root
+simulations per decision. Configured initial particle requests are 2,000 and 1,500,
+but the experiment's node capacity caps their retained reservoirs at 1,000 each.
+This cap must be reported when interpreting the nominal particle schedule.
 
-For reviewers and incoming engineers, see:
-- [`HANDOFF.md`](HANDOFF.md): Immediate runtime state, active process telemetry, and reviewer guidance.
-- [`BACKLOG.md`](BACKLOG.md): Comprehensive architectural, theoretical, execution, and observability audit report cataloging open P0/P1/P2/P3 action items.
+## Layout and result interpretation
+
+`core/` defines probability, model, configuration, logging, and telemetry contracts.
+`ipomdp/` holds particle/frame representations. `solvers/` implements search and
+model propagation. `utils/` assembles hierarchies, executes batches, and renders
+recorded data. `examples/` contains domains and experiment designs. `tests/`
+contains regressions and bounded exact references. `benchmarks/` contains the
+matched-run audit driver.
+
+Results live under `results/`, or the `IPOMCP_RESULTS_DIR` override. Source control
+ignores runtime results, caches, environments, and builds. Retain raw trial data,
+configuration, source hashes, and execution logs when archiving a study; regenerate
+figures from those records. The removed synthetic reward/sunburst generators are
+not valid solver evidence. Their original source remains in Git history.
+
+Reported cumulative rewards are undiscounted observed returns; planners optimize
+a discounted, truncated objective. Compare independent trial totals with paired
+seed analyses where designs share seeds. A confidence interval crossing zero is
+not evidence of equivalence. Payoff matrices describe a finite policy set and do
+not prove convergence as reasoning depth increases or an equilibrium of the
+underlying partially observed game.

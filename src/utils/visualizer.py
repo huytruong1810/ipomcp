@@ -1,15 +1,11 @@
-from typing import Set, Dict, List
+from typing import Dict, List, Set
+
+import graphviz
+
 from core.logger import get_logger
-from solvers.solver_bank import SolverBank
 from solvers.i_pomcp import IPOMCPPlanner
 from solvers.node import POMCPNode
-
-try:
-    import graphviz
-    GRAPHVIZ_AVAILABLE = True
-except ImportError:
-    graphviz = None
-    GRAPHVIZ_AVAILABLE = False
+from solvers.solver_bank import SolverBank
 
 logger = get_logger("ForestVisualizer")
 
@@ -32,20 +28,16 @@ class ForestVisualizer:
             filename: Output filename prefix.
             step: Current simulation step (for labeling).
         """
-        if not GRAPHVIZ_AVAILABLE or graphviz is None:
-            logger.warning("graphviz package is not installed; skipping forest visualization.")
-            return
-
         # Create Digraph
-        dot = graphviz.Digraph(comment=f'I-POMCP Forest Step {step}')
-        dot.attr(rankdir='LR')  # Left-to-Right layout
+        dot = graphviz.Digraph(comment=f"I-POMCP Forest Step {step}")
+        dot.attr(rankdir="LR")  # Left-to-Right layout
 
         # We track visited IDs to handle the DAG nature (merging paths)
         # and prevent infinite recursion if loops existed (shouldn't in trees).
         visited: Set[int] = set()
 
         # 1. Draw Protagonist Tree (Limit depth 3 for readability)
-        self._add_tree_to_dot(dot, root_planner.root, f"I", visited, depth_limit=3, is_root=True)
+        self._add_tree_to_dot(dot, root_planner.root, "I", visited, depth_limit=3, is_root=True)
 
         # 2. Draw Opponent Sub-Trees
         # We only draw nodes that are actually referenced by the protagonist's current belief.
@@ -54,8 +46,14 @@ class ForestVisualizer:
         for agent_id, nodes in referenced_nodes.items():
             for i, node in enumerate(nodes):
                 # Unique prefix for opponent nodes to avoid collision
-                self._add_tree_to_dot(dot, node, f"J_{agent_id}", visited, depth_limit=2,
-                                      label_prefix=f"Opp({agent_id})")
+                self._add_tree_to_dot(
+                    dot,
+                    node,
+                    f"J_{agent_id}",
+                    visited,
+                    depth_limit=2,
+                    label_prefix=f"Opp({agent_id})",
+                )
 
         # 3. Draw Belief Links (The "Interactive" part)
         # We sample particles from the protagonist's root to show what they are pointing to.
@@ -76,24 +74,36 @@ class ForestVisualizer:
             for target_nid, count in link_counts.items():
                 if target_nid in visited:  # Only link if we drew the node
                     label = f"{count} parts"
-                    dot.edge(start_node_id, str(target_nid), style="dashed", color="red", label=label, penwidth="2.0")
+                    dot.edge(
+                        start_node_id,
+                        str(target_nid),
+                        style="dashed",
+                        color="red",
+                        label=label,
+                        penwidth="2.0",
+                    )
 
-        # Render
-        try:
-            output_path = dot.render(filename, view=False, format='png', cleanup=True)
-            logger.info(f"Forest visualized to {output_path}")
-        except Exception as e:
-            logger.warning(f"Visualization failed (Graphviz installed?): {e}")
+        output_path = dot.render(filename, view=False, format="png", cleanup=True)
+        logger.info(f"Forest visualized to {output_path}")
 
-    def _add_tree_to_dot(self, dot, node: POMCPNode, name_prefix: str, visited: Set[int], depth_limit: int,
-                         is_root=False, label_prefix=""):
+    def _add_tree_to_dot(
+        self,
+        dot,
+        node: POMCPNode,
+        name_prefix: str,
+        visited: Set[int],
+        depth_limit: int,
+        is_root=False,
+        label_prefix="",
+    ):
         node_id = str(id(node))
 
         # If we already drew this node, skip to avoid duplicates (DAG structure)
-        if id(node) in visited: return
+        if id(node) in visited:
+            return
+        if depth_limit < 0:
+            return
         visited.add(id(node))
-
-        if depth_limit < 0: return
 
         # Node Style
         # Green = Visited/Expanded, Grey = Unvisited
@@ -114,7 +124,7 @@ class ForestVisualizer:
         for action, obs_map in node.children.items():
             for obs, child in obs_map.items():
                 # Only draw path if it has been visited or is the immediate next step
-                if child.visit_count > 0 or is_root:
+                if depth_limit > 0 and (child.visit_count > 0 or is_root):
                     child_id = str(id(child))
                     self._add_tree_to_dot(dot, child, name_prefix, visited, depth_limit - 1)
                     dot.edge(node_id, child_id, label=f"{action}/{obs}")
@@ -124,12 +134,14 @@ class ForestVisualizer:
         Scans the belief to find which opponent nodes are currently 'active' in the agent's mind.
         """
         refs = {}
-        if not root.belief_particles: return refs
+        if not root.belief_particles:
+            return refs
 
         for p in root.belief_particles:
             for aid, (_, node_ptr) in p.models.items():
                 if node_ptr:
-                    if aid not in refs: refs[aid] = []
+                    if aid not in refs:
+                        refs[aid] = []
                     # We use object identity to deduplicate
                     if node_ptr not in refs[aid]:
                         refs[aid].append(node_ptr)

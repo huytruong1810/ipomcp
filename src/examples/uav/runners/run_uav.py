@@ -1,10 +1,9 @@
-from core.config import MCTSConfig, IPOMCPConfig
-from solvers.exploration import NormalizedUCB
+from core.config import IPOMCPConfig, MCTSConfig
 from examples.uav.model.uav_model import UAVModel
 from examples.uav.model.uav_viz import UAVVisualizer
+from solvers.exploration import NormalizedUCB
 from solvers.solver_bank import SolverBank
 from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.visualizer import ForestVisualizer
 
 
 def run_uav_recon():
@@ -13,8 +12,8 @@ def run_uav_recon():
     real_env = UAVModel()
     viz = UAVVisualizer()
 
-    agent_uav = 'i'
-    agent_target = 'j'
+    agent_uav = "i"
+    agent_target = "j"
     min_uav_particles = 5000
     min_target_particles = 5000
 
@@ -30,10 +29,12 @@ def run_uav_recon():
     boot_target.create_level0_solver(agent_uav, UAVModel())
     boot_target.create_level0_solver(agent_target, UAVModel())
     planner_target = boot_target.create_level1_solver(
-        agent_target, UAVModel(), [agent_uav],
+        agent_target,
+        UAVModel(),
+        [agent_uav],
         n_particles=min_target_particles,
         config=config_target,
-        exploration_strategy=NormalizedUCB(exploration_const=1.0)
+        exploration_strategy=NormalizedUCB(exploration_const=1.0),
     )
 
     # Isolated bank for UAV (Agent I)
@@ -42,16 +43,20 @@ def run_uav_recon():
     boot_uav.create_level0_solver(agent_uav, UAVModel())
     boot_uav.create_level0_solver(agent_target, UAVModel())
     boot_uav.create_level1_solver(
-        agent_target, UAVModel(), [agent_uav],
+        agent_target,
+        UAVModel(),
+        [agent_uav],
         n_particles=min_target_particles,
         config=config_target,
-        exploration_strategy=NormalizedUCB(exploration_const=1.0)
+        exploration_strategy=NormalizedUCB(exploration_const=1.0),
     )
     planner_uav = boot_uav.create_level2_solver(
-        agent_uav, UAVModel(), [agent_target],
+        agent_uav,
+        UAVModel(),
+        [agent_target],
         n_particles=min_uav_particles,
         config=config_uav,
-        exploration_strategy=NormalizedUCB(exploration_const=1.0)
+        exploration_strategy=NormalizedUCB(exploration_const=1.0),
     )
 
     true_state = real_env.get_initial_state()

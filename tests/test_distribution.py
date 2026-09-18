@@ -1,6 +1,6 @@
 import pytest
-import math
-from core.distribution import ParticleDistribution, DictDistribution
+
+from core.distribution import DictDistribution, ParticleDistribution
 
 
 def test_particle_distribution_uniform():
@@ -9,7 +9,7 @@ def test_particle_distribution_uniform():
     assert dist["TL"] == pytest.approx(0.5)
     assert dist["TR"] == pytest.approx(0.5)
     assert dist["OTHER"] == 0.0
-    
+
     samples = [dist.sample() for _ in range(500)]
     assert "TL" in samples and "TR" in samples
 
@@ -18,11 +18,11 @@ def test_particle_distribution_weighted():
     particles = ["A", "B", "C"]
     weights = [0.1, 0.7, 0.2]
     dist = ParticleDistribution(particles, weights)
-    
+
     assert dist["A"] == pytest.approx(0.1)
     assert dist["B"] == pytest.approx(0.7)
     assert dist["C"] == pytest.approx(0.2)
-    
+
     # Test lazy cache invalidation on normalize
     dist.normalize()
     assert dist["B"] == pytest.approx(0.7)
@@ -32,7 +32,7 @@ def test_particle_distribution_resample():
     particles = ["A", "B"]
     weights = [0.8, 0.2]
     dist = ParticleDistribution(particles, weights)
-    
+
     resampled = dist.resample(1000)
     assert len(resampled) == 1000
     count_a = resampled.count("A")
@@ -40,19 +40,17 @@ def test_particle_distribution_resample():
     assert 750 <= count_a <= 850
 
 
-def test_particle_distribution_zero_weights_fallback():
+def test_particle_distribution_rejects_zero_mass():
     particles = ["A", "B"]
     weights = [0.0, 0.0]
-    dist = ParticleDistribution(particles, weights)
-    dist.normalize()
-    assert dist["A"] == pytest.approx(0.5)
-    assert dist["B"] == pytest.approx(0.5)
+    with pytest.raises(ValueError, match="positive total"):
+        ParticleDistribution(particles, weights)
 
 
 def test_dict_distribution():
     probs = {"N": 0.25, "S": 0.25, "E": 0.25, "W": 0.25}
     dist = DictDistribution(probs)
-    
+
     assert dist["N"] == 0.25
     assert dist["UNKNOWN"] == 0.0
     sample = dist.sample()
@@ -89,10 +87,9 @@ def test_dict_distribution_immutability_and_zero_weight():
     assert dist["B"] == pytest.approx(0.75)
     assert dist["C"] == 0.0
 
-    # Test all-zero weights fallback to uniform
-    zero_dist = DictDistribution({"X": 0.0, "Y": 0.0})
-    assert zero_dist["X"] == pytest.approx(0.5)
-    assert zero_dist["Y"] == pytest.approx(0.5)
+    # An impossible event has no normalized posterior.
+    with pytest.raises(ValueError, match="positive total"):
+        DictDistribution({"X": 0.0, "Y": 0.0})
 
 
 def test_particle_distribution_zero_weight_support():
@@ -104,4 +101,3 @@ def test_particle_distribution_zero_weight_support():
     support = set(dist.get_support())
     assert "A" in support and "B" in support
     assert "C" not in support
-

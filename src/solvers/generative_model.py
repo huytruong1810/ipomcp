@@ -1,19 +1,17 @@
-# Absolute Path: <project_root>/solvers/generative_model.py
-
 """
 generative_model.py — Joint action simulation and nested MCTS expansion.
 
 Simulates simultaneous actions and state transitions across multi-agent hierarchies.
-Performs Variance-Driven Just-In-Time (JIT) mental model expansion for opponent sub-trees
+Performs Entropy-Gated Just-In-Time (JIT) mental model expansion for opponent sub-trees
 during Monte Carlo tree search rollouts.
 """
 
-import random
 import math
-from typing import Tuple, Dict, Optional, TYPE_CHECKING
+import random
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
-from core.pomdp_model import Action, AgentID, POMDPModel
 from core.config import JITConfig
+from core.pomdp_model import Action, AgentID, POMDPModel
 from ipomdp.belief import InteractiveParticle
 from solvers.node import POMCPNode
 from solvers.solver_types import AgentFrame
@@ -28,11 +26,11 @@ class InteractiveGenerativeModel:
     during the Monte Carlo tree search rollouts.
     """
 
-    def __init__(self, solver_bank: 'SolverBank', config: Optional[JITConfig] = None):
+    def __init__(self, solver_bank: "SolverBank", config: Optional[JITConfig] = None):
         self.solver_bank = solver_bank
         self.config = config if config is not None else JITConfig()
 
-        # [BIG-TECH REFACTOR]: Pre-compute inverse temperature for fast-math multiplication
+        # Pre-compute inverse temperature for fast-math multiplication
         self._inv_temp = 1.0 / max(self.config.temperature, 1e-6)
 
     def _compute_policy_entropy(self, node: POMCPNode) -> float:
@@ -60,8 +58,13 @@ class InteractiveGenerativeModel:
         except OverflowError:
             return 0.0
 
-    def tree_step(self, particle: InteractiveParticle, action_i: Action,
-                  agent_id_i: AgentID, physics_model: POMDPModel) -> Tuple[InteractiveParticle, Dict[AgentID, Action], float, bool]:
+    def tree_step(
+        self,
+        particle: InteractiveParticle,
+        action_i: Action,
+        agent_id_i: AgentID,
+        physics_model: POMDPModel,
+    ) -> Tuple[InteractiveParticle, Dict[AgentID, Action], float, bool]:
 
         joint_action: Dict[AgentID, Action] = {agent_id_i: action_i}
 
@@ -72,12 +75,16 @@ class InteractiveGenerativeModel:
 
             else:
                 if node_ptr is not None:
-                    # Variance-Driven JIT Expansion using injected Config
-                    if (node_ptr.visit_count < self.config.visit_threshold or
-                            self._compute_policy_entropy(node_ptr) > self.config.entropy_threshold):
+                    # Entropy-Gated JIT Expansion using injected Config
+                    if (
+                        node_ptr.visit_count < self.config.visit_threshold
+                        or self._compute_policy_entropy(node_ptr) > self.config.entropy_threshold
+                    ):
                         opp_solver = self.solver_bank.get_solver_for_frame(frame)
-                        local_bounds = {'q_min': float('inf'), 'q_max': -float('inf')}
-                        opp_solver.extend_search(node_ptr, n_sims=self.config.sims, bounds=local_bounds)
+                        local_bounds = {"q_min": float("inf"), "q_max": -float("inf")}
+                        opp_solver.extend_search(
+                            node_ptr, n_sims=self.config.sims, bounds=local_bounds
+                        )
 
                     action_j = self._sample_action_from_node(node_ptr)
                 else:

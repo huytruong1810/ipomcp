@@ -6,8 +6,8 @@ available action space.  It serves two roles in the I-POMCP framework:
 
 1. **Baseline agent** — Used as the opponent model for Level-1 agents
    (who assume their opponents act randomly).
-2. **Performance floor** — Provides a lower bound for evaluating whether
-   higher-level planning actually yields strategic advantage.
+2. **Reference policy** — Provides an empirical comparator for evaluating whether
+   higher-level planning yields an advantage; it is not a mathematical lower bound.
 
 Because Level-0 agents have no internal belief or search tree, all
 inherited ``Planner`` methods (``extend_search``, ``update_root``, etc.)
@@ -15,10 +15,10 @@ remain no-ops.
 """
 
 import random
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
-from solvers.planner import Planner
 from core.pomdp_model import Action
+from solvers.planner import Planner
 
 
 class RandomPlanner(Planner):
@@ -34,7 +34,9 @@ class RandomPlanner(Planner):
         Args:
             possible_actions: All legal actions for this agent.
         """
-        self.possible_actions: List[Action] = possible_actions
+        if not possible_actions:
+            raise ValueError("Random policy requires a nonempty action space")
+        self.possible_actions: List[Action] = list(possible_actions)
 
     def get_action(self, belief: Optional[Any] = None) -> Action:
         """Return a uniformly random action (ignores *belief*)."""

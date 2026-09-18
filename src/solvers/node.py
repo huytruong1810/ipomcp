@@ -1,25 +1,19 @@
-# Absolute Path: <project_root>/solvers/node.py
+"""History nodes with bounded trajectory reservoirs and non-owning parent links.
 
-"""
-node.py — MCTS search-tree node with strict static typing and memory bounds.
-
-DESIGN DECISION RECORD (Big-Tech Refactor Phase 1):
----------------------------------------------------
-1. STRICT TYPE COERCION:
-   `belief_particles` is now explicitly typed to `List['InteractiveParticle']` rather
-   than `List[Any]`. This prevents developers from accidentally appending raw physical
-   states or generic dicts to the node's local belief, which would crash the MCTS fast-loop.
-
-2. RESERVOIR SAMPLING:
-   Maintains the Algorithm R implementation to guarantee $O(1)$ memory bound scaling
-   per node while preserving an unbiased uniform probability distribution of historical trajectories.
+Algorithm R gives each routed item equal inclusion probability. That property is
+about the input stream; it does not prove that a biased stream is a Bayesian
+posterior. Memory is O(capacity) per node, plus children and referenced nested
+models. The number of nodes and referenced beliefs is not globally bounded by
+capacity. Weak parent pointers let obsolete siblings be collected after rerooting.
 """
 
 import random
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+import weakref
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 from core.pomdp_model import Action, Observation
 
-# [BIG-TECH REFACTOR]: Safely import InteractiveParticle for strict typing
+# Safely import InteractiveParticle for strict typing
 if TYPE_CHECKING:
     from ipomdp.belief import InteractiveParticle
 
@@ -40,22 +34,38 @@ class POMCPNode:
             parent: Back-pointer to the parent node (`None` for the root).
             capacity: Maximum number of particles to hold before Reservoir Sampling kicks in.
         """
+        if not isinstance(capacity, int) or capacity <= 0:
+            raise ValueError("Node capacity must be a positive integer.")
         self.visit_count: int = 0
         self.action_counts: Dict[Action, int] = {}
         self.action_values: Dict[Action, float] = {}
 
         # AND-OR Tree: children[action][observation] -> POMCPNode
         self.children: Dict[Action, Dict[Observation, "POMCPNode"]] = {}
-        self.parent: Optional["POMCPNode"] = parent
+        self._parent_ref = weakref.ref(parent) if parent is not None else None
 
         # Bounded local belief, strictly typed
-        self.belief_particles: List['InteractiveParticle'] = []
+        self.belief_particles: List["InteractiveParticle"] = []
         self.capacity: int = capacity
 
         # Tracks how many particles have EVER passed through here (Used for Algorithm R math)
         self._total_particles_routed: int = 0
 
-    def add_particle(self, particle: 'InteractiveParticle') -> None:
+    @property
+    def parent(self):
+        """Non-owning navigation link; descendants never own discarded siblings."""
+        return self._parent_ref() if self._parent_ref is not None else None
+
+    @parent.setter
+    def parent(self, parent):
+        self._parent_ref = weakref.ref(parent) if parent is not None else None
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_parent_ref"] = None
+        return state
+
+    def add_particle(self, particle: "InteractiveParticle") -> None:
         """
         Appends a particle to this node's local belief.
         Implements Algorithm R (Reservoir Sampling) to guarantee bounded memory footprints
@@ -101,7 +111,7 @@ class POMCPNode:
             "action_values": {str(a): v for a, v in self.action_values.items()},
             "action_counts": {str(a): c for a, c in self.action_counts.items()},
             "n_particles": len(self.belief_particles),
-            "total_routed": self._total_particles_routed
+            "total_routed": self._total_particles_routed,
         }
 
         if current_depth < max_depth:
@@ -111,7 +121,9 @@ class POMCPNode:
                 children_dict[action_str] = {}
                 for obs, child_node in obs_map.items():
                     obs_str = str(obs)
-                    children_dict[action_str][obs_str] = child_node.to_dict(max_depth, current_depth + 1)
+                    children_dict[action_str][obs_str] = child_node.to_dict(
+                        max_depth, current_depth + 1
+                    )
 
             node_dict["children"] = children_dict
 

@@ -1,17 +1,15 @@
-# Absolute Path: <project_root>/examples/tiger/runners/tiger_batch_runner.py
-
-from utils.generic_batch_runner import GenericBatchRunner
-from examples.tiger.model.tiger_model import TigerModel
-from solvers.solver_bank import SolverBank
-from solvers.exploration import NormalizedUCB
-from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.plotting import plot_all_metrics
-from utils.paper_plots import generate_paper_plots
-from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, JITConfig
-from core.logger import get_logger
-
 import os
 from datetime import datetime
+
+from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig
+from core.logger import get_logger
+from examples.tiger.model.tiger_model import TigerModel
+from solvers.exploration import NormalizedUCB
+from solvers.solver_bank import SolverBank
+from utils.bootstrapper import I_POMDP_Bootstrapper
+from utils.generic_batch_runner import GenericBatchRunner
+from utils.paper_plots import generate_paper_plots
+from utils.plotting import plot_all_metrics
 
 logger = get_logger("TigerRunner")
 
@@ -22,7 +20,7 @@ class TigerBatchRunner(GenericBatchRunner):
     """
 
     def _setup_domain(self):
-        growl_dict = {'i': 0.85, 'j': 0.85}
+        growl_dict = {"i": 0.85, "j": 0.85}
         env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=6, node_capacity=500)
@@ -32,30 +30,36 @@ class TigerBatchRunner(GenericBatchRunner):
         # 1. Opponent Agent J (Level-1 I-POMCP) with dedicated SolverBank
         bank_j = SolverBank()
         boot_j = I_POMDP_Bootstrapper(bank_j)
-        boot_j.create_level0_solver('i', TigerModel(growl_accuracy=growl_dict))
+        boot_j.create_level0_solver("i", TigerModel(growl_accuracy=growl_dict))
         planner_j = boot_j.create_level1_solver(
-            'j', TigerModel(growl_accuracy=growl_dict), ['i'],
+            "j",
+            TigerModel(growl_accuracy=growl_dict),
+            ["i"],
             n_particles=2000,
             config=agent_config,
-            exploration_strategy=NormalizedUCB(exploration_const=2**(0.5))
+            exploration_strategy=NormalizedUCB(exploration_const=2 ** (0.5)),
         )
 
         # 2. Protagonist Agent I (Level-2 I-POMCP) with dedicated SolverBank (cache-isolated)
         bank_i = SolverBank()
         boot_i = I_POMDP_Bootstrapper(bank_i)
-        boot_i.create_level0_solver('j', TigerModel(growl_accuracy=growl_dict))
+        boot_i.create_level0_solver("j", TigerModel(growl_accuracy=growl_dict))
         boot_i.create_level1_solver(
-            'j', TigerModel(growl_accuracy=growl_dict), ['i'],
+            "j",
+            TigerModel(growl_accuracy=growl_dict),
+            ["i"],
             n_particles=2000,
             config=agent_config,
-            exploration_strategy=NormalizedUCB(exploration_const=2**(0.5))
+            exploration_strategy=NormalizedUCB(exploration_const=2 ** (0.5)),
         )
         planner_i = boot_i.create_level2_solver(
-            'i', TigerModel(growl_accuracy=growl_dict), ['j'],
+            "i",
+            TigerModel(growl_accuracy=growl_dict),
+            ["j"],
             l1_probability=1.0,
             n_particles=2000,
             config=agent_config,
-            exploration_strategy=NormalizedUCB(exploration_const=2**(0.5))
+            exploration_strategy=NormalizedUCB(exploration_const=2 ** (0.5)),
         )
 
         return env, planner_i, planner_j, env.get_initial_state()
@@ -63,16 +67,12 @@ class TigerBatchRunner(GenericBatchRunner):
 
 if __name__ == "__main__":
     from core.paths import get_results_dir
+
     log_dir = get_results_dir("tiger", f"tiger_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
-    exp_config = ExperimentConfig(
-        n_trials=1000,
-        max_steps=6,
-        export_trees=False,
-        verbose=False
-    )
+    exp_config = ExperimentConfig(n_trials=1000, max_steps=6, export_trees=False, verbose=False)
 
-    logger.info(f"Initializing Tiger Batch Runner...")
+    logger.info("Initializing Tiger Batch Runner...")
     logger.info(f"Configuration: N={exp_config.n_trials}, Horizon={exp_config.max_steps}")
 
     runner = TigerBatchRunner(config=exp_config, log_dir=log_dir)
@@ -80,12 +80,14 @@ if __name__ == "__main__":
 
     if not df.empty:
         logger.info("Generating interactive debug plots...")
-        plot_all_metrics(df,
-                         agent_labels={'i': 'Agent I (L2)', 'j': 'Agent J (L1)'},
-                         title_prefix="Tiger L2 vs L1",
-                         save_dir=log_dir)
+        plot_all_metrics(
+            df,
+            agent_labels={"i": "Agent I (L2)", "j": "Agent J (L1)"},
+            title_prefix="Tiger L2 vs L1",
+            save_dir=log_dir,
+        )
 
-        logger.info("Generating IEEE/ACM compliant vector graphics...")
+        logger.info("Generating publication vector graphics...")
         generate_paper_plots(os.path.join(log_dir, "batch_results.csv"), log_dir)
 
         logger.info("Tiger Batch execution pipeline finalized successfully.")

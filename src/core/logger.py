@@ -1,15 +1,14 @@
-# Absolute Path: <project_root>/core/logger.py
-
 """
 logger.py — Centralized, thread-safe structured logging for I-POMCP.
 
-Provides process-safe structured logging with PID attribution for distributed rollouts
-and multi-threaded MCTS simulations. Supports both console streams and artifact files.
+Provides standard Python logging with PID attribution. File handlers belong to
+the configuring process; multiple processes sharing a file are not guaranteed
+atomic records. Batch data integrity comes from per-trial atomic checkpoints.
 """
 
 import logging
-import sys
 import os
+import sys
 
 
 def get_logger(name: str, log_file: str = None, level: int = logging.INFO) -> logging.Logger:
@@ -19,10 +18,11 @@ def get_logger(name: str, log_file: str = None, level: int = logging.INFO) -> lo
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    logger.propagate = False
 
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)-7s | PID:%(process)-5d | %(name)-18s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     # Attach Console Handler if not already present
@@ -38,8 +38,13 @@ def get_logger(name: str, log_file: str = None, level: int = logging.INFO) -> lo
     # Attach File Handler if requested and not already attached for this specific path
     if log_file:
         norm_path = os.path.abspath(log_file)
+        for handler in list(logger.handlers):
+            if isinstance(handler, logging.FileHandler) and handler.baseFilename != norm_path:
+                logger.removeHandler(handler)
+                handler.close()
         has_file_handler = any(
-            isinstance(h, logging.FileHandler) and os.path.abspath(getattr(h, "baseFilename", "")) == norm_path
+            isinstance(h, logging.FileHandler)
+            and os.path.abspath(getattr(h, "baseFilename", "")) == norm_path
             for h in logger.handlers
         )
         if not has_file_handler:

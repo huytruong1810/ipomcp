@@ -1,5 +1,3 @@
-# Absolute Path: <project_root>/core/distribution.py
-
 """
 distribution.py — Probability-distribution abstractions for belief representation.
 
@@ -10,9 +8,10 @@ Provides discrete probability distribution interfaces and implementations:
 """
 
 import abc
-import random
 import bisect
-from typing import TypeVar, Generic, List, Dict, Tuple, Any, Iterable, Optional
+import math
+import random
+from typing import Dict, Generic, Iterable, List, Optional, Tuple, TypeVar
 
 T = TypeVar("T")
 
@@ -43,18 +42,22 @@ class ParticleDistribution(Distribution[T]):
     """
 
     def __init__(self, particles: List[T], weights: List[float] = None):
-        self._particles = particles
+        self._particles = list(particles)
         if weights is None:
             n = len(particles)
             self._weights = [1.0 / n] * n if n > 0 else []
         else:
             if len(particles) != len(weights):
                 raise ValueError("Particles and weights must be the same length.")
-            self._weights = weights
+            self._weights = list(weights)
 
+        if any(not math.isfinite(w) or w < 0 for w in self._weights):
+            raise ValueError("Weights must be finite and nonnegative.")
+        if self._weights and (not math.isfinite(sum(self._weights)) or sum(self._weights) <= 0):
+            raise ValueError("Weights must have finite positive total mass.")
         self._cdf = self._compute_cdf(self._weights)
 
-        # [BIG-TECH REFACTOR]: Lazy O(1) Lookup Cache
+        # Lazy O(1) Lookup Cache
         self._lookup_cache: Optional[Dict[T, float]] = None
 
     def _compute_cdf(self, weights: List[float]) -> List[float]:
@@ -71,20 +74,21 @@ class ParticleDistribution(Distribution[T]):
             raise ValueError("Cannot sample from an empty distribution.")
 
         r = random.random() * self._cdf[-1]
-        idx = bisect.bisect_left(self._cdf, r)
+        idx = bisect.bisect_right(self._cdf, r)
         idx = min(idx, len(self._particles) - 1)
         return self._particles[idx]
 
     def resample(self, n_samples: int) -> List[T]:
         """
         Stochastic Universal Sampling (Systematic Resampling).
-        O(N) operation that rigorously minimizes variance.
+        O(N + n_samples) systematic resampling; variance depends on particle ordering.
         """
-        if not self._particles:
+        if not isinstance(n_samples, int) or n_samples < 0:
+            raise ValueError("n_samples must be a nonnegative integer.")
+        if n_samples == 0:
             return []
-
-        if self._cdf[-1] <= 0:
-            return random.choices(self._particles, k=n_samples)
+        if not self._particles:
+            raise ValueError("Cannot resample an empty distribution.")
 
         step = self._cdf[-1] / n_samples
         r = random.random() * step
@@ -93,7 +97,7 @@ class ParticleDistribution(Distribution[T]):
         idx = 0
         max_idx = len(self._particles) - 1
         for _ in range(n_samples):
-            while idx < max_idx and r > self._cdf[idx]:
+            while idx < max_idx and r >= self._cdf[idx]:
                 idx += 1
             resampled.append(self._particles[idx])
             r += step
@@ -109,7 +113,7 @@ class ParticleDistribution(Distribution[T]):
             for p, w in zip(self._particles, self._weights):
                 self._lookup_cache[p] = self._lookup_cache.get(p, 0.0) + w
 
-        return self._lookup_cache.get(item, 0.0)
+        return self._lookup_cache.get(item, 0.0) / self._cdf[-1] if self._cdf else 0.0
 
     def get_support(self) -> Iterable[T]:
         """Returns all unique items with non-zero probability mass."""
@@ -121,7 +125,7 @@ class ParticleDistribution(Distribution[T]):
         return [item for item, prob in self._lookup_cache.items() if prob > 0.0]
 
     def values(self) -> Tuple[List[T], List[float]]:
-        return self._particles, self._weights
+        return list(self._particles), list(self._weights)
 
     def normalize(self) -> None:
         """Normalizes the particle weights to sum to 1.0."""
@@ -130,11 +134,7 @@ class ParticleDistribution(Distribution[T]):
 
         total = self._cdf[-1]
 
-        if total <= 1e-9:
-            n = len(self._weights)
-            self._weights = [1.0 / n] * n
-        else:
-            self._weights = [w / total for w in self._weights]
+        self._weights = [w / total for w in self._weights]
 
         self._cdf = self._compute_cdf(self._weights)
 
@@ -145,7 +145,7 @@ class ParticleDistribution(Distribution[T]):
 class DictDistribution(Distribution[T]):
     """
     A distribution represented natively by a categorical mapping from items to probabilities.
-    Guarantees caller immutability and handles zero/empty normalization safely.
+    Copies caller data and rejects invalid probability mass. An empty support cannot be sampled.
     """
 
     def __init__(self, probabilities: Dict[T, float]):
@@ -154,19 +154,13 @@ class DictDistribution(Distribution[T]):
         self._items: List[T] = list(self._probs.keys())
         raw_weights: List[float] = [float(self._probs[k]) for k in self._items]
 
+        if any(not math.isfinite(w) or w < 0 for w in raw_weights):
+            raise ValueError("Weights must be finite and nonnegative.")
         total = sum(raw_weights)
-        if total > 0.0:
-            self._weights = [w / total for w in raw_weights]
-            for i, item in enumerate(self._items):
-                self._probs[item] = self._weights[i]
-        elif self._items:
-            # Fallback to uniform distribution over support when total weight is zero
-            n = len(self._items)
-            self._weights = [1.0 / n] * n
-            for item in self._items:
-                self._probs[item] = 1.0 / n
-        else:
-            self._weights = []
+        if raw_weights and (not math.isfinite(total) or total <= 0):
+            raise ValueError("Weights must have finite positive total mass.")
+        self._weights = [w / total for w in raw_weights]
+        self._probs = dict(zip(self._items, self._weights))
 
     def sample(self) -> T:
         if not self._items:

@@ -2,15 +2,11 @@
 test_telemetry.py — Unit tests for the OS-Level Resource Monitoring and Telemetry Suite.
 """
 
-import os
 import json
+import os
 import tempfile
-from core.telemetry import (
-    SystemMonitor,
-    MemoryWatchdog,
-    TelemetryLogger,
-    SystemResourceSnapshot
-)
+
+from core.telemetry import MemoryWatchdog, SystemMonitor, SystemResourceSnapshot, TelemetryLogger
 
 
 def test_system_monitor_process_memory():

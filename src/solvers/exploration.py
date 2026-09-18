@@ -1,18 +1,10 @@
-# Absolute Path: <project_root>/solvers/exploration.py
+"""UCB action-selection strategies over history-node estimates.
 
-"""
-exploration — UCB strategies for MCTS.
-
-DESIGN DECISION RECORD (Phase 2 Overhaul):
-------------------------------------------
-1. STATELESS NORMALIZED UCB:
-   Previously, NormalizedUCB was dependent on the planner resetting its Q-bounds
-   on every step. Because we moved to a stateless, locally-scoped bounds tracking
-   system (to prevent parallel universe JIT bleeding), `select_action` now strictly
-   requires `q_min` and `q_max` kwargs to perform its normalizations locally.
-
-   Epsilon was added to the denominator to prevent division-by-zero during the
-   very first rollouts when all Q-values are identical.
+Untried actions are visited before scoring tried actions. NormalizedUCB uses
+search-local empirical return bounds to scale exploitation values; the constant
+still needs empirical calibration. An additive epsilon and degenerate-range
+rule are numerical conventions, not a proof of exact scale invariance for all
+reward transformations or a new UCT convergence result.
 """
 
 import math
@@ -43,7 +35,7 @@ class StandardUCB(ExplorationStrategy):
 
     def select_action(self, node: POMCPNode, available_actions: List[Action], **kwargs) -> Action:
         best_action = None
-        best_value = -float('inf')
+        best_value = -float("inf")
 
         log_n = math.log(node.visit_count) if node.visit_count > 0 else 0
 
@@ -68,7 +60,7 @@ class NormalizedUCB(ExplorationStrategy):
     """
     Scale-Invariant UCB.
 
-    [PHASE 2 FIX]: Uses the dynamically passed `q_min` and `q_max` from `kwargs`
+    Uses the dynamically passed `q_min` and `q_max` from `kwargs`
     to normalize the Q-values to [0, 1]. This ensures the exploration constant
     remains domain-independent, while keeping the specific MCTS process stateless.
     """
@@ -79,19 +71,21 @@ class NormalizedUCB(ExplorationStrategy):
 
     def select_action(self, node: POMCPNode, available_actions: List[Action], **kwargs) -> Action:
         best_action = None
-        best_value = -float('inf')
+        best_value = -float("inf")
 
         log_n = math.log(node.visit_count) if node.visit_count > 0 else 0
 
         # Extract dynamically discovered local bounds provided by the planner.
         # Rigorously guard against uninitialized (inf / -inf), invalid, or degenerate (q_max <= q_min) bounds.
-        q_min = kwargs.get('q_min', 0.0)
-        q_max = kwargs.get('q_max', 0.0)
+        q_min = kwargs.get("q_min", 0.0)
+        q_max = kwargs.get("q_max", 0.0)
 
         degenerate_bounds = (
-            math.isinf(q_min) or math.isinf(q_max) or
-            math.isnan(q_min) or math.isnan(q_max) or
-            q_max <= q_min
+            math.isinf(q_min)
+            or math.isinf(q_max)
+            or math.isnan(q_min)
+            or math.isnan(q_max)
+            or q_max <= q_min
         )
         q_range = (q_max - q_min) + self.epsilon if not degenerate_bounds else 1.0
 

@@ -1,32 +1,18 @@
-# Absolute Path: <project_root>/core/pomdp_model.py
+"""Physical dynamics and observation contracts shared by the domains.
 
-"""
-pomdp_model.py — Abstract interface for the Interactive POMDP physical environment.
+Observations condition on the post-transition state and simultaneous joint action.
+Transition events needed for observation generation must therefore be encoded in
+that state (for example Wumpus bump and scream flags). Sampling and likelihood
+evaluation must implement the same probability kernel. Optional RNG arguments
+isolate real-environment randomness from planning randomness.
 
-DESIGN DECISION RECORD (Phase 1 Overhaul):
-------------------------------------------
-1. GENERATIVE SYMMETRY ENFORCEMENT:
-   The interface strictly delineates `sample_observation` (generative, used in MCTS)
-   from `get_observation_prob` (evaluative, used in IPF). This architectural boundary
-   prevents researchers from injecting artificial smoothing noise into the generative
-   step without identically updating the probability evaluator, which is the #1 cause
-   of Interactive Particle Filter divergence.
-
-2. DYNAMIC ACTION MASKING (`get_legal_actions`):
-   Rather than penalizing illegal actions with -1000 rewards (which wastes UCB1
-   exploration bandwidth), the engine requests dynamically valid actions based on
-   the exact physical state. This shrinks the branching factor |A| -> |A_legal(s)|,
-   instantly tightening the sample complexity bounds of the Monte Carlo search.
-
-3. TYPE HINTING & JIT COMPATIBILITY:
-   State, Action, and Observation are kept as abstract types. Concrete implementations
-   should strictly utilize immutable structs (e.g., tuples, frozen dataclasses with
-   `slots=True`) to prevent GC stalls and Python object instantiation overhead during
-   the millions of calls executed by the generative fast-loop.
+Action availability may depend only on information known at the acting agent's
+history. A hidden-state action mask leaks information even when it saves search
+work. Domain rollout policies have the same information restriction.
 """
 
 import abc
-from typing import Dict, List, Hashable, Any, Optional
+from typing import Any, Dict, Hashable, List, Optional
 
 # Type Aliases for strict typing in downstream planners.
 # States, Actions, and Observations should strictly be Hashable to allow for dictionary
@@ -50,14 +36,16 @@ class POMDPModel(abc.ABC):
     # ------------------------------------------------------------------ #
 
     @abc.abstractmethod
-    def get_initial_state(self) -> State:
+    def get_initial_state(self, rng=None) -> State:
         """
         Samples an initial physical state $s_0$ from the prior distribution $P(S_0)$.
         """
         pass
 
     @abc.abstractmethod
-    def sample_transition(self, state: State, joint_action: Dict[AgentID, Action]) -> State:
+    def sample_transition(
+        self, state: State, joint_action: Dict[AgentID, Action], rng=None
+    ) -> State:
         r"""
         Generative Transition Function: $s' \sim T(s, \vec{a})$.
 
@@ -71,8 +59,9 @@ class POMDPModel(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def sample_observation(self, state: State, joint_action: Dict[AgentID, Action],
-                           agent_id: AgentID) -> Observation:
+    def sample_observation(
+        self, state: State, joint_action: Dict[AgentID, Action], agent_id: AgentID, rng=None
+    ) -> Observation:
         r"""
         Generative Observation Function: $o_i \sim O_i(s', \vec{a})$.
         Used to generate hypothetical realities during the MCTS rollout.
@@ -88,8 +77,13 @@ class POMDPModel(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_observation_prob(self, observation: Observation, state: State,
-                             joint_action: Dict[AgentID, Action], agent_id: AgentID) -> float:
+    def get_observation_prob(
+        self,
+        observation: Observation,
+        state: State,
+        joint_action: Dict[AgentID, Action],
+        agent_id: AgentID,
+    ) -> float:
         r"""
         Evaluative Observation Probability: $P(o_i \mid s', \vec{a})$.
         Used strictly to re-weight beliefs during the Interactive Particle Filter (IPF) update.
@@ -100,8 +94,13 @@ class POMDPModel(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_reward(self, state: State, joint_action: Dict[AgentID, Action],
-                   next_state: State, agent_id: AgentID) -> float:
+    def get_reward(
+        self,
+        state: State,
+        joint_action: Dict[AgentID, Action],
+        next_state: State,
+        agent_id: AgentID,
+    ) -> float:
         """
         Reward Function: $R_i(s, \vec{a}, s')$.
 
@@ -137,7 +136,7 @@ class POMDPModel(abc.ABC):
     def get_all_observations(self, agent_id: AgentID) -> List[Observation]:
         """
         Return the maximal/complete observation space for *agent_id*.
-        Must be implemented to satisfy exact-branching baseline solvers (like RTS).
+        Must be implemented to satisfy observation-enumerating baseline solvers (like RTS).
         """
         pass
 
@@ -160,11 +159,31 @@ class POMDPModel(abc.ABC):
         """
         return False
 
-    def sample_state_consistent_with_obs(self, action: Action, observation: Observation,
-                                         agent_id: Optional[AgentID] = None, rng: Any = None) -> State:
+    def sample_state_consistent_with_obs(
+        self,
+        action: Action,
+        observation: Observation,
+        agent_id: Optional[AgentID] = None,
+        rng: Any = None,
+    ) -> State:
         """Samples a physical state consistent with the post-transition observation.
 
-        Overridden by concrete domains to perform fast, exact analytical Bayesian sampling.
-        Defaults to sampling an initial state from P(S_0).
+        This is a heuristic proposal hook, not a general Bayesian posterior.
+        The default draws the initial prior without conditioning on history.
+        Domains needing correct deprivation recovery require an explicit filter;
+        see docs/THEORY.md. Callers must not interpret this as exact conditioning.
         """
-        return self.get_initial_state()
+        return self.get_initial_state(rng=rng)
+
+    def get_rollout_action(self, state: State, agent_id: AgentID) -> Action:
+        """Choose a rollout action using the domain's fixed default policy.
+
+        The default samples uniformly from actions. Overrides must not exploit
+        hidden state: a rollout policy still represents a partially informed agent.
+        This policy estimates leaf values at finite search budgets; it is not an
+        assertion of optimality. Domains with no legal actions terminate before
+        this hook is called.
+        """
+        import random
+
+        return random.choice(self.get_legal_actions(state, agent_id))

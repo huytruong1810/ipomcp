@@ -1,28 +1,20 @@
-# Absolute Path: <project_root>/examples/tiger/model/tiger_model.py
+"""Two-agent Tiger with simultaneous actions and post-transition observations.
 
-"""
-tiger_model.py — Interactive Multi-Agent Tiger Domain.
+Opening rewards depend on the pre-transition tiger. In reset mode, any opening
+draws a new uniform tiger before observations. A listening agent hears a noisy
+growl about that new state and a creak about the other action; an opening agent
+receives silence. Persistent mode suppresses state resets. These choices define
+the experiment and must not be silently swapped for another Tiger variant.
 
-DESIGN DECISION RECORD (Phase 5 Overhaul):
-------------------------------------------
-1. STRICT ABSTRACT COMPLIANCE:
-   Explicitly implemented `get_all_actions` and `get_all_observations` to satisfy
-   the `POMDPModel` interface, preventing the instantiation crashes seen in batch execution.
-
-2. OBSERVATION TUPLES & SYMMETRY:
-   Observations are now strictly typed as Tuples: `(growl_obs, creak_obs)`.
-   The `get_observation_prob` (used for Particle Filter weighting) has been meticulously
-   aligned line-by-line with `sample_observation` (used for MCTS generation) to guarantee
-   mathematical purity. Without this, Interactive Particle Filters diverge.
-
-3. RESET DYNAMICS:
-   Restored the standard infinite-horizon reset dynamics. If anyone opens a door,
-   the state instantly transitions to a uniform random distribution, and the episode continues.
+The always-listen rollout is an explicit finite-budget heuristic. It is not an
+optimal policy and does not repair the planner's interactive filtering errors.
 """
 
+import math
 import random
-from typing import Dict, List, Tuple, Optional, Any
-from core.pomdp_model import POMDPModel, State, Action, Observation, AgentID
+from typing import Any, Dict, List, Optional, Tuple
+
+from core.pomdp_model import AgentID, POMDPModel
 
 # --- CONSTANTS ---
 # States
@@ -48,7 +40,9 @@ TigerObservation = Tuple[str, str]  # (Growl, Creak)
 
 
 class TigerModel(POMDPModel):
-    def __init__(self, growl_accuracy: dict = None, creak_accuracy: float = 1.0, persistent: bool = False):
+    def __init__(
+        self, growl_accuracy: dict = None, creak_accuracy: float = 1.0, persistent: bool = False
+    ):
         """
         Initializes the Multi-Agent Tiger domain.
 
@@ -59,10 +53,17 @@ class TigerModel(POMDPModel):
             persistent: If True, the tiger does not reset its position after a door is opened.
         """
         if growl_accuracy is None:
-            self.growl_acc = {'i': 0.85, 'j': 0.85}
+            self.growl_acc = {"i": 0.85, "j": 0.85}
         else:
-            self.growl_acc = growl_accuracy
+            self.growl_acc = dict(growl_accuracy)
 
+        if set(self.growl_acc) != {"i", "j"}:
+            raise ValueError("Tiger growl accuracy must specify agents i and j")
+        if any(
+            not math.isfinite(p) or not 0 <= p <= 1
+            for p in [*self.growl_acc.values(), creak_accuracy]
+        ):
+            raise ValueError("Sensor accuracies must lie in [0,1]")
         self.creak_acc = creak_accuracy
         self.persistent = persistent
 
@@ -71,7 +72,9 @@ class TigerModel(POMDPModel):
         choice_fn = rng.choice if rng is not None else random.choice
         return choice_fn([TIGER_LEFT, TIGER_RIGHT])
 
-    def sample_transition(self, state: TigerState, joint_action: Dict[AgentID, TigerAction], rng=None) -> TigerState:
+    def sample_transition(
+        self, state: TigerState, joint_action: Dict[AgentID, TigerAction], rng=None
+    ) -> TigerState:
         """
         If *anyone* opens a door, the episode conceptually resets, and the tiger
         is placed randomly behind one of the two doors (unless persistent is True).
@@ -83,8 +86,13 @@ class TigerModel(POMDPModel):
                     return choice_fn([TIGER_LEFT, TIGER_RIGHT])
         return state
 
-    def sample_observation(self, state: TigerState, joint_action: Dict[AgentID, TigerAction],
-                           agent_id: AgentID, rng=None) -> TigerObservation:
+    def sample_observation(
+        self,
+        state: TigerState,
+        joint_action: Dict[AgentID, TigerAction],
+        agent_id: AgentID,
+        rng=None,
+    ) -> TigerObservation:
         """
         Generative observation model. Used during MCTS rollout simulation and environment stepping.
         """
@@ -135,8 +143,13 @@ class TigerModel(POMDPModel):
 
         return (obs_growl, obs_creak)
 
-    def get_observation_prob(self, observation: TigerObservation, state: TigerState,
-                             joint_action: Dict[AgentID, TigerAction], agent_id: AgentID) -> float:
+    def get_observation_prob(
+        self,
+        observation: TigerObservation,
+        state: TigerState,
+        joint_action: Dict[AgentID, TigerAction],
+        agent_id: AgentID,
+    ) -> float:
         """
         Evaluative observation model. Used to re-weight beliefs in the Particle Filter.
         MUST perfectly match the probability distribution generated by `sample_observation`.
@@ -202,8 +215,13 @@ class TigerModel(POMDPModel):
         # Assume conditional independence between Tiger noise and Opponent noise
         return p_growl * p_creak
 
-    def get_reward(self, state: TigerState, joint_action: Dict[AgentID, TigerAction],
-                   next_state: TigerState, agent_id: AgentID) -> float:
+    def get_reward(
+        self,
+        state: TigerState,
+        joint_action: Dict[AgentID, TigerAction],
+        next_state: TigerState,
+        agent_id: AgentID,
+    ) -> float:
         """
         Standard Tiger Benchmark Rewards:
         Listen = -1
@@ -250,9 +268,19 @@ class TigerModel(POMDPModel):
                     return True
         return False
 
-    def sample_state_consistent_with_obs(self, action: TigerAction, observation: TigerObservation,
-                                         agent_id: Optional[AgentID] = None, rng: Any = None) -> TigerState:
-        """Direct, exact Bayesian sampling of physical state given action and observation."""
+    def sample_state_consistent_with_obs(
+        self,
+        action: TigerAction,
+        observation: TigerObservation,
+        agent_id: Optional[AgentID] = None,
+        rng: Any = None,
+    ) -> TigerState:
+        """Sample the one-observation posterior under a uniform physical prior.
+
+        Exact immediately after a known reset; only a proposal otherwise. A run
+        of quiet listens requires the full prior odds, which this signature does
+        not receive. Do not describe this hook as a general Bayes filter.
+        """
         choice_fn = rng.choice if rng is not None else random.choice
         rand_fn = rng.random if rng is not None else random.random
 
@@ -268,3 +296,12 @@ class TigerModel(POMDPModel):
             return TIGER_RIGHT if rand_fn() < acc else TIGER_LEFT
         else:
             return choice_fn([TIGER_LEFT, TIGER_RIGHT])
+
+    def get_rollout_action(self, state: TigerState, agent_id: AgentID) -> TigerAction:
+        """Use the always-listen leaf policy, independent of the hidden tiger.
+
+        This conservative finite-budget heuristic avoids random door openings in
+        the rollout tail. It is not the optimal Tiger policy: it never collects
+        treasure. Search, rather than this leaf policy, must value opening a door.
+        """
+        return LISTEN

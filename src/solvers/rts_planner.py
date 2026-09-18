@@ -1,5 +1,3 @@
-# Absolute Path: <project_root>/solvers/rts_planner.py
-
 """
 rts_planner.py — Reachability Tree Sampling (RTS) Planner with Interactive Particle Filtering (I-PF).
 
@@ -27,37 +25,36 @@ Mathematical Formulation:
 """
 
 import random
-from typing import List, Optional, Dict, Tuple, Any
+from typing import Dict, List, Optional, Tuple
 
-from core.pomdp_model import Action, Observation, POMDPModel, AgentID, State
+from core.config import RTSConfig
+from core.distribution import ParticleDistribution
 from core.logger import get_logger
-from solvers.planner import Planner
-from solvers.solver_types import SolverKey, AgentFrame
-from solvers.solver_bank import SolverBank
+from core.pomdp_model import Action, AgentID, Observation, POMDPModel, State
 from ipomdp.belief import InteractiveParticle
 from solvers.node import POMCPNode
-from core.distribution import ParticleDistribution
-from core.config import RTSConfig
+from solvers.planner import Planner
+from solvers.solver_bank import SolverBank
+from solvers.solver_types import AgentFrame, SolverKey
 
 logger = get_logger("RTSPlanner")
 
 
 class RTSPlanner(Planner):
     """
-    Reachability Tree Sampling (RTS) Exact Branching Planner with Interactive Particle Filtering (I-PF).
-    Faithfully implements Doshi & Gmytrasiewicz (JAIR 2009) Sections 6 & 11.
+    Reachability Tree Sampling (RTS) Sampled Lookahead Planner with Interactive Particle Filtering (I-PF).
+    Inspired by Doshi & Gmytrasiewicz (2009); finite particles and top-k observation pruning make this approximate.
+    Nested model propagation remains subject to the limitations in docs/THEORY.md.
     """
 
-    def __init__(self,
-                 solver_key: SolverKey,
-                 pomdp_model: POMDPModel,
-                 action_space: List[Action],
-                 solver_bank: SolverBank,
-                 config: Optional[RTSConfig] = None,
-                 gamma: Optional[float] = None,
-                 max_depth: Optional[int] = None,
-                 obs_branching: Optional[int] = None,
-                 num_particles: Optional[int] = None):
+    def __init__(
+        self,
+        solver_key: SolverKey,
+        pomdp_model: POMDPModel,
+        action_space: List[Action],
+        solver_bank: SolverBank,
+        config: Optional[RTSConfig] = None,
+    ):
 
         self.key = solver_key
         self.pomdp_model = pomdp_model
@@ -66,10 +63,10 @@ class RTSPlanner(Planner):
 
         base_config = config if config is not None else RTSConfig()
         self.config = base_config
-        self.gamma = gamma if gamma is not None else base_config.gamma
-        self.max_depth = max_depth if max_depth is not None else base_config.max_depth
-        self.obs_branching = obs_branching if obs_branching is not None else base_config.obs_branching
-        self.num_particles = num_particles if num_particles is not None else base_config.num_particles
+        self.gamma = base_config.gamma
+        self.max_depth = base_config.max_depth
+        self.obs_branching = base_config.obs_branching
+        self.num_particles = base_config.num_particles
 
         self.belief: List[InteractiveParticle] = []
         self.last_action_values: Dict[Action, float] = {}
@@ -78,17 +75,17 @@ class RTSPlanner(Planner):
         self.belief = list(particles)
 
     def get_action_values(self) -> Dict[Action, float]:
-        """Returns the most recent exact Oracle action value estimates."""
+        """Returns the most recent approximate action value estimates."""
         return dict(self.last_action_values)
 
     def get_detailed_stats(self) -> dict:
-        """Returns snapshot of Oracle RTS planning stats for logging."""
+        """Returns snapshot of RTS planning stats for logging."""
         return {
             "solver_key": str(self.key),
             "belief_size": len(self.belief),
             "action_values": {str(a): float(v) for a, v in self.last_action_values.items()},
             "max_depth": self.max_depth,
-            "obs_branching": self.obs_branching
+            "obs_branching": self.obs_branching,
         }
 
     def get_action(self, belief: Optional[List[InteractiveParticle]] = None) -> Action:
@@ -99,12 +96,14 @@ class RTSPlanner(Planner):
         if not current_belief:
             return random.choice(self.actions)
 
-        legal_actions = self.pomdp_model.get_legal_actions(current_belief[0].state, self.key.agent_id)
+        legal_actions = self.pomdp_model.get_legal_actions(
+            current_belief[0].state, self.key.agent_id
+        )
         if not legal_actions:
             legal_actions = self.actions
 
         best_action = None
-        best_value = -float('inf')
+        best_value = -float("inf")
         action_values = {}
 
         for action in legal_actions:
@@ -117,7 +116,9 @@ class RTSPlanner(Planner):
         self.last_action_values = action_values
         return best_action if best_action is not None else random.choice(legal_actions)
 
-    def _sample_opponent_action(self, frame: AgentFrame, node_ptr: Optional[POMCPNode], state: State) -> Action:
+    def _sample_opponent_action(
+        self, frame: AgentFrame, node_ptr: Optional[POMCPNode], state: State
+    ) -> Action:
         """
         Evaluates the opponent's policy pi_j(b_j) for an interactive particle.
         """
@@ -139,7 +140,12 @@ class RTSPlanner(Planner):
                 if hasattr(node_ptr, "action_values") and node_ptr.action_values:
                     return max(node_ptr.action_values, key=node_ptr.action_values.get)
                 if hasattr(opp_solver, "extend_search"):
-                    n_sims = min(30, getattr(getattr(opp_solver, "config", None), "mcts", None).n_sims if hasattr(opp_solver, "config") else 30)
+                    n_sims = min(
+                        30,
+                        getattr(getattr(opp_solver, "config", None), "mcts", None).n_sims
+                        if hasattr(opp_solver, "config")
+                        else 30,
+                    )
                     opp_solver.extend_search(node_ptr, n_sims=n_sims)
                     if node_ptr.action_counts:
                         return max(node_ptr.action_counts, key=node_ptr.action_counts.get)
@@ -148,7 +154,9 @@ class RTSPlanner(Planner):
         legal_actions = self.pomdp_model.get_legal_actions(state, other_id)
         return random.choice(legal_actions)
 
-    def _evaluate_action_branch(self, belief: List[InteractiveParticle], action: Action, depth: int) -> float:
+    def _evaluate_action_branch(
+        self, belief: List[InteractiveParticle], action: Action, depth: int
+    ) -> float:
         """
         Recursive RTS Reachability Tree evaluation via Backward Induction (Section 11).
         """
@@ -164,10 +172,15 @@ class RTSPlanner(Planner):
 
         # Step 1: Forward predictive propagation per particle
         # Store: (p_next, joint_action, reward_i, is_terminal)
-        transitioned_records: List[Tuple[InteractiveParticle, Dict[AgentID, Action], float, bool]] = []
+        transitioned_records: List[
+            Tuple[InteractiveParticle, Dict[AgentID, Action], float, bool]
+        ] = []
         total_reward = 0.0
 
         for p in belief:
+            if self.pomdp_model.is_terminal(p.state):
+                transitioned_records.append((p, {}, 0.0, True))
+                continue
             joint_action: Dict[AgentID, Action] = {agent_id: action}
             next_models: Dict[AgentID, Tuple[AgentFrame, Optional[POMCPNode]]] = {}
 
@@ -189,18 +202,19 @@ class RTSPlanner(Planner):
                 else:
                     # Opponent receives observation and updates belief
                     o_j = self.pomdp_model.sample_observation(s_next, joint_action, other_id)
-                    opp_key = SolverKey(other_id, frame.level)
                     new_node = POMCPNode()
                     if hasattr(node_ptr, "belief_particles") and node_ptr.belief_particles:
                         # Bayesian state estimation for opponent particles
                         opp_particles = []
                         opp_weights = []
                         for opp_p in node_ptr.belief_particles:
-                            opp_state = opp_p.state if hasattr(opp_p, "state") else opp_p
-                            opp_models = opp_p.models if hasattr(opp_p, "models") else {}
+                            opp_state = opp_p.state
+                            opp_models = opp_p.models
                             opp_s_next = self.pomdp_model.sample_transition(opp_state, joint_action)
-                            opp_w = self.pomdp_model.get_observation_prob(o_j, opp_s_next, joint_action, other_id)
-                            opp_particle = InteractiveParticle(state=opp_s_next, models=opp_models) if hasattr(opp_p, "state") else opp_s_next
+                            opp_w = self.pomdp_model.get_observation_prob(
+                                o_j, opp_s_next, joint_action, other_id
+                            )
+                            opp_particle = InteractiveParticle(state=opp_s_next, models=opp_models)
                             opp_particles.append(opp_particle)
                             opp_weights.append(opp_w)
                         if sum(opp_weights) > 0:
@@ -215,16 +229,18 @@ class RTSPlanner(Planner):
 
         avg_reward = total_reward / C
 
-        # Step 2: Calculate exact observation likelihoods P(o_i | B, a_i)
+        # Step 2: Calculate particle-estimated observation likelihoods P(o_i | B, a_i)
         obs_weights: Dict[Observation, List[float]] = {o: [] for o in all_obs}
         obs_probs: Dict[Observation, float] = {}
 
         for p_next, joint_action, _, is_term in transitioned_records:
             for o in all_obs:
                 if is_term:
-                    w = 1.0 / len(all_obs)
+                    w = 0.0
                 else:
-                    w = self.pomdp_model.get_observation_prob(o, p_next.state, joint_action, agent_id)
+                    w = self.pomdp_model.get_observation_prob(
+                        o, p_next.state, joint_action, agent_id
+                    )
                 obs_weights[o].append(w)
 
         for o in all_obs:
@@ -236,10 +252,12 @@ class RTSPlanner(Planner):
             return avg_reward
 
         # Branching selection: all positive observations or top-K
-        total_p = sum(obs_probs.values())
-        normalized_probs = {o: p / total_p for o, p in obs_probs.items()}
+        # Keep the original mass: terminal trajectories have zero continuation.
+        normalized_probs = obs_probs
         branch_limit = self.obs_branching if self.obs_branching is not None else len(all_obs)
-        active_obs = sorted(normalized_probs.keys(), key=lambda o: normalized_probs[o], reverse=True)[:branch_limit]
+        active_obs = sorted(
+            normalized_probs.keys(), key=lambda o: normalized_probs[o], reverse=True
+        )[:branch_limit]
 
         # Step 3: Backward Induction over reachable child beliefs
         future_expected_val = 0.0
@@ -257,18 +275,17 @@ class RTSPlanner(Planner):
             child_belief = dist.resample(self.num_particles)
 
             # Evaluate max Q over child belief at next depth
-            legal_next = getattr(self.pomdp_model, "get_legal_actions",
-                                 lambda s, a: self.actions)(child_belief[0].state, agent_id)
+            legal_next = self.pomdp_model.get_legal_actions(child_belief[0].state, agent_id)
             if not legal_next:
                 legal_next = self.actions
 
-            max_child_q = -float('inf')
+            max_child_q = -float("inf")
             for next_a in legal_next:
                 child_q = self._evaluate_action_branch(child_belief, next_a, depth + 1)
                 if child_q > max_child_q:
                     max_child_q = child_q
 
-            if max_child_q != -float('inf'):
+            if max_child_q != -float("inf"):
                 future_expected_val += prob_o * max_child_q
 
         return avg_reward + self.gamma * future_expected_val
@@ -279,7 +296,9 @@ class RTSPlanner(Planner):
         """
         self.belief = self._ipf_update(self.belief, action, observation)
 
-    def _ipf_update(self, belief: List[InteractiveParticle], action: Action, observation: Observation) -> List[InteractiveParticle]:
+    def _ipf_update(
+        self, belief: List[InteractiveParticle], action: Action, observation: Observation
+    ) -> List[InteractiveParticle]:
         if not belief:
             return []
 
@@ -308,11 +327,13 @@ class RTSPlanner(Planner):
                         opp_particles = []
                         opp_weights = []
                         for opp_p in node_ptr.belief_particles:
-                            opp_state = opp_p.state if hasattr(opp_p, "state") else opp_p
-                            opp_models = opp_p.models if hasattr(opp_p, "models") else {}
+                            opp_state = opp_p.state
+                            opp_models = opp_p.models
                             opp_s_next = self.pomdp_model.sample_transition(opp_state, joint_action)
-                            opp_w = self.pomdp_model.get_observation_prob(o_j, opp_s_next, joint_action, other_id)
-                            opp_particle = InteractiveParticle(state=opp_s_next, models=opp_models) if hasattr(opp_p, "state") else opp_s_next
+                            opp_w = self.pomdp_model.get_observation_prob(
+                                o_j, opp_s_next, joint_action, other_id
+                            )
+                            opp_particle = InteractiveParticle(state=opp_s_next, models=opp_models)
                             opp_particles.append(opp_particle)
                             opp_weights.append(opp_w)
                         if sum(opp_weights) > 0:
@@ -327,7 +348,9 @@ class RTSPlanner(Planner):
             weights.append(w)
 
         if sum(weights) == 0:
-            logger.warning(f"[{self.key}] I-PF observation weight sum is zero. Preserving previous belief.")
+            logger.warning(
+                f"[{self.key}] I-PF observation weight sum is zero. Preserving previous belief."
+            )
             return belief
 
         dist = ParticleDistribution(next_particles, weights)

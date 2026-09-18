@@ -10,9 +10,9 @@ Enforces clean separation between source code and runtime artifacts:
 import os
 from pathlib import Path
 
-# Repository root: /home/andyj1810/projects/ipomcp
+# Source checkout root. Installed applications should set IPOMCP_RESULTS_DIR.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RESULTS_ROOT = PROJECT_ROOT / "results"
+RESULTS_ROOT = Path(os.environ.get("IPOMCP_RESULTS_DIR", PROJECT_ROOT / "results")).resolve()
 
 
 def get_results_dir(category: str, run_name: str) -> str:
@@ -26,6 +26,8 @@ def get_results_dir(category: str, run_name: str) -> str:
     Returns:
         Absolute path string to the target results directory.
     """
-    target = RESULTS_ROOT / category / run_name
+    target = (RESULTS_ROOT / category / run_name).resolve()
+    if not target.is_relative_to(RESULTS_ROOT):
+        raise ValueError("Result path must remain inside RESULTS_ROOT.")
     os.makedirs(target, exist_ok=True)
     return str(target)
