@@ -58,6 +58,16 @@ class POMDPModel(abc.ABC):
         """
         pass
 
+    def transition_distribution(self, state: State, joint_action: Dict[AgentID, Action]):
+        """Enumerate finite (post-state, probability) support for exact conditioning.
+
+        Sampling is not a substitute for this law. A domain without finite support
+        must use a separately justified sampled filter; it cannot silently turn one
+        random transition into a probability-one event. Current domains implement
+        this method explicitly. The enumerated and sampled laws must agree.
+        """
+        raise NotImplementedError("This model does not provide finite transition support")
+
     @abc.abstractmethod
     def sample_observation(
         self, state: State, joint_action: Dict[AgentID, Action], agent_id: AgentID, rng=None

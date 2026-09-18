@@ -12,6 +12,12 @@ Read [the model contract and limitations](docs/THEORY.md), the
 results in a research claim. [HANDOFF.md](HANDOFF.md) records the review workspace
 and experiment provenance without assuming old process IDs are still alive.
 
+The accepted corrected-model specification is in
+[MODEL_SPECIFICATION.md](docs/MODEL_SPECIFICATION.md). An immutable finite-support
+recursive filter now provides a tested reference for migration. It is not yet
+integrated into the experiment planners; the existing correctness warning still
+applies. [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) records the gates.
+
 ## Setup and validation
 
 The supported execution environment is Linux, including WSL, with Python 3.12+.

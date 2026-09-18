@@ -86,6 +86,12 @@ class TigerModel(POMDPModel):
                     return choice_fn([TIGER_LEFT, TIGER_RIGHT])
         return state
 
+    def transition_distribution(self, state, joint_action):
+        """Exact support: persistent/listening dynamics or an independent uniform reset."""
+        if not self.persistent and any(a in (OPEN_LEFT, OPEN_RIGHT) for a in joint_action.values()):
+            return ((TIGER_LEFT, 0.5), (TIGER_RIGHT, 0.5))
+        return ((state, 1.0),)
+
     def sample_observation(
         self,
         state: TigerState,

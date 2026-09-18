@@ -94,6 +94,10 @@ class UAVModel(POMDPModel):
         c = max(0, min(COLS - 1, c))
         return r, c
 
+    def transition_distribution(self, state, joint_action):
+        """The physical transition is deterministic; enumerate its unique outcome."""
+        return ((self.sample_transition(state, joint_action), 1.0),)
+
     def sample_observation(
         self, state: UAVState, joint_action: Dict[AgentID, Action], agent_id: AgentID, rng=None
     ) -> Observation:

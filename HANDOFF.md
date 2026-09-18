@@ -35,3 +35,25 @@ rollout change, and 15.93 after the review. The paired review-minus-Antigravity
 Full tests: 76 passed, two documented strict xfails. Short CPU probes are 17.3%
 slower despite better observed full-run wall times; do not claim a general speedup.
 See docs/BENCHMARK.md for the complete measurements and their limits.
+
+## September 18 implementation checkpoint
+
+The user approved keeping uniform-random L0. Read docs/MODEL_SPECIFICATION.md and
+docs/IMPLEMENTATION_PLAN.md before continuing. The new finite_belief.py and
+finite_filter.py provide an immutable enumerated recursive-conditioning kernel.
+They deliberately do not accept mutable search nodes. Tests include an independent
+small L2 oracle and a substantive L3 nested-belief update, rather than merely
+checking that a pointer changes. All current domains expose finite transition laws.
+
+The running MCTS/RTS stack still uses its prior representation and update. This
+checkpoint does NOT close its two expected-failure counterexamples or qualify
+long experiments. Next migrate policy/belief consumers together, remove the old
+representation and heuristic reconstruction, validate sampled updates against the
+finite kernel, then run the specified before/after and suite stress experiments.
+Preserve the original WSL checkout's uncommitted Antigravity changes throughout.
+
+Checkpoint validation: 109 passed and 2 strict expected failures in 94.78 seconds;
+the 33 finite-filter tests pass. Ruff lint/format, git diff whitespace validation,
+and wheel build pass. The original tracked and untracked source files still match
+the captured September 17 Antigravity snapshot byte-for-byte. No new long-run
+reward comparison is claimed for this not-yet-integrated kernel.

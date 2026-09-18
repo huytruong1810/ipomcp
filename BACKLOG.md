@@ -3,6 +3,15 @@
 These items are verified limitations, not a maturity scorecard. Passing engineering
 tests does not close the mathematical items. See [THEORY.md](docs/THEORY.md).
 
+## September 18 implementation checkpoint
+
+Uniform-random L0 is confirmed. The immutable finite-belief and recursive enumerated
+filter foundation is implemented with independent bounded L2 tests. Finite
+transition laws are available for all three domains. These are prerequisites,
+not closure of the application-level P0 items: migrate bootstrap, MCTS, RTS,
+statistics and visualization consumers before removing the old representation.
+Do not launch the long full suite until all implementation-plan gates pass.
+
 ## P0 — Research-validity blockers
 
 - Replace epoch-preserving and factorized root reconstruction with a joint

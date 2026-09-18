@@ -285,3 +285,23 @@ processes and record CPU time separately from shared-machine wall time.
 | `tests/test_tiger_reference.py` | 8 | Reviewed assertion strength. Includes deterministic regressions, exact fixed-policy Tiger reference, and explicit theory xfails. |
 | `tests/test_visualization.py` | 8 | Reviewed assertion strength. Includes deterministic regressions, exact fixed-policy Tiger reference, and explicit theory xfails. |
 | `uv.lock` | 1 | Reviewed configuration/documentation; replaced stale assurances with current contracts and limitations. |
+
+## September 18 follow-up: immutable inference foundation
+
+- `src/ipomdp/finite_belief.py`: immutable joint finite measures and intentional
+  models, decreasing-level validation, defensive construction, stable value
+  hashing within a model lifetime, and pickle reconstruction of cached hashes.
+- `src/ipomdp/finite_filter.py`: independently testable enumerated recursive
+  subjective filter, strict probability-law validation, bounded memoization, and
+  explicit zero-support diagnostics. Private observations are weighted once.
+- `tests/test_finite_filter.py`: independent scalar Tiger L2 enumeration, all
+  action/observation combinations in the parameterized fixtures, L3 recursive
+  advancement, correlation/no-leakage, cache/serialization, transition-support,
+  and invalid-model checks. 33 added tests pass.
+- `core/pomdp_model.py` and all three domain model modules: explicit finite
+  transition-support interface; no sampled-outcome-as-probability-one fallback.
+- `docs/MODEL_SPECIFICATION.md` and `docs/IMPLEMENTATION_PLAN.md`: accepted random
+  L0 semantics, information restrictions, staged integration and qualification gates.
+
+Full regression result: 109 passed, two existing strict expected failures. Both
+application planners still require migration before the P0 findings can close.

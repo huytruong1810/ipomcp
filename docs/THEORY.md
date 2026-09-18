@@ -122,3 +122,14 @@ The existing uniform-random L0 convention and normalized-softmax opponent model
 are retained as experimental assumptions. Changing them changes the research
 question. An always-listen rollout is similarly a named leaf-value heuristic, not
 an algorithmic proof or evidence that reported type probabilities are calibrated.
+
+## Corrected finite-support kernel checkpoint
+
+The accepted random-L0 contract and recursive conditioning specification now live
+in [MODEL_SPECIFICATION.md](MODEL_SPECIFICATION.md). `ipomdp/finite_belief.py`
+separates immutable subjective models from search state, and
+`ipomdp/finite_filter.py` enumerates the joint Bayesian update without epoch/type
+overrides. Independent small L2 references and recursive L3 tests validate this
+kernel. It is not yet used by MCTS or RTS; their defects documented above and the
+two strict expected failures remain open. Exact finite support does not imply
+tractable cost at the requested experiment horizon or high nesting levels.
