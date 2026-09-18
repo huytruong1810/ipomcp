@@ -1,5 +1,5 @@
 from core.pomdp_model import POMDPModel
-from ipomdp.belief import InteractiveParticle
+from ipomdp.finite_belief import InteractiveState, MentalModel
 from solvers.node import POMCPNode
 from solvers.solver_types import AgentFrame
 
@@ -48,7 +48,7 @@ def test_node_reservoir_sampling_capacity():
 
     # Add 100 particles to a node with capacity 5
     for i in range(100):
-        p = InteractiveParticle(state=f"S_{i}", models={"j": (frame, None)})
+        p = InteractiveState(state=f"S_{i}", opponent=MentalModel(frame))
         node.add_particle(p)
 
     assert len(node.belief_particles) == 5

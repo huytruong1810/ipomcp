@@ -15,7 +15,7 @@ import math
 from dataclasses import dataclass, field
 
 from core.pomdp_model import State
-from ipomdp.belief import AgentFrame
+from ipomdp.frame import AgentFrame
 
 
 @dataclass(frozen=True, slots=True)

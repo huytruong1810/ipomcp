@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig
+from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
 from core.logger import get_logger
 from examples.wumpus.model.constants import AGENT_HUMAN, AGENT_WUMPUS
 from examples.wumpus.model.wumpus_model import WumpusModel
@@ -26,8 +26,8 @@ class WumpusBatchRunner(GenericBatchRunner):
         env = WumpusModel(width=4, height=4, n_pits=2)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=5, node_capacity=500)
-        jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
-        agent_config = IPOMCPConfig(mcts=mcts_cfg, jit=jit_cfg)
+        opponent_cfg = OpponentPolicyConfig(n_sims=10)
+        agent_config = IPOMCPConfig(mcts=mcts_cfg, opponent=opponent_cfg)
 
         # 1. L1 Wumpus with dedicated SolverBank
         bank_w = SolverBank()

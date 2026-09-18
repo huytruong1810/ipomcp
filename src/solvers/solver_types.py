@@ -13,7 +13,7 @@ Defines two small data classes used pervasively across the solver stack:
 from dataclasses import dataclass
 
 from core.pomdp_model import AgentID
-from ipomdp.belief import AgentFrame
+from ipomdp.frame import AgentFrame
 
 
 @dataclass(frozen=True)

@@ -99,8 +99,8 @@ def run_uav_recon():
         #     forest_viz.export_forest(planner_uav, f"../results/uav_forest_step_{t}", t)
 
         # Update Beliefs
-        planner_uav.update_root(a_uav, o_uav, min_uav_particles)
-        planner_target.update_root(a_target, o_target, min_target_particles)
+        planner_uav.update_root(a_uav, o_uav)
+        planner_target.update_root(a_target, o_target)
 
         true_state = next_state
 

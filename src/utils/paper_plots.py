@@ -64,7 +64,7 @@ def generate_paper_plots(
     df["time_bucket"] = df["cum_time"].round(1)
     _plot_cumulative_reward(df, labels, prefix, output_dir)
     _plot_compute_normalized_reward(df, labels, prefix, output_dir)
-    _plot_particle_health(df, labels, prefix, output_dir)
+    _plot_belief_support(df, labels, prefix, output_dir)
     level_cols = [c for c in df.columns if c.startswith("prob_l")]
     if level_cols:
         _plot_opponent_level_belief(df, level_cols, prefix, output_dir)
@@ -254,38 +254,38 @@ def _plot_compute_normalized_reward(
     plt.close()
 
 
-def _plot_particle_health(df: pd.DataFrame, labels: Dict[str, str], prefix: str, out_dir: str):
-    """Plots the active number of particles over time as a population-size diagnostic, not a proof of filter accuracy."""
+def _plot_belief_support(df: pd.DataFrame, labels: Dict[str, str], prefix: str, out_dir: str):
+    """Plots weighted belief support size; this is a resource diagnostic, not evidence of accuracy."""
     if "status" not in df.columns:
         return
 
     plt.figure(figsize=(6.5, 4.5))
     df_active = df[df["status"] == "Active"]
 
-    if "n_particles_i" in df_active.columns:
+    if "belief_support_i" in df_active.columns:
         sns.lineplot(
             data=df_active,
             x="step",
-            y="n_particles_i",
-            label=f"{labels['i']} Particles",
+            y="belief_support_i",
+            label=f"{labels['i']} Hypotheses",
             errorbar=("ci", 95),
             color="#1f77b4",
             marker="o",
         )
-    if "n_particles_j" in df_active.columns:
+    if "belief_support_j" in df_active.columns:
         sns.lineplot(
             data=df_active,
             x="step",
-            y="n_particles_j",
-            label=f"{labels['j']} Particles",
+            y="belief_support_j",
+            label=f"{labels['j']} Hypotheses",
             errorbar=("ci", 95),
             color="#ff7f0e",
             marker="s",
         )
 
-    plt.title(f"{prefix}\nParticle Filter Health", fontsize=11, fontweight="bold")
+    plt.title(f"{prefix}\nWeighted Belief Support", fontsize=11, fontweight="bold")
     plt.xlabel("Simulation Step")
-    plt.ylabel("Active Particles")
+    plt.ylabel("Distinct Interactive Hypotheses")
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.legend(frameon=True, loc="best")
     plt.tight_layout()

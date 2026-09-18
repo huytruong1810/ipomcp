@@ -18,9 +18,8 @@ from core.config import (
     DEFAULT_SIM_SCHEDULE,
     ExperimentConfig,
     IPOMCPConfig,
-    JITConfig,
     MCTSConfig,
-    ReinvigorationConfig,
+    OpponentPolicyConfig,
     RTSConfig,
 )
 from core.distribution import DictDistribution, Distribution, ParticleDistribution
@@ -36,9 +35,8 @@ __all__ = [
     "Distribution",
     "ParticleDistribution",
     "DictDistribution",
-    "JITConfig",
+    "OpponentPolicyConfig",
     "MCTSConfig",
-    "ReinvigorationConfig",
     "IPOMCPConfig",
     "RTSConfig",
     "ExperimentConfig",

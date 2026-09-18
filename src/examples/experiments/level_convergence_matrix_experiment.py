@@ -22,8 +22,8 @@ from core.config import (
 from core.config import (
     ExperimentConfig,
     IPOMCPConfig,
-    JITConfig,
     MCTSConfig,
+    OpponentPolicyConfig,
 )
 from core.logger import get_logger
 from core.paths import get_results_dir
@@ -79,7 +79,7 @@ class MatrixCellTigerRunner(GenericBatchRunner):
             particles_j = PARTICLE_SCHEDULE.get(self.level_j, 1000 * self.level_j)
             cfg_j = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=2000),
-                jit=JITConfig(),
+                opponent=OpponentPolicyConfig(),
             )
 
             # Determine J prior over I
@@ -109,7 +109,7 @@ class MatrixCellTigerRunner(GenericBatchRunner):
             particles_i = PARTICLE_SCHEDULE.get(self.level_i, 1000 * self.level_i)
             cfg_i = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=2000),
-                jit=JITConfig(),
+                opponent=OpponentPolicyConfig(),
             )
 
             # Determine I prior over J

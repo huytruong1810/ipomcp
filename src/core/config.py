@@ -1,8 +1,7 @@
 """
 config.py — Immutable configuration schemas for the I-POMDP infrastructure.
 
-Centralizes all algorithmic hyperparameters (MCTS constraints, JIT expansion thresholds,
-particle reinvigoration criteria, and batch experiment configurations) into strictly
+Centralizes all algorithmic hyperparameters (MCTS constraints, modeled-policy budgets, and batch experiment configurations) into strictly
 typed, frozen dataclasses. Supports serialization for experimental reproducibility.
 """
 
@@ -20,19 +19,18 @@ DEFAULT_PARTICLE_SCHEDULE: Dict[int, int] = {0: 0, 1: 1000, 2: 1500, 3: 2000, 4:
 
 
 @dataclass(frozen=True)
-class JITConfig:
-    """Hyperparameters gating the Entropy-Gated JIT Expansion."""
+class OpponentPolicyConfig:
+    """Fixed simulation budget for reproducible modeled MCTS policies.
 
-    temperature: float = 0.5
-    entropy_threshold: float = 0.6
-    visit_threshold: int = 5
-    sims: int = 10
+    Real and modeled decisions use the same maximizing-Q rule. Their different
+    finite budgets are explicit approximations, never an entropy-dependent change
+    to an already queried model policy.
+    """
+
+    n_sims: int = 10
 
     def __post_init__(self):
-        _positive(self.temperature, "temperature")
-        _unit(self.entropy_threshold, "entropy_threshold")
-        _integer(self.visit_threshold, "visit_threshold", minimum=0)
-        _integer(self.sims, "sims")
+        _integer(self.n_sims, "modeled n_sims")
 
 
 @dataclass(frozen=True)
@@ -51,22 +49,6 @@ class MCTSConfig:
         _integer(self.n_sims, "n_sims")
         _integer(self.node_capacity, "node_capacity")
         _positive(self.exploration_const, "exploration_const")
-
-
-@dataclass(frozen=True)
-class ReinvigorationConfig:
-    """Parameters governing the computational resuscitation of starved mental models."""
-
-    enabled: bool = True
-    visit_threshold: int = 20
-    sims: int = 20
-    min_particles: int = 100
-    preserve_levels: bool = True
-
-    def __post_init__(self):
-        _integer(self.visit_threshold, "visit_threshold", minimum=0)
-        _integer(self.sims, "sims")
-        _integer(self.min_particles, "min_particles")
 
 
 @dataclass(frozen=True)
@@ -94,17 +76,10 @@ class RTSConfig:
 
 @dataclass(frozen=True)
 class IPOMCPConfig:
-    """Master configuration for an Interactive POMCP Level-k solver.
-
-    Attributes:
-        mcts: Monte Carlo Tree Search constraints and hyperparameters.
-        jit: Entropy-Gated Just-In-Time mental sub-tree expansion criteria.
-        reinvigoration: Resuscitation thresholds for mental models facing particle starvation.
-    """
+    """Real MCTS and explicit modeled-policy computation budgets."""
 
     mcts: MCTSConfig = field(default_factory=MCTSConfig)
-    jit: JITConfig = field(default_factory=JITConfig)
-    reinvigoration: ReinvigorationConfig = field(default_factory=ReinvigorationConfig)
+    opponent: OpponentPolicyConfig = field(default_factory=OpponentPolicyConfig)
 
 
 @dataclass(frozen=True)

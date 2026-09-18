@@ -1,7 +1,6 @@
 """Analytic boundary cases for search routing and deterministic event sensors."""
 
 import random
-from collections import Counter
 from dataclasses import replace
 
 import pytest
@@ -35,20 +34,17 @@ def test_search_does_not_resample_its_own_root_belief():
         n_particles=50,
         config=IPOMCPConfig(mcts=MCTSConfig(n_sims=200, max_depth=3, node_capacity=50)),
     )
-    before = list(planner.root.belief_particles)
-    routed = planner.root._total_particles_routed
+    before = planner.belief
     planner.get_action()
-    assert planner.root.belief_particles == before
-    assert planner.root._total_particles_routed == routed
+    assert planner.belief is before
+    assert not planner.root.belief_particles
+    assert planner.root._total_particles_routed == 0
     # Every root traversal reaches exactly one first-level observation child.
     for action, count in planner.root.action_counts.items():
         assert (
             sum(child._total_particles_routed for child in planner.root.children[action].values())
             == count
         )
-    assert Counter(p.state for p in planner.root.belief_particles) == Counter(
-        p.state for p in before
-    )
 
 
 def test_bump_is_blocked_motion_not_arrival_at_boundary():

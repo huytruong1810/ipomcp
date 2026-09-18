@@ -73,37 +73,21 @@ def _write_csv_atomic(df, path):
     temporary.replace(path)
 
 
-def _get_n_particles(planner: Planner) -> int:
-    if hasattr(planner, "root") and hasattr(planner.root, "belief_particles"):
-        return len(planner.root.belief_particles)
-    if hasattr(planner, "belief"):
-        return len(planner.belief)
-    return -1
+def _get_belief_support(planner: Planner) -> int:
+    """Number of distinct weighted interactive hypotheses, not search trajectories."""
+    return len(planner.belief.mass) if getattr(planner, "belief", None) is not None else 0
 
 
 def _get_opponent_level_distribution(planner: Any, opponent_id: str) -> Dict[str, float]:
-    """Computes online posterior distribution P(l_j = k | h_i^t) over opponent levels in the active belief."""
-    particles = None
-    if (
-        hasattr(planner, "root")
-        and hasattr(planner.root, "belief_particles")
-        and planner.root.belief_particles
-    ):
-        particles = planner.root.belief_particles
-    elif hasattr(planner, "belief") and planner.belief:
-        particles = planner.belief
-
-    if not particles:
+    belief = getattr(planner, "belief", None)
+    if belief is None:
         return {}
-    total = len(particles)
-    counts = {level: 0 for level in range(planner.key.level)}
-    for particle in particles:
-        if opponent_id in particle.models:
-            level = particle.models[opponent_id][0].level
-            counts[level] = counts.get(level, 0) + 1
-    return {
-        f"prob_l{level}_{opponent_id}": count / total for level, count in sorted(counts.items())
-    }
+    masses = {level: 0.0 for level in range(planner.key.level)}
+    for atom, weight in belief.mass:
+        frame = atom.opponent.frame
+        if frame.agent_id == opponent_id:
+            masses[frame.level] += weight
+    return {f"prob_l{level}_{opponent_id}": mass for level, mass in sorted(masses.items())}
 
 
 def _extract_recursive(
@@ -120,34 +104,21 @@ def _extract_recursive(
     levels,
     agent_names,
 ):
-    """Integrate the conditional mixture of every particle's nested belief.
+    """Integrate every weighted private belief, preserving its conditional mass."""
 
-    A shared node contributes once per parent particle referring to it. Different
-    nodes have their own normalized particle distributions, regardless of their
-    reservoir sizes. Their conditional masses must therefore be combined before
-    descending; concatenating reservoirs would overweight larger reservoirs.
-    """
-
-    def descend(weighted_nodes, agent, path, mass, remaining):
+    def descend(weighted_beliefs, agent, path, mass, remaining):
         if remaining <= 0 or mass <= 0:
             return
         groups = {}
-        for parent_node, node_mass in weighted_nodes:
-            if parent_node is None or not parent_node.belief_particles:
+        for belief, parent_mass in weighted_beliefs:
+            if belief is None:
                 continue
-            unit_mass = node_mass / len(parent_node.belief_particles)
-            for particle in parent_node.belief_particles:
-                for opponent, (frame, child) in particle.models.items():
-                    group = groups.setdefault((opponent, frame.level), {})
-                    key = id(child)
-                    old = group.get(key, (child, 0.0))
-                    group[key] = (child, old[1] + unit_mass)
-        # Multiple opponents are distinct marginals, not mutually exclusive
-        # events. Current domains are two-agent; reject misleading sunbursts.
-        if len({opponent for opponent, _ in groups}) > 1:
-            raise ValueError("A sunburst requires a two-agent hierarchy")
+            for atom, weight in belief.mass:
+                model = atom.opponent
+                group = groups.setdefault((model.frame.agent_id, model.frame.level), {})
+                group[model.belief] = group.get(model.belief, 0.0) + parent_mass * weight
         for (opponent, level), children in sorted(groups.items()):
-            branch_mass = sum(weight for _, weight in children.values())
+            branch_mass = sum(children.values())
             child_id = f"{path}/{opponent}_L{level}"
             ids.append(child_id)
             labels.append(f"{opponent} (L{level})")
@@ -156,11 +127,10 @@ def _extract_recursive(
             levels.append(level)
             agent_names.append(opponent)
             hover_texts.append(
-                f"Modeled by: {agent}<br>Conditional mass: {branch_mass / mass:.1%}"
-                f"<br>Joint mass: {branch_mass:.6f}"
+                f"Modeled by: {agent}<br>Conditional mass: {branch_mass / mass:.1%}<br>Joint mass: {branch_mass:.6f}"
             )
             if level > 0:
-                descend(list(children.values()), opponent, child_id, branch_mass, remaining - 1)
+                descend(list(children.items()), opponent, child_id, branch_mass, remaining - 1)
 
     descend([(node, curr_weight)], curr_agent, curr_path_id, curr_weight, depth)
 
@@ -184,11 +154,7 @@ def extract_nested_belief_hierarchy(
         "agent_names": List[str]
     }
     """
-    if (
-        not hasattr(planner, "root")
-        or not hasattr(planner.root, "belief_particles")
-        or not planner.root.belief_particles
-    ):
+    if getattr(planner, "belief", None) is None:
         return {}
 
     lvl = getattr(planner.key, "level", agent_level) if hasattr(planner, "key") else agent_level
@@ -207,7 +173,7 @@ def extract_nested_belief_hierarchy(
     agent_names = [agent_id]
 
     _extract_recursive(
-        node=planner.root,
+        node=planner.belief,
         curr_agent=agent_id,
         curr_path_id=root_id,
         curr_weight=1.0,
@@ -290,9 +256,8 @@ class GenericBatchRunner(ABC):
         initial_stats_j = (
             planner_j.get_detailed_stats() if hasattr(planner_j, "get_detailed_stats") else {}
         )
-        n_i = _get_n_particles(planner_i)
-        n_j = _get_n_particles(planner_j)
-        initial_n_i, initial_n_j = n_i, n_j
+        n_i = _get_belief_support(planner_i)
+        n_j = _get_belief_support(planner_j)
 
         init_record = {
             "trial": trial_id,
@@ -306,8 +271,8 @@ class GenericBatchRunner(ABC):
             "planning_time_i": 0.0,
             "reward_j": 0.0,
             "cum_reward_j": 0.0,
-            "n_particles_i": n_i,
-            "n_particles_j": n_j,
+            "belief_support_i": n_i,
+            "belief_support_j": n_j,
             "status": "Active",
             "action_values_i": initial_stats_i.get("action_values"),
             "action_values_j": initial_stats_j.get("action_values"),
@@ -344,10 +309,8 @@ class GenericBatchRunner(ABC):
                 stats_i = planner_i.get_detailed_stats()
                 stats_j = planner_j.get_detailed_stats()
 
-                n_i = _get_n_particles(planner_i)
-                n_j = _get_n_particles(planner_j)
-                min_i_particles = max(100, int(initial_n_i * 0.1)) if initial_n_i > 0 else 0
-                min_j_particles = max(100, int(initial_n_j * 0.1)) if initial_n_j > 0 else 0
+                n_i = _get_belief_support(planner_i)
+                n_j = _get_belief_support(planner_j)
 
                 record = {
                     "trial": trial_id,
@@ -361,8 +324,8 @@ class GenericBatchRunner(ABC):
                     "planning_time_i": plan_time_i,
                     "reward_j": r_j,
                     "cum_reward_j": cum_reward_j,
-                    "n_particles_i": n_i,
-                    "n_particles_j": n_j,
+                    "belief_support_i": n_i,
+                    "belief_support_j": n_j,
                     "status": "Terminal" if is_terminal else "Active",
                     "action_values_i": stats_i.get("action_values"),
                     "action_values_j": stats_j.get("action_values"),
@@ -385,15 +348,15 @@ class GenericBatchRunner(ABC):
                         planner_j.visualize(os.path.join(step_dir, "tree_j"), t)
 
                 if not is_terminal:
-                    planner_i.update_root(a_i, o_i, min_i_particles)
-                    planner_j.update_root(a_j, o_j, min_j_particles)
+                    planner_i.update_root(a_i, o_i)
+                    planner_j.update_root(a_j, o_j)
                 last_custom_metrics = self._get_custom_metrics(
                     true_state, next_state, env, planner_i, planner_j
                 )
                 record.update(last_custom_metrics)
                 record.update(_get_opponent_level_distribution(planner_i, "j"))
-                record["n_particles_i"] = _get_n_particles(planner_i)
-                record["n_particles_j"] = _get_n_particles(planner_j)
+                record["belief_support_i"] = _get_belief_support(planner_i)
+                record["belief_support_j"] = _get_belief_support(planner_j)
                 trial_records.append(record)
                 true_state = next_state
                 if snapshots is not None:
@@ -407,8 +370,8 @@ class GenericBatchRunner(ABC):
                     "planning_time_i": 0.0,
                     "reward_j": 0.0,
                     "cum_reward_j": cum_reward_j,
-                    "n_particles_i": None,
-                    "n_particles_j": None,
+                    "belief_support_i": None,
+                    "belief_support_j": None,
                     "status": "Terminal",
                     "action_values_i": None,
                     "action_values_j": None,

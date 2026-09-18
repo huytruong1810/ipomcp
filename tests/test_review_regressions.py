@@ -9,6 +9,7 @@ import json
 import pickle
 import random
 import weakref
+from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
 
 import pandas as pd
@@ -18,7 +19,8 @@ from core.config import ExperimentConfig, RTSConfig
 from core.distribution import DictDistribution, ParticleDistribution
 from examples.tiger.model.tiger_model import LISTEN, TIGER_LEFT, TIGER_RIGHT, TigerModel
 from examples.tiger.runners.tiger_baseline_runner import TigerBaselineRunner
-from ipomdp.belief import AgentFrame, InteractiveParticle
+from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.frame import AgentFrame
 from solvers.node import POMCPNode
 from solvers.rts_planner import RTSPlanner
 from solvers.solver_bank import SolverBank
@@ -57,21 +59,14 @@ def test_tiny_weights_and_defensive_copies():
         distribution.resample(-1)
 
 
-def test_particles_are_shallow_immutable_and_pickleable():
+def test_interactive_states_are_immutable_and_pickleable():
     model = TigerModel()
-    first, second = AgentFrame(1, 0, model), AgentFrame("1", 0, model)
-    mapping = {1: (first, None), "1": (second, None)}
-    particle = InteractiveParticle(TIGER_LEFT, mapping)
-    equivalent = InteractiveParticle(TIGER_LEFT, dict(reversed(list(mapping.items()))))
-    assert particle == equivalent
-    assert hash(particle) == hash(equivalent)
-    mapping.clear()
-    assert len(particle.models) == 2
-    with pytest.raises(TypeError):
-        particle.models["new"] = (first, None)
+    particle = InteractiveState(TIGER_LEFT, MentalModel(AgentFrame("j", 0, model)))
+    with pytest.raises(FrozenInstanceError):
+        particle.state = TIGER_RIGHT
     restored = pickle.loads(pickle.dumps(particle))
     assert restored.state == particle.state
-    assert set(restored.models) == {1, "1"}
+    assert restored.opponent.frame.agent_id == "j"
     assert AgentFrame("i", 1, model) != AgentFrame("i", 1, TigerModel())
 
 
@@ -89,24 +84,21 @@ def test_child_does_not_retain_discarded_parent_or_siblings():
 
 
 def test_nested_hierarchy_averages_different_private_beliefs():
-    model = TigerModel()
+    from tests.test_finite_filter import l1
 
-    def lower(level, count):
-        node = POMCPNode()
-        for _ in range(count):
-            node.add_particle(
-                InteractiveParticle(TIGER_LEFT, {"i": (AgentFrame("i", level, model), None)})
-            )
-        return node
-
-    # Different reservoir sizes must not change the outer 1:3 mixture weights.
-    left, right = lower(0, 2), lower(1, 10)
-    root = POMCPNode()
-    for child in [left, right, right, right]:
-        root.add_particle(
-            InteractiveParticle(TIGER_LEFT, {"j": (AgentFrame("j", 2, model), child)})
-        )
-    data = extract_nested_belief_hierarchy(SimpleNamespace(root=root, key=SolverKey("i", 3)))
+    physics = TigerModel()
+    lower_zero = MentalModel(AgentFrame("i", 0, physics))
+    lower_one = l1(physics, "i")
+    left = MentalModel(
+        AgentFrame("j", 2, physics), FiniteBelief(((InteractiveState(TIGER_LEFT, lower_zero), 1),))
+    )
+    right = MentalModel(
+        AgentFrame("j", 2, physics), FiniteBelief(((InteractiveState(TIGER_LEFT, lower_one), 1),))
+    )
+    belief = FiniteBelief(
+        ((InteractiveState(TIGER_LEFT, left), 0.25), (InteractiveState(TIGER_LEFT, right), 0.75))
+    )
+    data = extract_nested_belief_hierarchy(SimpleNamespace(belief=belief, key=SolverKey("i", 3)))
     weights = dict(zip(data["ids"], data["values"]))
     assert weights["i_L3/j_L2/i_L0"] == pytest.approx(0.25)
     assert weights["i_L3/j_L2/i_L1"] == pytest.approx(0.75)
@@ -131,6 +123,9 @@ class TerminalToy(TigerModel):
     def sample_transition(self, state, joint_action, rng=None):
         return "terminal" if state == "finish" else state
 
+    def transition_distribution(self, state, joint_action):
+        return ((self.sample_transition(state, joint_action), 1.0),)
+
     def get_reward(self, state, joint_action, next_state, agent_id):
         return 2.0
 
@@ -147,9 +142,10 @@ def test_rts_absorbing_terminal_and_mixed_survival_mass():
         config=RTSConfig(gamma=0.5, max_depth=2, num_particles=10),
     )
     # Half of the mass terminates after the first reward; only half gets step 2.
-    belief = [InteractiveParticle("finish", {}), InteractiveParticle("alive", {})]
+    opponent = MentalModel(AgentFrame("j", 0, planner.pomdp_model))
+    belief = [InteractiveState("finish", opponent), InteractiveState("alive", opponent)]
     assert planner._evaluate_action_branch(belief, "a", 0) == pytest.approx(2 + 0.5 * 0.5 * 2)
-    assert planner._evaluate_action_branch([InteractiveParticle("terminal", {})], "a", 0) == 0
+    assert planner._evaluate_action_branch([InteractiveState("terminal", opponent)], "a", 0) == 0
 
 
 def test_batch_resume_requires_matching_manifest_and_complete_trials(tmp_path, monkeypatch):
@@ -214,3 +210,25 @@ def test_paired_statistics_reject_missing_seeds_and_adjust_pvalues(tmp_path):
     assert all(row["holm_pval"] == 1 for row in result.values())
     with pytest.raises(ValueError, match="complete common panel"):
         compute_statistical_significance(data.iloc[:-1], str(tmp_path))
+
+
+def test_public_continuation_is_conditioned_in_online_filter():
+    from ipomdp.finite_filter import FiniteInteractiveFilter
+
+    physics = TerminalToy()
+    opponent = MentalModel(AgentFrame("j", 0, physics))
+    initial = MentalModel(
+        AgentFrame("i", 1, physics),
+        FiniteBelief(
+            (
+                (InteractiveState("finish", opponent), 0.5),
+                (InteractiveState("alive", opponent), 0.5),
+            )
+        ),
+    )
+    kernel = FiniteInteractiveFilter(lambda model: {"a": 1})
+    live = kernel.update(initial, "a", "o", terminal=False)
+    stopped = kernel.update(initial, "a", "o", terminal=True)
+    assert live.evidence == stopped.evidence == pytest.approx(0.5)
+    assert {a.state for a, _ in live.belief.mass} == {"alive"}
+    assert {a.state for a, _ in stopped.belief.mass} == {"terminal"}

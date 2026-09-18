@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
 
-from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig
+from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
 from core.logger import get_logger
 from core.paths import get_results_dir
 from core.pomdp_model import POMDPModel, State
@@ -58,8 +58,8 @@ class ConfigurableTigerRunner(GenericBatchRunner):
         env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=self.planning_depth, node_capacity=2000)
-        jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
-        agent_config = IPOMCPConfig(mcts=mcts_cfg, jit=jit_cfg)
+        opponent_cfg = OpponentPolicyConfig(n_sims=10)
+        agent_config = IPOMCPConfig(mcts=mcts_cfg, opponent=opponent_cfg)
 
         # 1. Opponent Agent J with dedicated SolverBank
         bank_j = SolverBank()

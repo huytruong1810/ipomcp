@@ -275,6 +275,10 @@ class WumpusModel(POMDPModel):
                 return -1000.0
             return -1.0
 
+    def observation_distribution(self, state, joint_action, agent_id):
+        """A deterministic sensor has one outcome; do not regenerate it 32 times."""
+        return ((self.sample_observation(state, joint_action, agent_id), 1.0),)
+
     def get_observation_prob(
         self,
         observation: Observation,

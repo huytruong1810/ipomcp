@@ -1,4 +1,4 @@
-from core.config import ExperimentConfig, RTSConfig
+from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, RTSConfig
 from examples.tiger.model.tiger_model import TigerModel
 from solvers.rts_planner import RTSPlanner
 from solvers.solver_bank import SolverBank
@@ -30,7 +30,8 @@ def test_level1_rts_planner_creation_and_action_values():
 
     stats = rts_l1.get_detailed_stats()
     assert "action_values" in stats
-    assert stats["belief_size"] == 30
+    assert stats["initial_sample_count"] == 30
+    assert stats["belief_size"] == len(rts_l1.belief.mass)
 
 
 def test_level2_rts_planner_creation_and_execution():
@@ -40,7 +41,13 @@ def test_level2_rts_planner_creation_and_execution():
 
     # Prerequisite models
     boot.create_level0_solver("j", env)
-    boot.create_level1_solver("j", env, ["i"], n_particles=30)
+    boot.create_level1_solver(
+        "j",
+        env,
+        ["i"],
+        n_particles=30,
+        config=IPOMCPConfig(mcts=MCTSConfig(n_sims=20, max_depth=1)),
+    )
 
     rts_l2 = boot.create_level2_rts_solver(
         "i",
@@ -101,6 +108,6 @@ def test_rts_batch_runner_execution(tmp_path):
     assert not df.empty
     assert len(df) == 8  # 2 trials * (max_steps + 1)
     assert "cum_reward_i" in df.columns
-    assert "n_particles_i" in df.columns
-    assert df["n_particles_i"].iloc[0] == 20
+    assert "belief_support_i" in df.columns
+    assert df["belief_support_i"].iloc[0] == 2
     assert "prob_l0_j" in df.columns

@@ -29,6 +29,10 @@ from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
 Policy = Callable[[MentalModel], Mapping[Action, float]]
 
 
+class InferenceBudgetExceeded(RuntimeError):
+    """Finite enumeration exceeded an explicit resource budget; no posterior is returned."""
+
+
 class UnsupportedObservation(ValueError):
     """Zero evidence relative to the supplied finite model, not global impossibility.
 
@@ -64,25 +68,39 @@ class FiniteInteractiveFilter:
     random draws makes small-case results independent of query order and seeds.
     """
 
-    def __init__(self, policy: Policy, cache_size: int = 4096):
+    def __init__(self, policy: Policy, cache_size: int = 4096, max_branches: int = 100000):
         if type(cache_size) is not int or cache_size < 0:
             raise ValueError("cache_size must be a nonnegative integer")
+        if type(max_branches) is not int or max_branches <= 0:
+            raise ValueError("max_branches must be a positive integer")
+        self.max_branches = max_branches
         self._policy = policy
         self.update = lru_cache(maxsize=cache_size)(self._update)
+        self._intentional_distribution = lru_cache(maxsize=cache_size)(self._validate_policy)
 
     def action_distribution(self, opponent, physical_state):
         """L0 is uniformly random; intentional policies use only subjective beliefs.
 
-        L0 legal actions may depend on physical state only when the domain guarantees
-        that the availability is observable (e.g. one's own arrow inventory).
+        L0 uses the full fixed action alphabet, exactly like RandomPlanner. This
+        includes ineffective attempts (e.g. Wumpus shooting with no arrow); it does
+        not condition a baseline policy on a simulator state it cannot observe.
         The intentional callback receives no outer state, avoiding information leaks.
         """
         frame = opponent.frame
         if frame.level == 0:
-            actions = frame.pomdp_model.get_legal_actions(physical_state, frame.agent_id)
+            actions = frame.pomdp_model.get_all_actions(frame.agent_id)
             if not actions or len(set(actions)) != len(actions):
                 raise ValueError("L0 needs a nonempty distinct legal action set")
             return tuple((action, 1.0 / len(actions)) for action in actions)
+        return self._intentional_distribution(opponent)
+
+    def clear_caches(self):
+        self.update.cache_clear()
+        self._intentional_distribution.cache_clear()
+
+    def _validate_policy(self, opponent):
+        """Validate once per immutable model, not once per outer physical particle."""
+        frame = opponent.frame
         distribution = checked_distribution(self._policy(opponent).items(), "Policy")
         legal_sets = {
             frozenset(frame.pomdp_model.get_legal_actions(atom.state, frame.agent_id))
@@ -95,12 +113,26 @@ class FiniteInteractiveFilter:
             raise ValueError("Policy assigns mass to an unavailable action")
         return distribution
 
-    def _update(self, model: MentalModel, action: Action, observation: Observation) -> Posterior:
+    def _update(
+        self,
+        model: MentalModel,
+        action: Action,
+        observation: Observation,
+        terminal: bool | None = None,
+    ) -> Posterior:
         if model.frame.level == 0:
             raise ValueError("Uniform-random L0 has no belief to update")
         frame = model.frame
         physics = frame.pomdp_model
         rows = []
+
+        def append(row):
+            if len(rows) >= self.max_branches:
+                raise InferenceBudgetExceeded(
+                    f"{frame!r}: enumerated branch budget {self.max_branches} exceeded"
+                )
+            rows.append(row)
+
         for atom, prior_mass in model.belief.mass:
             if action not in physics.get_legal_actions(atom.state, frame.agent_id):
                 raise ValueError("Own action must be legal throughout the subjective belief")
@@ -112,11 +144,11 @@ class FiniteInteractiveFilter:
                     physics.transition_distribution(atom.state, joint), "Transition"
                 )
                 for following, transition_mass in transitions:
+                    ended = physics.is_terminal(following)
+                    if terminal is not None and ended != terminal:
+                        continue
                     own_obs = checked_distribution(
-                        (
-                            (o, physics.get_observation_prob(o, following, joint, frame.agent_id))
-                            for o in physics.get_all_observations(frame.agent_id)
-                        ),
+                        physics.observation_distribution(following, joint, frame.agent_id),
                         "Observation",
                     )
                     likelihood = dict(own_obs).get(observation, 0.0)
@@ -124,20 +156,19 @@ class FiniteInteractiveFilter:
                         continue
                     weight = prior_mass * action_mass * transition_mass * likelihood
                     if opponent.frame.level == 0:
-                        rows.append((InteractiveState(following, opponent), weight))
+                        append((InteractiveState(following, opponent), weight))
                         continue
                     # Private sensors describe the actual generative event; subjective
                     # filtering inside update uses the opponent frame's own dynamics.
                     private_obs = checked_distribution(
-                        (
-                            (o, physics.get_observation_prob(o, following, joint, other))
-                            for o in physics.get_all_observations(other)
-                        ),
+                        physics.observation_distribution(following, joint, other),
                         "Private observation",
                     )
                     for private, private_mass in private_obs:
                         try:
-                            belief = self.update(opponent, other_action, private).belief
+                            belief = self.update(
+                                opponent, other_action, private, terminal=ended
+                            ).belief
                         except UnsupportedObservation as exc:
                             raise UnsupportedObservation(
                                 f"Nested {opponent.frame!r} cannot condition on "
@@ -145,7 +176,7 @@ class FiniteInteractiveFilter:
                                 "its subjective support contradicts a positive outer event"
                             ) from exc
                         advanced = MentalModel(opponent.frame, belief)
-                        rows.append((InteractiveState(following, advanced), weight * private_mass))
+                        append((InteractiveState(following, advanced), weight * private_mass))
         evidence = math.fsum(weight for _, weight in rows)
         if evidence <= 0:
             raise UnsupportedObservation(

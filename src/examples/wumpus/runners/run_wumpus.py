@@ -63,8 +63,7 @@ def run_interactive_wumpus():
     )
 
     forest_viz = ForestVisualizer(bank_human)
-    min_human_particles = 5000
-    min_wumpus_particles = 5000
+
     viz_dir = get_results_dir("wumpus", "forest_viz")
 
     # 3. Initialization
@@ -123,8 +122,8 @@ def run_interactive_wumpus():
             break
 
         # Belief Update
-        planner_human_l2.update_root(a_human, o_human, min_human_particles)
-        planner_wumpus_l1.update_root(a_wumpus, o_wumpus, min_wumpus_particles)
+        planner_human_l2.update_root(a_human, o_human)
+        planner_wumpus_l1.update_root(a_wumpus, o_wumpus)
 
         true_state = next_state
 

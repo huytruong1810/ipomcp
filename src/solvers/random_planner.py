@@ -10,7 +10,7 @@ available action space.  It serves two roles in the I-POMCP framework:
    higher-level planning yields an advantage; it is not a mathematical lower bound.
 
 Because Level-0 agents have no internal belief or search tree, all
-inherited ``Planner`` methods (``extend_search``, ``update_root``, etc.)
+inherited ``Planner`` methods (``update_root``)
 remain no-ops.
 """
 
@@ -41,6 +41,3 @@ class RandomPlanner(Planner):
     def get_action(self, belief: Optional[Any] = None) -> Action:
         """Return a uniformly random action (ignores *belief*)."""
         return random.choice(self.possible_actions)
-
-    def extend_search(self, node: Any, n_sims: int) -> None:
-        """No-op — Level-0 agents do not maintain a search tree."""

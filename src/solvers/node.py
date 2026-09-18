@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from core.pomdp_model import Action, Observation
 
-# Safely import InteractiveParticle for strict typing
+# Safely import InteractiveState for strict typing
 if TYPE_CHECKING:
-    from ipomdp.belief import InteractiveParticle
+    from ipomdp.finite_belief import InteractiveState
 
 
 class POMCPNode:
@@ -45,7 +45,7 @@ class POMCPNode:
         self._parent_ref = weakref.ref(parent) if parent is not None else None
 
         # Bounded local belief, strictly typed
-        self.belief_particles: List["InteractiveParticle"] = []
+        self.belief_particles: List["InteractiveState"] = []
         self.capacity: int = capacity
 
         # Tracks how many particles have EVER passed through here (Used for Algorithm R math)
@@ -65,7 +65,7 @@ class POMCPNode:
         state["_parent_ref"] = None
         return state
 
-    def add_particle(self, particle: "InteractiveParticle") -> None:
+    def add_particle(self, particle: "InteractiveState") -> None:
         """
         Appends a particle to this node's local belief.
         Implements Algorithm R (Reservoir Sampling) to guarantee bounded memory footprints

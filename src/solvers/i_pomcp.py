@@ -1,511 +1,170 @@
+"""Root-sampling MCTS over immutable joint interactive states.
+
+The authoritative belief is a weighted FiniteBelief, independent of search visits
+and child reservoirs. Real observations use the shared recursive Bayesian kernel.
+Search trees are rebuilt for a solve, preventing cached policy predictions from
+depending on unrelated earlier queries. Finite search and an empirical initial
+prior remain approximations; finite conditioning is exact relative to that prior.
+"""
+
 import random
-from typing import Dict, List, Optional
+from dataclasses import asdict
 
 from core.config import IPOMCPConfig
-from core.logger import get_logger
-from core.pomdp_model import Action, AgentID, Observation, POMDPModel, State
-from ipomdp.belief import InteractiveParticle
-from solvers.exploration import ExplorationStrategy, NormalizedUCB
+from ipomdp.finite_belief import MentalModel
+from ipomdp.frame import AgentFrame
+from solvers.exploration import NormalizedUCB
 from solvers.generative_model import InteractiveGenerativeModel
 from solvers.node import POMCPNode
 from solvers.planner import Planner
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import AgentFrame, SolverKey
-
-logger = get_logger("IPOMCPPlanner")
+from solvers.policy import greedy_policy, sample_policy, search_randomness
 
 
 class IPOMCPPlanner(Planner):
-    """
-    Monte Carlo Tree Search planner for multi-agent I-POMDP environments.
-    """
-
     def __init__(
         self,
-        solver_key: SolverKey,
-        pomdp_model: POMDPModel,
-        action_space: List[Action],
-        solver_bank: SolverBank,
-        config: Optional[IPOMCPConfig] = None,
-        exploration_strategy: Optional[ExplorationStrategy] = None,
+        solver_key,
+        pomdp_model,
+        action_space,
+        solver_bank,
+        config=None,
+        exploration_strategy=None,
     ):
-
-        self.key = solver_key
-        self.pomdp_model = pomdp_model
-        self.actions = action_space
-        self.solver_bank = solver_bank
-        self.config = config if config is not None else IPOMCPConfig()
-
-        if exploration_strategy is None:
-            self.exploration_strategy = NormalizedUCB(
-                exploration_const=self.config.mcts.exploration_const
-            )
-        else:
-            self.exploration_strategy = exploration_strategy
-
-        self.deprivation_events = 0
-
-        self.gen_model = InteractiveGenerativeModel(solver_bank, config=self.config.jit)
+        self.key, self.pomdp_model = solver_key, pomdp_model
+        self.actions, self.solver_bank = list(action_space), solver_bank
+        self.config = config or IPOMCPConfig()
+        self.exploration_strategy = exploration_strategy or NormalizedUCB(
+            self.config.mcts.exploration_const
+        )
+        self.gen_model = InteractiveGenerativeModel(solver_bank)
         self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
+        self.belief = None
+        self.initial_belief = None
+        self.initial_sample_count = 0
 
-        self.initial_particles: List["InteractiveParticle"] = []
-        self.prior_level_weights: Optional[Dict[int, float]] = None
+    def set_initial_belief(self, belief, sample_count):
+        MentalModel(AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model), belief)
+        self.belief = self.initial_belief = belief
+        self.initial_sample_count = sample_count
 
-    def get_action(self, belief: Optional[List["InteractiveParticle"]] = None) -> Action:
-        if not self.initial_particles and self.root.belief_particles:
-            self.initial_particles = list(self.root.belief_particles)
-
-        self.extend_search(self.root, n_sims=self.config.mcts.n_sims)
-
-        if not self.root.action_counts:
-            state = (
-                self.root.belief_particles[0].state
-                if self.root.belief_particles
-                else self.pomdp_model.get_initial_state()
-            )
-            legal_actions = self.pomdp_model.get_legal_actions(state, self.key.agent_id)
-            return random.choice(legal_actions)
-
-        best_action = max(self.root.action_counts, key=self.root.action_counts.get)
-        return best_action
-
-    def extend_search(
-        self, node_ptr: POMCPNode, n_sims: int, bounds: Optional[Dict[str, float]] = None
-    ) -> None:
-        if not node_ptr.belief_particles:
-            return
-
-        local_bounds = (
-            bounds if bounds is not None else {"q_min": float("inf"), "q_max": -float("inf")}
+    def model(self, belief=None):
+        return MentalModel(
+            AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model),
+            self.belief if belief is None else belief,
         )
 
-        for _ in range(n_sims):
-            particle = random.choice(node_ptr.belief_particles)
-            self._simulate(particle, node_ptr, depth=0, bounds=local_bounds)
+    def policy_for(self, model, modeled=False):
+        n_sims = self.config.opponent.n_sims if modeled else self.config.mcts.n_sims
+        settings = {
+            "planner": "MCTS",
+            "config": asdict(self.config),
+            "n_sims": n_sims,
+            "exploration": vars(self.exploration_strategy),
+        }
+        with search_randomness(self.solver_bank.search_seed(model, settings)):
+            node = POMCPNode(capacity=self.config.mcts.node_capacity)
+            legal_sets = {
+                frozenset(self.pomdp_model.get_legal_actions(p.state, self.key.agent_id))
+                for p, _ in model.belief.mass
+                if not self.pomdp_model.is_terminal(p.state)
+            }
+            if len(legal_sets) != 1:
+                raise ValueError("Planning requires one nonterminal observable action set")
+            if n_sims < len(next(iter(legal_sets))):
+                raise ValueError("Search budget must evaluate every available action")
+            particles, weights = zip(*model.belief.mass)
+            bounds = {"q_min": float("inf"), "q_max": -float("inf")}
+            # Draw in one batch; random.choices constructs its cumulative weights once.
+            for particle in random.choices(particles, weights=weights, k=n_sims):
+                self._simulate(particle, node, 0, bounds)
+            policy = greedy_policy(node.action_values)
+        if not modeled:
+            self.root = node
+        return policy
 
-    def _simulate(
-        self, particle: "InteractiveParticle", node: POMCPNode, depth: int, bounds: Dict[str, float]
-    ) -> float:
+    def get_action(self, belief=None):
+        return sample_policy(self.policy_for(self.model(belief)))
+
+    def _simulate(self, particle, node, depth, bounds):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
             return 0.0
-
-        legal_actions = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
-
+        legal = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
         action = self.exploration_strategy.select_action(
-            node, legal_actions, q_min=bounds["q_min"], q_max=bounds["q_max"]
+            node, legal, q_min=bounds["q_min"], q_max=bounds["q_max"]
         )
-
-        p_next, joint_action, reward_i, is_terminal = self.gen_model.tree_step(
-            particle, action, self.key.agent_id, self.pomdp_model
-        )
-
-        observation = self.pomdp_model.sample_observation(
-            p_next.state, joint_action, self.key.agent_id
-        )
-
-        is_new_node = False
-        if action not in node.children or observation not in node.children[action]:
-            child = node.create_child(action, observation)
-            is_new_node = True
+        if depth + 1 == self.config.mcts.max_depth:
+            _, _, q, _ = self.gen_model.sample_event(
+                particle, action, self.key.agent_id, self.pomdp_model
+            )
         else:
-            child = node.children[action][observation]
-
-        # Route once on entry to the child, including a newly expanded leaf.
-        # Do not reinsert at the end of recursion: that double-counts old child
-        # trajectories. In particular, resampling from a root and feeding those
-        # draws back into the same finite reservoir causes drift without evidence.
-        child.add_particle(p_next)
-
-        if is_new_node:
-            q = reward_i + self.config.mcts.gamma * self._rollout(p_next, depth + 1)
-        else:
-            q = reward_i + self.config.mcts.gamma * self._simulate(p_next, child, depth + 1, bounds)
-
+            following, joint, reward, terminal = self.gen_model.tree_step(
+                particle, action, self.key.agent_id, self.pomdp_model
+            )
+            observation = self.pomdp_model.sample_observation(
+                following.state, joint, self.key.agent_id
+            )
+            child = node.get_child(action, observation)
+            new = child is None
+            child = node.create_child(action, observation) if new else child
+            child.add_particle(following)
+            continuation = (
+                0.0
+                if terminal
+                else (
+                    self._rollout(following, depth + 1)
+                    if new
+                    else self._simulate(following, child, depth + 1, bounds)
+                )
+            )
+            q = reward + self.config.mcts.gamma * continuation
         node.action_counts[action] = node.action_counts.get(action, 0) + 1
-        current_q = node.action_values.get(action, 0.0)
-        node.action_values[action] = current_q + (q - current_q) / node.action_counts[action]
-
+        node.action_values[action] = (
+            node.action_values.get(action, 0)
+            + (q - node.action_values.get(action, 0)) / node.action_counts[action]
+        )
         node.visit_count += 1
-
-        if q < bounds["q_min"]:
-            bounds["q_min"] = q
-        if q > bounds["q_max"]:
-            bounds["q_max"] = q
-
+        bounds["q_min"], bounds["q_max"] = min(bounds["q_min"], q), max(bounds["q_max"], q)
         return q
 
-    def _rollout(self, particle: "InteractiveParticle", depth: int) -> float:
+    def _rollout(self, particle, depth):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             return 0.0
-
-        legal_actions = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
-        if not legal_actions:
-            return 0.0
-
         action = self.pomdp_model.get_rollout_action(particle.state, self.key.agent_id)
-        if action not in legal_actions:
+        if action not in self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id):
             raise ValueError("Domain rollout policy returned an illegal action")
-        p_next, joint_action, reward_i, is_terminal = self.gen_model.tree_step(
+        if depth + 1 == self.config.mcts.max_depth:
+            return self.gen_model.sample_event(
+                particle, action, self.key.agent_id, self.pomdp_model
+            )[2]
+        following, _, reward, terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model
         )
-
-        return reward_i + self.config.mcts.gamma * self._rollout(p_next, depth + 1)
-
-    def _get_opponent_level_prior(self, other_id: AgentID) -> Dict[int, float]:
-        """Returns the prior probability distribution over opponent levels."""
-        if self.prior_level_weights is not None:
-            return dict(self.prior_level_weights)
-        if self.initial_particles:
-            counts: Dict[int, int] = {}
-            total = 0
-            for p in self.initial_particles:
-                if other_id in p.models:
-                    lvl = p.models[other_id][0].level
-                    counts[lvl] = counts.get(lvl, 0) + 1
-                    total += 1
-            if total > 0:
-                return {lvl: c / total for lvl, c in sorted(counts.items())}
-        if self.key.level > 0:
-            return {k: 1.0 / self.key.level for k in range(self.key.level)}
-        return {0: 1.0}
-
-    def _get_particle_level_distribution(
-        self, particles: List["InteractiveParticle"], other_id: AgentID
-    ) -> Dict[int, float]:
-        """Computes the empirical distribution over opponent levels from a particle population."""
-        if not particles:
-            return {}
-        counts: Dict[int, int] = {}
-        total = 0
-        for p in particles:
-            if other_id in p.models:
-                lvl = p.models[other_id][0].level
-                counts[lvl] = counts.get(lvl, 0) + 1
-                total += 1
-        if total == 0:
-            return {}
-        return {lvl: c / total for lvl, c in sorted(counts.items())}
-
-    def _create_fresh_opponent_node(self, other_id: AgentID, level: int) -> Optional[POMCPNode]:
-        """Creates a fresh, canonical root node for an opponent of the specified level."""
-        if level == 0:
-            return None
-        node = POMCPNode(capacity=self.config.mcts.node_capacity)
-        key = SolverKey(other_id, level)
-        if self.solver_bank.has_solver(key):
-            opp_solver = self.solver_bank.get_solver(key)
-            if hasattr(opp_solver, "initial_particles") and opp_solver.initial_particles:
-                for p in opp_solver.initial_particles:
-                    node.add_particle(p)
-            elif (
-                hasattr(opp_solver, "root")
-                and hasattr(opp_solver.root, "belief_particles")
-                and opp_solver.root.belief_particles
-            ):
-                for p in opp_solver.root.belief_particles:
-                    node.add_particle(p)
-            elif hasattr(opp_solver, "belief") and opp_solver.belief:
-                for p in opp_solver.belief:
-                    node.add_particle(p)
-        return node
-
-    def _sample_consistent_state(
-        self,
-        action: Action,
-        observation: Observation,
-        candidate_states: Optional[List[State]] = None,
-    ) -> State:
-        """Samples a physical state consistent with the given action and observation."""
-        if candidate_states:
-            return random.choice(candidate_states)
-
-        return self.pomdp_model.sample_state_consistent_with_obs(
-            action, observation, agent_id=self.key.agent_id
+        return reward + (
+            0 if terminal else self.config.mcts.gamma * self._rollout(following, depth + 1)
         )
 
-    def update_root(self, action: Action, observation: Observation, min_particles: int = 0) -> None:
-        if not self.initial_particles and self.root.belief_particles:
-            self.initial_particles = list(self.root.belief_particles)
+    def update_root(self, action, observation):
+        """Condition a continuing episode on the private sensor and public survival."""
+        # Weighted support is retained in full; child reservoirs do not estimate it.
+        self.belief = self.solver_bank.filter.update(
+            self.model(), action, observation, terminal=False
+        ).belief
+        self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
 
-        target_count = min(
-            self.config.mcts.node_capacity,
-            max(
-                min_particles, len(self.initial_particles), self.config.reinvigoration.min_particles
-            ),
-        )
-        if target_count <= 0:
-            target_count = self.config.reinvigoration.min_particles
-
-        # Identify all opponents
-        seed_particles = (
-            self.initial_particles if self.initial_particles else self.root.belief_particles
-        )
-        other_agent_ids = sorted(list({k for p in seed_particles for k in p.models.keys()}))
-
-        # Check for domain epoch reset (e.g. door opened in Tiger)
-        is_reset = self.pomdp_model.is_epoch_reset(action, observation)
-
-        if is_reset:
-            new_root = POMCPNode(capacity=self.config.mcts.node_capacity)
-            opp_weights: Dict[AgentID, Dict[int, float]] = {}
-            candidate_roots: Dict[AgentID, Dict[int, Optional[POMCPNode]]] = {}
-
-            for other_id in other_agent_ids:
-                # Use empirical posterior accumulated in current root belief; fallback to prior
-                prev_dist = self._get_particle_level_distribution(
-                    self.root.belief_particles, other_id
-                )
-                if not prev_dist:
-                    prev_dist = self._get_opponent_level_prior(other_id)
-
-                candidate_levels = sorted(list(self._get_opponent_level_prior(other_id).keys()))
-                k_levels = max(1, len(candidate_levels))
-
-                # Extinction floor: Laplace / uniform smoothing over candidate levels (never tethered to prior)
-                eps = 0.01 if self.config.reinvigoration.preserve_levels else 0.0
-                smoothed = {
-                    lvl: (1.0 - eps) * prev_dist.get(lvl, 1.0 / k_levels) + eps * (1.0 / k_levels)
-                    for lvl in candidate_levels
-                }
-                total_w = sum(smoothed.values())
-                opp_weights[other_id] = {lvl: w / total_w for lvl, w in smoothed.items()}
-
-                candidate_roots[other_id] = {
-                    lvl: self._create_fresh_opponent_node(other_id, lvl)
-                    for lvl in candidate_levels
-                    if lvl > 0
-                }
-
-            level_options = {
-                aid: (list(weights), list(weights.values())) for aid, weights in opp_weights.items()
-            }
-            frames = {
-                (aid, lvl): AgentFrame(aid, lvl, self.pomdp_model)
-                for aid, (lvls, _) in level_options.items()
-                for lvl in lvls
-            }
-            for _ in range(target_count):
-                s = self._sample_consistent_state(action, observation)
-                models = {}
-                for other_id in other_agent_ids:
-                    lvls, probs = level_options[other_id]
-                    chosen_lvl = random.choices(lvls, weights=probs, k=1)[0]
-                    frame = frames[other_id, chosen_lvl]
-                    node_ptr = candidate_roots[other_id].get(chosen_lvl) if chosen_lvl > 0 else None
-                    models[other_id] = (frame, node_ptr)
-                new_root.add_particle(InteractiveParticle(state=s, models=models))
-
-            # Extinction protection guarantee
-            if self.config.reinvigoration.preserve_levels:
-                for other_id in other_agent_ids:
-                    curr_dist = self._get_particle_level_distribution(
-                        new_root.belief_particles, other_id
-                    )
-                    candidate_levels = list(opp_weights[other_id].keys())
-                    for lvl in candidate_levels:
-                        if curr_dist.get(lvl, 0.0) == 0:
-                            idx = random.randint(0, len(new_root.belief_particles) - 1)
-                            s = self._sample_consistent_state(action, observation)
-                            models = dict(new_root.belief_particles[idx].models)
-                            frame = AgentFrame(other_id, lvl, self.pomdp_model)
-                            node_ptr = candidate_roots[other_id].get(lvl) if lvl > 0 else None
-                            models[other_id] = (frame, node_ptr)
-                            new_root.belief_particles[idx] = InteractiveParticle(
-                                state=s, models=models
-                            )
-
-            self.root = new_root
-            if self.config.reinvigoration.enabled:
-                self._reinvigorate_mental_models()
-            return
-
-        # Normal step (no epoch reset)
-        child = self.root.get_child(action, observation)
-        survivors = list(child.belief_particles) if child and child.belief_particles else []
-        current_count = len(survivors)
-
-        candidate_roots: Dict[AgentID, Dict[int, Optional[POMCPNode]]] = {}
-        post_weights: Dict[AgentID, Dict[int, float]] = {}
-
-        for other_id in other_agent_ids:
-            candidate_levels = sorted(list(self._get_opponent_level_prior(other_id).keys()))
-            k_levels = max(1, len(candidate_levels))
-
-            prev_dist = self._get_particle_level_distribution(self.root.belief_particles, other_id)
-            if not prev_dist:
-                prev_dist = self._get_opponent_level_prior(other_id)
-
-            counts = {
-                lvl: sum(
-                    1 for p in survivors if p.models.get(other_id, (None, None))[0].level == lvl
-                )
-                for lvl in candidate_levels
-            }
-            k = sum(counts.values())
-
-            # Check if multiple observation branches exist under this action (real MCTS tree search)
-            obs_counts = {}
-            if action in self.root.children:
-                for o, ch in self.root.children[action].items():
-                    obs_counts[o] = {
-                        lvl: sum(
-                            1
-                            for p in ch.belief_particles
-                            if p.models.get(other_id, (None, None))[0].level == lvl
-                        )
-                        for lvl in candidate_levels
-                    }
-            total_per_level = {
-                lvl: sum(obs_counts[o][lvl] for o in obs_counts) if obs_counts else 0
-                for lvl in candidate_levels
-            }
-            has_multi_branch = len(obs_counts) > 1 and any(
-                total_per_level[lvl] > counts[lvl] for lvl in candidate_levels
-            )
-
-            if has_multi_branch:
-                # Heuristic level update: capped reservoirs are not unbiased likelihood counts.
-                # P(lvl | obs) \propto P_prev(lvl) * P_hat(obs | lvl)
-                alpha_smooth = 1.0
-                n_obs_types = max(3, len(obs_counts) + 1)
-                unnorm_post = {}
-                for lvl in candidate_levels:
-                    c = obs_counts.get(observation, {}).get(lvl, 0)
-                    denom = total_per_level[lvl] + alpha_smooth * n_obs_types
-                    lik = (c + alpha_smooth) / denom if denom > 0 else (1.0 / n_obs_types)
-                    unnorm_post[lvl] = prev_dist.get(lvl, 1.0 / k_levels) * lik
-
-                tot_lik = sum(unnorm_post.values())
-                raw_post = (
-                    {lvl: unnorm_post[lvl] / tot_lik for lvl in candidate_levels}
-                    if tot_lik > 0
-                    else prev_dist
-                )
-            else:
-                # Fallback / synthetic test case (only 1 child branch or directly injected particles):
-                # Heuristic pseudocount blend with N0 = 2; this is not an interactive Bayes filter
-                N0 = 2
-                raw_post = {
-                    lvl: (N0 * prev_dist.get(lvl, 1.0 / k_levels) + counts[lvl]) / (N0 + k)
-                    if (N0 + k) > 0
-                    else 1.0 / k_levels
-                    for lvl in candidate_levels
-                }
-
-            eps = 0.01 if self.config.reinvigoration.preserve_levels else 0.0
-            smoothed = {
-                lvl: (1.0 - eps) * raw_post[lvl] + eps * (1.0 / k_levels)
-                for lvl in candidate_levels
-            }
-            total_w = sum(smoothed.values())
-            post_weights[other_id] = {lvl: w / total_w for lvl, w in smoothed.items()}
-
-            candidate_roots[other_id] = {}
-            for lvl in candidate_levels:
-                if lvl > 0:
-                    surv_nodes = [
-                        p.models[other_id][1]
-                        for p in survivors
-                        if p.models.get(other_id, (None, None))[0].level == lvl
-                        and p.models[other_id][1] is not None
-                    ]
-                    if surv_nodes:
-                        canonical_opp_root = surv_nodes[0]
-                        canonical_opp_root.parent = None
-                        if (
-                            len(canonical_opp_root.belief_particles)
-                            < self.config.reinvigoration.min_particles
-                        ):
-                            fresh = self._create_fresh_opponent_node(other_id, lvl)
-                            if fresh:
-                                for p in fresh.belief_particles:
-                                    canonical_opp_root.add_particle(p)
-                        candidate_roots[other_id][lvl] = canonical_opp_root
-                    else:
-                        candidate_roots[other_id][lvl] = self._create_fresh_opponent_node(
-                            other_id, lvl
-                        )
-
-        if current_count == 0:
-            logger.warning(
-                f"[{self.key}] Particle Deprivation (Obs: {observation}). Resampling consistent particles."
-            )
-            self.deprivation_events += 1
-
-        new_root = POMCPNode(capacity=self.config.mcts.node_capacity)
-        surv_states = [p.state for p in survivors] if survivors else []
-
-        level_options = {
-            aid: (list(weights), list(weights.values())) for aid, weights in post_weights.items()
-        }
-        frames = {
-            (aid, lvl): AgentFrame(aid, lvl, self.pomdp_model)
-            for aid, (lvls, _) in level_options.items()
-            for lvl in lvls
-        }
-        for _ in range(target_count):
-            s = self._sample_consistent_state(action, observation, candidate_states=surv_states)
-            models = {}
-            for other_id in other_agent_ids:
-                lvls, probs = level_options[other_id]
-                chosen_lvl = random.choices(lvls, weights=probs, k=1)[0]
-                frame = frames[other_id, chosen_lvl]
-                node_ptr = candidate_roots[other_id].get(chosen_lvl) if chosen_lvl > 0 else None
-                models[other_id] = (frame, node_ptr)
-            new_root.add_particle(InteractiveParticle(state=s, models=models))
-
-        # Extinction protection guarantee
-        if self.config.reinvigoration.preserve_levels:
-            for other_id in other_agent_ids:
-                curr_dist = self._get_particle_level_distribution(
-                    new_root.belief_particles, other_id
-                )
-                candidate_levels = list(post_weights[other_id].keys())
-                for lvl in candidate_levels:
-                    if curr_dist.get(lvl, 0.0) == 0:
-                        idx = random.randint(0, len(new_root.belief_particles) - 1)
-                        s = self._sample_consistent_state(
-                            action, observation, candidate_states=surv_states
-                        )
-                        models = dict(new_root.belief_particles[idx].models)
-                        frame = AgentFrame(other_id, lvl, self.pomdp_model)
-                        node_ptr = candidate_roots[other_id].get(lvl) if lvl > 0 else None
-                        models[other_id] = (frame, node_ptr)
-                        new_root.belief_particles[idx] = InteractiveParticle(state=s, models=models)
-
-        self.root = new_root
-
-        if self.config.reinvigoration.enabled:
-            self._reinvigorate_mental_models()
-
-    def _reinvigorate_mental_models(self) -> None:
-        if not self.root.belief_particles:
-            return
-
-        seen_nodes = set()
-        for p in self.root.belief_particles:
-            for other_id, (frame, node_ptr) in p.models.items():
-                if frame.level > 0 and node_ptr is not None:
-                    node_id = id(node_ptr)
-                    if node_id not in seen_nodes:
-                        seen_nodes.add(node_id)
-                        if node_ptr.visit_count < self.config.reinvigoration.visit_threshold:
-                            opp_solver = self.solver_bank.get_solver_for_frame(frame)
-                            local_bounds = {"q_min": float("inf"), "q_max": -float("inf")}
-                            opp_solver.extend_search(
-                                node_ptr,
-                                n_sims=self.config.reinvigoration.sims,
-                                bounds=local_bounds,
-                            )
-
-    def get_detailed_stats(self) -> dict:
+    def get_detailed_stats(self):
         return {
             "key": str(self.key),
             "n_sims": self.config.mcts.n_sims,
-            "deprivation_events": self.deprivation_events,
+            "modeled_n_sims": self.config.opponent.n_sims,
+            "initial_sample_count": self.initial_sample_count,
+            "belief_size": len(self.belief.mass),
             "root_visit_count": self.root.visit_count,
-            "action_values": {str(a): v for a, v in self.root.action_values.items()},
+            "action_values": {str(a): q for a, q in self.root.action_values.items()},
             "action_counts": {str(a): c for a, c in self.root.action_counts.items()},
-            "belief_size": len(self.root.belief_particles),
         }
+
+    def visualize(self, filename, step):
+        from utils.visualizer import ForestVisualizer
+
+        return ForestVisualizer(self.solver_bank).export_forest(self, filename, step)

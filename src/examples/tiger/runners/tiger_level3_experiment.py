@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig
+from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
 from core.logger import get_logger
 from examples.tiger.model.tiger_model import TigerModel
 from solvers.exploration import NormalizedUCB
@@ -32,8 +32,8 @@ class TigerLevel3Runner(GenericBatchRunner):
         env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=6, node_capacity=2000)
-        jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
-        agent_config = IPOMCPConfig(mcts=mcts_cfg, jit=jit_cfg)
+        opponent_cfg = OpponentPolicyConfig(n_sims=10)
+        agent_config = IPOMCPConfig(mcts=mcts_cfg, opponent=opponent_cfg)
 
         # 1. Real-World Opponent: Agent J at Level 1 (models i at Level 0 with 100%)
         bank_j = SolverBank()

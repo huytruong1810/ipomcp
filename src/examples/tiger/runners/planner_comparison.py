@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig, RTSConfig
+from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, OpponentPolicyConfig, RTSConfig
 from core.logger import get_logger
 from core.paths import get_results_dir
 from core.pomdp_model import POMDPModel, State
@@ -64,7 +64,7 @@ class ControlledConditionRunner(GenericBatchRunner):
         boot_j = I_POMDP_Bootstrapper(bank_j)
         cfg_j = IPOMCPConfig(
             mcts=MCTSConfig(n_sims=50000, max_depth=self.planning_depth, node_capacity=2000),
-            jit=JITConfig(),
+            opponent=OpponentPolicyConfig(),
         )
         planner_j = boot_j.create_solver(
             agent_id="j",
@@ -99,7 +99,7 @@ class ControlledConditionRunner(GenericBatchRunner):
                 mcts=MCTSConfig(
                     n_sims=self.n_sims, max_depth=self.planning_depth, node_capacity=2000
                 ),
-                jit=JITConfig(),
+                opponent=OpponentPolicyConfig(),
             )
             planner_i = boot_i.create_solver(
                 agent_id="i",

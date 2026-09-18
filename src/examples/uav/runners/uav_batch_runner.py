@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig
+from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
 from core.logger import get_logger
 from examples.uav.model.uav_model import UAVModel
 from solvers.exploration import NormalizedUCB
@@ -25,8 +25,8 @@ class UAVBatchRunner(GenericBatchRunner):
         agent_target = "j"
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=5, node_capacity=500)
-        jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
-        agent_config = IPOMCPConfig(mcts=mcts_cfg, jit=jit_cfg)
+        opponent_cfg = OpponentPolicyConfig(n_sims=10)
+        agent_config = IPOMCPConfig(mcts=mcts_cfg, opponent=opponent_cfg)
 
         # 1. Target (L1) with dedicated SolverBank
         bank_j = SolverBank()

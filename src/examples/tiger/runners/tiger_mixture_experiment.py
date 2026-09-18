@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from typing import Dict, Optional
 
-from core.config import ExperimentConfig, IPOMCPConfig, JITConfig, MCTSConfig
+from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
 from core.logger import get_logger
 from examples.tiger.model.tiger_model import TigerModel
 from solvers.exploration import NormalizedUCB
@@ -38,8 +38,8 @@ class TigerMixtureRunner(GenericBatchRunner):
         I_POMDP_Bootstrapper(bank)
 
         mcts_cfg = MCTSConfig(n_sims=10000, max_depth=6, node_capacity=500)
-        jit_cfg = JITConfig(entropy_threshold=0.6, visit_threshold=5, sims=10)
-        agent_config = IPOMCPConfig(mcts=mcts_cfg, jit=jit_cfg)
+        opponent_cfg = OpponentPolicyConfig(n_sims=10)
+        agent_config = IPOMCPConfig(mcts=mcts_cfg, opponent=opponent_cfg)
 
         # 1. Target Opponent (Agent J) - True Level-1 agent
         bank_j = SolverBank()

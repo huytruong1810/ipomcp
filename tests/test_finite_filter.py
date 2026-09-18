@@ -25,9 +25,9 @@ from examples.tiger.model.tiger_model import (
     TIGER_RIGHT,
     TigerModel,
 )
-from ipomdp.belief import AgentFrame
 from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.finite_filter import FiniteInteractiveFilter, UnsupportedObservation
+from ipomdp.frame import AgentFrame
 from tests.reference_tiger import posterior as fixed_posterior
 from tests.reference_tiger import transition_probability
 
@@ -372,3 +372,22 @@ def test_observable_action_availability_must_agree_across_intentional_support():
     kernel = FiniteInteractiveFilter(lambda model: {ACTION_FORWARD: 1.0})
     with pytest.raises(ValueError, match="availability differs"):
         kernel.action_distribution(inconsistent, state)
+
+
+def test_wumpus_sparse_observation_law_matches_full_probability_table():
+    import random
+
+    from examples.wumpus.model.wumpus_model import WumpusModel
+
+    model = WumpusModel()
+    state = model.get_initial_state(random.Random(3))
+    for a, b in itertools.product(model.get_all_actions("i"), model.get_all_actions("j")):
+        joint = {"i": a, "j": b}
+        following = model.sample_transition(state, joint)
+        for agent in ["i", "j"]:
+            sparse = dict(model.observation_distribution(following, joint, agent))
+            assert sum(sparse.values()) == 1
+            for obs in model.get_all_observations(agent):
+                assert sparse.get(obs, 0) == model.get_observation_prob(
+                    obs, following, joint, agent
+                )

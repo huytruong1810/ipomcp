@@ -12,7 +12,7 @@ work. Domain rollout policies have the same information restriction.
 """
 
 import abc
-from typing import Any, Dict, Hashable, List, Optional
+from typing import Dict, Hashable, List
 
 # Type Aliases for strict typing in downstream planners.
 # States, Actions, and Observations should strictly be Hashable to allow for dictionary
@@ -103,6 +103,13 @@ class POMDPModel(abc.ABC):
         """
         pass
 
+    def observation_distribution(self, state, joint_action, agent_id):
+        """Enumerate the observation law; domains may avoid scanning zero-mass tokens."""
+        return tuple(
+            (o, self.get_observation_prob(o, state, joint_action, agent_id))
+            for o in self.get_all_observations(agent_id)
+        )
+
     @abc.abstractmethod
     def get_reward(
         self,
@@ -160,30 +167,6 @@ class POMDPModel(abc.ABC):
         massively reduces MCTS branching factors and speeds up planning.
         """
         return self.get_all_actions(agent_id)
-
-    def is_epoch_reset(self, action: Action, observation: Observation) -> bool:
-        """Evaluates whether the given action and observation indicate an environment epoch reset.
-
-        In episodic or resetting domains (such as Tiger), opening a door resets the underlying
-        physical state and restarts the observation-gathering epoch. Overridden by domains with reset dynamics.
-        """
-        return False
-
-    def sample_state_consistent_with_obs(
-        self,
-        action: Action,
-        observation: Observation,
-        agent_id: Optional[AgentID] = None,
-        rng: Any = None,
-    ) -> State:
-        """Samples a physical state consistent with the post-transition observation.
-
-        This is a heuristic proposal hook, not a general Bayesian posterior.
-        The default draws the initial prior without conditioning on history.
-        Domains needing correct deprivation recovery require an explicit filter;
-        see docs/THEORY.md. Callers must not interpret this as exact conditioning.
-        """
-        return self.get_initial_state(rng=rng)
 
     def get_rollout_action(self, state: State, agent_id: AgentID) -> Action:
         """Choose a rollout action using the domain's fixed default policy.
