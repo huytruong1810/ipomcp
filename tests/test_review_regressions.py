@@ -1,7 +1,7 @@
 """Small, deterministic regression cases for the independent code review.
 
 Tests cover contracts and analytic counterexamples, not benchmark reward targets.
-Remaining mathematical defects are tracked separately in test_theory_gaps.py.
+Remaining mathematical and experimental limitations are tracked in BACKLOG.md.
 """
 
 import gc

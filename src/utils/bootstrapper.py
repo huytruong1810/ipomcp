@@ -106,6 +106,8 @@ class I_POMDP_Bootstrapper:
         n_particles=100,
         config=None,
         exploration_strategy=None,
+        modeled_config=None,
+        modeled_exploration=None,
     ):
         return self._create(
             agent_id,
@@ -118,6 +120,8 @@ class I_POMDP_Bootstrapper:
             config or IPOMCPConfig(),
             exploration_strategy,
             False,
+            modeled_config,
+            modeled_exploration,
         )
 
     def create_rts_solver(
@@ -129,6 +133,8 @@ class I_POMDP_Bootstrapper:
         level_weights=None,
         n_particles=50,
         config=None,
+        modeled_config=None,
+        modeled_exploration=None,
     ):
         return self._create(
             agent_id,
@@ -141,11 +147,36 @@ class I_POMDP_Bootstrapper:
             config or RTSConfig(num_particles=n_particles),
             None,
             True,
+            modeled_config,
+            modeled_exploration,
         )
 
     def _create(
-        self, agent_id, level, model, others, weights, nested, count, config, exploration, rts
+        self,
+        agent_id,
+        level,
+        model,
+        others,
+        weights,
+        nested,
+        count,
+        config,
+        exploration,
+        rts,
+        modeled_config=None,
+        modeled_exploration=None,
     ):
+        """Build a root planner with a separately specified lower-level solver family.
+
+        The protagonist's search algorithm is not evidence about its opponent's
+        algorithm. An explicit modeled configuration applies to all lower-level
+        intentional models; absent that choice, the hierarchy is homogeneous.
+        This changes only the policy provider, never private-state access or the
+        strict zero-evidence rule. Equal families do not imply equal policies:
+        budgets, empirical priors and bank seeds can still differ.
+        """
+        if modeled_config is not None and not isinstance(modeled_config, (IPOMCPConfig, RTSConfig)):
+            raise TypeError("modeled_config must specify MCTS or RTS")
         if type(level) is not int or level < 0:
             raise ValueError("Reasoning level must be a nonnegative integer")
         if level and (type(count) is not int or count <= 0):
@@ -172,9 +203,9 @@ class I_POMDP_Bootstrapper:
                     nested.get(lower) if nested else None,
                     nested,
                     count,
-                    config,
-                    exploration,
-                    rts,
+                    config if modeled_config is None else modeled_config,
+                    exploration if modeled_config is None else modeled_exploration,
+                    rts if modeled_config is None else isinstance(modeled_config, RTSConfig),
                 )
         weights = (
             weights
@@ -193,7 +224,8 @@ class I_POMDP_Bootstrapper:
                 continue
             solver = self.bank.get_solver(SolverKey(other, lower))
             candidates[lower] = MentalModel(
-                AgentFrame(other, lower, model), solver.initial_belief if lower else None
+                AgentFrame(other, lower, solver.pomdp_model if lower else model),
+                solver.initial_belief if lower else None,
             )
         physical = self.bank.initial_states(model, count)
         belief = FiniteBelief(

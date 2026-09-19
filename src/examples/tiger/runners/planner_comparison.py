@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import random
 
 import matplotlib
 import pandas as pd
@@ -19,6 +20,7 @@ from core.pomdp_model import POMDPModel, State
 from examples.tiger.model.tiger_model import TigerModel
 from solvers.exploration import NormalizedUCB
 from solvers.planner import Planner
+from solvers.policy import search_randomness
 from solvers.solver_bank import SolverBank
 from utils.bootstrapper import I_POMDP_Bootstrapper
 from utils.generic_batch_runner import GenericBatchRunner
@@ -45,6 +47,7 @@ class ControlledConditionRunner(GenericBatchRunner):
         planning_depth: int,
         n_particles: int = 5000,
         obs_branching: int = 6,
+        modeled_opponent_sims: int = 50000,
     ):
         super().__init__(config=config, log_dir=log_dir)
         self.solver_type = solver_type
@@ -54,63 +57,81 @@ class ControlledConditionRunner(GenericBatchRunner):
         self.planning_depth = planning_depth
         self.n_particles = n_particles
         self.obs_branching = obs_branching
+        self.modeled_opponent_sims = modeled_opponent_sims
 
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
         growl_dict = {"i": 0.85, "j": 0.85}
         env = TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0)
 
-        # 1. Opponent Agent J Setup (Level-1 I-POMCP)
-        bank_j = SolverBank()
+        # This controlled comparison makes computation part of the declared
+        # opponent frame: both agents know the initial empirical prior and the
+        # reproducible search seed. Only this initialization is common knowledge;
+        # subsequent private observations/beliefs remain separate in separate banks.
+        # Independent unknown solver seeds would require a distribution over those
+        # seeds in the opponent model, not a point hypothesis pretending to match.
+        policy_seed, prior_seed = random.getrandbits(64), random.getrandbits(64)
+        initial_samples = 2500
+        bank_j = SolverBank(seed=policy_seed)
         boot_j = I_POMDP_Bootstrapper(bank_j)
         cfg_j = IPOMCPConfig(
             mcts=MCTSConfig(n_sims=50000, max_depth=self.planning_depth, node_capacity=2000),
-            opponent=OpponentPolicyConfig(),
+            opponent=OpponentPolicyConfig(n_sims=self.modeled_opponent_sims),
         )
-        planner_j = boot_j.create_solver(
-            agent_id="j",
-            level=self.level_j,
-            model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
-            other_agent_ids=["i"],
-            n_particles=2500,
-            config=cfg_j,
-            exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
-        )
-
-        # 2. Protagonist Agent I Setup (Approximate RTS vs I-POMCP at depth D)
-        bank_i = SolverBank()
-        boot_i = I_POMDP_Bootstrapper(bank_i)
-        if self.solver_type == "rts":
-            rts_cfg = RTSConfig(
-                max_depth=self.planning_depth,
-                obs_branching=self.obs_branching,
-                num_particles=self.n_particles,
-            )
-            planner_i = boot_i.create_rts_solver(
-                agent_id="i",
-                level=self.level_i,
+        with search_randomness(prior_seed):
+            planner_j = boot_j.create_solver(
+                agent_id="j",
+                level=self.level_j,
                 model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
-                other_agent_ids=["j"],
-                level_weights={1: 1.0},
-                n_particles=self.n_particles,
-                config=rts_cfg,
-            )
-        else:
-            cfg_i = IPOMCPConfig(
-                mcts=MCTSConfig(
-                    n_sims=self.n_sims, max_depth=self.planning_depth, node_capacity=2000
-                ),
-                opponent=OpponentPolicyConfig(),
-            )
-            planner_i = boot_i.create_solver(
-                agent_id="i",
-                level=self.level_i,
-                model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
-                other_agent_ids=["j"],
-                level_weights={1: 1.0},
-                n_particles=self.n_particles,
-                config=cfg_i,
+                other_agent_ids=["i"],
+                n_particles=initial_samples,
+                config=cfg_j,
                 exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
             )
+
+        # Both protagonists model the same MCTS opponent family and settings.
+        # The modeled budget matches the executing budget by default. An explicit
+        # budget override is a misspecification experiment and may fail inference.
+        # Unsupported evidence must remain a recorded experimental failure.
+        # 2. Protagonist Agent I Setup (Approximate RTS vs I-POMCP at depth D)
+        bank_i = SolverBank(seed=policy_seed)
+        boot_i = I_POMDP_Bootstrapper(bank_i)
+        with search_randomness(prior_seed):
+            if self.solver_type == "rts":
+                rts_cfg = RTSConfig(
+                    max_depth=self.planning_depth,
+                    obs_branching=self.obs_branching,
+                    num_particles=self.n_particles,
+                )
+                planner_i = boot_i.create_rts_solver(
+                    agent_id="i",
+                    level=self.level_i,
+                    model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
+                    other_agent_ids=["j"],
+                    level_weights={1: 1.0},
+                    n_particles=initial_samples,
+                    config=rts_cfg,
+                    modeled_config=cfg_j,
+                    modeled_exploration=NormalizedUCB(exploration_const=2**0.5),
+                )
+            else:
+                cfg_i = IPOMCPConfig(
+                    mcts=MCTSConfig(
+                        n_sims=self.n_sims, max_depth=self.planning_depth, node_capacity=2000
+                    ),
+                    opponent=OpponentPolicyConfig(),
+                )
+                planner_i = boot_i.create_solver(
+                    agent_id="i",
+                    level=self.level_i,
+                    model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
+                    other_agent_ids=["j"],
+                    level_weights={1: 1.0},
+                    n_particles=initial_samples,
+                    config=cfg_i,
+                    modeled_config=cfg_j,
+                    modeled_exploration=NormalizedUCB(exploration_const=2**0.5),
+                    exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
+                )
 
         return env, planner_i, planner_j, env.get_initial_state()
 
@@ -133,7 +154,7 @@ def run_planner_comparison(
         )
 
     logger.info(
-        f"=== STARTING PLANNER COMPARISON ORACLE BENCHMARK (N={n_trials}, Horizon={max_steps}, Depth={planning_depth}) ==="
+        f"=== STARTING PLANNER COMPARISON BENCHMARK (N={n_trials}, Horizon={max_steps}, Depth={planning_depth}) ==="
     )
     logger.info(f"Results Directory: {master_dir}")
 

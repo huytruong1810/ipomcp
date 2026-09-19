@@ -1,41 +1,57 @@
 # Review handoff
 
-Authoritative checkout: /home/andyj1810/projects/ipomcp (Antigravity local work).
-Review worktree: /home/andyj1810/projects/ipomcp-review-20260916,
-branch review/rigor-20260916. Changes have not been merged or pushed. The unwanted
-Windows clones were already removed; this existing WSL worktree is not a new clone.
+Authoritative checkout: /home/andyj1810/projects/ipomcp, unchanged from the captured
+Antigravity source. Review worktree: /home/andyj1810/projects/ipomcp-review-20260916,
+branch review/rigor-20260916. Nothing is merged or pushed into the original.
 
-The integrated implementation replaces mutable latent search nodes with immutable
-finite joint beliefs, uses recursive subjective filtering in both planners, and
-removes the old JIT/reinvigoration paths. Public survival conditions private updates.
-An exact immediate root-reward control variate reduces MCTS reward variance without
-changing its expected backup target. Modeled MCTS budgets remain ten by default.
+The September 18 immutable-filter integration is followed by separate modeled
+planner configuration, corrected frame binding, and a declared matched-computation
+RTS/MCTS comparison. See docs/MODEL_SPECIFICATION.md for the public initialization
+assumption. No posterior fallback, action lapse or live private-state sharing was
+introduced. Solver lookup rejects mismatched physics identity; bootstrap retains
+the registered private solver's frame when reusing it.
 
-Validation: 116 tests pass in 378.50 seconds. All 39 reduced-budget suite conditions
-pass. A full-budget L4-vs-L3 twenty-step seed-zero probe completes in 33.24 seconds,
-peak RSS 182.25 MiB. A depth-three RTS twenty-step probe fails with zero finite
-support for a right-creak observation: modeled RTS L1 differs from executing MCTS
-L1 under a point prior. Do not launch the long full suite yet.
+## September 19 controlled-comparison qualification
 
-Thirty-seed twenty-step depth-five L3-vs-L2 benchmark:
-- First integrated solver: I=-33.93, J=-2.03; 21.38 seconds/trial.
-- With exact root reward: I=-21.10, J=8.23; 24.61 seconds/trial; max RSS 190.96 MiB.
-- Earlier heuristic review: I=15.93, J=5.30; 223.61 seconds/trial.
-- Antigravity snapshot: I=-10.10, J=0.90; 249.70 seconds/trial.
+The modeled planner family is now independent of protagonist search. The controlled
+comparison declares the same MCTS L1 budget (50,000), exploration rule, initial
+empirical prior (2,500 samples) and search seed as the executing opponent. Each
+agent maintains isolated private beliefs thereafter. RTS lookahead remains 500
+particles. MCTS protagonist uses 20,000 simulations in this qualification panel.
+This changes the scientific configuration; it is not a pure speed optimization.
 
-The latest paired I difference versus the earlier review is -37.03, descriptive
-95% interval [-76.30, 2.24]. This does not establish equivalence. Source/model and
-budget semantics changed, and timings overlapped other audit work. Preserve the
-first regression as evidence; do not select only favorable iterations or seeds.
+Ten seeds, twenty steps, depth three, two workers, 300-second/3,072-MiB per-trial
+limits: RTS completes 10/10 and MCTS completes 10/10. RTS means are I=3.10,
+J=-53.00, 34.61 wall seconds/trial,
+34.58 CPU seconds/trial, max RSS 168.50 MiB.
+MCTS means are I=3.10, J=-53.00,
+38.86 wall seconds/trial, 38.83 CPU seconds/trial,
+max RSS 169.79 MiB. Timing overlaps other qualification work.
+These ten-seed panels demonstrate successful execution, not performance equivalence
+or general optimality. All twenty-one rows per trial and source hashes were verified.
 
-Raw results are under results/tiger-integrated-30x20,
-results/tiger-integrated-cv-30x20, results/suite-integration-smoke-cv,
-results/stress-integrated-l4-20steps.json and results/stress-integrated-rts-20steps.json.
-Verification logs are under results/verification. Historical source snapshots remain
-in sibling ipomcp-antigravity-baseline-20260917 and ipomcp-reviewed-benchmark-20260917.
-Source hashes and Git identify provenance; no runtime schema migration is required.
+The earlier family/budget-only panel retained independent initial priors and seeds:
+RTS completed 5/10 and MCTS
+completed 8/10. Failed trials
+are retained and excluded from no purported full-panel mean. Matching only a
+planner name and simulation count was insufficient to specify the policy kernel.
 
-Next: resolve the explicit opponent-model choice, enforce bank identity contracts,
-qualify remaining conditions, add full-suite process supervision, consolidate demo
-execution and reconcile the original checkout. Read BACKLOG.md and docs/THEORY.md.
-Native Graphviz dot is missing, so optional rendering remains unverified.
+All 122 tests pass across unit and integration invocations (no xfails), including
+Wumpus; all 39 reduced-budget smoke conditions pass. The existing L3-vs-L2 prior
+benchmark is unchanged in experimental design; no new equivalence claim is made.
+Ordinary full-suite process supervision, remaining full-depth condition coverage,
+demo consolidation and authoritative-checkout reconciliation are still open.
+
+Raw source-bound evidence: results/comparison-{rts,mcts}-public-20260919.
+Earlier incomplete panels: results/comparison-{rts,mcts}-matched-20260919.
+Smoke: results/suite-smoke-public-20260919. Test logs: results/verification.
+The audit driver supports --condition prior, comparison-rts or comparison-mcts.
+Comparison requires --sims-j 50000 --particles-j 2500; --particles-i sets RTS
+lookahead only in the RTS condition, while both comparison initial priors use
+2,500 samples. Effective budgets are explicit in the manifest. All new outputs
+must use empty directories. Native Graphviz dot remains unavailable.
+
+Next: full-depth coverage of other conditions, explicit treatment of intentional
+model misspecification, full-suite resource supervision, conflicting bootstrap
+registration guards, demo consolidation and safe integration. See BACKLOG.md.
+Do not describe the long full suite as qualified yet.

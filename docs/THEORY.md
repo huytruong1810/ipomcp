@@ -48,11 +48,12 @@ not proof that the event is impossible in the physical domain. No type floors,
 old-belief retention, reset-to-prior repair or hidden action noise is implemented.
 A branch budget raises InferenceBudgetExceeded instead of truncating the posterior.
 
-The RTS comparison currently models lower-level RTS policies while executing an
-MCTS opponent, with a point prior on L1. A depth-three, twenty-step seed-zero probe
-encounters unsupported evidence. Changing opponent solver identity, adding policy
-uncertainty, or adding action lapses defines a scientific modeling choice. The
-current full suite is not qualified while that choice remains unresolved.
+The previous RTS comparison used a point-prior policy model that did not match
+the executing opponent. It failed with unsupported evidence at depth three.
+The controlled comparison now explicitly matches the modeled MCTS family, budget,
+initial empirical prior and search seed, with isolated subsequent private beliefs.
+See MODEL_SPECIFICATION.md for the common-knowledge assumption and its limits.
+Misspecified conditions elsewhere remain subject to strict support failures.
 
 ## Search policy and reproducibility
 
@@ -79,7 +80,7 @@ reference tests verify Q values across several budgets and beliefs.
 
 ## Evidence and boundaries
 
-The test suite has 116 passing tests and no expected-failure theory exceptions.
+The test suite has 122 passing tests and no expected-failure theory exceptions.
 An independent scalar L2 Tiger enumeration covers actions, observations, private
 priors, sensor accuracies and reset/persistent dynamics. Other tests cover deeper
 private-history advancement, diagnostic type elimination, joint correlations,

@@ -331,3 +331,24 @@ strict inference. Fixed bank configuration also relies too much on caller discip
 Runtime supervision is stronger in the audit driver than in ordinary suite jobs.
 Demo consolidation and all-domain approximation studies remain incomplete.
 This is a substantial validated correction, not certification of the entire plan.
+
+
+## September 19 follow-through: opponent computation and frame identity
+
+Bootstrap now accepts a separate modeled planner configuration and exploration
+rule. Controlled comparison protagonists use the same declared MCTS L1 opponent
+kernel, with public initial prior/search seed and isolated private updates. Tests
+compare modeled and executing policy outputs across multiple private observation
+updates. Matching only family/budget failed in broader trials; that failed panel
+is retained, not averaged away or relabeled successful.
+
+Solver-bank frame lookup now rejects a physics-identity mismatch. This exposed
+bootstrap labeling reused models with the outer physics object; bootstrap now
+retains the registered modeled solver's actual frame. A regression covers separate
+equivalent physics instances and successful policy evaluation. Other conflicting
+bootstrap reuse remains an explicit backlog item.
+
+The Tiger audit driver supports prior, comparison-rts and comparison-mcts
+conditions with source-bound manifests, explicit effective budgets, subprocess
+time/RSS limits and failure records. This does not yet replace ordinary full-suite
+worker supervision. No original-checkout source was changed.

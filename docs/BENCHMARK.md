@@ -98,3 +98,34 @@ simulations fails after 7.09 seconds with unsupported right-creak evidence. Its
 point prior models RTS rather than the executing MCTS kernel. Failure remains
 recorded; it is not dropped from a successful-trial average. One-step RTS success
 did not predict multi-step validity. Full-suite launch remains blocked.
+
+## September 19 controlled-comparison qualification
+
+The modeled planner family is now independent of protagonist search. The controlled
+comparison declares the same MCTS L1 budget (50,000), exploration rule, initial
+empirical prior (2,500 samples) and search seed as the executing opponent. Each
+agent maintains isolated private beliefs thereafter. RTS lookahead remains 500
+particles. MCTS protagonist uses 20,000 simulations in this qualification panel.
+This changes the scientific configuration; it is not a pure speed optimization.
+
+Ten seeds, twenty steps, depth three, two workers, 300-second/3,072-MiB per-trial
+limits: RTS completes 10/10 and MCTS completes 10/10. RTS means are I=3.10,
+J=-53.00, 34.61 wall seconds/trial,
+34.58 CPU seconds/trial, max RSS 168.50 MiB.
+MCTS means are I=3.10, J=-53.00,
+38.86 wall seconds/trial, 38.83 CPU seconds/trial,
+max RSS 169.79 MiB. Timing overlaps other qualification work.
+These ten-seed panels demonstrate successful execution, not performance equivalence
+or general optimality. All twenty-one rows per trial and source hashes were verified.
+
+The earlier family/budget-only panel retained independent initial priors and seeds:
+RTS completed 5/10 and MCTS
+completed 8/10. Failed trials
+are retained and excluded from no purported full-panel mean. Matching only a
+planner name and simulation count was insufficient to specify the policy kernel.
+
+All 122 tests pass across unit and integration invocations (no xfails), including
+Wumpus; all 39 reduced-budget smoke conditions pass. The existing L3-vs-L2 prior
+benchmark is unchanged in experimental design; no new equivalence claim is made.
+Ordinary full-suite process supervision, remaining full-depth condition coverage,
+demo consolidation and authoritative-checkout reconciliation are still open.

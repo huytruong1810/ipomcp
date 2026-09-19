@@ -25,21 +25,37 @@ def episode(args, seed):
     from core.config import ExperimentConfig
     from examples.experiments import deep_hierarchy_prior_experiment as experiment
 
-    # Overrides are explicit audit parameters, recorded in the manifest. There is
-    # no automatic budget reduction to make a slow configuration appear feasible.
-    experiment.SIM_SCHEDULE[3] = args.sims_i
-    experiment.SIM_SCHEDULE[2] = args.sims_j
-    experiment.PARTICLE_SCHEDULE[3] = args.particles_i
-    experiment.PARTICLE_SCHEDULE[2] = args.particles_j
-    runner = experiment.DeepHierarchyTigerRunner(
-        ExperimentConfig(n_trials=1, max_steps=args.steps),
-        None,
-        3,
-        2,
-        {2: 0.8, 1: 0.1, 0: 0.1},
-        {1: 0.8, 0: 0.2},
-        planning_depth=args.depth,
-    )
+    if args.condition == "prior":
+        # Overrides are explicit audit parameters, recorded in the manifest. There is
+        # no automatic budget reduction to make a slow configuration appear feasible.
+        experiment.SIM_SCHEDULE[3] = args.sims_i
+        experiment.SIM_SCHEDULE[2] = args.sims_j
+        experiment.PARTICLE_SCHEDULE[3] = args.particles_i
+        experiment.PARTICLE_SCHEDULE[2] = args.particles_j
+        runner = experiment.DeepHierarchyTigerRunner(
+            ExperimentConfig(n_trials=1, max_steps=args.steps),
+            None,
+            3,
+            2,
+            {2: 0.8, 1: 0.1, 0: 0.1},
+            {1: 0.8, 0: 0.2},
+            planning_depth=args.depth,
+        )
+    else:
+        from examples.tiger.runners.planner_comparison import ControlledConditionRunner
+
+        runner = ControlledConditionRunner(
+            ExperimentConfig(n_trials=1, max_steps=args.steps),
+            None,
+            "rts" if args.condition == "comparison-rts" else "ipomcp",
+            2,
+            1,
+            args.sims_i,
+            args.depth,
+            n_particles=args.particles_i,
+            obs_branching=args.obs_branching,
+            modeled_opponent_sims=args.modeled_opponent_sims,
+        )
     wall, cpu = time.perf_counter(), time.process_time()
     rows = runner._run_single_trial_parallel(seed)
     result = dict(
@@ -76,6 +92,12 @@ def supervise(args, seed):
         str(args.particles_i),
         "--particles-j",
         str(args.particles_j),
+        "--condition",
+        args.condition,
+        "--modeled-opponent-sims",
+        str(args.modeled_opponent_sims),
+        "--obs-branching",
+        str(args.obs_branching),
         "--worker-seed",
         str(seed),
     ]
@@ -132,6 +154,11 @@ def supervise(args, seed):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--condition", choices=["prior", "comparison-rts", "comparison-mcts"], default="prior"
+    )
+    parser.add_argument("--modeled-opponent-sims", type=int, default=50000)
+    parser.add_argument("--obs-branching", type=int, default=6)
     parser.add_argument("--repo", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--trials", type=int, default=30)
@@ -162,6 +189,10 @@ def main():
         <= 0
     ):
         parser.error("All budgets and limits must be positive")
+    if args.modeled_opponent_sims <= 0 or args.obs_branching <= 0:
+        parser.error("Modeled simulations and observation branching must be positive")
+    if args.condition != "prior" and (args.sims_j != 50000 or args.particles_j != 2500):
+        parser.error("Comparison uses fixed opponent settings: --sims-j 50000 --particles-j 2500")
     if args.worker_seed is not None:
         episode(args, args.worker_seed)
         return
@@ -175,6 +206,16 @@ def main():
     }
     manifest = dict(
         arguments=vars(args),
+        effective_budgets={
+            "initial_samples_i": args.particles_i if args.condition == "prior" else 2500,
+            "initial_samples_j": args.particles_j,
+            "rts_lookahead_particles": args.particles_i
+            if args.condition == "comparison-rts"
+            else None,
+            "real_mcts_sims_i": None if args.condition == "comparison-rts" else args.sims_i,
+            "real_mcts_sims_j": args.sims_j,
+            "modeled_mcts_sims": 10 if args.condition == "prior" else args.modeled_opponent_sims,
+        },
         sources=sources,
         driver_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     )

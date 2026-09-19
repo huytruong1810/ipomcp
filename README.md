@@ -6,8 +6,8 @@ a sampled reachability-tree comparator. Both use immutable joint beliefs and a
 recursive finite Bayesian filter. Finite priors and finite search remain explicit
 approximations; passing tests does not prove optimality or convergence.
 
-**The long full suite is not yet qualified.** A full-depth RTS comparison has a
-demonstrated opponent-model support mismatch. Read [the theory contract](docs/THEORY.md),
+**The long full suite is not yet qualified.** The controlled RTS comparison now
+uses a declared matched opponent model; remaining suite gates are still open. Read [the theory contract](docs/THEORY.md),
 [open gates](BACKLOG.md), [benchmark evidence](docs/BENCHMARK.md), and
 [handoff](HANDOFF.md). [The implementation plan](docs/IMPLEMENTATION_PLAN.md) tracks
 completed work separately from outstanding qualification.
@@ -30,7 +30,7 @@ Graphviz tree rendering also requires the system `dot` executable. Python's
 `graphviz` package is required; a failed rendering is reported rather than silently
 omitted. Rendering is optional when tree export is disabled.
 
-The current suite has 116 passing tests and no expected-failure theory exceptions.
+The current suite has 122 passing tests and no expected-failure theory exceptions.
 Independent bounded Tiger references check filtering and one-step values; they
 do not constitute a general convergence proof.
 

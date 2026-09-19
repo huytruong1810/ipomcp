@@ -61,7 +61,10 @@ class SolverBank:
         return self._solvers[key]
 
     def get_solver_for_frame(self, frame):
-        return self.get_solver(SolverKey(frame.agent_id, frame.level))
+        solver = self.get_solver(SolverKey(frame.agent_id, frame.level))
+        if frame.level and solver.pomdp_model is not frame.pomdp_model:
+            raise ValueError("Frame physics differs from the registered solver")
+        return solver
 
     def _encode_belief(self, belief):
         rows = []

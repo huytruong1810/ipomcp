@@ -16,8 +16,9 @@ Existing source snapshots and benchmark artifacts provide the regression baselin
 This document preserves the accepted implementation order. Current status:
 phases 2–3 are integrated; phase 4 has bounded independent references; phase 5 has
 measured Tiger and L4 evidence; phase 6 cleanup/supervision/integration remains
-partial. Phase 7 is blocked by a demonstrated full-depth RTS support mismatch and
-unestablished reward equivalence. All 116 tests pass and all 39 shallow conditions
+partial. The controlled RTS support mismatch is corrected under a declared matched-computation
+model; phase 7 still lacks full condition coverage and reward equivalence. All 122
+tests pass and all 39 shallow conditions
 pass. Neither result closes the outstanding scientific and execution gates.
 
 ## Modeling decisions
