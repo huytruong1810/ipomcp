@@ -1,59 +1,41 @@
 # Review handoff
 
-The authoritative source is the Ubuntu WSL checkout at
-`/home/andyj1810/projects/ipomcp`. Its uncommitted Antigravity work is preserved.
-Review edits are isolated in `/home/andyj1810/projects/ipomcp-review-20260916`, on
-`review/rigor-20260916`. Nothing has been pushed or merged into the original tree.
+Authoritative checkout: /home/andyj1810/projects/ipomcp (Antigravity local work).
+Review worktree: /home/andyj1810/projects/ipomcp-review-20260916,
+branch review/rigor-20260916. Changes have not been merged or pushed. The unwanted
+Windows clones were already removed; this existing WSL worktree is not a new clone.
 
-The pre-review snapshot commit is `18f666f`, based on original HEAD `e64ef8d` plus
-the original dirty files and three untracked figure generators. The September 17
-Antigravity source is copied to `../ipomcp-antigravity-baseline-20260917`, including
-its local patch. Its new always-listen Tiger rollout is retained in the review;
-the hook has one explicit contract and illegal actions raise errors.
+The integrated implementation replaces mutable latent search nodes with immutable
+finite joint beliefs, uses recursive subjective filtering in both planners, and
+removes the old JIT/reinvigoration paths. Public survival conditions private updates.
+An exact immediate root-reward control variate reduces MCTS reward variance without
+changing its expected backup target. Modeled MCTS budgets remain ten by default.
 
-Old handoff process IDs are not live execution evidence. WSL restarted before the
-September 17 continuation, and none of the previously described experiment workers
-were running when inspected. Check live processes and trial checkpoints directly.
+Validation: 116 tests pass in 378.50 seconds. All 39 reduced-budget suite conditions
+pass. A full-budget L4-vs-L3 twenty-step seed-zero probe completes in 33.24 seconds,
+peak RSS 182.25 MiB. A depth-three RTS twenty-step probe fails with zero finite
+support for a right-creak observation: modeled RTS L1 differs from executing MCTS
+L1 under a point prior. Do not launch the long full suite yet.
 
-The review compares distinct source snapshots using 30 seeds, 20 environment
-decisions, depth 5, L3/L2 budgets 20,000/15,000, and the 80% L2 prior condition.
-Raw audit data and the final comparison report are exported to the Codex task's
-`outputs` directory. The earlier Windows clone experiment is excluded: it did not
-contain the authoritative WSL local changes. Scientific provenance uses Git and
-source hashes, not schema-version branches inside the application.
+Thirty-seed twenty-step depth-five L3-vs-L2 benchmark:
+- First integrated solver: I=-33.93, J=-2.03; 21.38 seconds/trial.
+- With exact root reward: I=-21.10, J=8.23; 24.61 seconds/trial; max RSS 190.96 MiB.
+- Earlier heuristic review: I=15.93, J=5.30; 223.61 seconds/trial.
+- Antigravity snapshot: I=-10.10, J=0.90; 249.70 seconds/trial.
 
-Read docs/REVIEW.md for phases and file coverage, docs/THEORY.md for equations and
-counterexamples, and BACKLOG.md for remaining acceptance criteria. Two strict
-expected-failure tests deliberately keep unresolved theory gaps visible. Do not
-claim this is an exact Bayesian I-POMDP implementation or that RTS is an oracle.
+The latest paired I difference versus the earlier review is -37.03, descriptive
+95% interval [-76.30, 2.24]. This does not establish equivalence. Source/model and
+budget semantics changed, and timings overlapped other audit work. Preserve the
+first regression as evidence; do not select only favorable iterations or seeds.
 
+Raw results are under results/tiger-integrated-30x20,
+results/tiger-integrated-cv-30x20, results/suite-integration-smoke-cv,
+results/stress-integrated-l4-20steps.json and results/stress-integrated-rts-20steps.json.
+Verification logs are under results/verification. Historical source snapshots remain
+in sibling ipomcp-antigravity-baseline-20260917 and ipomcp-reviewed-benchmark-20260917.
+Source hashes and Git identify provenance; no runtime schema migration is required.
 
-Final measured result: 30/30 complete trials in each of the three source snapshots.
-Agent I mean undiscounted return is -30.63 initially, -10.10 after Antigravity's
-rollout change, and 15.93 after the review. The paired review-minus-Antigravity
-95% interval is [-6.83, 58.90]; improvement is not statistically established.
-Full tests: 76 passed, two documented strict xfails. Short CPU probes are 17.3%
-slower despite better observed full-run wall times; do not claim a general speedup.
-See docs/BENCHMARK.md for the complete measurements and their limits.
-
-## September 18 implementation checkpoint
-
-The user approved keeping uniform-random L0. Read docs/MODEL_SPECIFICATION.md and
-docs/IMPLEMENTATION_PLAN.md before continuing. The new finite_belief.py and
-finite_filter.py provide an immutable enumerated recursive-conditioning kernel.
-They deliberately do not accept mutable search nodes. Tests include an independent
-small L2 oracle and a substantive L3 nested-belief update, rather than merely
-checking that a pointer changes. All current domains expose finite transition laws.
-
-The running MCTS/RTS stack still uses its prior representation and update. This
-checkpoint does NOT close its two expected-failure counterexamples or qualify
-long experiments. Next migrate policy/belief consumers together, remove the old
-representation and heuristic reconstruction, validate sampled updates against the
-finite kernel, then run the specified before/after and suite stress experiments.
-Preserve the original WSL checkout's uncommitted Antigravity changes throughout.
-
-Checkpoint validation: 109 passed and 2 strict expected failures in 94.78 seconds;
-the 33 finite-filter tests pass. Ruff lint/format, git diff whitespace validation,
-and wheel build pass. The original tracked and untracked source files still match
-the captured September 17 Antigravity snapshot byte-for-byte. No new long-run
-reward comparison is claimed for this not-yet-integrated kernel.
+Next: resolve the explicit opponent-model choice, enforce bank identity contracts,
+qualify remaining conditions, add full-suite process supervision, consolidate demo
+execution and reconcile the original checkout. Read BACKLOG.md and docs/THEORY.md.
+Native Graphviz dot is missing, so optional rendering remains unverified.

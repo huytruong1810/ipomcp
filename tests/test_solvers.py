@@ -111,3 +111,24 @@ def test_nested_initial_models_share_the_unconditional_empirical_physical_prior(
             assert {inner.state for inner, _ in atom.opponent.belief.mass} == outer_states
     with pytest.raises(ValueError, match="same initial physical sample count"):
         bank.initial_states(solver.pomdp_model, 30)
+
+
+@pytest.mark.parametrize("budget", [3, 10, 100])
+def test_one_step_mcts_values_equal_exact_expected_rewards(budget):
+    from tests.reference_tiger import finite_horizon_values
+    from tests.test_finite_filter import l1
+
+    bank = SolverBank(seed=7)
+    model = TigerModel()
+    cfg = IPOMCPConfig(
+        mcts=MCTSConfig(n_sims=budget, max_depth=1), opponent=OpponentPolicyConfig(n_sims=budget)
+    )
+    solver = I_POMDP_Bootstrapper(bank).create_solver(
+        "i", 1, model, ["j"], n_particles=20, config=cfg
+    )
+    for probability in [0.5, 0.85, 0.99]:
+        subjective = l1(model, "i", probability)
+        actual = solver.policy_for(subjective)
+        reference = finite_horizon_values(probability, 1)
+        assert solver.root.action_values == pytest.approx(reference)
+        assert actual == greedy_policy(reference)

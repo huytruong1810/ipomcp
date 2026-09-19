@@ -2,21 +2,15 @@
 
 This project studies finite hierarchies of agent models with Monte Carlo planning
 in Tiger, UAV pursuit, and Wumpus domains. It contains an I-POMCP-style planner and
-a sampled reachability-tree comparator. **The current interactive belief update
-is heuristic and has known theoretical defects.** Neither planner is a verified
-exact I-POMDP solver. Engineering tests and favorable returns do not establish
-Bayesian correctness or convergence.
+a sampled reachability-tree comparator. Both use immutable joint beliefs and a
+recursive finite Bayesian filter. Finite priors and finite search remain explicit
+approximations; passing tests does not prove optimality or convergence.
 
-Read [the model contract and limitations](docs/THEORY.md), the
-[module-by-module review](docs/REVIEW.md), and [open work](BACKLOG.md) before using
-results in a research claim. [HANDOFF.md](HANDOFF.md) records the review workspace
-and experiment provenance without assuming old process IDs are still alive.
-
-The accepted corrected-model specification is in
-[MODEL_SPECIFICATION.md](docs/MODEL_SPECIFICATION.md). An immutable finite-support
-recursive filter now provides a tested reference for migration. It is not yet
-integrated into the experiment planners; the existing correctness warning still
-applies. [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) records the gates.
+**The long full suite is not yet qualified.** A full-depth RTS comparison has a
+demonstrated opponent-model support mismatch. Read [the theory contract](docs/THEORY.md),
+[open gates](BACKLOG.md), [benchmark evidence](docs/BENCHMARK.md), and
+[handoff](HANDOFF.md). [The implementation plan](docs/IMPLEMENTATION_PLAN.md) tracks
+completed work separately from outstanding qualification.
 
 ## Setup and validation
 
@@ -36,10 +30,9 @@ Graphviz tree rendering also requires the system `dot` executable. Python's
 `graphviz` package is required; a failed rendering is reported rather than silently
 omitted. Rendering is optional when tree export is disabled.
 
-The two strict expected failures in `tests/test_theory_gaps.py` are executable
-counterexamples for unresolved theoretical defects. They must not be counted as
-successful correctness tests. `tests/reference_tiger.py` is an exact finite-state
-reference only for fixed subintentional opponent policies.
+The current suite has 116 passing tests and no expected-failure theory exceptions.
+Independent bounded Tiger references check filtering and one-step values; they
+do not constitute a general convergence proof.
 
 ## Experiments
 
@@ -54,7 +47,7 @@ is explicitly selected. Its leaf rollout always listens, a finite-budget heurist
 # One condition: L3 versus L2, with 80% prior mass on L2.
 uv run python -m examples.experiments.deep_hierarchy_prior_experiment --trials 30 --steps 20 --condition 1
 
-# Full suite; potentially expensive at higher levels.
+# Full-suite entry point; qualification blockers remain (see BACKLOG.md).
 uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite all
 
 # Resume exactly one suite, using its actual output directory.
@@ -73,9 +66,10 @@ migration or compatibility reader.
 
 Interaction horizon and planning depth are different quantities. The audit uses
 20 environment decisions and depth-five search, with 20,000 L3 and 15,000 L2 root
-simulations per decision. Configured initial particle requests are 2,000 and 1,500,
-but the experiment's node capacity caps their retained reservoirs at 1,000 each.
-This cap must be reported when interpreting the nominal particle schedule.
+simulations per decision. Initial physical sample counts are 2,000 and 1,500. Nested models share their own
+bank's empirical physical prior; level weights are exact and search-node capacity
+does not clip the live belief. Modeled MCTS policies use ten simulations by default,
+which differs from the real-agent budgets and must be reported.
 
 ## Layout and result interpretation
 

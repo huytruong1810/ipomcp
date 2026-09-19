@@ -1,62 +1,47 @@
 # Open work and acceptance criteria
 
-These items are verified limitations, not a maturity scorecard. Passing engineering
-tests does not close the mathematical items. See [THEORY.md](docs/THEORY.md).
+## P0 — Full-suite qualification
 
-## September 18 implementation checkpoint
+- Resolve the demonstrated depth-three RTS/MCTS opponent-model mismatch. The RTS
+  protagonist models RTS L1 but faces MCTS L1 under a point prior. Seed zero fails
+  on a right-creak observation. Keep strict inference; do not invent a posterior.
+  Explicitly choose whether to match opponent models or study misspecification.
+- Reward equivalence is not established. The corrected thirty-seed Tiger result
+  is I=-21.10, J=8.23; the earlier heuristic review was I=15.93, J=5.30.
+  Investigate policy-budget sensitivity using held-out seeds before research claims.
+- Qualify every condition at intended depth and budgets. All 39 shallow smoke
+  cases pass; one twenty-step L4 probe passes, but the RTS probe fails. These are
+  not interchangeable forms of evidence.
+- Provide ordinary suite workers with enforced time/RSS limits and failure records
+  equivalent to the isolated audit driver before unattended full-suite execution.
 
-Uniform-random L0 is confirmed. The immutable finite-belief and recursive enumerated
-filter foundation is implemented with independent bounded L2 tests. Finite
-transition laws are available for all three domains. These are prerequisites,
-not closure of the application-level P0 items: migrate bootstrap, MCTS, RTS,
-statistics and visualization consumers before removing the old representation.
-Do not launch the long full suite until all implementation-plan gates pass.
+## P1 — Architecture and approximation evidence
 
-## P0 — Research-validity blockers
+- Enforce fixed bank configuration on repeated bootstrap registration and frame
+  lookup; currently callers must honor that invariant.
+- Separate modeled opponent planner identity/budget from protagonist planner choice.
+  Report computational misspecification rather than labeling different kernels equal.
+- Quantify RTS omitted observation mass and its value-error impact.
+- Characterize value and distribution error over independent seeds and budgets;
+  current exact-reference tests establish bounded cases only.
+- Consolidate remaining demo episode loops around the common runner.
+- Use per-step/per-purpose environment streams for stronger common-random-number
+  comparisons when action-dependent random consumption differs.
+- Reconcile and integrate the review into the original WSL checkout while preserving
+  concurrent Antigravity changes. No reset, automatic overwrite or push.
 
-- Replace epoch-preserving and factorized root reconstruction with a joint
-  history-conditioned filter. Close the diagnostic-creak counterexample without
-  forcing posterior floors or changing the fixture's known policies.
-- Separate immutable subjective beliefs from MCTS nodes; recursively transition
-  all nested private models. Close the history-advancement counterexample and
-  compare an enumerated small L2 case across all reachable observations.
-- Specify one opponent policy contract, including the intentionality assumption,
-  tie handling, and whether real and modeled agents differ. JIT uncertainty must
-  correspond to that same distribution. Establish the limits of any convergence
-  argument for the resulting simulator.
-- Replace unsupported deprivation behavior: old-belief retention and initial-prior
-  proposals cannot silently count as Bayesian updates. Distinguish impossible
-  observations from finite-sample impoverishment and test both.
+## P2 — Domain and presentation evidence
 
-## P1 — Experimental and architectural completeness
+- Run substantive UAV and Wumpus studies. Wumpus integration tests pass but are
+  expensive; Tiger evidence alone does not qualify those domains.
+- Verify optional tree rendering once native Graphviz dot is installed.
+- Expand figure QA and payoff uncertainty analysis. No equilibrium theorem follows
+  from a noisy finite payoff matrix.
+- Select a scientific equivalence margin and sufficiently powered held-out study
+  before asserting equal or better expected reward.
 
-- Separate belief storage from particle routing and count observation likelihoods
-  independently of capped reservoirs. Preserve state/type/history correlations.
-- Add exact small intentional-agent references, then evaluate approximation error
-  as particles, simulation count, planning horizon, and model depth vary separately.
-- Define matched budgets/opponents for RTS comparisons. Top-k observation omission
-  is an approximation; quantify lost mass and reward error. Remove remaining RTS
-  belief-update duplication when implementing the common subjective filter.
-- Report retained versus requested particle budgets. The principal Tiger setup
-  requests more particles than its capacity; changing capacity needs its own study.
-- Use counter-based per-step environment randomness if strict CRN alignment is
-  required after policies cause differing numbers of random draws. Current streams
-  are separated from planning but consumption still depends on actions.
-- Add process isolation to file logging if concurrent shared-file logs are needed;
-  source/manifest/trial records remain the authoritative evidence.
-- Replace old ad hoc interactive demo runners with the batch episode engine once
-  their differing sensor configurations and visualization contracts are explicit.
-  Those entry points have been reviewed but not all coalesced in this patch.
-
-## P2 — Scope-specific validation
-
-- Rebenchmark corrected UAV and Wumpus semantics; Tiger evidence does not validate
-  those domains. Verify self-observation and action-mask information assumptions.
-- Expand figure QA and finite-policy equilibrium uncertainty analysis. A pure
-  best-response cell in a noisy estimated payoff matrix is not a proven equilibrium.
-- Introduce a user-selected statistical equivalence margin and a powered study
-  before asserting equal or better expected performance. Thirty paired trials are
-  a regression experiment, not a universal guarantee.
-
-Completed fixes and per-file dispositions are recorded in docs/REVIEW.md and tests.
-No schema migrations or backward-compatibility shims are required.
+Completed: immutable joint beliefs; recursive private-history filtering; common
+online update in both planners; explicit zero-support failures; unified greedy
+policy contract; exact level weights; stable private solves; independent bounded
+references; removal of reinvigoration/JIT compatibility paths; root reward control
+variate. Tests: 116 passed, no xfails. See docs/REVIEW.md and docs/BENCHMARK.md.

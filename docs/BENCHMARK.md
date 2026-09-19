@@ -69,3 +69,32 @@ runtime-summary.json (exported audit artifact: `runtime-summary.json`).
   trial counts 41/44, and treasure counts 139/149 and 113/120. This verifies that
   artifact's arithmetic, not an independently pinned source revision for that run.
   See note verification (exported audit artifact: `antigravity-notes-verification.json`).
+
+## Integrated finite-filter qualification — September 18
+
+The historical measurements above describe their source snapshots, not current
+solver behavior. All new thirty-trial runs use twenty steps, depth five, L3/L2
+real budgets 20k/15k and the 80% L2 prior. The new model uses shared empirical
+physical priors, exact level weights, recursively evolving immutable beliefs and
+ten-simulation modeled MCTS policies. Old node-capacity clipping no longer applies.
+
+| Implementation | Mean I | Mean J | Mean wall seconds | Max worker MiB |
+|---|---:|---:|---:|---:|
+| Integrated filter | -33.93 | -2.03 | 21.38 | 194.95 |
+| Exact root reward control variate | -21.10 | 8.23 | 24.61 | 190.96 |
+
+Both panels contain all thirty seeds and twenty-one rows per seed. The second
+run's mean CPU time is 24.36 seconds/trial. Paired second-minus-earlier-review
+differences: I=-37.03 (95% t interval [-76.30,2.24]), J=2.93 ([-21.31,27.17]).
+Versus Antigravity: I=-11.00 ([-54.13,32.13]), J=7.33 ([-10.30,24.97]).
+These are descriptive exploratory comparisons on reused seeds, not confirmatory
+equivalence tests. No equivalence margin was prespecified; timings overlapped
+other audit work. The model changed, so this is not a pure optimization comparison.
+
+All 39 depth-one, three-step smoke conditions pass. The full-budget seed-zero
+L4/L3 depth-five twenty-step probe completes in 33.24 seconds, 182.25 MiB peak.
+The RTS L2/MCTS L1 depth-three probe with 500 RTS particles and 50k real opponent
+simulations fails after 7.09 seconds with unsupported right-creak evidence. Its
+point prior models RTS rather than the executing MCTS kernel. Failure remains
+recorded; it is not dropped from a successful-trial average. One-step RTS success
+did not predict multi-step validity. Full-suite launch remains blocked.

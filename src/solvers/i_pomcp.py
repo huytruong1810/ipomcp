@@ -54,6 +54,8 @@ class IPOMCPPlanner(Planner):
         )
 
     def policy_for(self, model, modeled=False):
+        if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
+            raise ValueError("Condition on public continuation before requesting a policy")
         n_sims = self.config.opponent.n_sims if modeled else self.config.mcts.n_sims
         settings = {
             "planner": "MCTS",
@@ -73,7 +75,11 @@ class IPOMCPPlanner(Planner):
             if n_sims < len(next(iter(legal_sets))):
                 raise ValueError("Search budget must evaluate every available action")
             particles, weights = zip(*model.belief.mass)
-            bounds = {"q_min": float("inf"), "q_max": -float("inf")}
+            bounds = {
+                "q_min": float("inf"),
+                "q_max": -float("inf"),
+                "root_rewards": dict(self.solver_bank.expected_rewards(model)),
+            }
             # Draw in one batch; random.choices constructs its cumulative weights once.
             for particle in random.choices(particles, weights=weights, k=n_sims):
                 self._simulate(particle, node, 0, bounds)
@@ -94,9 +100,10 @@ class IPOMCPPlanner(Planner):
             node, legal, q_min=bounds["q_min"], q_max=bounds["q_max"]
         )
         if depth + 1 == self.config.mcts.max_depth:
-            _, _, q, _ = self.gen_model.sample_event(
+            _, _, reward, _ = self.gen_model.sample_event(
                 particle, action, self.key.agent_id, self.pomdp_model
             )
+            q = reward
         else:
             following, joint, reward, terminal = self.gen_model.tree_step(
                 particle, action, self.key.agent_id, self.pomdp_model
@@ -118,6 +125,8 @@ class IPOMCPPlanner(Planner):
                 )
             )
             q = reward + self.config.mcts.gamma * continuation
+        if depth == 0:
+            q += bounds["root_rewards"][action] - reward
         node.action_counts[action] = node.action_counts.get(action, 0) + 1
         node.action_values[action] = (
             node.action_values.get(action, 0)

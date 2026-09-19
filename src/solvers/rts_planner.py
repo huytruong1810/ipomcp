@@ -44,6 +44,8 @@ class RTSPlanner(Planner):
         )
 
     def policy_for(self, model, modeled=False):
+        if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
+            raise ValueError("Condition on public continuation before requesting a policy")
         with search_randomness(
             self.solver_bank.search_seed(model, {"planner": "RTS", "config": asdict(self.config)})
         ):

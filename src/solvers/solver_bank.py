@@ -21,7 +21,9 @@ class SolverBank:
         self.seed = random.getrandbits(64) if seed is None else seed
         self.filter = FiniteInteractiveFilter(self.policy, cache_size=512)
         self._cached_policy = lru_cache(maxsize=512)(self._evaluate_policy)
-        self._belief_digest = lru_cache(maxsize=4096)(self._encode_belief)
+        self._belief_digest = lru_cache(maxsize=256)(self._encode_belief)
+        self._state_value = lru_cache(maxsize=16384)(stable_value)
+        self.expected_rewards = lru_cache(maxsize=512)(self._expected_rewards)
 
     def initial_states(self, physics, count):
         """One shared empirical physical prior per domain within this bank.
@@ -68,7 +70,7 @@ class SolverBank:
             physics = opponent.frame.pomdp_model
             rows.append(
                 [
-                    stable_value(atom.state),
+                    self._state_value(atom.state),
                     mass.hex(),
                     stable_value(opponent.frame.agent_id),
                     opponent.frame.level,
@@ -81,6 +83,44 @@ class SolverBank:
         import json
 
         return digest(sorted(rows, key=json.dumps))
+
+    def _expected_rewards(self, model):
+        """Integrate immediate reward over the full joint prior and finite dynamics.
+
+        This is a control variate for root-sampling MCTS: Q(b,a) equals this
+        expectation plus the discounted expected continuation. UCB's root action
+        selection does not inspect the newly sampled hidden state, so replacing
+        the sampled immediate reward by its exact expectation preserves the value
+        target. Successor states and continuations are still sampled jointly.
+        It removes a major source of variance from rare Tiger penalties, without
+        changing reward, observation or policy semantics.
+        """
+        import math
+
+        from ipomdp.finite_filter import checked_distribution
+
+        frame, physics = model.frame, model.frame.pomdp_model
+        rewards = []
+        for action in physics.get_all_actions(frame.agent_id):
+            terms = []
+            for atom, mass in model.belief.mass:
+                if physics.is_terminal(atom.state):
+                    continue
+                for other_action, probability in self.filter.action_distribution(
+                    atom.opponent, atom.state
+                ):
+                    joint = {frame.agent_id: action, atom.opponent.frame.agent_id: other_action}
+                    for following, transition_mass in checked_distribution(
+                        physics.transition_distribution(atom.state, joint), "Transition"
+                    ):
+                        terms.append(
+                            mass
+                            * probability
+                            * transition_mass
+                            * physics.get_reward(atom.state, joint, following, frame.agent_id)
+                        )
+            rewards.append((action, math.fsum(terms)))
+        return tuple(rewards)
 
     def search_seed(self, model, settings):
         return digest(
@@ -104,3 +144,5 @@ class SolverBank:
         self._cached_policy.cache_clear()
         self.filter.clear_caches()
         self._belief_digest.cache_clear()
+        self._state_value.cache_clear()
+        self.expected_rewards.cache_clear()

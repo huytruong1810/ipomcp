@@ -305,3 +305,29 @@ processes and record CPU time separately from shared-machine wall time.
 
 Full regression result: 109 passed, two existing strict expected failures. Both
 application planners still require migration before the P0 findings can close.
+
+## Integrated module follow-through — September 18
+
+The previous file dispositions are historical review evidence. Current changes:
+`ipomdp/belief.py` is removed; finite_belief/filter and frame now define immutable
+joint models and recursive inference. Solver bank, policy, MCTS, RTS, generative
+model and bootstrap consume those models. Mutable tree reservoirs are diagnostic.
+Online filters share one implementation; JIT/reinvigoration APIs are removed.
+Batch statistics and visualizers consume weighted joint beliefs. Independent
+reference and online tests replace the former xfail and reinvigoration tests.
+
+Holistically, separating inference from search closes the demonstrated private-
+history and type-conditioning defects. Stable private solves make caching a
+runtime optimization instead of an implicit policy mutation. Common unconditional
+initial measures avoid independently sampled nested support contradictions. Public
+survival is part of both outer and private conditioning. Exact root rewards reduce
+noise while preserving the expected backup target.
+
+The remaining cross-component weakness is scientific configuration: planner
+identity and computational budget are part of the opponent policy, but current
+bootstrap builds the modeled solver family from the protagonist's solver family.
+The RTS comparison therefore has an explicit kernel mismatch, now exposed by
+strict inference. Fixed bank configuration also relies too much on caller discipline.
+Runtime supervision is stronger in the audit driver than in ordinary suite jobs.
+Demo consolidation and all-domain approximation studies remain incomplete.
+This is a substantial validated correction, not certification of the entire plan.

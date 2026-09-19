@@ -13,8 +13,12 @@ is commit `7d5402c`. No new clone is needed. The original checkout has uncommitt
 Antigravity changes, so integration must preserve and reconcile those changes.
 Existing source snapshots and benchmark artifacts provide the regression baseline.
 
-This document specifies the implementation order. It does not claim the planned
-fixes have already been implemented or that the project is experiment-ready.
+This document preserves the accepted implementation order. Current status:
+phases 2–3 are integrated; phase 4 has bounded independent references; phase 5 has
+measured Tiger and L4 evidence; phase 6 cleanup/supervision/integration remains
+partial. Phase 7 is blocked by a demonstrated full-depth RTS support mismatch and
+unestablished reward equivalence. All 116 tests pass and all 39 shallow conditions
+pass. Neither result closes the outstanding scientific and execution gates.
 
 ## Modeling decisions
 
