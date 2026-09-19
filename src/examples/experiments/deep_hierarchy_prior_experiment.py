@@ -121,29 +121,9 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
         return env, planner_i, planner_j, env.get_initial_state()
 
 
-def run_deep_prior_experiment(
-    n_trials: int = 50,
-    max_steps: int = 20,
-    planning_depth: int = 5,
-    resume_dir: Optional[str] = None,
-    condition_idx: Optional[int] = None,
-):
-    if resume_dir and os.path.exists(resume_dir):
-        master_dir = resume_dir
-        logger.info(f"Resuming existing benchmark from: {master_dir}")
-    else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        cond_tag = f"_cond{condition_idx}" if condition_idx is not None else ""
-        master_dir = get_results_dir(
-            "deep_prior", f"deep_prior_benchmark_{timestamp}{cond_tag}_N{n_trials}_T{max_steps}"
-        )
-
-    logger.info(
-        f"=== STARTING DEEP HIERARCHY PRIOR BENCHMARK (N={n_trials}, T={max_steps}, Depth={planning_depth}) ==="
-    )
-    logger.info(f"Results Directory: {master_dir}")
-
-    conditions = [
+def experiment_conditions(planning_depth=5):
+    """One condition table shared by suite execution and qualification."""
+    return [
         # Level 3 Variations
         {
             "name": "L3 vs L2 (80% L2 Prior)",
@@ -196,6 +176,31 @@ def run_deep_prior_experiment(
             "prior_j": {0: 1.0},
         },
     ]
+
+
+def run_deep_prior_experiment(
+    n_trials: int = 50,
+    max_steps: int = 20,
+    planning_depth: int = 5,
+    resume_dir: Optional[str] = None,
+    condition_idx: Optional[int] = None,
+):
+    if resume_dir and os.path.exists(resume_dir):
+        master_dir = resume_dir
+        logger.info(f"Resuming existing benchmark from: {master_dir}")
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        cond_tag = f"_cond{condition_idx}" if condition_idx is not None else ""
+        master_dir = get_results_dir(
+            "deep_prior", f"deep_prior_benchmark_{timestamp}{cond_tag}_N{n_trials}_T{max_steps}"
+        )
+
+    logger.info(
+        f"=== STARTING DEEP HIERARCHY PRIOR BENCHMARK (N={n_trials}, T={max_steps}, Depth={planning_depth}) ==="
+    )
+    logger.info(f"Results Directory: {master_dir}")
+
+    conditions = experiment_conditions(planning_depth)
 
     if condition_idx is not None:
         if 1 <= condition_idx <= len(conditions):

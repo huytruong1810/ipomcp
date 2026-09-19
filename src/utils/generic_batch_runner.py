@@ -1,4 +1,3 @@
-import concurrent.futures
 import gc
 import hashlib
 import json
@@ -7,8 +6,10 @@ import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ from core.logger import get_logger
 from core.pomdp_model import POMDPModel, State
 from core.telemetry import SystemMonitor
 from solvers.planner import Planner
+from utils.process_supervisor import supervise_jobs
 
 logger = get_logger("BatchRunner")
 
@@ -394,8 +396,9 @@ class GenericBatchRunner(ABC):
 
         Resume is allowed only with identical source and runner configuration.
         Worker failures are collected, completed trials stay available, and no
-        completion marker is written for an incomplete experiment. Worker recycling
-        bounds allocator retention across episodes, not the live memory of one tree.
+        completion marker is written for an incomplete experiment. Every trial,
+        including single-worker runs, has isolated wall-time/process-tree RSS
+        supervision. Limits and defaults are recorded in the experiment manifest.
         """
         source_root = Path(__file__).resolve().parents[1]
         digest = hashlib.sha256()
@@ -433,37 +436,35 @@ class GenericBatchRunner(ABC):
                 pending.append(trial)
         if max_workers is not None and (type(max_workers) is not int or max_workers < 1):
             raise ValueError("max_workers must be a positive integer")
-        workers = min(max_workers or (os.cpu_count() or 1), len(pending) or 1)
+        workers = min(max_workers or self.config.max_workers, len(pending) or 1)
         failures = []
-        if pending and workers == 1:
-            for trial in pending:
-                frame = pd.DataFrame(self._run_single_trial_parallel(trial))
-                if not _valid_panel(frame, [trial], self.config.max_steps):
-                    raise ValueError(f"Trial {trial} returned an incomplete panel.")
-                if root:
-                    _write_csv_atomic(frame, root / "trials" / f"{trial:06}.csv")
-                frames.append(frame)
-        elif pending:
-            for start in range(0, len(pending), workers * 20):
-                with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-                    futures = {
-                        executor.submit(self._run_single_trial_parallel, trial): trial
-                        for trial in pending[start : start + workers * 20]
-                    }
-                    for future in concurrent.futures.as_completed(futures):
-                        trial = futures[future]
-                        try:
-                            frame = pd.DataFrame(future.result())
-                            if not _valid_panel(frame, [trial], self.config.max_steps):
-                                raise ValueError(f"Trial {trial} returned an incomplete panel.")
-                            if root:
-                                _write_csv_atomic(frame, root / "trials" / f"{trial:06}.csv")
-                            frames.append(frame)
-                            logger.info("Completed %s/%s trials", len(frames), self.config.n_trials)
-                        except Exception as exc:
-                            # Aggregate worker failures deliberately; never reinterpret them as data.
-                            failures.append((trial, str(exc)))
-                            logger.exception("Trial %s failed", trial)
+        attempt = root / "attempts" / uuid4().hex if root and pending else None
+        jobs = {trial: partial(self._run_single_trial_parallel, trial) for trial in pending}
+        for trial, outcome in supervise_jobs(
+            jobs,
+            workers=workers,
+            timeout_seconds=self.config.trial_timeout_seconds,
+            max_rss_mb=self.config.max_trial_rss_mb,
+            log_directory=attempt,
+        ):
+            rows = outcome.pop("rows", None)
+            if outcome["status"] == "complete":
+                try:
+                    frame = pd.DataFrame(rows)
+                    if not _valid_panel(frame, [trial], self.config.max_steps):
+                        raise ValueError(f"Trial {trial} returned an incomplete panel.")
+                    if root:
+                        _write_csv_atomic(frame, root / "trials" / f"{trial:06}.csv")
+                    frames.append(frame)
+                except Exception as error:
+                    outcome.update(
+                        status="failed", reason=str(error), error_type=type(error).__name__
+                    )
+            if attempt:
+                (attempt / f"trial-{trial}.json").write_text(json.dumps(outcome, indent=2))
+            if outcome["status"] != "complete":
+                failures.append((trial, outcome))
+                logger.error("Trial %s failed: %s", trial, outcome["reason"])
         df = (
             pd.concat(frames, ignore_index=True).sort_values(["trial", "step"])
             if frames
@@ -486,10 +487,33 @@ class GenericBatchRunner(ABC):
             temporary.replace(path.with_suffix(".complete.json"))
         return df
 
-    def run_single_trial_with_snapshots(self, trial_id: int = 0):
-        """Run the batch episode semantics with deterministic, RNG-neutral snapshots."""
+    def _episode_with_snapshots(self, trial_id):
         snapshots = {}
-        records = self._run_episode(trial_id, snapshots)
+        return self._run_episode(trial_id, snapshots), snapshots
+
+    def run_single_trial_with_snapshots(self, trial_id: int = 0):
+        """Supervise the same episode semantics used by batches, with snapshots.
+
+        Suite entry points request these before batch execution. They must obey
+        the same resource limits rather than leaving an unbounded preliminary run.
+        """
+        attempt = Path(self.log_dir) / "attempts" / uuid4().hex if self.log_dir else None
+        results = dict(
+            supervise_jobs(
+                {trial_id: partial(self._episode_with_snapshots, trial_id)},
+                workers=1,
+                timeout_seconds=self.config.trial_timeout_seconds,
+                max_rss_mb=self.config.max_trial_rss_mb,
+                log_directory=attempt,
+            )
+        )
+        outcome = results[trial_id]
+        payload = outcome.pop("rows", None)
+        if attempt:
+            (attempt / f"snapshot-{trial_id}.json").write_text(json.dumps(outcome, indent=2))
+        if outcome["status"] != "complete":
+            raise RuntimeError(f"Snapshot episode failed: {outcome}")
+        records, snapshots = payload
         if self.log_dir:
             path = Path(self.log_dir) / f"nested_belief_snapshots_trial_{trial_id}.json"
             path.write_text(json.dumps(snapshots, indent=2), encoding="utf-8")

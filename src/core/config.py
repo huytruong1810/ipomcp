@@ -97,6 +97,11 @@ class ExperimentConfig:
     max_steps: int = 10
     export_trees: bool = False
     verbose: bool = False
+    # Limits apply even to a single-worker run. Explicit per-run settings enter
+    # the manifest so resuming cannot silently change the execution contract.
+    max_workers: int = 2
+    trial_timeout_seconds: float = 900.0
+    max_trial_rss_mb: float = 3072.0
 
     def save(self, filepath: str) -> None:
         """Persists the experiment configuration to disk for scientific reproducibility."""
@@ -107,6 +112,9 @@ class ExperimentConfig:
     def __post_init__(self):
         _integer(self.n_trials, "n_trials")
         _integer(self.max_steps, "max_steps", minimum=0)
+        _integer(self.max_workers, "max_workers")
+        _positive(self.trial_timeout_seconds, "trial_timeout_seconds")
+        _positive(self.max_trial_rss_mb, "max_trial_rss_mb")
 
 
 def _integer(value, name, minimum=1):

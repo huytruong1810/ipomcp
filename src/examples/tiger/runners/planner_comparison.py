@@ -136,29 +136,9 @@ class ControlledConditionRunner(GenericBatchRunner):
         return env, planner_i, planner_j, env.get_initial_state()
 
 
-def run_planner_comparison(
-    n_trials: int = 50,
-    max_steps: int = 20,
-    planning_depth: int = 3,
-    resume_dir: Optional[str] = None,
-):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if resume_dir and os.path.exists(resume_dir):
-        master_dir = resume_dir
-        logger.info(f"Resuming existing reference benchmark from: {master_dir}")
-    else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        master_dir = get_results_dir(
-            "reference",
-            f"planner_comparison_reference_{timestamp}_N{n_trials}_T{max_steps}_D{planning_depth}",
-        )
-
-    logger.info(
-        f"=== STARTING PLANNER COMPARISON BENCHMARK (N={n_trials}, Horizon={max_steps}, Depth={planning_depth}) ==="
-    )
-    logger.info(f"Results Directory: {master_dir}")
-
-    conditions = [
+def experiment_conditions(planning_depth=5):
+    """One condition table shared by suite execution and qualification."""
+    return [
         {
             "name": f"Approximate RTS (Depth {planning_depth})",
             "type": "rts",
@@ -202,6 +182,31 @@ def run_planner_comparison(
             "particles": 2000,
         },
     ]
+
+
+def run_planner_comparison(
+    n_trials: int = 50,
+    max_steps: int = 20,
+    planning_depth: int = 3,
+    resume_dir: Optional[str] = None,
+):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if resume_dir and os.path.exists(resume_dir):
+        master_dir = resume_dir
+        logger.info(f"Resuming existing reference benchmark from: {master_dir}")
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        master_dir = get_results_dir(
+            "reference",
+            f"planner_comparison_reference_{timestamp}_N{n_trials}_T{max_steps}_D{planning_depth}",
+        )
+
+    logger.info(
+        f"=== STARTING PLANNER COMPARISON BENCHMARK (N={n_trials}, Horizon={max_steps}, Depth={planning_depth}) ==="
+    )
+    logger.info(f"Results Directory: {master_dir}")
+
+    conditions = experiment_conditions(planning_depth)
 
     exp_config = ExperimentConfig(
         n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False
