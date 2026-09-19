@@ -80,7 +80,7 @@ reference tests verify Q values across several budgets and beliefs.
 
 ## Evidence and boundaries
 
-The test suite has 122 passing tests and no expected-failure theory exceptions.
+The test suite has 127 passing tests and no expected-failure theory exceptions.
 An independent scalar L2 Tiger enumeration covers actions, observations, private
 priors, sensor accuracies and reset/persistent dynamics. Other tests cover deeper
 private-history advancement, diagnostic type elimination, joint correlations,
@@ -89,8 +89,8 @@ public survival, cache eviction, serialization and online integration.
 These bounded checks do not prove general convergence, all-domain correctness or
 uniform approximation quality. Finite support can grow rapidly with nesting and
 history. Branch limits and bounded cache entry counts are not whole-process memory
-limits. The audit driver enforces wall/RSS limits; the ordinary suite runner does
-not yet provide equivalent supervision. Tiger reward measurements do not certify
+limits. The audit and ordinary suite runners enforce wall/RSS limits through process
+supervision; RSS is sampled, so transient allocation spikes can be missed. Tiger reward measurements do not certify
 UAV or Wumpus research conclusions. See BENCHMARK.md and BACKLOG.md for measured
 evidence and outstanding gates. The foundational interactive-filter literature
 motivates subjective recursive propagation; its theorems are not inherited merely

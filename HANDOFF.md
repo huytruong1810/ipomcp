@@ -1,57 +1,48 @@
 # Review handoff
 
-Authoritative checkout: /home/andyj1810/projects/ipomcp, unchanged from the captured
-Antigravity source. Review worktree: /home/andyj1810/projects/ipomcp-review-20260916,
-branch review/rigor-20260916. Nothing is merged or pushed into the original.
+Authoritative WSL checkout: /home/andyj1810/projects/ipomcp.
+Review worktree: /home/andyj1810/projects/ipomcp-review-20260916.
+The pre-integration tracked and untracked Antigravity source is preserved in
+backup/antigravity-before-supervision-20260919 (commit 6a9393648ad1f6d9d3c8c3731e7b05250d689956).
+The original index/worktree were unchanged when that recovery snapshot was made.
+Engineering source is integrated into main at 02d814b; the final
+integration record documents the retained stash and recovery branch. The original checkout also passed all 123 non-integration tests after dependency synchronization. Nothing is pushed.
 
-The September 18 immutable-filter integration is followed by separate modeled
-planner configuration, corrected frame binding, and a declared matched-computation
-RTS/MCTS comparison. See docs/MODEL_SPECIFICATION.md for the public initialization
-assumption. No posterior fallback, action lapse or live private-state sharing was
-introduced. Solver lookup rejects mismatched physics identity; bootstrap retains
-the registered private solver's frame when reusing it.
+## Supervised full-depth qualification — September 19
 
-## September 19 controlled-comparison qualification
+Every batch trial now uses an isolated Linux process session, including runs with
+one worker. Defaults are two workers, 900 seconds per trial and 3,072 MiB sampled
+process-tree RSS. An explicit run_batch(max_workers=...) overrides the default
+worker count. RSS sampling can miss short spikes; it is not an allocation ceiling.
+The supervisor kills timed-out/over-budget sessions and reaps workers. Snapshot
+episodes preceding suite batches use the same limits. Each attempt retains logs,
+status, wall/RSS measurements and Python traceback where available. Successful
+trial checkpoints survive failures; retries keep historical failure records.
 
-The modeled planner family is now independent of protagonist search. The controlled
-comparison declares the same MCTS L1 budget (50,000), exploration rule, initial
-empirical prior (2,500 samples) and search seed as the executing opponent. Each
-agent maintains isolated private beliefs thereafter. RTS lookahead remains 500
-particles. MCTS protagonist uses 20,000 simulations in this qualification panel.
-This changes the scientific configuration; it is not a pure speed optimization.
+The full-depth qualifier uses the actual condition tables with no reduced search
+budgets. One seed per condition, twenty steps, depth five for prior/matrix and
+depth three for comparison produced:
 
-Ten seeds, twenty steps, depth three, two workers, 300-second/3,072-MiB per-trial
-limits: RTS completes 10/10 and MCTS completes 10/10. RTS means are I=3.10,
-J=-53.00, 34.61 wall seconds/trial,
-34.58 CPU seconds/trial, max RSS 168.50 MiB.
-MCTS means are I=3.10, J=-53.00,
-38.86 wall seconds/trial, 38.83 CPU seconds/trial,
-max RSS 169.79 MiB. Timing overlaps other qualification work.
-These ten-seed panels demonstrate successful execution, not performance equivalence
-or general optimality. All twenty-one rows per trial and source hashes were verified.
+| Suite | Complete | Failed | Max wall seconds | Max sampled RSS MiB |
+|---|---:|---:|---:|---:|
+| Prior | 7 | 0 | 50.48 | 153.96 |
+| Comparison | 7 | 0 | 76.34 | 134.58 |
+| Matrix | 12 | 13 | 900.04 | 696.13 |
 
-The earlier family/budget-only panel retained independent initial priors and seeds:
-RTS completed 5/10 and MCTS
-completed 8/10. Failed trials
-are retained and excluded from no purported full-panel mean. Matching only a
-planner name and simulation count was insufficient to specify the policy kernel.
+All 127 unit/integration tests pass, including fault injection for time, RSS,
+process crashes, descendant cleanup and checkpoint recovery. The failed matrix
+trials remain failures, not zero returns or omitted observations. Its so-called
+exact prior is a point mass on a capped lower level, not a complete exact model
+of the actual opponent policy. Strict inference cannot define a posterior on
+zero-probability evidence. Choosing explicit uniform lower-level priors including
+L0 is a separate experimental design and awaits user selection.
 
-All 122 tests pass across unit and integration invocations (no xfails), including
-Wumpus; all 39 reduced-budget smoke conditions pass. The existing L3-vs-L2 prior
-benchmark is unchanged in experimental design; no new equivalence claim is made.
-Ordinary full-suite process supervision, remaining full-depth condition coverage,
-demo consolidation and authoritative-checkout reconciliation are still open.
+The prior and comparison families have a full-budget twenty-step execution check;
+one seed per condition is not a powered validation of expected payoff. The full
+suite remains unqualified while matrix conditions fail. Existing payoff/value
+limitations and the unestablished L3-vs-L2 reward equivalence remain in force.
+Runtime results are source-bound in results/full-depth-qualification-20260919.
 
-Raw source-bound evidence: results/comparison-{rts,mcts}-public-20260919.
-Earlier incomplete panels: results/comparison-{rts,mcts}-matched-20260919.
-Smoke: results/suite-smoke-public-20260919. Test logs: results/verification.
-The audit driver supports --condition prior, comparison-rts or comparison-mcts.
-Comparison requires --sims-j 50000 --particles-j 2500; --particles-i sets RTS
-lookahead only in the RTS condition, while both comparison initial priors use
-2,500 samples. Effective budgets are explicit in the manifest. All new outputs
-must use empty directories. Native Graphviz dot remains unavailable.
-
-Next: full-depth coverage of other conditions, explicit treatment of intentional
-model misspecification, full-suite resource supervision, conflicting bootstrap
-registration guards, demo consolidation and safe integration. See BACKLOG.md.
-Do not describe the long full suite as qualified yet.
+Next scientific decision: matrix point priors versus explicit uniform lower-level
+priors. Keep strict inference until the user selects a changed model. Continue
+with BACKLOG.md; do not describe the full suite or all planning as optimal.

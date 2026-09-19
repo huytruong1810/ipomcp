@@ -352,3 +352,19 @@ The Tiger audit driver supports prior, comparison-rts and comparison-mcts
 conditions with source-bound manifests, explicit effective budgets, subprocess
 time/RSS limits and failure records. This does not yet replace ordinary full-suite
 worker supervision. No original-checkout source was changed.
+
+
+## Trial execution and full-condition qualification
+
+process_supervisor.py centralizes worker lifecycle, resource observation, process
+session termination and result transport. GenericBatchRunner uses it for all batch
+and snapshot episodes. No inline single-worker escape path remains. Atomic trial
+CSV checkpoints and source/config manifests retain their existing strict contract.
+Each failed attempt is preserved separately from scientific data. Fault-injection
+tests exercise failures and subsequent resume, including one-worker execution.
+
+Prior and comparison condition tables now have one callable definition shared by
+their ordinary suite and benchmarks/qualify_suite.py. Qualification exercises all
+39 actual conditions at intended search budgets, with twenty-step episodes. This
+closes the coverage gap in execution evidence but exposes matrix model-support
+failures; it does not certify a valid complete payoff matrix or optimal planning.
