@@ -189,6 +189,7 @@ def run_planner_comparison(
     max_steps: int = 20,
     planning_depth: int = 3,
     resume_dir: Optional[str] = None,
+    workers: int = 8,
 ):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if resume_dir and os.path.exists(resume_dir):
@@ -209,7 +210,11 @@ def run_planner_comparison(
     conditions = experiment_conditions(planning_depth)
 
     exp_config = ExperimentConfig(
-        n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False
+        n_trials=n_trials,
+        max_steps=max_steps,
+        export_trees=False,
+        verbose=False,
+        max_workers=workers,
     )
     all_dfs = []
     condition_dfs = {}

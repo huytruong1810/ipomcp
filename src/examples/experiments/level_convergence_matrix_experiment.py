@@ -256,6 +256,7 @@ def run_payoff_matrix_experiment(
     max_steps: int = 20,
     planning_depth: int = 5,
     resume_dir: Optional[str] = None,
+    workers: int = 8,
 ):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
@@ -283,7 +284,11 @@ def run_payoff_matrix_experiment(
     cell_count = 0
 
     exp_config = ExperimentConfig(
-        n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False
+        n_trials=n_trials,
+        max_steps=max_steps,
+        export_trees=False,
+        verbose=False,
+        max_workers=workers,
     )
 
     for i_idx, m in enumerate(levels):

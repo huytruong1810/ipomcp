@@ -184,6 +184,7 @@ def run_deep_prior_experiment(
     planning_depth: int = 5,
     resume_dir: Optional[str] = None,
     condition_idx: Optional[int] = None,
+    workers: int = 8,
 ):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
@@ -215,7 +216,11 @@ def run_deep_prior_experiment(
 
     all_dfs = []
     exp_config = ExperimentConfig(
-        n_trials=n_trials, max_steps=max_steps, export_trees=False, verbose=False
+        n_trials=n_trials,
+        max_steps=max_steps,
+        export_trees=False,
+        verbose=False,
+        max_workers=workers,
     )
 
     for idx_offset, cond in enumerate(conditions):

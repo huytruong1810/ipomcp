@@ -22,6 +22,7 @@ def run_all(
     max_steps: int = 20,
     run_suite: str = "all",
     resume_dir: Optional[str] = None,
+    workers: int = 8,
 ):
     start_time = time.time()
     logger.info("================================================================================")
@@ -43,7 +44,11 @@ def run_all(
         )
         t0 = time.time()
         run_deep_prior_experiment(
-            n_trials=n_trials, max_steps=max_steps, planning_depth=5, resume_dir=prior_resume
+            n_trials=n_trials,
+            max_steps=max_steps,
+            planning_depth=5,
+            resume_dir=prior_resume,
+            workers=workers,
         )
         logger.info(
             f">>> [1/3] Deep Hierarchy Prior Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -56,7 +61,11 @@ def run_all(
         )
         t0 = time.time()
         run_planner_comparison(
-            n_trials=n_trials, max_steps=max_steps, planning_depth=3, resume_dir=comparison_resume
+            n_trials=n_trials,
+            max_steps=max_steps,
+            planning_depth=3,
+            resume_dir=comparison_resume,
+            workers=workers,
         )
         logger.info(
             f">>> [2/3] Sampled Planner Comparison Sampled RTS Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -74,6 +83,7 @@ def run_all(
             max_steps=max_steps,
             planning_depth=5,
             resume_dir=matrix_resume,
+            workers=workers,
         )
         logger.info(
             f">>> [3/3] Full 5x5 Payoff Matrix Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -98,6 +108,9 @@ if __name__ == "__main__":
         "--steps", type=int, default=20, help="Environment steps per trial (default: 20)"
     )
     parser.add_argument(
+        "--workers", type=int, default=8, help="Number of parallel worker processes (default: 8)"
+    )
+    parser.add_argument(
         "--suite",
         type=str,
         default="all",
@@ -113,5 +126,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_all(
-        n_trials=args.trials, max_steps=args.steps, run_suite=args.suite, resume_dir=args.resume_dir
+        n_trials=args.trials,
+        max_steps=args.steps,
+        run_suite=args.suite,
+        resume_dir=args.resume_dir,
+        workers=args.workers,
     )
