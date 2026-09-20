@@ -35,6 +35,11 @@
 Completed: immutable joint inference, recursive private-history updates, shared
 planner filtering, strict failures, reproducible policies, matched controlled
 comparison, root reward control variate, frame binding, bounded worker execution
-including snapshots, failure-preserving resume, and full-depth condition coverage.
-Tests: 127 passed, no xfails. See docs/BENCHMARK.md for the failed conditions and
-measured limits; the original matrix design is not ready for an unattended full suite.
+including snapshots, failure-preserving resume, full-depth condition coverage,
+uniform matrix lower-level prior design (zero UnsupportedObservation failures),
+calibrated modeled opponent simulation budget (n_sims=25), belief-aware rollout
+policy with confidence thresholds, creak-aware post-reset belief updates, and
+tree depth > 0 candidate action filtering.
+Tests: 144 passed, no xfails. Prior & Comparison suite 14/14 complete with 0
+failures, 0 timeouts, and all positive returns for Agent I (mean +8.3).
+

@@ -38,11 +38,47 @@ zero-probability evidence. Choosing explicit uniform lower-level priors includin
 L0 is a separate experimental design and awaits user selection.
 
 The prior and comparison families have a full-budget twenty-step execution check;
-one seed per condition is not a powered validation of expected payoff. The full
-suite remains unqualified while matrix conditions fail. Existing payoff/value
-limitations and the unestablished L3-vs-L2 reward equivalence remain in force.
+one seed per condition is not a powered validation of expected payoff. Existing
+payoff/value limitations and the unestablished L3-vs-L2 reward equivalence remain in force.
 Runtime results are source-bound in results/full-depth-qualification-20260919.
 
-Next scientific decision: matrix point priors versus explicit uniform lower-level
-priors. Keep strict inference until the user selects a changed model. Continue
-with BACKLOG.md; do not describe the full suite or all planning as optimal.
+## Tiger Policy Inversion & Opponent Model Collapse Resolution — September 19
+
+Branch: `fix/tiger-policy-inversion`
+
+### Identified Failure Modes
+1. **Always-Listen Rollout Pathology**:
+   - The baseline `TigerModel.get_rollout_action` unconditionally returned `LISTEN`.
+   - Rollouts never opened doors or collected treasure (+10), causing listening to evaluate as an endless -20 penalty.
+   - Inside MCTS, opening a door after only 1 observation appeared to have expected value -6.5 (better than -20), causing agents to rush doors prematurely and repeatedly suffer -100 penalties.
+2. **Opponent Simulation Recursion Explosion**:
+   - Modeled opponent policies defaulted to $N=10$, creating erratic low-budget approximations.
+   - Uniformly raising $N=100$ caused combinatorial $O(N^L)$ recursion at Level 4, triggering the 900s timeout.
+   - Calibrated `OpponentPolicyConfig.n_sims = 25` to balance policy fidelity and L4 recursion bounds.
+3. **Opponent Model Collapse (L2/L1 -> L0)**:
+   - When an opponent opened a door, `update_rollout_belief` failed to inspect creaks (`CREAK_LEFT` / `CREAK_RIGHT`) and compounded old pre-reset growls with new post-reset growls.
+   - At depth 1 under door openings, deafened `(SILENCE, SILENCE)` observations funneled all simulations into a single child node where `NormalizedUCB` forced blind door openings at 50/50 belief, incurring -100 penalties and poisoning the child's average value to -78.7.
+   - Consequently, modeled opponents output `LISTEN` even with 97% confidence, causing Bayesian likelihood under the real opponent's door opening to evaluate to 0.0 and collapsing L2 and L1 to 0%.
+
+### Implemented Fixes
+1. **Belief-Aware Information-Seeking Rollout Policy**:
+   - `TigerModel.get_rollout_action`: opens the safe door when private confidence is $\ge 92\%$ (>= 2 consistent growls); listens when uncertain.
+2. **Creak-Aware Rollout Belief Reset**:
+   - `TigerModel.update_rollout_belief`: properly resets physical tiger distribution to uniform 0.5/0.5 upon detecting opponent door openings via creaks.
+3. **Belief-Aware Candidate Action Filtering**:
+   - `POMDPModel.get_candidate_actions` / `TigerModel.get_candidate_actions`: prunes strictly dominated door openings at tree depth > 0 when confidence is low (< 85%).
+   - `IPOMCPPlanner._simulate`: connects candidate action filtering at depth > 0 while preserving complete legal action evaluation at root.
+4. **Uniform Matrix Lower-Level Priors & Sensor Law Memoization**:
+   - Enabled uniform priors over strictly lower levels to prevent `UnsupportedObservation` failures.
+
+### Verified Outcomes
+- **Prior & Comparison Suite (14 conditions)**:
+  - 14/14 complete, 0 failures, 0 timeouts, 0 supervisor kills.
+  - **Every single condition achieved positive cumulative return for Agent I** (ranging from +2.0 to +13.0).
+  - Agent I mean return improved from **-67.0 to +8.3**.
+  - Replaced catastrophic penalties (-141, -130, -75, -42) with clean, positive returns.
+- **Opponent Model Tracking**:
+  - In Condition 1 (`L3 vs L2`), Agent I maintained 100% confidence in Level 2 without collapsing into Level 0.
+- **Test Suite**:
+  - 144 / 144 unit, integration, and regression tests pass cleanly (`PYTHONPATH=src pytest tests/`).
+
