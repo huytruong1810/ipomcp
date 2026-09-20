@@ -27,7 +27,7 @@ class OpponentPolicyConfig:
     to an already queried model policy.
     """
 
-    n_sims: int = 100
+    n_sims: int = 25
 
     def __post_init__(self):
         _integer(self.n_sims, "modeled n_sims")
