@@ -104,7 +104,13 @@ class IPOMCPPlanner(Planner):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
             return 0.0
-        legal = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
+        legal = (
+            self.pomdp_model.get_candidate_actions(
+                particle.state, self.key.agent_id, belief=belief
+            )
+            if depth > 0 and hasattr(self.pomdp_model, "get_candidate_actions")
+            else self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
+        )
         action = self.exploration_strategy.select_action(
             node, legal, q_min=bounds["q_min"], q_max=bounds["q_max"]
         )

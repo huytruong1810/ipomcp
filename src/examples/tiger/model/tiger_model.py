@@ -281,6 +281,26 @@ class TigerModel(POMDPModel):
         creaks = [CREAK_LEFT, CREAK_RIGHT, SILENCE]
         return [(g, c) for g in growls for c in creaks]
 
+    def get_candidate_actions(
+        self, state: TigerState, agent_id: AgentID, belief: Optional[Dict[TigerState, float]] = None
+    ) -> List[TigerAction]:
+        """Filter out strictly dominated actions given private belief confidence.
+
+        When confidence is low (< 85%), door opening is strictly dominated by listening.
+        When confidence is high (>= 85%), opening the opposite door and listening are viable;
+        opening the tiger door is strictly dominated.
+        """
+        if belief is None:
+            return self.get_legal_actions(state, agent_id)
+        p_tl = belief.get(TIGER_LEFT, 0.5)
+        p_tr = belief.get(TIGER_RIGHT, 0.5)
+        if max(p_tl, p_tr) < 0.85:
+            return [LISTEN]
+        elif p_tl >= 0.85:
+            return [LISTEN, OPEN_RIGHT]
+        else:
+            return [LISTEN, OPEN_LEFT]
+
     def get_rollout_action(
         self, state: TigerState, agent_id: AgentID, belief: Optional[Dict[TigerState, float]] = None
     ) -> TigerAction:
@@ -311,7 +331,7 @@ class TigerModel(POMDPModel):
         """Bayesian update for private physical belief during MCTS rollout simulation.
 
         Only conditions on the agent's own action and private observation.
-        Door opening uniformly resets the physical tiger.
+        Door opening (by self or opponent) uniformly resets the physical tiger.
         """
         if belief is None:
             belief = {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
@@ -319,11 +339,14 @@ class TigerModel(POMDPModel):
         if action in (OPEN_LEFT, OPEN_RIGHT):
             return {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
 
-        obs_growl, _ = observation
-        acc = self.growl_acc.get(agent_id, 0.85)
+        obs_growl, obs_creak = observation
+        if not self.persistent and obs_creak in (CREAK_LEFT, CREAK_RIGHT):
+            p_tl, p_tr = 0.5, 0.5
+        else:
+            p_tl = belief.get(TIGER_LEFT, 0.5)
+            p_tr = belief.get(TIGER_RIGHT, 0.5)
 
-        p_tl = belief.get(TIGER_LEFT, 0.5)
-        p_tr = belief.get(TIGER_RIGHT, 0.5)
+        acc = self.growl_acc.get(agent_id, 0.85)
 
         if obs_growl == GROWL_LEFT:
             p_tl_unnorm = p_tl * acc
@@ -343,3 +366,4 @@ class TigerModel(POMDPModel):
             TIGER_LEFT: p_tl_unnorm / total,
             TIGER_RIGHT: p_tr_unnorm / total,
         }
+
