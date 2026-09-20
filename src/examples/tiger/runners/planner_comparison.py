@@ -240,7 +240,8 @@ def run_planner_comparison(
             obs_branching=6,
         )
 
-        df = runner.run_batch(max_workers=6)
+        cell_workers = min(workers, 12)
+        df = runner.run_batch(max_workers=cell_workers)
         if not df.empty:
             df["condition"] = cond_name
             df["solver_type"] = cond["type"]

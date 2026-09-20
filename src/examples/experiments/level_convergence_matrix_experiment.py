@@ -320,17 +320,17 @@ def run_payoff_matrix_experiment(
                         filename="sunburst_animated",
                     )
 
-            # Conservative worker limit; actual memory still depends on search growth
+            # Memory-safe worker scaling respecting user configuration
             max_lvl = max(m, n)
             if max_lvl <= 2:
-                workers = 6
+                cell_workers = min(workers, 16)
             elif max_lvl == 3:
-                workers = 4
+                cell_workers = min(workers, 12)
             else:
-                workers = 2
+                cell_workers = min(workers, 8)
 
             # Run batch
-            df = runner.run_batch(max_workers=workers)
+            df = runner.run_batch(max_workers=cell_workers)
             if not df.empty:
                 df["cell"] = cell_name
                 df["level_i"] = m

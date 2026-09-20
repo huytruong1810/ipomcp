@@ -289,15 +289,12 @@ def run_deep_prior_experiment(
                     filename="sunburst_animated",
                 )
 
-        # Conservative worker limit; actual memory still depends on search growth
+        # Memory-safe worker scaling respecting user configuration
         max_lvl = max(cond["level_i"], cond["level_j"])
-        if max_lvl <= 3:
-            workers = 4
-        else:
-            workers = 2
+        cell_workers = min(workers, 12) if max_lvl <= 3 else min(workers, 8)
 
         # 2. Run batch
-        df = runner.run_batch(max_workers=workers)
+        df = runner.run_batch(max_workers=cell_workers)
         if not df.empty:
             df["condition"] = cond_name
             all_dfs.append(df)
