@@ -23,6 +23,7 @@ def run_all(
     run_suite: str = "all",
     resume_dir: Optional[str] = None,
     workers: int = 8,
+    timeout: float = 2400.0,
 ):
     start_time = time.time()
     logger.info("================================================================================")
@@ -49,6 +50,7 @@ def run_all(
             planning_depth=5,
             resume_dir=prior_resume,
             workers=workers,
+            timeout=timeout,
         )
         logger.info(
             f">>> [1/3] Deep Hierarchy Prior Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -66,6 +68,7 @@ def run_all(
             planning_depth=3,
             resume_dir=comparison_resume,
             workers=workers,
+            timeout=timeout,
         )
         logger.info(
             f">>> [2/3] Sampled Planner Comparison Sampled RTS Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -84,6 +87,7 @@ def run_all(
             planning_depth=5,
             resume_dir=matrix_resume,
             workers=workers,
+            timeout=timeout,
         )
         logger.info(
             f">>> [3/3] Full 5x5 Payoff Matrix Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -111,6 +115,12 @@ if __name__ == "__main__":
         "--workers", type=int, default=8, help="Number of parallel worker processes (default: 8)"
     )
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=2400.0,
+        help="Timeout in seconds per trial (default: 2400.0)",
+    )
+    parser.add_argument(
         "--suite",
         type=str,
         default="all",
@@ -131,4 +141,5 @@ if __name__ == "__main__":
         run_suite=args.suite,
         resume_dir=args.resume_dir,
         workers=args.workers,
+        timeout=args.timeout,
     )

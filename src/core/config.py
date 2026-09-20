@@ -100,7 +100,7 @@ class ExperimentConfig:
     # Limits apply even to a single-worker run. Explicit per-run settings enter
     # the manifest so resuming cannot silently change the execution contract.
     max_workers: int = 2
-    trial_timeout_seconds: float = 900.0
+    trial_timeout_seconds: float = 2400.0
     max_trial_rss_mb: float = 3072.0
 
     def save(self, filepath: str) -> None:

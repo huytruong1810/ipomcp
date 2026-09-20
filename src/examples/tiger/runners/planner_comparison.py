@@ -190,6 +190,7 @@ def run_planner_comparison(
     planning_depth: int = 3,
     resume_dir: Optional[str] = None,
     workers: int = 8,
+    timeout: float = 2400.0,
 ):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if resume_dir and os.path.exists(resume_dir):
@@ -215,6 +216,7 @@ def run_planner_comparison(
         export_trees=False,
         verbose=False,
         max_workers=workers,
+        trial_timeout_seconds=timeout,
     )
     all_dfs = []
     condition_dfs = {}

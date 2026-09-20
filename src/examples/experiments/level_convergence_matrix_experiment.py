@@ -257,6 +257,7 @@ def run_payoff_matrix_experiment(
     planning_depth: int = 5,
     resume_dir: Optional[str] = None,
     workers: int = 8,
+    timeout: float = 2400.0,
 ):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
@@ -289,6 +290,7 @@ def run_payoff_matrix_experiment(
         export_trees=False,
         verbose=False,
         max_workers=workers,
+        trial_timeout_seconds=timeout,
     )
 
     for i_idx, m in enumerate(levels):
@@ -327,7 +329,7 @@ def run_payoff_matrix_experiment(
             elif max_lvl == 3:
                 cell_workers = min(workers, 12)
             else:
-                cell_workers = min(workers, 8)
+                cell_workers = min(workers, 4)
 
             # Run batch
             df = runner.run_batch(max_workers=cell_workers)

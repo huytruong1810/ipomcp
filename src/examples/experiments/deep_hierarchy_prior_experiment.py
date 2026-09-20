@@ -185,6 +185,7 @@ def run_deep_prior_experiment(
     resume_dir: Optional[str] = None,
     condition_idx: Optional[int] = None,
     workers: int = 8,
+    timeout: float = 2400.0,
 ):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
@@ -221,6 +222,7 @@ def run_deep_prior_experiment(
         export_trees=False,
         verbose=False,
         max_workers=workers,
+        trial_timeout_seconds=timeout,
     )
 
     for idx_offset, cond in enumerate(conditions):
@@ -291,7 +293,7 @@ def run_deep_prior_experiment(
 
         # Memory-safe worker scaling respecting user configuration
         max_lvl = max(cond["level_i"], cond["level_j"])
-        cell_workers = min(workers, 12) if max_lvl <= 3 else min(workers, 8)
+        cell_workers = min(workers, 12) if max_lvl <= 3 else min(workers, 4)
 
         # 2. Run batch
         df = runner.run_batch(max_workers=cell_workers)

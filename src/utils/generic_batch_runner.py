@@ -420,8 +420,27 @@ class GenericBatchRunner(ABC):
                 raise ValueError(
                     "Existing results lack a matching manifest; use a new output directory."
                 )
-            if path.exists() and json.loads(path.read_text(encoding="utf-8")) != manifest:
-                raise ValueError("Resume configuration or source differs from the saved manifest.")
+            if path.exists():
+                saved_manifest = json.loads(path.read_text(encoding="utf-8"))
+                _exec_keys = {"max_workers", "trial_timeout_seconds", "max_trial_rss_mb"}
+                saved_exp = {
+                    k: v
+                    for k, v in saved_manifest.get("experiment", {}).items()
+                    if k not in _exec_keys
+                }
+                curr_exp = {
+                    k: v for k, v in manifest.get("experiment", {}).items() if k not in _exec_keys
+                }
+                manifest_compatible = (
+                    saved_manifest.get("source_sha256") == manifest.get("source_sha256")
+                    and saved_manifest.get("runner") == manifest.get("runner")
+                    and saved_manifest.get("parameters") == manifest.get("parameters")
+                    and saved_exp == curr_exp
+                )
+                if not manifest_compatible:
+                    raise ValueError(
+                        "Resume configuration or source differs from the saved manifest."
+                    )
             path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             (root / "trials").mkdir(exist_ok=True)
         frames, pending = [], []
