@@ -61,6 +61,11 @@ def conditions(config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--suite",
+        choices=["all", "prior", "comparison", "matrix", "prior-comparison"],
+        default="all",
+    )
     parser.add_argument("--out", required=True)
     parser.add_argument("--trials", type=int, default=1)
     parser.add_argument("--steps", type=int, default=20)
@@ -79,7 +84,13 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     if any(out.iterdir()):
         parser.error("Qualification output must be empty")
-    cases = list(conditions(config))
+    cases = [
+        (name, runner)
+        for name, runner in conditions(config)
+        if args.suite == "all"
+        or (args.suite == "prior-comparison" and (name.startswith("prior-") or name.startswith("comparison-")))
+        or name.startswith(args.suite + "-")
+    ]
     source = Path(__file__).resolve().parents[1] / "src"
     manifest = {
         "config": asdict(config),

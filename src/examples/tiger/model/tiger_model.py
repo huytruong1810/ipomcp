@@ -12,6 +12,7 @@ optimal policy and does not repair the planner's interactive filtering errors.
 
 import math
 import random
+from functools import lru_cache
 from typing import Dict, List, Tuple
 
 from core.pomdp_model import AgentID, POMDPModel
@@ -148,6 +149,22 @@ class TigerModel(POMDPModel):
             obs_creak = SILENCE
 
         return (obs_growl, obs_creak)
+
+    def observation_distribution(self, state, joint_action, agent_id):
+        """Reuse the finite sensor law without changing probabilities or ordering.
+
+        Recursive filtering queries the same two-state/action sensor law millions
+        of times. Memoizing its immutable tuple avoids repeating the full token
+        enumeration. Physics is fixed during a bank's lifetime, as required by
+        all policy/filter caches. This bounded class-level cache adds no mutable
+        fields to physics fingerprints, consumes no RNG, and retains at most 512
+        keys across model instances. It does not approximate any belief mass.
+        """
+        return self._observation_distribution_cached(state, tuple(joint_action.items()), agent_id)
+
+    @lru_cache(maxsize=512)
+    def _observation_distribution_cached(self, state, joint_items, agent_id):
+        return super().observation_distribution(state, dict(joint_items), agent_id)
 
     def get_observation_prob(
         self,

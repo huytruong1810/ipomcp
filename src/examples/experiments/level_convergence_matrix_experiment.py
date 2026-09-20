@@ -46,21 +46,31 @@ logger = get_logger("LevelConvergenceMatrix")
 
 
 class MatrixCellTigerRunner(GenericBatchRunner):
+    """Compare levels using a declared uniform prior over strictly lower levels.
+
+    Each intentional agent starts with positive mass on random L0. This is a
+    scientific prior, not an after-the-fact observation repair: ordinary Bayesian
+    conditioning may change or eliminate type mass. The old capped point prior
+    could exclude the actual opponent's actions and leave payoffs undefined.
+    The same prior rule applies regardless of the actual opponent's level, so the
+    experiment does not disclose that hidden type through its initialization.
+    """
+
     def __init__(
         self,
         config: ExperimentConfig,
         log_dir: str,
         level_i: int,
         level_j: int,
-        prior_mode_i: str = "exact",
-        prior_mode_j: str = "exact",
         planning_depth: int = 5,
     ):
         super().__init__(config=config, log_dir=log_dir)
         self.level_i = level_i
         self.level_j = level_j
-        self.prior_mode_i = prior_mode_i
-        self.prior_mode_j = prior_mode_j
+        if any(type(level) is not int or level not in SIM_SCHEDULE for level in (level_i, level_j)):
+            raise ValueError("Matrix levels must have explicitly declared simulation budgets")
+        self.level_prior_i = {level: 1 / level_i for level in range(level_i)}
+        self.level_prior_j = {level: 1 / level_j for level in range(level_j)}
         self.planning_depth = planning_depth
 
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
@@ -75,23 +85,19 @@ class MatrixCellTigerRunner(GenericBatchRunner):
                 agent_id="j", level=0, model=env, other_agent_ids=["i"]
             )
         else:
-            sims_j = SIM_SCHEDULE.get(self.level_j, 10000 * self.level_j)
-            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 1000 * self.level_j)
+            sims_j = SIM_SCHEDULE[self.level_j]
+            particles_j = PARTICLE_SCHEDULE[self.level_j]
             cfg_j = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=2000),
                 opponent=OpponentPolicyConfig(),
             )
-
-            # Determine J prior over I
-            target_model_for_j = min(self.level_i, self.level_j - 1)
-            weights_j = {target_model_for_j: 1.0} if self.prior_mode_j == "exact" else None
 
             planner_j = boot_j.create_solver(
                 agent_id="j",
                 level=self.level_j,
                 model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["i"],
-                level_weights=weights_j,
+                level_weights=self.level_prior_j,
                 n_particles=particles_j,
                 config=cfg_j,
                 exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
@@ -105,23 +111,19 @@ class MatrixCellTigerRunner(GenericBatchRunner):
                 agent_id="i", level=0, model=env, other_agent_ids=["j"]
             )
         else:
-            sims_i = SIM_SCHEDULE.get(self.level_i, 10000 * self.level_i)
-            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 1000 * self.level_i)
+            sims_i = SIM_SCHEDULE[self.level_i]
+            particles_i = PARTICLE_SCHEDULE[self.level_i]
             cfg_i = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=2000),
                 opponent=OpponentPolicyConfig(),
             )
-
-            # Determine I prior over J
-            target_model_for_i = min(self.level_j, self.level_i - 1)
-            weights_i = {target_model_for_i: 1.0} if self.prior_mode_i == "exact" else None
 
             planner_i = boot_i.create_solver(
                 agent_id="i",
                 level=self.level_i,
                 model=TigerModel(growl_accuracy=growl_dict, creak_accuracy=1.0),
                 other_agent_ids=["j"],
-                level_weights=weights_i,
+                level_weights=self.level_prior_i,
                 n_particles=particles_i,
                 config=cfg_i,
                 exploration_strategy=NormalizedUCB(exploration_const=2**0.5),
@@ -261,7 +263,8 @@ def run_payoff_matrix_experiment(
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         master_dir = get_results_dir(
-            "payoff_matrix", f"payoff_matrix_L0toL{max_level}_{timestamp}_N{n_trials}_T{max_steps}"
+            "payoff_matrix",
+            f"uniform_prior_payoff_matrix_L0toL{max_level}_{timestamp}_N{n_trials}_T{max_steps}",
         )
 
     levels = list(range(max_level + 1))
