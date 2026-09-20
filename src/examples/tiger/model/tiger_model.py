@@ -13,7 +13,7 @@ optimal policy and does not repair the planner's interactive filtering errors.
 import math
 import random
 from functools import lru_cache
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from core.pomdp_model import AgentID, POMDPModel
 
@@ -281,11 +281,65 @@ class TigerModel(POMDPModel):
         creaks = [CREAK_LEFT, CREAK_RIGHT, SILENCE]
         return [(g, c) for g in growls for c in creaks]
 
-    def get_rollout_action(self, state: TigerState, agent_id: AgentID) -> TigerAction:
-        """Use the always-listen leaf policy, independent of the hidden tiger.
+    def get_rollout_action(
+        self, state: TigerState, agent_id: AgentID, belief: Optional[Dict[TigerState, float]] = None
+    ) -> TigerAction:
+        """Information-seeking rollout policy.
 
-        This conservative finite-budget heuristic avoids random door openings in
-        the rollout tail. It is not the optimal Tiger policy: it never collects
-        treasure. Search, rather than this leaf policy, must value opening a door.
+        Conditions strictly on private belief confidence without inspecting hidden state.
+        When confidence is high (>= 92%, corresponding to >= 2 consistent growls),
+        it opens the safe door opposite the tiger to collect treasure (+10).
+        Otherwise, it listens to gather evidence (-1).
         """
+        if belief is not None:
+            p_tl = belief.get(TIGER_LEFT, 0.5)
+            p_tr = belief.get(TIGER_RIGHT, 0.5)
+            if p_tl >= 0.92:
+                return OPEN_RIGHT
+            elif p_tr >= 0.92:
+                return OPEN_LEFT
+
         return LISTEN
+
+    def update_rollout_belief(
+        self,
+        belief: Optional[Dict[TigerState, float]],
+        action: TigerAction,
+        observation: TigerObservation,
+        agent_id: AgentID,
+    ) -> Dict[TigerState, float]:
+        """Bayesian update for private physical belief during MCTS rollout simulation.
+
+        Only conditions on the agent's own action and private observation.
+        Door opening uniformly resets the physical tiger.
+        """
+        if belief is None:
+            belief = {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
+
+        if action in (OPEN_LEFT, OPEN_RIGHT):
+            return {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
+
+        obs_growl, _ = observation
+        acc = self.growl_acc.get(agent_id, 0.85)
+
+        p_tl = belief.get(TIGER_LEFT, 0.5)
+        p_tr = belief.get(TIGER_RIGHT, 0.5)
+
+        if obs_growl == GROWL_LEFT:
+            p_tl_unnorm = p_tl * acc
+            p_tr_unnorm = p_tr * (1.0 - acc)
+        elif obs_growl == GROWL_RIGHT:
+            p_tl_unnorm = p_tl * (1.0 - acc)
+            p_tr_unnorm = p_tr * acc
+        else:
+            p_tl_unnorm = p_tl
+            p_tr_unnorm = p_tr
+
+        total = p_tl_unnorm + p_tr_unnorm
+        if total <= 0.0:
+            return {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
+
+        return {
+            TIGER_LEFT: p_tl_unnorm / total,
+            TIGER_RIGHT: p_tr_unnorm / total,
+        }

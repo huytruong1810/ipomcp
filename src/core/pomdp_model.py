@@ -12,7 +12,7 @@ work. Domain rollout policies have the same information restriction.
 """
 
 import abc
-from typing import Dict, Hashable, List
+from typing import Any, Dict, Hashable, List, Optional
 
 # Type Aliases for strict typing in downstream planners.
 # States, Actions, and Observations should strictly be Hashable to allow for dictionary
@@ -168,11 +168,12 @@ class POMDPModel(abc.ABC):
         """
         return self.get_all_actions(agent_id)
 
-    def get_rollout_action(self, state: State, agent_id: AgentID) -> Action:
+    def get_rollout_action(self, state: State, agent_id: AgentID, belief: Optional[Any] = None) -> Action:
         """Choose a rollout action using the domain's fixed default policy.
 
         The default samples uniformly from actions. Overrides must not exploit
-        hidden state: a rollout policy still represents a partially informed agent.
+        hidden state: a rollout policy still represents a partially informed agent
+        and may condition only on private belief or history.
         This policy estimates leaf values at finite search budgets; it is not an
         assertion of optimality. Domains with no legal actions terminate before
         this hook is called.
@@ -180,3 +181,13 @@ class POMDPModel(abc.ABC):
         import random
 
         return random.choice(self.get_legal_actions(state, agent_id))
+
+    def update_rollout_belief(
+        self,
+        belief: Optional[Any],
+        action: Action,
+        observation: Observation,
+        agent_id: AgentID,
+    ) -> Optional[Any]:
+        """Optionally update private rollout belief from the agent's own action and observation."""
+        return belief

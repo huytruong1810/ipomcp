@@ -80,9 +80,18 @@ class IPOMCPPlanner(Planner):
                 "q_max": -float("inf"),
                 "root_rewards": dict(self.solver_bank.expected_rewards(model)),
             }
+            root_belief = None
+            if hasattr(self.pomdp_model, "update_rollout_belief"):
+                p_counts = {}
+                for p, mass in model.belief.mass:
+                    p_counts[p.state] = p_counts.get(p.state, 0.0) + mass
+                total_mass = sum(p_counts.values())
+                if total_mass > 0:
+                    root_belief = {s: m / total_mass for s, m in p_counts.items()}
+
             # Draw in one batch; random.choices constructs its cumulative weights once.
             for particle in random.choices(particles, weights=weights, k=n_sims):
-                self._simulate(particle, node, 0, bounds)
+                self._simulate(particle, node, 0, bounds, belief=root_belief)
             policy = greedy_policy(node.action_values)
         if not modeled:
             self.root = node
@@ -91,7 +100,7 @@ class IPOMCPPlanner(Planner):
     def get_action(self, belief=None):
         return sample_policy(self.policy_for(self.model(belief)))
 
-    def _simulate(self, particle, node, depth, bounds):
+    def _simulate(self, particle, node, depth, bounds, belief=None):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
             return 0.0
@@ -115,13 +124,20 @@ class IPOMCPPlanner(Planner):
             new = child is None
             child = node.create_child(action, observation) if new else child
             child.add_particle(following)
+            next_belief = (
+                self.pomdp_model.update_rollout_belief(
+                    belief, action, observation, self.key.agent_id
+                )
+                if hasattr(self.pomdp_model, "update_rollout_belief")
+                else None
+            )
             continuation = (
                 0.0
                 if terminal
                 else (
-                    self._rollout(following, depth + 1)
+                    self._rollout(following, depth + 1, belief=next_belief)
                     if new
-                    else self._simulate(following, child, depth + 1, bounds)
+                    else self._simulate(following, child, depth + 1, bounds, belief=next_belief)
                 )
             )
             q = reward + self.config.mcts.gamma * continuation
@@ -136,21 +152,29 @@ class IPOMCPPlanner(Planner):
         bounds["q_min"], bounds["q_max"] = min(bounds["q_min"], q), max(bounds["q_max"], q)
         return q
 
-    def _rollout(self, particle, depth):
+    def _rollout(self, particle, depth, belief=None):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             return 0.0
-        action = self.pomdp_model.get_rollout_action(particle.state, self.key.agent_id)
+        action = self.pomdp_model.get_rollout_action(particle.state, self.key.agent_id, belief=belief)
         if action not in self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id):
             raise ValueError("Domain rollout policy returned an illegal action")
-        if depth + 1 == self.config.mcts.max_depth:
-            return self.gen_model.sample_event(
-                particle, action, self.key.agent_id, self.pomdp_model
-            )[2]
-        following, _, reward, terminal = self.gen_model.tree_step(
+        following, joint, reward, terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model
         )
-        return reward + (
-            0 if terminal else self.config.mcts.gamma * self._rollout(following, depth + 1)
+        if depth + 1 == self.config.mcts.max_depth or terminal:
+            return reward
+        obs = self.pomdp_model.sample_observation(
+            following.state, joint, self.key.agent_id
+        )
+        next_belief = (
+            self.pomdp_model.update_rollout_belief(
+                belief, action, obs, self.key.agent_id
+            )
+            if hasattr(self.pomdp_model, "update_rollout_belief")
+            else None
+        )
+        return reward + self.config.mcts.gamma * self._rollout(
+            following, depth + 1, belief=next_belief
         )
 
     def update_root(self, action, observation):
