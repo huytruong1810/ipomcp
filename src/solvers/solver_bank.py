@@ -19,11 +19,11 @@ class SolverBank:
         self._solvers = {}
         self._physical_priors = {}
         self.seed = random.getrandbits(64) if seed is None else seed
-        self.filter = FiniteInteractiveFilter(self.policy, cache_size=512)
-        self._cached_policy = lru_cache(maxsize=512)(self._evaluate_policy)
-        self._belief_digest = lru_cache(maxsize=256)(self._encode_belief)
-        self._state_value = lru_cache(maxsize=16384)(stable_value)
-        self.expected_rewards = lru_cache(maxsize=512)(self._expected_rewards)
+        self.filter = FiniteInteractiveFilter(self.policy, cache_size=65536)
+        self._cached_policy = lru_cache(maxsize=65536)(self._evaluate_policy)
+        self._belief_digest = lru_cache(maxsize=32768)(self._encode_belief)
+        self._state_value = lru_cache(maxsize=65536)(stable_value)
+        self.expected_rewards = lru_cache(maxsize=32768)(self._expected_rewards)
 
     def initial_states(self, physics, count):
         """One shared empirical physical prior per domain within this bank.
