@@ -191,6 +191,7 @@ def run_planner_comparison(
     resume_dir: Optional[str] = None,
     workers: int = 8,
     timeout: float = 2400.0,
+    max_rss_mb: float = 4096.0,
 ):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if resume_dir and os.path.exists(resume_dir):
@@ -217,6 +218,7 @@ def run_planner_comparison(
         verbose=False,
         max_workers=workers,
         trial_timeout_seconds=timeout,
+        max_trial_rss_mb=max_rss_mb,
     )
     all_dfs = []
     condition_dfs = {}

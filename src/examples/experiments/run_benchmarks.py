@@ -24,6 +24,7 @@ def run_all(
     resume_dir: Optional[str] = None,
     workers: int = 8,
     timeout: float = 2400.0,
+    max_rss_mb: float = 4096.0,
 ):
     start_time = time.time()
     logger.info("================================================================================")
@@ -51,6 +52,7 @@ def run_all(
             resume_dir=prior_resume,
             workers=workers,
             timeout=timeout,
+            max_rss_mb=max_rss_mb,
         )
         logger.info(
             f">>> [1/3] Deep Hierarchy Prior Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -69,6 +71,7 @@ def run_all(
             resume_dir=comparison_resume,
             workers=workers,
             timeout=timeout,
+            max_rss_mb=max_rss_mb,
         )
         logger.info(
             f">>> [2/3] Sampled Planner Comparison Sampled RTS Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -88,6 +91,7 @@ def run_all(
             resume_dir=matrix_resume,
             workers=workers,
             timeout=timeout,
+            max_rss_mb=max_rss_mb,
         )
         logger.info(
             f">>> [3/3] Full 5x5 Payoff Matrix Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
@@ -121,6 +125,12 @@ if __name__ == "__main__":
         help="Timeout in seconds per trial (default: 2400.0)",
     )
     parser.add_argument(
+        "--max-rss-mb",
+        type=float,
+        default=4096.0,
+        help="Maximum resident memory in MB per trial (default: 4096.0)",
+    )
+    parser.add_argument(
         "--suite",
         type=str,
         default="all",
@@ -142,4 +152,5 @@ if __name__ == "__main__":
         resume_dir=args.resume_dir,
         workers=args.workers,
         timeout=args.timeout,
+        max_rss_mb=args.max_rss_mb,
     )

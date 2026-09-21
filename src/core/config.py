@@ -101,7 +101,7 @@ class ExperimentConfig:
     # the manifest so resuming cannot silently change the execution contract.
     max_workers: int = 2
     trial_timeout_seconds: float = 2400.0
-    max_trial_rss_mb: float = 3072.0
+    max_trial_rss_mb: float = 4096.0
 
     def save(self, filepath: str) -> None:
         """Persists the experiment configuration to disk for scientific reproducibility."""

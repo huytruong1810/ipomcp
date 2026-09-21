@@ -258,6 +258,7 @@ def run_payoff_matrix_experiment(
     resume_dir: Optional[str] = None,
     workers: int = 8,
     timeout: float = 2400.0,
+    max_rss_mb: float = 4096.0,
 ):
     if resume_dir and os.path.exists(resume_dir):
         master_dir = resume_dir
@@ -291,6 +292,7 @@ def run_payoff_matrix_experiment(
         verbose=False,
         max_workers=workers,
         trial_timeout_seconds=timeout,
+        max_trial_rss_mb=max_rss_mb,
     )
 
     for i_idx, m in enumerate(levels):
