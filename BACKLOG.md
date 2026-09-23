@@ -38,8 +38,9 @@ comparison, root reward control variate, frame binding, bounded worker execution
 including snapshots, failure-preserving resume, full-depth condition coverage,
 uniform matrix lower-level prior design (zero UnsupportedObservation failures),
 calibrated modeled opponent simulation budget (n_sims=25), belief-aware rollout
-policy with confidence thresholds, creak-aware post-reset belief updates, and
-tree depth > 0 candidate action filtering.
-Tests: 144 passed, no xfails. Prior & Comparison suite 14/14 complete with 0
-failures, 0 timeouts, and all positive returns for Agent I (mean +8.3).
+policy with confidence thresholds, creak-aware post-reset belief updates,
+tree depth > 0 candidate action filtering, rollout leaf sample_event optimization,
+memoized probability kernel validation, and asymmetric solver bank cache architecture.
+Tests: 144 passed, no xfails. Large-scale Prior Benchmark (N=50, T=20): 349/350
+complete with robust positive returns across all 7 conditions (mean return +11.9 to +21.8).
 

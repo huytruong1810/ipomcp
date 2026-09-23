@@ -11,7 +11,7 @@ import random
 from dataclasses import asdict
 
 from core.config import IPOMCPConfig
-from ipomdp.finite_belief import MentalModel
+from ipomdp.finite_belief import InteractiveState, MentalModel
 from ipomdp.frame import AgentFrame
 from solvers.exploration import NormalizedUCB
 from solvers.generative_model import InteractiveGenerativeModel
@@ -105,9 +105,7 @@ class IPOMCPPlanner(Planner):
             node.visit_count += 1
             return 0.0
         legal = (
-            self.pomdp_model.get_candidate_actions(
-                particle.state, self.key.agent_id, belief=belief
-            )
+            self.pomdp_model.get_candidate_actions(particle.state, self.key.agent_id, belief=belief)
             if depth > 0 and hasattr(self.pomdp_model, "get_candidate_actions")
             else self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
         )
@@ -161,24 +159,23 @@ class IPOMCPPlanner(Planner):
     def _rollout(self, particle, depth, belief=None):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             return 0.0
-        action = self.pomdp_model.get_rollout_action(particle.state, self.key.agent_id, belief=belief)
+        action = self.pomdp_model.get_rollout_action(
+            particle.state, self.key.agent_id, belief=belief
+        )
         if action not in self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id):
             raise ValueError("Domain rollout policy returned an illegal action")
-        following, joint, reward, terminal = self.gen_model.tree_step(
+        following_state, joint, reward, terminal = self.gen_model.sample_event(
             particle, action, self.key.agent_id, self.pomdp_model
         )
-        if depth + 1 == self.config.mcts.max_depth or terminal:
+        if terminal or depth + 1 >= self.config.mcts.max_depth:
             return reward
-        obs = self.pomdp_model.sample_observation(
-            following.state, joint, self.key.agent_id
-        )
+        obs = self.pomdp_model.sample_observation(following_state, joint, self.key.agent_id)
         next_belief = (
-            self.pomdp_model.update_rollout_belief(
-                belief, action, obs, self.key.agent_id
-            )
+            self.pomdp_model.update_rollout_belief(belief, action, obs, self.key.agent_id)
             if hasattr(self.pomdp_model, "update_rollout_belief")
             else None
         )
+        following = InteractiveState(following_state, particle.opponent)
         return reward + self.config.mcts.gamma * self._rollout(
             following, depth + 1, belief=next_belief
         )
@@ -190,6 +187,7 @@ class IPOMCPPlanner(Planner):
             self.model(), action, observation, terminal=False
         ).belief
         self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
+        self.solver_bank.clear_caches()
 
     def get_detailed_stats(self):
         return {

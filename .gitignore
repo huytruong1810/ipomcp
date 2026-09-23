@@ -49,6 +49,7 @@ htmlcov/
 results/
 benchmarks/results/
 *.log
+scratch/
 
 # Allow empty results placeholder
 !results/.gitkeep

@@ -366,4 +366,3 @@ class TigerModel(POMDPModel):
             TIGER_LEFT: p_tl_unnorm / total,
             TIGER_RIGHT: p_tr_unnorm / total,
         }
-

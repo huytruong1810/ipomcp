@@ -177,7 +177,9 @@ class POMDPModel(abc.ABC):
         """
         return self.get_legal_actions(state, agent_id)
 
-    def get_rollout_action(self, state: State, agent_id: AgentID, belief: Optional[Any] = None) -> Action:
+    def get_rollout_action(
+        self, state: State, agent_id: AgentID, belief: Optional[Any] = None
+    ) -> Action:
         """Choose a rollout action using the domain's fixed default policy.
 
         The default samples uniformly from actions. Overrides must not exploit

@@ -19,11 +19,11 @@ class SolverBank:
         self._solvers = {}
         self._physical_priors = {}
         self.seed = random.getrandbits(64) if seed is None else seed
-        self.filter = FiniteInteractiveFilter(self.policy, cache_size=65536)
-        self._cached_policy = lru_cache(maxsize=65536)(self._evaluate_policy)
-        self._belief_digest = lru_cache(maxsize=32768)(self._encode_belief)
+        self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096)
+        self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
+        self._belief_digest = lru_cache(maxsize=16384)(self._encode_belief)
         self._state_value = lru_cache(maxsize=65536)(stable_value)
-        self.expected_rewards = lru_cache(maxsize=32768)(self._expected_rewards)
+        self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
 
     def initial_states(self, physics, count):
         """One shared empirical physical prior per domain within this bank.
@@ -103,27 +103,27 @@ class SolverBank:
         from ipomdp.finite_filter import checked_distribution
 
         frame, physics = model.frame, model.frame.pomdp_model
-        rewards = []
-        for action in physics.get_all_actions(frame.agent_id):
-            terms = []
-            for atom, mass in model.belief.mass:
-                if physics.is_terminal(atom.state):
-                    continue
-                for other_action, probability in self.filter.action_distribution(
-                    atom.opponent, atom.state
-                ):
-                    joint = {frame.agent_id: action, atom.opponent.frame.agent_id: other_action}
+        all_actions = physics.get_all_actions(frame.agent_id)
+        terms = {a: [] for a in all_actions}
+        for atom, mass in model.belief.mass:
+            if physics.is_terminal(atom.state):
+                continue
+            other_id = atom.opponent.frame.agent_id
+            for other_action, probability in self.filter.action_distribution(
+                atom.opponent, atom.state
+            ):
+                for action in all_actions:
+                    joint = {frame.agent_id: action, other_id: other_action}
                     for following, transition_mass in checked_distribution(
                         physics.transition_distribution(atom.state, joint), "Transition"
                     ):
-                        terms.append(
+                        terms[action].append(
                             mass
                             * probability
                             * transition_mass
                             * physics.get_reward(atom.state, joint, following, frame.agent_id)
                         )
-            rewards.append((action, math.fsum(terms)))
-        return tuple(rewards)
+        return tuple((action, math.fsum(terms[action])) for action in all_actions)
 
     def search_seed(self, model, settings):
         return digest(
@@ -149,3 +149,6 @@ class SolverBank:
         self._belief_digest.cache_clear()
         self._state_value.cache_clear()
         self.expected_rewards.cache_clear()
+        import gc
+
+        gc.collect()

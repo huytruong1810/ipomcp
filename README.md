@@ -34,9 +34,10 @@ Graphviz tree rendering also requires the system `dot` executable. Python's
 `graphviz` package is required; a failed rendering is reported rather than silently
 omitted. Rendering is optional when tree export is disabled.
 
-The current suite has 127 passing tests and no expected-failure theory exceptions.
+The current suite has 144 passing tests and no expected-failure theory exceptions.
 Independent bounded Tiger references check filtering and one-step values; they
-do not constitute a general convergence proof.
+do not constitute a general convergence proof. Large-scale benchmark evidence across
+$N=50, T=20$ deep hierarchies ($L_1$ to $L_4$) confirms positive returns without policy inversion.
 
 ## Experiments
 

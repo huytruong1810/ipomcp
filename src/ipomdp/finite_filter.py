@@ -48,9 +48,8 @@ class Posterior:
     evidence: float
 
 
-def checked_distribution(items, description):
-    """Validate a probability kernel without silently normalizing model errors."""
-    items = tuple(items)
+@lru_cache(maxsize=1024)
+def _check_distribution_cached(items: tuple, description: str):
     if not items or any(not math.isfinite(p) or p < 0 for _, p in items):
         raise ValueError(f"{description} must have finite nonnegative probabilities")
     if not math.isclose(math.fsum(p for _, p in items), 1.0, rel_tol=1e-12, abs_tol=1e-12):
@@ -58,6 +57,11 @@ def checked_distribution(items, description):
     if len({value for value, _ in items}) != len(items):
         raise ValueError(f"{description} must not repeat outcomes")
     return tuple((value, p) for value, p in items if p > 0)
+
+
+def checked_distribution(items, description):
+    """Validate a probability kernel without silently normalizing model errors."""
+    return _check_distribution_cached(tuple(items), description)
 
 
 class FiniteInteractiveFilter:
@@ -151,7 +155,11 @@ class FiniteInteractiveFilter:
                         physics.observation_distribution(following, joint, frame.agent_id),
                         "Observation",
                     )
-                    likelihood = dict(own_obs).get(observation, 0.0)
+                    likelihood = 0.0
+                    for obs_val, obs_prob in own_obs:
+                        if obs_val == observation:
+                            likelihood = obs_prob
+                            break
                     if likelihood == 0:
                         continue
                     weight = prior_mass * action_mass * transition_mass * likelihood
