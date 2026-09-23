@@ -97,6 +97,17 @@ def run_all(
             f">>> [3/3] Full 5x5 Payoff Matrix Benchmark Completed in {(time.time() - t0) / 60:.1f} minutes."
         )
 
+    # Suite 4: Master Bayes-Optimal Cross-Suite Benchmark
+    if run_suite in ["all", "optimal"]:
+        logger.info("\n>>> LAUNCHING MASTER BAYES-OPTIMAL BENCHMARK SUITE <<<")
+        t0 = time.time()
+        from examples.experiments.master_optimal_suite import run_master_optimal_suite
+
+        run_master_optimal_suite(output_dir="results/bayes_optimal")
+        logger.info(
+            f">>> Master Bayes-Optimal Suite Completed in {(time.time() - t0) / 60:.1f} minutes."
+        )
+
     total_mins = (time.time() - start_time) / 60.0
     logger.info(
         "\n================================================================================"
@@ -134,7 +145,7 @@ if __name__ == "__main__":
         "--suite",
         type=str,
         default="all",
-        choices=["all", "prior", "comparison", "matrix"],
+        choices=["all", "prior", "comparison", "matrix", "optimal"],
         help="Which suite to execute",
     )
     parser.add_argument(

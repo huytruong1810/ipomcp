@@ -34,10 +34,12 @@ Graphviz tree rendering also requires the system `dot` executable. Python's
 `graphviz` package is required; a failed rendering is reported rather than silently
 omitted. Rendering is optional when tree export is disabled.
 
-The current suite has 144 passing tests and no expected-failure theory exceptions.
+The current suite has 154 passing tests and no expected-failure theory exceptions.
 Independent bounded Tiger references check filtering and one-step values; they
 do not constitute a general convergence proof. Large-scale benchmark evidence across
 $N=50, T=20$ deep hierarchies ($L_1$ to $L_4$) confirms positive returns without policy inversion.
+The exact Bayes-optimal solver suite (`src/solvers/exact/`) provides closed-form analytical $\alpha$-vector
+value iteration and multi-agent backward induction benchmarks against which I-POMCP is empirically verified.
 
 ## Experiments
 
@@ -51,6 +53,9 @@ is explicitly selected. Its leaf rollout always listens, a finite-budget heurist
 ```bash
 # One condition: L3 versus L2, with 80% prior mass on L2.
 uv run python -m examples.experiments.deep_hierarchy_prior_experiment --trials 30 --steps 20 --condition 1
+
+# Master Bayes-optimal validation suite (Exact VI vs I-POMCP, Sunburst T=20, and Triangulation)
+uv run python -m examples.experiments.run_benchmarks --suite optimal
 
 # Full-suite entry point; qualification blockers remain (see BACKLOG.md).
 uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite all

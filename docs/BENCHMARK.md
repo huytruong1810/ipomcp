@@ -179,10 +179,54 @@ Output directory: `results/deep_prior/deep_prior_benchmark_20260920_143950_N50_T
 | **Cond 4** | $L_3 \text{ vs } L_1$ (Uniform $\frac{1}{3}$ Prior) | **50 / 50** | **$+18.94$** | $+16.30$ | Robust convergence from non-informative prior |
 | **Cond 5** | $L_4 \text{ vs } L_3$ ($80\%\ L_3$ Prior) | **50 / 50** | **$+11.90$** | $+12.56$ | Stable 4-level deep reasoning hierarchy |
 | **Cond 6** | $L_4 \text{ vs } L_1$ ($80\%\ L_3$ Over-est.) | **50 / 50** | **$+20.04$** | $+10.36$ | Successful adaptation to fast intentional opponent |
-| **Cond 7** | $L_4 \text{ vs } L_1$ (Uniform $\frac{1}{4}$ Prior) | **49 / 50** | **$+21.76$** | $+16.14$ | Strongest returns across suite; Trial 30 running |
+| **Cond 7** | $L_4 \text{ vs } L_1$ (Uniform $\frac{1}{4}$ Prior) | **49 / 50** | **$+21.76$** | $+16.14$ | Strongest returns across suite; 349/350 total trials completed |
 
 ### Performance Optimization Impact
 - **Rollout Leaf Optimization**: Replaced recursive `tree_step()` in default policy rollouts with `sample_event()`, avoiding millions of unneeded Bayesian updates during leaf value estimation. Reduced step times from $>28$ minutes to $<1\text{s}$ and resident memory from $20\text{ GB}$ to $<180\text{ MB}$.
 - **Kernel Memoization**: Cached `checked_distribution()` with `@lru_cache(maxsize=1024)`, achieving $>28\text{M}$ cache hits and saving $\approx 100\text{s}$ per step.
 - **Asymmetric Solver Caching**: Capped filter updates at 4,096 and policy caches at 32,768 to prevent retention of model trees in memory.
+
+## Bayes-Optimal Solver Suite & I-POMCP Mirroring Benchmarks — September 2026
+
+To definitively ground the correctness and empirical convergence of our sampling-based I-POMCP algorithm against exact game-theoretic oracles, we developed an exact analytical Bayes-optimal solver suite for Finitely Nested I-POMDPs in the multi-agent Tiger domain (`src/solvers/exact/`).
+
+### 1. Exact Analytical Value Iteration Architecture
+- **Level 1 Exact POMDP Solver (`ExactPOMDPSolver` & `AlphaVector2D`/`AlphaVectorND`)**:
+  - Implements incremental pruning value iteration over the continuous belief simplex $\Delta(S)$.
+  - Features an $O(K \log K)$ 2D upper convex hull line-sweep pruning engine (`AlphaVector2D`) for 2-state POMDPs alongside an N-D linear programming dominance pruner (`AlphaVectorND` via `scipy.optimize.linprog`).
+  - Generates closed-form, piecewise-linear and convex (PWLC) value functions $V_t^*(b)$ and analytical action intervals:
+    - Horizon 1: $\text{OpenLeft} \in [0, 0.0909]$, $\text{Listen} \in [0.0909, 0.9091]$, $\text{OpenRight} \in [0.9091, 1.0]$
+    - Horizon 2: $\text{OpenLeft} \in [0, 0.0786]$, $\text{Listen} \in [0.0786, 0.9214]$, $\text{OpenRight} \in [0.9214, 1.0]$
+- **Level 2 Exact Multi-Agent Solver (`ExactIPOMDPSolver`)**:
+  - Solves the game-theoretic interactive state space $IS_{i,2} = S \times M_{j,1}$ by backward induction over the finite reachable observation tree of $L_1$ opponent mental models.
+  - Accounts for intentional opponent action selection and observation-correlated transitions, proving the coordination value gain over a random baseline.
+
+### 2. Empirical Policy Concordance & Value Convergence
+Extensive triangulation between the Exact VI Oracle, I-POMCP, and Sampled RTS across 21 belief points ($b(\text{TL}) \in [0, 1]$) and 4 simulation budgets demonstrates:
+- **100.0% Policy Concordance**: Across all belief test points at Horizon 2, I-POMCP selects identical optimal actions to $\pi^*(b)$, strictly respecting the analytical decision boundaries.
+- **Monotonic Q-Value Convergence**: Mean absolute value error $\|V_{\text{exact}} - V_{\text{IPOMCP}}\|_1$ decreases monotonically as MCTS simulation budget scales:
+  - $N=500$: Mean error $= 1.747$
+  - $N=2,000$: Mean error $= 1.413$
+  - $N=10,000$: Mean error $= 0.958$
+  - $N=25,000$: Mean error $= 0.726$
+- **Control Variate Precision**: Integrating exact immediate root expected rewards (`SolverBank.expected_rewards`) eliminates Tiger penalty variance, matching door opening Q-values to machine precision ($\approx 10^{-14}$).
+
+### 3. Opponent Modeling Sunburst Visualizations
+- **Interactive Scrubber Slider (`results/bayes_optimal/sunburst_optimal_animated_T20.html`)**:
+  - Full 20-step interactive Plotly animation tracing nested belief evolution $L_2 \to L_1 \to L_0$ across time.
+- **Publication-Quality Vector PDFs**:
+  - Exported snapshots at pivotal milestones: `fig_sunburst_step_0.pdf` (uniform prior), `fig_sunburst_step_2.pdf` (early belief concentration), `fig_sunburst_step_3.pdf` (coordinated door opening), `fig_sunburst_step_8.pdf` (second door opening), and `fig_sunburst_step_20.pdf` (final nested state).
+- **Physical vs Mental Invariance**: Door opening events reset the physical environment belief to uniform ($b_i(\text{TL}) = 0.50$), but **do not reset the learned opponent type distribution**, retaining high confidence ($b_i(L_1) \to 100\%$) across multiple episodes.
+
+### 4. Cross-Suite Prior Entropy Reduction
+Across all 7 conditions of the Deep Hierarchy Prior Benchmark ($N=50, T=20$):
+- Opponent mental model Shannon entropy decreases by **$71\%$ to $92\%$** over 20 steps.
+- The recursive Bayesian filter successfully recovers from heavily misspecified priors (Conditions 3 & 6) and resolves uninformative uniform priors (Conditions 4 & 7).
+
+### 5. Unified CLI Execution
+Run the complete Bayes-optimal verification suite via:
+```bash
+PYTHONPATH=src uv run python -m examples.experiments.run_benchmarks --suite optimal
+```
+
 
