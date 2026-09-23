@@ -12,7 +12,7 @@ from typing import Optional
 from core.logger import get_logger
 from examples.experiments.deep_hierarchy_prior_experiment import run_deep_prior_experiment
 from examples.experiments.level_convergence_matrix_experiment import run_payoff_matrix_experiment
-from examples.tiger.runners.planner_comparison import run_planner_comparison
+from examples.experiments.planner_comparison_experiment import run_planner_comparison
 
 logger = get_logger("BenchmarkSuites")
 

@@ -97,41 +97,78 @@ def test_invalid_configuration_fails_before_work(factory):
 
 
 def test_tiger_candidate_actions_filter_dominated_actions():
-    from examples.tiger.model.tiger_model import LISTEN, OPEN_LEFT, OPEN_RIGHT, TIGER_LEFT, TIGER_RIGHT
+    from examples.tiger.model.tiger_model import (
+        LISTEN,
+        OPEN_LEFT,
+        OPEN_RIGHT,
+        TIGER_LEFT,
+        TIGER_RIGHT,
+    )
+
     model = TigerModel()
     # Uncertain belief: door openings strictly dominated
-    assert model.get_candidate_actions(TIGER_LEFT, "i", belief={TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}) == [LISTEN]
-    assert model.get_candidate_actions(TIGER_LEFT, "i", belief={TIGER_LEFT: 0.84, TIGER_RIGHT: 0.16}) == [LISTEN]
+    assert model.get_candidate_actions(
+        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
+    ) == [LISTEN]
+    assert model.get_candidate_actions(
+        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.84, TIGER_RIGHT: 0.16}
+    ) == [LISTEN]
 
     # Confident Left (tiger left -> open right is viable, open left strictly dominated)
-    assert model.get_candidate_actions(TIGER_LEFT, "i", belief={TIGER_LEFT: 0.85, TIGER_RIGHT: 0.15}) == [LISTEN, OPEN_RIGHT]
-    assert model.get_candidate_actions(TIGER_LEFT, "i", belief={TIGER_LEFT: 0.99, TIGER_RIGHT: 0.01}) == [LISTEN, OPEN_RIGHT]
+    assert model.get_candidate_actions(
+        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.85, TIGER_RIGHT: 0.15}
+    ) == [LISTEN, OPEN_RIGHT]
+    assert model.get_candidate_actions(
+        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.99, TIGER_RIGHT: 0.01}
+    ) == [LISTEN, OPEN_RIGHT]
 
     # Confident Right (tiger right -> open left is viable, open right strictly dominated)
-    assert model.get_candidate_actions(TIGER_LEFT, "i", belief={TIGER_LEFT: 0.15, TIGER_RIGHT: 0.85}) == [LISTEN, OPEN_LEFT]
+    assert model.get_candidate_actions(
+        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.15, TIGER_RIGHT: 0.85}
+    ) == [LISTEN, OPEN_LEFT]
 
     # None belief: falls back to full legal set
-    assert model.get_candidate_actions(TIGER_LEFT, "i", belief=None) == [LISTEN, OPEN_LEFT, OPEN_RIGHT]
+    assert model.get_candidate_actions(TIGER_LEFT, "i", belief=None) == [
+        LISTEN,
+        OPEN_LEFT,
+        OPEN_RIGHT,
+    ]
 
 
 def test_tiger_creak_resets_rollout_belief():
-    from examples.tiger.model.tiger_model import CREAK_RIGHT, GROWL_LEFT, LISTEN, OPEN_RIGHT, SILENCE, TIGER_LEFT, TIGER_RIGHT
+    from examples.tiger.model.tiger_model import (
+        CREAK_RIGHT,
+        GROWL_LEFT,
+        LISTEN,
+        OPEN_RIGHT,
+        SILENCE,
+        TIGER_LEFT,
+        TIGER_RIGHT,
+    )
+
     model = TigerModel()
     prior_high_confidence = {TIGER_LEFT: 0.01, TIGER_RIGHT: 0.99}
 
     # If opponent opened a door (creak right observed), old belief resets to 0.5 before applying growl left
-    updated = model.update_rollout_belief(prior_high_confidence, LISTEN, (GROWL_LEFT, CREAK_RIGHT), "i")
+    updated = model.update_rollout_belief(
+        prior_high_confidence, LISTEN, (GROWL_LEFT, CREAK_RIGHT), "i"
+    )
     assert updated[TIGER_LEFT] == pytest.approx(0.85)
     assert updated[TIGER_RIGHT] == pytest.approx(0.15)
 
     # If agent opens door itself, deafened and reset to 0.5/0.5
-    self_opened = model.update_rollout_belief(prior_high_confidence, OPEN_RIGHT, (SILENCE, SILENCE), "i")
+    self_opened = model.update_rollout_belief(
+        prior_high_confidence, OPEN_RIGHT, (SILENCE, SILENCE), "i"
+    )
     assert self_opened == {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
 
 
 def test_default_candidate_actions_matches_legal_actions_on_wumpus():
     model = WumpusModel()
     state = model.get_initial_state(random.Random(1))
-    assert model.get_candidate_actions(state, AGENT_HUMAN, belief=None) == model.get_legal_actions(state, AGENT_HUMAN)
-    assert model.get_candidate_actions(state, AGENT_HUMAN, belief="arbitrary_belief") == model.get_legal_actions(state, AGENT_HUMAN)
-
+    assert model.get_candidate_actions(state, AGENT_HUMAN, belief=None) == model.get_legal_actions(
+        state, AGENT_HUMAN
+    )
+    assert model.get_candidate_actions(
+        state, AGENT_HUMAN, belief="arbitrary_belief"
+    ) == model.get_legal_actions(state, AGENT_HUMAN)

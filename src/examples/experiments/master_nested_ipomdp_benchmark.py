@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 
 import matplotlib
@@ -13,7 +12,6 @@ from typing import Any, Dict, Tuple
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy import stats
 
 from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
 from core.logger import get_logger
@@ -31,6 +29,7 @@ from utils.plotting import (
     plot_episode_sunburst_slider,
     plot_nested_belief_sunburst,
 )
+from utils.statistics import compute_statistical_significance
 
 logger = get_logger("MasterBenchmark")
 
@@ -164,50 +163,6 @@ def plot_cross_condition_comparisons(combined_df: pd.DataFrame, out_dir: str):
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "fig_cross_condition_rewards.pdf"), format="pdf", dpi=300)
     plt.close()
-
-
-def compute_statistical_significance(combined_df: pd.DataFrame, out_dir: str):
-    """Paired seed comparisons with Holm-adjusted two-sided t-test p-values.
-
-    Conditions must share every trial at the final requested step. Pairing by row
-    position or truncating arrays can compare different seeds and conceal failed
-    trials. These exploratory tests do not establish convergence or equivalence.
-    """
-    from itertools import combinations
-
-    final = combined_df[combined_df.step == combined_df.step.max()]
-    table = final.pivot(index="trial", columns="condition", values="cum_reward_i")
-    if table.isna().any().any() or len(table) < 2:
-        raise ValueError("Paired comparisons require a complete common panel of >=2 trials")
-    results = {}
-    for c1, c2 in combinations(table.columns, 2):
-        differences = table[c1] - table[c2]
-        if differences.eq(0).all():
-            t_stat, p_t, p_w = 0.0, 1.0, 1.0
-        elif differences.std() == 0:
-            t_stat, p_t = None, 0.0
-            p_w = float(stats.wilcoxon(differences).pvalue)
-        else:
-            test = stats.ttest_1samp(differences, 0)
-            t_stat, p_t = float(test.statistic), float(test.pvalue)
-            p_w = float(stats.wilcoxon(differences).pvalue)
-        results[f"{c1} vs {c2}"] = dict(
-            n_pairs=len(table),
-            mean_diff=float(differences.mean()),
-            c1_mean=float(table[c1].mean()),
-            c2_mean=float(table[c2].mean()),
-            paired_t_stat=t_stat,
-            paired_t_pval=p_t,
-            wilcoxon_pval=p_w,
-        )
-    running = 0.0
-    ordered = sorted(results.values(), key=lambda row: row["paired_t_pval"])
-    for rank, row in enumerate(ordered):
-        running = max(running, min(1.0, (len(ordered) - rank) * row["paired_t_pval"]))
-        row["holm_pval"] = running
-        row["significant_at_05"] = running < 0.05
-    with open(os.path.join(out_dir, "statistical_significance_tests.json"), "w") as stream:
-        json.dump(results, stream, indent=2, allow_nan=False)
 
 
 def run_master_benchmark(n_trials: int = 100, max_steps: int = 20, planning_depth: int = 20):

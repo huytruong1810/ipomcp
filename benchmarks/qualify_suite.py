@@ -88,7 +88,10 @@ def main():
         (name, runner)
         for name, runner in conditions(config)
         if args.suite == "all"
-        or (args.suite == "prior-comparison" and (name.startswith("prior-") or name.startswith("comparison-")))
+        or (
+            args.suite == "prior-comparison"
+            and (name.startswith("prior-") or name.startswith("comparison-"))
+        )
         or name.startswith(args.suite + "-")
     ]
     source = Path(__file__).resolve().parents[1] / "src"

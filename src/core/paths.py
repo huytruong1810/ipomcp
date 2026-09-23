@@ -20,7 +20,7 @@ def get_results_dir(category: str, run_name: str) -> str:
     Returns an absolute path to a centralized results directory and ensures it exists.
 
     Args:
-        category: Top-level result domain (e.g., 'deep_prior', 'oracle', 'payoff_matrix', 'tiger', 'uav', 'wumpus', 'benchmarks').
+        category: Top-level result domain (e.g., 'bayes_optimal', 'deep_prior', 'planner_comparison', 'payoff_matrix', 'archive').
         run_name: Subdirectory name for the specific experiment run or condition.
 
     Returns:
