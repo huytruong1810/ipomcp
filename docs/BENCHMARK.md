@@ -124,7 +124,9 @@ possible future design, not an accepted one-line correction.
 
 Antigravity completed all five 630-case panels (3,150 total cases, 0 failures, 0 timeouts, 0 resource kills) under `results/oracle/calibration_{normalized_c1,normalized_c01,standard_c10,bounded_c01,bounded_c1}`. All runs used Git checkpoint `d0f5428`, Horizons 1–3, budgets 1k/10k/50k, 10 seeds, and 7 belief simplex points under two supervised workers with 4 GiB limits.
 
-Seeds 5–9 are reported separately below as held-out validation data (seeds 0–4 were previously inspected):
+Seeds 5–9 were previously unused and are reported separately below. They now
+contribute to candidate selection and are not an untouched final validation set
+(seeds 0–4 were previously inspected):
 
 | Exploration Strategy | Coeff $c$ | H3 Wrong (0–4) / 105 | H3 Loss (0–4) | H3 Wrong (5–9) / 105 | H3 Loss (5–9) | H3 50k Wrong (5–9) / 35 | H3 50k Loss (5–9) | H2 Wrong (5–9) / 105 |
 |:---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -135,8 +137,36 @@ Seeds 5–9 are reported separately below as held-out validation data (seeds 0�
 | `bounded` | 1.0 | 25 (23.8%) | 0.9906 | 24 (22.9%) | 0.9100 | **1** (2.9%) | **0.0955** | **7** / 105 |
 
 Key findings:
-- `bounded 1.0` achieves clean monotonic convergence with near-identical seen vs held-out loss: at 50,000 simulations and Horizon 3, only 1 of 35 held-out cases failed (at $P=0.90$, seed 7), reducing held-out first-action loss from 2.1631 (`normalized 1.0`) down to 0.0955.
+- `bounded 1.0` shows decreasing aggregate horizon-three action loss over the three tested budgets: at 50,000 simulations and Horizon 3, only 1 of 35 held-out cases failed (at $P=0.90$, seed 7), reducing held-out first-action loss from 2.1631 (`normalized 1.0`) down to 0.0955.
 - At Horizon 2 and 50,000 simulations, `bounded 1.0` achieved 0/70 errors across all 10 seeds (0.0000 loss).
 - At Horizon 1, `bounded 1.0` achieved 0/210 errors across all budgets and seeds.
 - Detailed per-belief breakdown and run logs are in `results/oracle/CALIBRATION_EXTENSION_REPORT.md`.
 
+
+
+## Independent calibration review and validation decision
+
+Codex verified all 3,150 raw cases against their requested Cartesian products:
+no missing/duplicate cases, all statuses complete, all recorded source hashes
+match checkpoint d0f5428, and recorded strategy/coefficient settings match each
+manifest. First-action losses were independently recomputed from policies and
+oracle Q-values. The candidate is **bounded c=1**, with no production promotion.
+
+The finite budget trend is not proof of asymptotic convergence or monotonicity
+for individual cases. One bounded-c1 case (H2, seed 9, p=.9) has losses
+0 / 2.1945 / 0 at 1k / 10k / 50k. At H3/50k on seeds 5-9, the candidate still
+has a maximum first-action loss of 3.341678, and mean maximum absolute Q error
+31.301129 despite only 1/35 wrong choices. Policy agreement does not establish
+accurate action-value estimates.
+
+The report's roughly 514-535 seconds per strategy are the **sum of case wall
+times**, not measured elapsed panel times under two concurrent workers. The raw
+case timings support those sums; they do not support the report's statement that
+each panel took approximately 8.5 elapsed minutes.
+
+The fixed held-out protocol is in HANDOFF.md: candidate bounded c=1 versus the
+unchanged normalized-c1 baseline, new beliefs, seed indices 100-119, with 50k as
+the primary budget and 10k/100k diagnostic budgets. Do not select a different
+coefficient after inspecting that validation set. The gate concerns observed
+first-action decisions on the specified L1 panel only, not L2/L3/L4 correctness,
+value accuracy, statistical population guarantees, or full-suite qualification.

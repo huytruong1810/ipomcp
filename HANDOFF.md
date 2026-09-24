@@ -1,5 +1,9 @@
 # Current review handoff
 
+Current action: run the fixed held-out L1 validation at the end of this file.
+Candidate: bounded c=1; production default unchanged. Do not rerun completed
+calibration panels or launch the full suite.
+
 Authoritative checkout: `/home/andyj1810/projects/ipomcp`. Antigravity's refactor
 was committed at `8a96b85` before this pass. No uncommitted source was overwritten.
 The September 23 review repairs reference planning, removes unsupported search
@@ -169,7 +173,7 @@ The oracle CLI now supports `--exploration normalized|standard|bounded` and
 interval and scales it by remaining horizon; it is not a confidence certificate.
 Do not substitute a max backup without a separate reviewed algorithm design.
 
-Next runner task: run the following calibration extension separately for the five
+Completed calibration task (do not rerun): the following extension covered the five
 pairs `normalized 1`, `normalized 0.1`, `standard 10`, `bounded 0.1`, `bounded 1`,
 using unique output directories. Replace both option placeholders and RUN_ID.
 
@@ -205,3 +209,66 @@ Summary on held-out seeds 5–9 (absent from earlier calibration):
 - At Horizon 1, all 210 cases completed with 0 errors across all budgets.
 - Detailed tables are committed in `docs/BENCHMARK.md` and `results/oracle/CALIBRATION_EXTENSION_REPORT.md`.
 
+
+
+## Current runner task: fixed held-out L1 validation
+
+Decision after independent review of checkpoint 9815f47: **advance bounded c=1
+as the sole candidate; do not promote the production default**. Codex verified
+all 3,150 raw cases, requested case coverage, source hashes, actual strategies,
+and first-action loss calculations. The strongest 50k candidate still has errors
+and substantial Q error. See docs/BENCHMARK.md for corrected interpretations of
+convergence, seed selection and aggregate worker time.
+
+Freeze this protocol before any validation run:
+
+- Candidate: `bounded`, coefficient 1. Baseline: `normalized`, coefficient 1.
+- L1 versus uniform L0, gamma .95, horizons 1/2/3; no physical-model changes.
+- New beliefs: .04/.06/.08/.12/.20/.35/.65/.80/.88/.92/.94/.96.
+- New seed indices: 100 through 119 inclusive (`--seed-start 100 --seeds 20`).
+- Primary budget: 50,000 simulations. The 10,000 and 100,000 points are
+  diagnostics and cannot substitute for a failing primary-budget result.
+- Engineering decision gate: all requested cases complete and, at 50k, every
+  candidate case has first-action loss <=1e-8 (floating-point comparison tolerance,
+  not a scientific equivalence margin). This is 720 primary cases, 240 per horizon.
+  Also report the baseline at precisely the same beliefs/seeds/budgets.
+- Preserve/report all losses, Q errors, policies, failure reasons, per-belief
+  counts, per-case wall/RSS, and actual total panel elapsed time. Do not discard
+  failures or average away a failing belief. No accuracy target is asserted for
+  Q estimates by this decision gate; quantify their remaining error separately.
+
+Run these two panels sequentially, using two supervised workers within each:
+
+```bash
+uv run python -m examples.experiments.planner_oracle_experiment \
+  --out results/oracle/heldout_bounded_c1_20260924 \
+  --planners mcts --exploration bounded --exploration-const 1 \
+  --horizons 1 2 3 --budgets 10000 50000 100000 \
+  --seed-start 100 --seeds 20 \
+  --beliefs 0.04 0.06 0.08 0.12 0.20 0.35 0.65 0.80 0.88 0.92 0.94 0.96 \
+  --workers 2 --timeout 2400 --max-rss-mb 4096
+
+uv run python -m examples.experiments.planner_oracle_experiment \
+  --out results/oracle/heldout_normalized_c1_20260924 \
+  --planners mcts --exploration normalized --exploration-const 1 \
+  --horizons 1 2 3 --budgets 10000 50000 100000 \
+  --seed-start 100 --seeds 20 \
+  --beliefs 0.04 0.06 0.08 0.12 0.20 0.35 0.65 0.80 0.88 0.92 0.94 0.96 \
+  --workers 2 --timeout 2400 --max-rss-mb 4096
+```
+
+Expected coverage: 2,160 cases per panel, 4,320 total. Use a new run identifier
+if those output directories already exist; never merge runs. Record the clean
+start commit and source manifests. The new seed-start option changes only case
+selection; the planner and its production defaults are unchanged.
+
+A pass permits considering this candidate for further integration, not a claim
+of optimality everywhere. Failure returns the candidate to development; this
+validation set then becomes development evidence and must not be reused as an
+untouched test. Regardless of outcome, the L2 horizon/computation mismatch,
+deep Tiger before/after comparison, L4 and all 39-condition qualification remain
+separate gates. Antigravity owns execution; Codex has not run these held-out cases.
+
+Verification of the seed-range preparation: 180 non-integration tests passed;
+Ruff lint and format checks passed. No planner algorithm/default changed and no
+held-out experiment was executed in this preparation pass.

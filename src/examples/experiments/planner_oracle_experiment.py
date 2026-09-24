@@ -137,6 +137,7 @@ def run_oracle_comparison(
     budgets=(1000, 10000, 50000),
     horizons=(1, 2, 3),
     seeds=10,
+    seed_start=0,
     beliefs=(0.02, 0.15, 0.5, 0.85, 0.98),
     planners=("mcts", "rts"),
     gamma=0.95,
@@ -156,7 +157,9 @@ def run_oracle_comparison(
     MCTSConfig(exploration_const=exploration_const)
     if exploration not in {"normalized", "standard", "bounded"}:
         raise ValueError("Unknown exploration strategy")
-    if seeds < 1 or not budgets or any(b < 3 for b in budgets):
+    if type(seed_start) is not int or seed_start < 0:
+        raise ValueError("seed_start must be a nonnegative integer")
+    if type(seeds) is not int or seeds < 1 or not budgets or any(b < 3 for b in budgets):
         raise ValueError("Need positive seed count and budgets >= 3")
     if not horizons or any(h < 1 for h in horizons):
         raise ValueError("Need positive planning horizons")
@@ -171,6 +174,7 @@ def run_oracle_comparison(
         budgets=budgets,
         horizons=horizons,
         seeds=seeds,
+        seed_start=seed_start,
         beliefs=beliefs,
         planners=planners,
         gamma=gamma,
@@ -189,7 +193,13 @@ def run_oracle_comparison(
         },
     }
     (directory / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    cases = list(itertools.product(planners, horizons, budgets, range(seeds), beliefs))
+    # Seed indices are bank inputs, independent of panel position. A fresh range
+    # allows validation without replaying seeds used for candidate selection.
+    cases = list(
+        itertools.product(
+            planners, horizons, budgets, range(seed_start, seed_start + seeds), beliefs
+        )
+    )
     jobs = {
         i: partial(evaluate_case, *case, gamma, exploration, exploration_const)
         for i, case in enumerate(cases)
@@ -219,7 +229,8 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--budgets", type=int, nargs="+", default=[1000, 10000, 50000])
     parser.add_argument("--horizons", type=int, nargs="+", default=[1, 2, 3])
-    parser.add_argument("--seeds", type=int, default=10)
+    parser.add_argument("--seeds", type=int, default=10, help="Number of seed indices")
+    parser.add_argument("--seed-start", type=int, default=0, help="First seed index (inclusive)")
     parser.add_argument("--beliefs", type=float, nargs="+", default=[0.02, 0.15, 0.5, 0.85, 0.98])
     parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts", "rts"])
     parser.add_argument(

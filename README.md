@@ -108,3 +108,7 @@ and `--exploration-const` for explicit MCTS exploration experiments. Defaults ar
 unchanged. Every setting in the September 24 calibration still made some
 suboptimal choices; this is diagnostic tooling, not full-suite qualification.
 See `docs/BENCHMARK.md` for results and `HANDOFF.md` for runner instructions.
+
+The calibration extension selects bounded c=1 for the fixed held-out protocol
+in HANDOFF.md, without changing production defaults. The oracle CLI's
+`--seed-start` selects a fresh seed range and is recorded in each run manifest.

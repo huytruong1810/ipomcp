@@ -47,3 +47,45 @@ def test_exploration_ablation_preserves_one_step_problem_and_records_settings(st
     if strategy == "bounded":
         assert row["exploration"]["reward_min"] == -100
         assert row["exploration"]["reward_max"] == 10
+
+
+def test_oracle_panel_records_and_executes_requested_seed_range(tmp_path, monkeypatch):
+    import json
+
+    from examples.experiments import planner_oracle_experiment as experiment
+
+    observed = []
+
+    def inline_supervisor(jobs, **kwargs):
+        for identifier, job in jobs.items():
+            rows = job()
+            observed.append(rows[0]["seed"])
+            yield identifier, {"status": "complete", "rows": rows}
+
+    monkeypatch.setattr(experiment, "supervise_jobs", inline_supervisor)
+    experiment.run_oracle_comparison(
+        tmp_path,
+        planners=("mcts",),
+        horizons=(1,),
+        budgets=(3,),
+        beliefs=(0.5,),
+        seeds=2,
+        seed_start=100,
+    )
+    assert observed == [100, 101]
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["settings"]["seed_start"] == 100
+    assert manifest["settings"]["seeds"] == 2
+    for identifier, seed in enumerate(observed):
+        case = json.loads((tmp_path / f"case-{identifier}.json").read_text())
+        assert case["case"][3] == case["rows"][0]["seed"] == seed
+
+
+@pytest.mark.parametrize("seed_start", [-1, 0.5, True])
+def test_oracle_panel_rejects_invalid_seed_start_before_output(tmp_path, seed_start):
+    from examples.experiments.planner_oracle_experiment import run_oracle_comparison
+
+    out = tmp_path / "invalid"
+    with pytest.raises(ValueError, match="seed_start"):
+        run_oracle_comparison(out, seed_start=seed_start)
+    assert not out.exists()

@@ -166,3 +166,11 @@ and explicit exploration ablations in the matched runner. Mean backups and
 production defaults remain unchanged. Seventy calibration cases all completed,
 but every strategy tested retains action errors. See docs/BENCHMARK.md and
 HANDOFF.md for evidence and the next runner protocol.
+
+
+Calibration extension review (9815f47): independently checked coverage and source
+hashes for all 3,150 cases, strategy binding and recomputed first-action losses.
+Selected bounded c=1 for the fixed held-out protocol, without changing defaults.
+Corrected unsupported asymptotic convergence and elapsed-time descriptions.
+Added and tested explicit seed-range selection for fresh validation runs; 180
+non-integration tests and lint/format pass. The held-out results are still pending.
