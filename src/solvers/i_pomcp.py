@@ -11,7 +11,7 @@ import random
 from dataclasses import asdict
 
 from core.config import IPOMCPConfig
-from ipomdp.finite_belief import InteractiveState, MentalModel
+from ipomdp.finite_belief import MentalModel
 from ipomdp.frame import AgentFrame
 from solvers.exploration import NormalizedUCB
 from solvers.generative_model import InteractiveGenerativeModel
@@ -81,7 +81,7 @@ class IPOMCPPlanner(Planner):
                 "root_rewards": dict(self.solver_bank.expected_rewards(model)),
             }
             root_belief = None
-            if hasattr(self.pomdp_model, "update_rollout_belief"):
+            if model.belief.mass:
                 p_counts = {}
                 for p, mass in model.belief.mass:
                     p_counts[p.state] = p_counts.get(p.state, 0.0) + mass
@@ -104,11 +104,9 @@ class IPOMCPPlanner(Planner):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
             return 0.0
-        legal = (
-            self.pomdp_model.get_candidate_actions(particle.state, self.key.agent_id, belief=belief)
-            if depth > 0 and hasattr(self.pomdp_model, "get_candidate_actions")
-            else self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
-        )
+        # Search explores every legal action. A rollout confidence threshold
+        # is not a dominance proof and must never remove tree actions.
+        legal = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
         action = self.exploration_strategy.select_action(
             node, legal, q_min=bounds["q_min"], q_max=bounds["q_max"]
         )
@@ -128,12 +126,8 @@ class IPOMCPPlanner(Planner):
             new = child is None
             child = node.create_child(action, observation) if new else child
             child.add_particle(following)
-            next_belief = (
-                self.pomdp_model.update_rollout_belief(
-                    belief, action, observation, self.key.agent_id
-                )
-                if hasattr(self.pomdp_model, "update_rollout_belief")
-                else None
+            next_belief = self.pomdp_model.update_rollout_belief(
+                belief, action, observation, self.key.agent_id
             )
             continuation = (
                 0.0
@@ -164,18 +158,21 @@ class IPOMCPPlanner(Planner):
         )
         if action not in self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id):
             raise ValueError("Domain rollout policy returned an illegal action")
-        following_state, joint, reward, terminal = self.gen_model.sample_event(
+        # Only the final reward can omit private model propagation: no later
+        # action depends on it. Earlier rollout steps use the same generative
+        # process as tree steps, including the opponent's private observation
+        # and subjective Bayesian update. Freezing that belief changes dynamics.
+        if depth + 1 >= self.config.mcts.max_depth:
+            return self.gen_model.sample_event(
+                particle, action, self.key.agent_id, self.pomdp_model
+            )[2]
+        following, joint, reward, terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model
         )
-        if terminal or depth + 1 >= self.config.mcts.max_depth:
+        if terminal:
             return reward
-        obs = self.pomdp_model.sample_observation(following_state, joint, self.key.agent_id)
-        next_belief = (
-            self.pomdp_model.update_rollout_belief(belief, action, obs, self.key.agent_id)
-            if hasattr(self.pomdp_model, "update_rollout_belief")
-            else None
-        )
-        following = InteractiveState(following_state, particle.opponent)
+        obs = self.pomdp_model.sample_observation(following.state, joint, self.key.agent_id)
+        next_belief = self.pomdp_model.update_rollout_belief(belief, action, obs, self.key.agent_id)
         return reward + self.config.mcts.gamma * self._rollout(
             following, depth + 1, belief=next_belief
         )

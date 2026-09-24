@@ -96,45 +96,6 @@ def test_invalid_configuration_fails_before_work(factory):
         factory()
 
 
-def test_tiger_candidate_actions_filter_dominated_actions():
-    from examples.tiger.model.tiger_model import (
-        LISTEN,
-        OPEN_LEFT,
-        OPEN_RIGHT,
-        TIGER_LEFT,
-        TIGER_RIGHT,
-    )
-
-    model = TigerModel()
-    # Uncertain belief: door openings strictly dominated
-    assert model.get_candidate_actions(
-        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
-    ) == [LISTEN]
-    assert model.get_candidate_actions(
-        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.84, TIGER_RIGHT: 0.16}
-    ) == [LISTEN]
-
-    # Confident Left (tiger left -> open right is viable, open left strictly dominated)
-    assert model.get_candidate_actions(
-        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.85, TIGER_RIGHT: 0.15}
-    ) == [LISTEN, OPEN_RIGHT]
-    assert model.get_candidate_actions(
-        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.99, TIGER_RIGHT: 0.01}
-    ) == [LISTEN, OPEN_RIGHT]
-
-    # Confident Right (tiger right -> open left is viable, open right strictly dominated)
-    assert model.get_candidate_actions(
-        TIGER_LEFT, "i", belief={TIGER_LEFT: 0.15, TIGER_RIGHT: 0.85}
-    ) == [LISTEN, OPEN_LEFT]
-
-    # None belief: falls back to full legal set
-    assert model.get_candidate_actions(TIGER_LEFT, "i", belief=None) == [
-        LISTEN,
-        OPEN_LEFT,
-        OPEN_RIGHT,
-    ]
-
-
 def test_tiger_creak_resets_rollout_belief():
     from examples.tiger.model.tiger_model import (
         CREAK_RIGHT,
@@ -163,12 +124,60 @@ def test_tiger_creak_resets_rollout_belief():
     assert self_opened == {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
 
 
-def test_default_candidate_actions_matches_legal_actions_on_wumpus():
-    model = WumpusModel()
-    state = model.get_initial_state(random.Random(1))
-    assert model.get_candidate_actions(state, AGENT_HUMAN, belief=None) == model.get_legal_actions(
-        state, AGENT_HUMAN
+def test_tiger_persistent_rollout_open_does_not_reset():
+    model = TigerModel(persistent=True)
+    prior = {"TL": 0.9, "TR": 0.1}
+    assert model.update_rollout_belief(prior, "OR", ("S", "S"), "i") == pytest.approx(prior)
+
+
+def test_tiger_impossible_rollout_observation_is_not_repaired():
+    from ipomdp.finite_filter import UnsupportedObservation
+
+    with pytest.raises(UnsupportedObservation):
+        TigerModel().update_rollout_belief({"TL": 0.5, "TR": 0.5}, "OR", ("GL", "S"), "i")
+
+
+def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
+    """A later rollout event must receive the updated private mental model."""
+    from ipomdp.finite_belief import InteractiveState, MentalModel
+    from ipomdp.frame import AgentFrame
+
+    planner = I_POMDP_Bootstrapper(SolverBank()).create_solver(
+        "i",
+        2,
+        TigerModel(),
+        ["j"],
+        n_particles=20,
+        config=IPOMCPConfig(mcts=MCTSConfig(n_sims=20, max_depth=3)),
     )
-    assert model.get_candidate_actions(
-        state, AGENT_HUMAN, belief="arbitrary_belief"
-    ) == model.get_legal_actions(state, AGENT_HUMAN)
+    atom = planner.belief.mass[0][0]
+    sentinel = MentalModel(AgentFrame("j", 0, planner.pomdp_model))
+    updated = InteractiveState(atom.state, sentinel)
+    calls = []
+
+    def tree_step(particle, *args):
+        calls.append(particle.opponent)
+        return updated, {"i": "L", "j": "L"}, -1, False
+
+    def final_event(particle, *args):
+        assert particle.opponent is sentinel
+        return atom.state, {"i": "L", "j": "L"}, -1, False
+
+    monkeypatch.setattr(planner.gen_model, "tree_step", tree_step)
+    monkeypatch.setattr(planner.gen_model, "sample_event", final_event)
+    planner._rollout(atom, 1, belief={"TL": 0.5, "TR": 0.5})
+    assert calls == [atom.opponent]
+
+
+def test_search_keeps_all_legal_actions_below_root():
+    planner = I_POMDP_Bootstrapper(SolverBank(seed=17)).create_solver(
+        "i",
+        1,
+        TigerModel(),
+        ["j"],
+        n_particles=100,
+        config=IPOMCPConfig(mcts=MCTSConfig(n_sims=2000, max_depth=2)),
+    )
+    planner.get_action()
+    child = planner.root.children["OL"][("S", "S")]
+    assert set(child.action_counts) == {"L", "OL", "OR"}

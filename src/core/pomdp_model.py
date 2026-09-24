@@ -168,15 +168,6 @@ class POMDPModel(abc.ABC):
         """
         return self.get_all_actions(agent_id)
 
-    def get_candidate_actions(
-        self, state: State, agent_id: AgentID, belief: Optional[Any] = None
-    ) -> List[Action]:
-        """Return plausible non-dominated candidate actions given physical state and belief.
-
-        Defaults to get_legal_actions when belief-aware action pruning is not implemented.
-        """
-        return self.get_legal_actions(state, agent_id)
-
     def get_rollout_action(
         self, state: State, agent_id: AgentID, belief: Optional[Any] = None
     ) -> Action:

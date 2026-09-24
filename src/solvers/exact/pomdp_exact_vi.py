@@ -6,6 +6,7 @@ vectors Q_t*(p, a), policy decision boundaries, and alpha-vector representations
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -35,8 +36,9 @@ class PolicySegment:
 class ExactPOMDPSolver:
     """Exact Value Iteration solver for 2-State POMDPs and Level 1 I-POMDPs.
 
-    Supports arbitrary finite planning horizons H, discount factor gamma, and
-    arbitrary fixed opponent policies (e.g. uniform L0).
+    Supports Tiger dynamics, finite horizons, discount factors and fixed
+    state-independent opponent policies. Alpha pruning uses floating tolerances;
+    'exact' means exhaustive finite-model backup, not symbolic arithmetic.
     """
 
     def __init__(
@@ -48,6 +50,15 @@ class ExactPOMDPSolver:
         agent_id: str = "i",
         opponent_id: str = "j",
     ):
+        from examples.tiger.model.tiger_model import TigerModel
+
+        if not isinstance(model, TigerModel):
+            raise TypeError("This two-state reference supports TigerModel only")
+        self._check_horizon(horizon)
+        if not math.isfinite(gamma) or not 0 <= gamma <= 1:
+            raise ValueError("gamma must lie in [0, 1]")
+        if {agent_id, opponent_id} != {"i", "j"}:
+            raise ValueError("Tiger requires distinct agents i and j")
         self.model = model
         self.horizon = horizon
         self.gamma = gamma
@@ -68,6 +79,14 @@ class ExactPOMDPSolver:
         else:
             self.opponent_policy = dict(opponent_policy)
 
+        from ipomdp.finite_filter import checked_distribution
+
+        self.opponent_policy = dict(
+            checked_distribution(self.opponent_policy.items(), "Opponent policy")
+        )
+        if not set(self.opponent_policy).issubset(self.opponent_actions):
+            raise ValueError("Opponent policy contains an unknown action")
+
         self.observations: Tuple[Any, ...] = tuple(model.get_all_observations(agent_id))
 
         # Caches for horizon t: 1..H
@@ -82,16 +101,22 @@ class ExactPOMDPSolver:
         self._immediate_rewards: Dict[Any, Tuple[float, float]] = {}
         self._precompute_immediate_rewards()
 
-    def _transition_prob(self, s_prev: Any, s_next: Any, a_i: Any, a_j: Any) -> float:
-        """Query physical transition probability."""
-        if hasattr(self.model, "persistent") and self.model.persistent:
-            return 1.0 if s_prev == s_next else 0.0
-        # In Tiger, opening a door resets location to uniform 0.5
-        from examples.tiger.model.tiger_model import LISTEN
+    @staticmethod
+    def _check_horizon(horizon):
+        if type(horizon) is not int or horizon < 0:
+            raise ValueError("horizon must be a nonnegative integer")
 
-        if a_i == LISTEN and a_j == LISTEN:
-            return 1.0 if s_prev == s_next else 0.0
-        return 0.5
+    def _query_horizon(self, probability, horizon):
+        if not math.isfinite(probability) or not 0 <= probability <= 1:
+            raise ValueError("belief probability must lie in [0, 1]")
+        h = self.horizon if horizon is None else horizon
+        self._check_horizon(h)
+        return h
+
+    def _transition_prob(self, s_prev, s_next, a_i, a_j):
+        """Use the domain kernel; do not duplicate reset/persistence semantics."""
+        joint = {self.agent_id: a_i, self.opponent_id: a_j}
+        return sum(p for s, p in self.model.transition_distribution(s_prev, joint) if s == s_next)
 
     def _precompute_immediate_rewards(self) -> None:
         """Compute R(s, a) integrated over opponent policy and physical transitions."""
@@ -112,12 +137,14 @@ class ExactPOMDPSolver:
 
     def solve(self, max_horizon: Optional[int] = None) -> None:
         """Execute Incremental Pruning value iteration up to max_horizon."""
-        target_h = max_horizon or self.horizon
+        target_h = self.horizon if max_horizon is None else max_horizon
+        self._check_horizon(target_h)
         s0, s1 = self.states
 
         # Base case Gamma_0 = { (0, 0) }
         current_gamma = [AlphaVector2D(0.0, 0.0, None)]
         self.alpha_sets[0] = current_gamma
+        self.action_alpha_sets[0] = {a: current_gamma for a in self.actions}
 
         for h in range(1, target_h + 1):
             if h in self.alpha_sets:
@@ -184,14 +211,14 @@ class ExactPOMDPSolver:
 
     def value(self, belief_p: float, horizon: Optional[int] = None) -> float:
         """Evaluate optimal value V_h*(p) at belief p = P(s_0)."""
-        h = horizon or self.horizon
+        h = self._query_horizon(belief_p, horizon)
         if h not in self.alpha_sets:
             self.solve(h)
         return max(v.value(belief_p) for v in self.alpha_sets[h])
 
     def q_values(self, belief_p: float, horizon: Optional[int] = None) -> Dict[Any, float]:
         """Compute exact action-value vector Q_h*(p, a) for all actions."""
-        h = horizon or self.horizon
+        h = self._query_horizon(belief_p, horizon)
         if h not in self.action_alpha_sets:
             self.solve(h)
         return {
@@ -200,19 +227,15 @@ class ExactPOMDPSolver:
 
     def policy(self, belief_p: float, horizon: Optional[int] = None) -> Any:
         """Return the Bayes-optimal action argmax_a Q_h*(p, a)."""
-        h = horizon or self.horizon
-        if h not in self.segments:
-            self.solve(h)
-        for seg in self.segments[h]:
-            if seg.contains(belief_p):
-                return seg.action
-        # Fallback to direct max of q_values
-        q_vals = self.q_values(belief_p, h)
-        return max(q_vals, key=q_vals.get)
+        values = self.q_values(belief_p, horizon)
+        return max(values, key=values.get)
 
     def decision_boundaries(self, horizon: Optional[int] = None) -> List[PolicySegment]:
         """Return the list of optimal policy segments over [0, 1]."""
-        h = horizon or self.horizon
+        h = self.horizon if horizon is None else horizon
+        self._check_horizon(h)
+        if h == 0:
+            return []
         if h not in self.segments:
             self.solve(h)
         return list(self.segments[h])

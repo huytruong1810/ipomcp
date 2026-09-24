@@ -6,8 +6,9 @@ growl about that new state and a creak about the other action; an opening agent
 receives silence. Persistent mode suppresses state resets. These choices define
 the experiment and must not be silently swapped for another Tiger variant.
 
-The always-listen rollout is an explicit finite-budget heuristic. It is not an
-optimal policy and does not repair the planner's interactive filtering errors.
+The rollout uses a private physical-memory heuristic with a declared uniform-L0
+reference model. That memory is not the authoritative interactive posterior and
+never restricts tree actions. Only the finite recursive filter updates real beliefs.
 """
 
 import math
@@ -281,26 +282,6 @@ class TigerModel(POMDPModel):
         creaks = [CREAK_LEFT, CREAK_RIGHT, SILENCE]
         return [(g, c) for g in growls for c in creaks]
 
-    def get_candidate_actions(
-        self, state: TigerState, agent_id: AgentID, belief: Optional[Dict[TigerState, float]] = None
-    ) -> List[TigerAction]:
-        """Filter out strictly dominated actions given private belief confidence.
-
-        When confidence is low (< 85%), door opening is strictly dominated by listening.
-        When confidence is high (>= 85%), opening the opposite door and listening are viable;
-        opening the tiger door is strictly dominated.
-        """
-        if belief is None:
-            return self.get_legal_actions(state, agent_id)
-        p_tl = belief.get(TIGER_LEFT, 0.5)
-        p_tr = belief.get(TIGER_RIGHT, 0.5)
-        if max(p_tl, p_tr) < 0.85:
-            return [LISTEN]
-        elif p_tl >= 0.85:
-            return [LISTEN, OPEN_RIGHT]
-        else:
-            return [LISTEN, OPEN_LEFT]
-
     def get_rollout_action(
         self, state: TigerState, agent_id: AgentID, belief: Optional[Dict[TigerState, float]] = None
     ) -> TigerAction:
@@ -328,41 +309,29 @@ class TigerModel(POMDPModel):
         observation: TigerObservation,
         agent_id: AgentID,
     ) -> Dict[TigerState, float]:
-        """Bayesian update for private physical belief during MCTS rollout simulation.
+        """Update rollout memory under a declared uniform-random opponent.
 
-        Only conditions on the agent's own action and private observation.
-        Door opening (by self or opponent) uniformly resets the physical tiger.
+        This inexpensive policy memory is a physical-only approximation, not
+        the interactive posterior. It marginalizes unknown actions using L0,
+        handles noisy creaks and persistent dynamics, and never inspects the
+        sampled hidden state or true opponent action. The full opponent latent
+        model is propagated separately by the generative model. Impossible
+        evidence raises instead of resetting the prior.
         """
+        from ipomdp.finite_filter import UnsupportedObservation
+
         if belief is None:
-            belief = {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
-
-        if action in (OPEN_LEFT, OPEN_RIGHT):
-            return {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
-
-        obs_growl, obs_creak = observation
-        if not self.persistent and obs_creak in (CREAK_LEFT, CREAK_RIGHT):
-            p_tl, p_tr = 0.5, 0.5
-        else:
-            p_tl = belief.get(TIGER_LEFT, 0.5)
-            p_tr = belief.get(TIGER_RIGHT, 0.5)
-
-        acc = self.growl_acc.get(agent_id, 0.85)
-
-        if obs_growl == GROWL_LEFT:
-            p_tl_unnorm = p_tl * acc
-            p_tr_unnorm = p_tr * (1.0 - acc)
-        elif obs_growl == GROWL_RIGHT:
-            p_tl_unnorm = p_tl * (1.0 - acc)
-            p_tr_unnorm = p_tr * acc
-        else:
-            p_tl_unnorm = p_tl
-            p_tr_unnorm = p_tr
-
-        total = p_tl_unnorm + p_tr_unnorm
-        if total <= 0.0:
-            return {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
-
-        return {
-            TIGER_LEFT: p_tl_unnorm / total,
-            TIGER_RIGHT: p_tr_unnorm / total,
-        }
+            raise ValueError("Tiger rollout memory requires an initial physical belief")
+        other = "j" if agent_id == "i" else "i"
+        actions = self.get_all_actions(other)
+        posterior = {TIGER_LEFT: 0.0, TIGER_RIGHT: 0.0}
+        for state, mass in belief.items():
+            for other_action in actions:
+                joint = {agent_id: action, other: other_action}
+                for following, transition in self.transition_distribution(state, joint):
+                    likelihood = self.get_observation_prob(observation, following, joint, agent_id)
+                    posterior[following] += mass * transition * likelihood / len(actions)
+        evidence = math.fsum(posterior.values())
+        if evidence == 0:
+            raise UnsupportedObservation("Impossible Tiger rollout observation")
+        return {state: mass / evidence for state, mass in posterior.items()}

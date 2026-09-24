@@ -33,7 +33,7 @@ def run_all(
     )
     logger.info("================================================================================")
 
-    if resume_dir and run_suite == "all":
+    if resume_dir and run_suite in {"all", "optimal"}:
         raise ValueError("Resume requires --suite prior, comparison, or matrix")
     prior_resume = resume_dir if run_suite == "prior" else None
     comparison_resume = resume_dir if run_suite == "comparison" else None
@@ -101,9 +101,18 @@ def run_all(
     if run_suite in ["all", "optimal"]:
         logger.info("\n>>> LAUNCHING MASTER BAYES-OPTIMAL BENCHMARK SUITE <<<")
         t0 = time.time()
-        from examples.experiments.master_optimal_suite import run_master_optimal_suite
+        from datetime import datetime
 
-        run_master_optimal_suite(output_dir="results/bayes_optimal")
+        from core.paths import get_results_dir
+        from examples.experiments.planner_oracle_experiment import run_oracle_comparison
+
+        run_oracle_comparison(
+            get_results_dir("oracle", datetime.now().strftime("%Y%m%d_%H%M%S")),
+            seeds=n_trials,
+            workers=workers,
+            timeout=timeout,
+            max_rss_mb=max_rss_mb,
+        )
         logger.info(
             f">>> Master Bayes-Optimal Suite Completed in {(time.time() - t0) / 60:.1f} minutes."
         )

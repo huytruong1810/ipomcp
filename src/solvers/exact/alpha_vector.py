@@ -90,7 +90,7 @@ def prune_2d_with_intervals(
     # 3. Filter parallel lines: keep only the highest intercept for identical slopes
     filtered: List[AlphaVector2D] = []
     for v in vecs:
-        if filtered and math.isclose(filtered[-1].slope, v.slope, abs_tol=tol):
+        if filtered and math.isclose(filtered[-1].slope, v.slope, rel_tol=0.0, abs_tol=tol):
             if v.intercept > filtered[-1].intercept:
                 filtered[-1] = v
         else:
@@ -237,7 +237,9 @@ def prune_nd(
             method="highs",
         )
 
-        if res.success and -res.fun > tol:
+        if not res.success:
+            raise RuntimeError(f"Alpha dominance LP failed: {res.message}")
+        if -res.fun > tol:
             non_dominated.append(v)
 
     return non_dominated

@@ -9,16 +9,13 @@ from examples.tiger.model.tiger_model import (
     TigerModel,
 )
 from solvers.exact.ipomdp_exact_vi import ExactIPOMDPSolver
-from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
 
 
 def test_exact_l2_solver_initialization_and_solution():
     model = TigerModel()
     solver = ExactIPOMDPSolver(model, horizon=3, gamma=0.95)
     for rem in [1, 2, 3]:
-        assert rem in solver._v_table
-        assert rem in solver._q_table
-        assert len(solver._v_table[rem]) > 0
+        assert set(solver.q_values(0.5, horizon=rem)) == {LISTEN, OPEN_LEFT, OPEN_RIGHT}
 
 
 def test_exact_l2_symmetry():
@@ -48,18 +45,34 @@ def test_exact_l2_decisions():
     assert solver.policy(0.5, 0.5, 2) == LISTEN
 
 
-def test_exact_l2_value_strictly_greater_than_l1():
-    """An optimizing L1 partner yields strictly higher expected value than random L0."""
-    model = TigerModel()
-    l1_solver = ExactPOMDPSolver(model, horizon=2, gamma=0.95)
-    l1_solver.solve(2)
-    l2_solver = ExactIPOMDPSolver(model, horizon=2, gamma=0.95)
+def test_exact_l2_two_step_value_has_no_clairvoyant_continuation():
+    """One 85%-accurate growl cannot make a final opening profitable.
 
-    # At p=0.5, facing an intentional L1 partner allows joint listening and coordination
-    v_l1 = l1_solver.value(0.5, 2)
-    v_l2 = l2_solver.value(0.5, 0.5, 2)
+    At the uniform initial belief both agents listen. On the final decision,
+    listening pays -1 and even the preferred opening pays .85*10-.15*100=-6.5.
+    Therefore V2=-1-.95=-1.95. A statewise maximization incorrectly gives +8.5.
+    This is an independent hand calculation, not another call to the same DP.
+    """
+    solver = ExactIPOMDPSolver(TigerModel(), horizon=2, gamma=0.95)
+    assert solver.value(0.5) == pytest.approx(-1.95, abs=1e-12)
+    assert solver.q_values(0.5)[LISTEN] == pytest.approx(-1.95, abs=1e-12)
 
-    # v_l1 is negative (-1.95) due to random L0 door openings
-    # v_l2 is positive (+8.50) because L1 cooperates and opens the correct door
-    assert v_l2 > v_l1
-    assert v_l2 > 0.0
+
+def test_exact_l2_uninformative_sensors_cannot_reveal_hidden_state():
+    solver = ExactIPOMDPSolver(TigerModel(growl_accuracy={"i": 0.5, "j": 0.5}), horizon=3)
+    assert solver.value(0.5) == pytest.approx(-1 - 0.95 - 0.95**2)
+
+
+def test_exact_l2_arbitrary_opponent_beliefs_and_zero_horizon():
+    solver = ExactIPOMDPSolver(TigerModel(), horizon=2)
+    # At H1 the physical reward does not depend on j's action. Arbitrary j
+    # beliefs must be accepted exactly, with no nearest-grid substitution.
+    for b in [0.0123456789, 0.4, 0.987654321]:
+        assert solver.q_values(0.5, b, 1) == pytest.approx(
+            {LISTEN: -1, OPEN_LEFT: -45, OPEN_RIGHT: -45}
+        )
+        assert solver.value(0.5, b, 0) == 0
+    with pytest.raises(ValueError):
+        solver.value(1.01)
+    with pytest.raises(ValueError):
+        solver.value(0.5, horizon=-1)
