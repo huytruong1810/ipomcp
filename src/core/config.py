@@ -42,6 +42,10 @@ class MCTSConfig:
     n_sims: int = 1000
     node_capacity: int = 500
     exploration_const: float = 1.0
+    # Experimental finite-model tail evaluation. Full private-history beliefs
+    # are propagated during search; only the last decision is integrated exactly.
+    # This can cost substantially more than generative-only search at high levels.
+    exact_final_step: bool = False
 
     def __post_init__(self):
         _unit(self.gamma, "gamma")
@@ -49,6 +53,8 @@ class MCTSConfig:
         _integer(self.n_sims, "n_sims")
         _integer(self.node_capacity, "node_capacity")
         _positive(self.exploration_const, "exploration_const")
+        if type(self.exact_final_step) is not bool:
+            raise ValueError("exact_final_step must be a boolean")
 
 
 @dataclass(frozen=True)

@@ -142,3 +142,40 @@ finite-budget optimality nor a new convergence theorem is claimed. Action sets,
 generative transitions, private-model propagation, and arithmetic mean backups
 are identical across these exploration strategies. The production default remains
 empirical-range UCB. See docs/BENCHMARK.md for failed as well as improved cases.
+
+
+## Experimental exact final-step evaluation
+
+`MCTSConfig.exact_final_step` defaults to false. When enabled, every simulated
+own action/observation history carries a joint finite posterior computed by the
+shared recursive filter. Conditioning includes public survival; it never receives
+the sampled physical state or the actual opponent action. The posterior is
+separate from the physical rollout heuristic and the node's particle reservoir.
+
+For one remaining decision, let b_h be that posterior, theta the opponent model,
+and pi_theta its fixed modeled policy. The boundary condition is
+
+Q_1(b_h,a) = sum_{s,theta} b_h(s,theta) sum_{a_j,s'}
+            pi_theta(a_j) T(s'|s,a,a_j) R_i(s,a,a_j,s'),
+V_1(b_h) = max_a Q_1(b_h,a).
+
+The maximization is outside every hidden-state/model/action sum. The existing
+reward integrator computes these expectations from the supplied model; the
+planner does not import or query the Tiger reference solver. This is the ordinary
+one-step belief-MDP boundary, not max-value backups at all tree depths. See
+[Cassandra, Kaelbling and Littman (1994)](https://cdn.aaai.org/AAAI/1994/AAAI94-157.pdf)
+for the belief-state expectation and control formulation.
+
+The tail applies in both tree and rollout paths. Earlier tree nodes retain their
+incremental sampled-return means, root reward integration, legal action sets and
+opponent private-model transitions. Exact one-step tree nodes store action values
+but no fictitious per-action simulation counts. Their visit count records how
+often the integrated value is requested. The simulation budget therefore counts
+root traversals, not an identical amount of work across configurations.
+
+This is an explicit hybrid of root sampling and finite-model tail integration;
+it requires more than a black-box simulator. Exactness is relative to the supplied
+finite belief and modeled policies. It does not resolve empirical-prior error,
+subjective opponent mismatch, or finite-budget exploration bias at earlier nodes.
+Enumeration can be costly in deep hierarchies. Unsupported observations and
+resource-limit exceptions remain failures; there is no sampled-posterior fallback.

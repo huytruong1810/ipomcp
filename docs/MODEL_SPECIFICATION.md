@@ -74,3 +74,19 @@ Production modeled/real planners keep their existing empirical-range default.
 Coefficients have different units across strategies and must be reported alongside
 simulation counts, remaining horizon, and wall/RSS costs. No current calibration
 setting is certified by the oracle panel; consult docs/BENCHMARK.md.
+
+
+### Exact final-step experiment
+
+`MCTSConfig.exact_final_step=False` remains the default. The matched MCTS runner
+exposes `--exact-final-step`; RTS rejects this MCTS-only option. The flag enters
+configuration, result rows, and manifests. Enabled runs condition full private-
+history finite beliefs and integrate only the last decision, as specified in
+THEORY.md. This changes the leaf estimator and computation, not physical dynamics
+or the reward function. It is not certified for production or deep hierarchies.
+
+Adding this configuration field changes the deterministic configuration hash,
+including the disabled setting. Old-source and new-source runs with the same
+integer seed are not bitwise replays. Compare enabled/disabled runs at the same
+new source checkpoint and preserve both manifests; do not pool old trajectories
+as if they used the current stream. The default algorithmic rules remain sampled.

@@ -33,7 +33,10 @@
   The September 24 bound-aware exploration ablation is implemented; all tested
   settings still have positive action loss. The 3,150-case extension selects
   bounded c=1 for the fixed fresh-belief/seed protocol in HANDOFF.md; production
-  promotion remains blocked. See docs/BENCHMARK.md. Mean backups
+  promotion remains blocked: that 4,320-case validation failed (80/720 primary
+  candidate decisions). The set is now development evidence. An opt-in exact
+  final-step evaluator is being qualified; do not launch a new validation panel
+  until its development results are reviewed. See docs/BENCHMARK.md. Mean backups
   remain unchanged; no new production coefficient is qualified.
 
 ## P2: broader evidence and presentation

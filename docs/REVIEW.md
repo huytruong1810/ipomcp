@@ -174,3 +174,12 @@ Selected bounded c=1 for the fixed held-out protocol, without changing defaults.
 Corrected unsupported asymptotic convergence and elapsed-time descriptions.
 Added and tested explicit seed-range selection for fresh validation runs; 180
 non-integration tests and lint/format pass. The held-out results are still pending.
+
+
+Held-out review and exact-tail phase: all 4,320 validation cases verified; candidate
+failed its unchanged gate. Reviewed the one-step belief-MDP boundary and added an
+explicit finite-model tail option to core configuration, I-POMCP and the matched
+runner. `tests/test_exact_final_step.py` covers hidden-state independence, private
+history conditioning, impossible evidence, analytic H1/H2 values and strict option
+validation. A 120-case development comparison fixes the tested H2 errors but not
+H3; no new default or higher-level correctness claim follows.

@@ -91,7 +91,14 @@ class IPOMCPPlanner(Planner):
 
             # Draw in one batch; random.choices constructs its cumulative weights once.
             for particle in random.choices(particles, weights=weights, k=n_sims):
-                self._simulate(particle, node, 0, bounds, belief=root_belief)
+                self._simulate(
+                    particle,
+                    node,
+                    0,
+                    bounds,
+                    belief=root_belief,
+                    history_model=model if self.config.mcts.exact_final_step else None,
+                )
             policy = greedy_policy(node.action_values)
         if not modeled:
             self.root = node
@@ -100,10 +107,48 @@ class IPOMCPPlanner(Planner):
     def get_action(self, belief=None):
         return sample_policy(self.policy_for(self.model(belief)))
 
-    def _simulate(self, particle, node, depth, bounds, belief=None):
+    def _history_successor(self, model, action, observation):
+        """Condition only on own action, private observation and public survival.
+
+        The optional exact tail uses the full joint finite posterior, not the
+        Tiger rollout memory or a particle reservoir. No sampled hidden state,
+        actual opponent action, or sampled opponent belief enters this update.
+        Unsupported evidence and enumeration limits propagate as explicit errors.
+        """
+        posterior = self.solver_bank.filter.update(model, action, observation, terminal=False)
+        return MentalModel(model.frame, posterior.belief)
+
+    def _final_action_values(self, model):
+        """One-step Bellman values: integrate uncertainty before maximizing.
+
+        Q_1(b,a) = E[R | b,a]; V_1(b) = max_a Q_1(b,a). There is no future
+        observation or hidden-state maximization in this finite-horizon boundary
+        condition. Exactness is relative to the supplied finite joint belief and
+        the bank's fixed modeled policies, up to floating-point arithmetic.
+        This calls the shared reward integrator, never an external benchmark.
+        """
+        if model is None:
+            raise ValueError("Exact final-step evaluation requires a private-history belief")
+        legal_sets = {
+            frozenset(self.pomdp_model.get_legal_actions(atom.state, self.key.agent_id))
+            for atom, _ in model.belief.mass
+        }
+        if len(legal_sets) != 1 or not next(iter(legal_sets)):
+            raise ValueError("Exact final step requires one observable nonempty action set")
+        legal = next(iter(legal_sets))
+        return {a: q for a, q in self.solver_bank.expected_rewards(model) if a in legal}
+
+    def _simulate(self, particle, node, depth, bounds, belief=None, history_model=None):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
             return 0.0
+        if self.config.mcts.exact_final_step and depth + 1 == self.config.mcts.max_depth:
+            # This boundary node is solved by integration, not by sampled action
+            # visits. Keep action_counts empty rather than invent simulation counts.
+            if not node.action_values:
+                node.action_values.update(self._final_action_values(history_model))
+            node.visit_count += 1
+            return max(node.action_values.values())
         # Search explores every legal action. A rollout confidence threshold
         # is not a dominance proof and must never remove tree actions.
         legal = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
@@ -134,13 +179,27 @@ class IPOMCPPlanner(Planner):
             next_belief = self.pomdp_model.update_rollout_belief(
                 belief, action, observation, self.key.agent_id
             )
+            next_model = (
+                self._history_successor(history_model, action, observation)
+                if self.config.mcts.exact_final_step and not terminal
+                else None
+            )
             continuation = (
                 0.0
                 if terminal
                 else (
-                    self._rollout(following, depth + 1, belief=next_belief)
+                    self._rollout(
+                        following, depth + 1, belief=next_belief, history_model=next_model
+                    )
                     if new
-                    else self._simulate(following, child, depth + 1, bounds, belief=next_belief)
+                    else self._simulate(
+                        following,
+                        child,
+                        depth + 1,
+                        bounds,
+                        belief=next_belief,
+                        history_model=next_model,
+                    )
                 )
             )
             q = reward + self.config.mcts.gamma * continuation
@@ -155,9 +214,11 @@ class IPOMCPPlanner(Planner):
         bounds["q_min"], bounds["q_max"] = min(bounds["q_min"], q), max(bounds["q_max"], q)
         return q
 
-    def _rollout(self, particle, depth, belief=None):
+    def _rollout(self, particle, depth, belief=None, history_model=None):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             return 0.0
+        if self.config.mcts.exact_final_step and depth + 1 == self.config.mcts.max_depth:
+            return max(self._final_action_values(history_model).values())
         action = self.pomdp_model.get_rollout_action(
             particle.state, self.key.agent_id, belief=belief
         )
@@ -178,8 +239,13 @@ class IPOMCPPlanner(Planner):
             return reward
         obs = self.pomdp_model.sample_observation(following.state, joint, self.key.agent_id)
         next_belief = self.pomdp_model.update_rollout_belief(belief, action, obs, self.key.agent_id)
+        next_model = (
+            self._history_successor(history_model, action, obs)
+            if self.config.mcts.exact_final_step
+            else None
+        )
         return reward + self.config.mcts.gamma * self._rollout(
-            following, depth + 1, belief=next_belief
+            following, depth + 1, belief=next_belief, history_model=next_model
         )
 
     def update_root(self, action, observation):
@@ -196,6 +262,7 @@ class IPOMCPPlanner(Planner):
             "key": str(self.key),
             "n_sims": self.config.mcts.n_sims,
             "modeled_n_sims": self.config.opponent.n_sims,
+            "exact_final_step": self.config.mcts.exact_final_step,
             "initial_sample_count": self.initial_sample_count,
             "belief_size": len(self.belief.mass),
             "root_visit_count": self.root.visit_count,

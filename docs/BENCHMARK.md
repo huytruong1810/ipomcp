@@ -194,10 +194,72 @@ Antigravity completed both 2,160-case validation panels (4,320 total cases, 0 fa
 - At Horizon 3:
   - Extreme safe door beliefs (.04, .06, .94, .96): Candidate 0/20 wrong; Baseline 0/20 wrong.
   - Intermediate beliefs (.12, .20, .35, .65, .80, .88): Candidate **0/20 wrong across all 6 beliefs (0.0000 loss)**; Baseline failed 20/20 at .12 and 20/20 at .88 (loss 5.3884 each).
-  - Razor-thin boundary beliefs (.08 and .92): Both Candidate and Baseline failed 20/20 (Candidate loss 1.3231 vs Baseline loss 1.3231). At .08, $Q^*(L)=0.671$ vs $Q^*(OL)=-0.652$ (margin 1.3231), and tree exploration suppression causes premature door opening.
+  - Razor-thin boundary beliefs (.08 and .92): Both Candidate and Baseline failed 20/20 (Candidate loss 1.3231 vs Baseline loss 1.3231). At .08, $Q^*(L)=0.671$ vs $Q^*(OL)=-0.652$ (margin 1.3231), consistent with exploration costs depressing the listening estimate; root Q-values alone do not prove the cause.
 - At Horizon 2:
   - Beliefs .04, .06, .12 through .88, .94, .96: Candidate 0/20 wrong.
   - Boundary beliefs .08 and .92: Both Candidate and Baseline failed 20/20 (margin $\Delta Q = 0.1478$).
 - Diagnostic budget scaling (10k, 50k, 100k): Candidate Horizon 3 errors were 77/240 (10k) $\rightarrow$ 40/240 (50k) $\rightarrow$ 40/240 (100k).
 - Full details in `results/oracle/HELDOUT_VALIDATION_REPORT.md`.
 
+
+## Failed validation review and exact-tail development
+
+Codex independently checked all 4,320 cases for complete requested coverage,
+source-hash agreement, executed strategy and recomputed first-action loss. The
+80/720 primary candidate failures are confirmed. These beliefs/seeds are now
+explicitly development data. The full suite and default promotion remain blocked.
+The causal description in the validation report was initially an inference from
+root estimates; a separate tree-level calculation now gives supporting evidence.
+
+A horizon-two diagnosis at p=.08, seed 100, 50k traversals, bounded c=1 found a
+listening underestimate of 1.369056. Its additive decomposition is 1.281394 from
+choosing suboptimal final actions, .058059 from final reward sampling, .029685
+from observation-frequency sampling and -.000081 from first-expansion rollouts.
+The true listening advantage is only .147767. This diagnosis used integer bound
+parameters (-100,10,1), so its hash-derived stream differs from the floating-point
+parameters in the validation panel; it is a separate diagnostic, not an exact
+replay. Raw tree counts/values are in
+`results/oracle/heldout_failure_diagnosis_20260924/h2-p008-seed100.json`.
+
+The optional `--exact-final-step` evaluator implements the one-step Bellman
+boundary on the full history-conditioned belief. Earlier backups remain sampled
+means. There is no reference-solver call, hidden-state maximization, action mask,
+or repaired posterior. THEORY.md defines the estimator and MODEL_SPECIFICATION.md
+records the new configuration/seed implications. Production defaults are unchanged.
+
+Development panel: H2/H3, budgets 10k/50k, seeds 100-102, beliefs
+.08/.12/.5/.88/.92, gamma .95, bounded c=1, exact tail off/on. All 120 cases
+completed with two supervised workers, 240-second and 1,024-MiB case limits.
+Raw manifests/results: `results/exact-tail-20260924/{sampled,exact}`.
+
+| Tail | H | Simulations | Wrong / 15 | Mean action loss | Mean max Q error | Mean case wall s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| sampled | 2 | 10000 | 6 | 0.059107 | 13.821204 | 0.716 |
+| sampled | 2 | 50000 | 6 | 0.059107 | 11.473404 | 1.684 |
+| sampled | 3 | 10000 | 10 | 1.966139 | 32.865609 | 0.928 |
+| sampled | 3 | 50000 | 6 | 0.529229 | 32.786549 | 2.532 |
+| exact | 2 | 10000 | 0 | 0.000000 | 0.023249 | 0.734 |
+| exact | 2 | 50000 | 0 | 0.000000 | 0.012855 | 1.636 |
+| exact | 3 | 10000 | 6 | 0.529229 | 17.850371 | 0.936 |
+| exact | 3 | 50000 | 6 | 0.529229 | 16.966682 | 2.646 |
+
+The exact tail eliminates H2 decision errors on this small development panel.
+At H3/50k, both configurations still fail every tested .08/.92 case: 6/15 errors.
+The improved Q estimates do not meet the decision gate. Do not call this global
+optimality, equivalence, or a successful held-out validation. Exact-tail rewards
+are integrated, so equal traversal counts are not equal computational work.
+The means above include worker startup; cost comparisons need larger panels.
+
+Next: a bounded development budget curve on these already-inspected boundary
+beliefs, with sampling and exact-tail controls at the same source checkpoint.
+Investigate earlier-node exploration and chance-weighted Bellman estimators only
+as explicit reviewed designs if those curves remain inadequate. Do not replace
+mean returns by maxima over sampled states/outcomes to pass the oracle.
+
+
+Verification of this implementation: 191 non-integration tests passed in 48.77s;
+all four domain integration tests passed in 325.27s; Ruff lint and formatting
+passed. The 120-case development panel completed with source hashes verified.
+No production default has been promoted. Domain integration tests exercise the
+default path; the new exact-tail path has analytic tests and L1 development cases,
+not full L2/L3/L4 experimental qualification.

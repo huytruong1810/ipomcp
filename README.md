@@ -109,6 +109,11 @@ unchanged. Every setting in the September 24 calibration still made some
 suboptimal choices; this is diagnostic tooling, not full-suite qualification.
 See `docs/BENCHMARK.md` for results and `HANDOFF.md` for runner instructions.
 
-The calibration extension selects bounded c=1 for the fixed held-out protocol
-in HANDOFF.md, without changing production defaults. The oracle CLI's
+The bounded-c1 candidate failed the fixed held-out gate (80/720 primary cases).
+Those results are development evidence; production defaults remain unchanged. The oracle CLI's
 `--seed-start` selects a fresh seed range and is recorded in each run manifest.
+
+The optional `--exact-final-step` MCTS experiment integrates the final decision
+from the full private-history posterior. Earlier backups remain sampled means.
+This hybrid is under development; it is not an oracle shortcut or a qualified
+production default. See `docs/THEORY.md` and `HANDOFF.md` for its scope and cost.

@@ -1,8 +1,8 @@
 # Current review handoff
 
-Current action: run the fixed held-out L1 validation at the end of this file.
-Candidate: bounded c=1; production default unchanged. Do not rerun completed
-calibration panels or launch the full suite.
+Current action: the held-out gate failed; do not rerun that validation or promote
+a default. Review the exact-final-step development instructions at the end of
+this file. Production defaults remain unchanged; the full suite is blocked.
 
 Authoritative checkout: `/home/andyj1810/projects/ipomcp`. Antigravity's refactor
 was committed at `8a96b85` before this pass. No uncommitted source was overwritten.
@@ -211,7 +211,7 @@ Summary on held-out seeds 5–9 (absent from earlier calibration):
 
 
 
-## Current runner task: fixed held-out L1 validation
+## Completed runner task: fixed held-out L1 validation
 
 Decision after independent review of checkpoint 9815f47: **advance bounded c=1
 as the sole candidate; do not promote the production default**. Codex verified
@@ -267,7 +267,7 @@ of optimality everywhere. Failure returns the candidate to development; this
 validation set then becomes development evidence and must not be reused as an
 untouched test. Regardless of outcome, the L2 horizon/computation mismatch,
 deep Tiger before/after comparison, L4 and all 39-condition qualification remain
-separate gates. Antigravity owns execution; Codex has not run these held-out cases.
+separate gates. Antigravity completed these runs; they are now development evidence.
 
 Verification of the seed-range preparation: 180 non-integration tests passed;
 Ruff lint and format checks passed. No planner algorithm/default changed and no
@@ -281,6 +281,51 @@ Decision gate outcome: **FAILED (candidate returns to development)**.
 - At the primary 50,000 budget (N=720 cases: 240/horizon), candidate first-action loss was not universally $\le 10^{-8}$.
 - Candidate wrong choices: 80 / 720 (11.11%), mean loss 0.0817; Baseline wrong choices: 120 / 720 (16.67%), mean loss 0.3811.
 - Candidate resolved errors across all intermediate beliefs (.12, .20, .35, .65, .80, .88) and extreme beliefs (.04, .06, .94, .96), cutting Horizon 3 errors from 80/240 down to 40/240 (-50%) and mean loss from 1.1186 down to 0.2205 (-80.3%).
-- However, both Candidate and Baseline failed 20/20 at the razor-thin boundary beliefs $P=0.08$ and $P=0.92$ across Horizons 2 and 3 due to tree exploration penalty suppressing $\hat{Q}(L)$ below $\hat{Q}(\text{door})$.
+- However, both Candidate and Baseline failed 20/20 at the razor-thin boundary beliefs $P=0.08$ and $P=0.92$ across Horizons 2 and 3 consistent with tree exploration penalty suppressing $\hat{Q}(L)$ below $\hat{Q}(\text{door})$.
 - Detailed tables are in `docs/BENCHMARK.md` and `results/oracle/HELDOUT_VALIDATION_REPORT.md`.
 
+
+
+## Current development task: exact final-step budget curves
+
+The 4,320-case held-out failure is independently verified. The new opt-in
+`--exact-final-step` MCTS evaluator integrates the last decision over the full
+private-history posterior. Earlier nodes still use sampled mean returns.
+It passes analytic information-boundary tests and removed H2 errors in a 120-case
+development comparison, but H3/50k still has 6/15 errors. See BENCHMARK.md and
+`results/exact-tail-20260924/REPORT.md`. Do not promote or run a new validation set.
+
+Configuration contains a new boolean, so deterministic configuration-hash seeds
+change even with the option disabled. Old-source case values are not a bitwise
+control. Run both modes at the same new clean source checkpoint; mode settings
+remain explicit. No comparison should pool old and new trajectories.
+
+Antigravity's next useful experiment is a focused **development** budget curve,
+not a repeat full panel: H2/H3, inspected beliefs .08/.5/.92, seeds 100-104,
+budgets 50k/200k/1m. Run the following command twice, using unique output paths;
+first without `--exact-final-step`, then with it. Keep bounded c=1 in both.
+
+```bash
+uv run python -m examples.experiments.planner_oracle_experiment \
+  --out results/oracle/tail_budget_sampled_RUN_ID \
+  --planners mcts --exploration bounded --exploration-const 1 \
+  --horizons 2 3 --budgets 50000 200000 1000000 \
+  --seed-start 100 --seeds 5 --beliefs 0.08 0.5 0.92 \
+  --workers 2 --timeout 2400 --max-rss-mb 4096
+```
+
+For the second command, change the path to `tail_budget_exact_RUN_ID` and append
+`--exact-final-step`. Expect 90 cases per mode, 180 total. Use the same single
+checkout; record clean HEAD, manifests, all failures, first-action loss, per-action
+Q error, policy and wall/RSS costs. This measures whether additional resources
+address earlier-node bias; a successful cell does not replace the failed original
+gate. Leave the code/config fixed throughout both runs. Deep-agent resource
+qualification, matched L2 semantics and full-suite readiness remain unresolved.
+
+
+Verification of this implementation: 191 non-integration tests passed in 48.77s;
+all four domain integration tests passed in 325.27s; Ruff lint and formatting
+passed. The 120-case development panel completed with source hashes verified.
+No production default has been promoted. Domain integration tests exercise the
+default path; the new exact-tail path has analytic tests and L1 development cases,
+not full L2/L3/L4 experimental qualification.
