@@ -7,7 +7,7 @@ recursive finite filter; there is no legacy reconstruction path.
 
 Principal Tiger conditions use simultaneous actions, pre-transition opening reward,
 post-transition private sensors, growl accuracy 0.85, creak accuracy 1.0, uniform
-physical reset on any opening, gamma 0.95 and an always-listen leaf rollout.
+physical reset on any opening, gamma 0.95 and a history-based physical-memory rollout heuristic.
 Persistent Tiger is a distinct configuration. Reset does not erase opponent type
 or history. Agents observe their own actions, sensors and public survival; logged
 rewards and the other agent's hidden action are not inference inputs.
@@ -16,7 +16,7 @@ Each bank fixes physics, solver settings and a reproducible seed. Nested models
 share that bank's unconditional empirical physical prior. Prior level weights are
 exact; diagnostic tree capacity does not clip the authoritative belief. Intentional
 policies use uniform ties over maximum estimated Q. Modeled MCTS solves default
-to ten simulations and are not identical to larger executing solves. RTS remains
+to 25 simulations and are not identical to larger executing solves. RTS remains
 a sampled, observation-truncated comparator. Full details and equations are in
 THEORY.md; run manifests record effective budgets and source hashes.
 
@@ -48,6 +48,18 @@ Lowering modeled_opponent_sims explicitly reintroduces computational mismatch an
 may legitimately produce a recorded failure under strict inference.
 
 The original L3-vs-L2 prior experiment keeps its independent-bank design and
-ten-simulation modeled policies. Its previous reward evidence must not be presented
+25-simulation modeled policies. Its previous reward evidence must not be presented
 as evidence for this changed controlled comparison. All historical failed panels
 remain preserved. These changes introduce no action noise or belief repair.
+
+## Payoff matrix and oracle scope
+
+The matrix uses explicit uniform priors over strictly lower levels, including
+random L0. This is an ex ante model choice, never a repair of a failed posterior.
+The actual opponent level is not supplied to the subjective prior rule.
+
+The exact L2 reference has a common decreasing finite horizon for both agents.
+Production modeled planners use their configured depth at every private solve.
+These must not be compared as if they were identical policy models. The matched
+oracle experiment therefore makes numerical claims only for L1 against random L0.
+Its supplied two-state physical prior is exact, rather than empirically sampled.

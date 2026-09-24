@@ -7,18 +7,17 @@ with mathematically specified inference, explicit approximation limits, and meas
 resource requirements. Correctness takes precedence over reproducing a favorable
 reward. Do not retain a known error merely because it improves the benchmark.
 
-The original repository is `/home/andyj1810/projects/ipomcp`; the existing review
-worktree is `/home/andyj1810/projects/ipomcp-review-20260916`. Its reviewed baseline
-is commit `7d5402c`. No new clone is needed. The original checkout has uncommitted
-Antigravity changes, so integration must preserve and reconcile those changes.
-Existing source snapshots and benchmark artifacts provide the regression baseline.
+The single working checkout is `/home/andyj1810/projects/ipomcp`. Duplicate review
+worktrees and source snapshots have been removed after preserving unique work in
+Git. Experimental evidence is retained under `results/archive/`; source history
+belongs in Git, not parallel code directories. Antigravity refactoring was
+committed at 8a96b85; this pass began from a clean checkout.
 
-This document preserves the accepted implementation order. Current status:
-phases 2–3 are integrated; phase 4 has bounded independent references; phase 5 has
-measured Tiger and L4 evidence; phase 6 supervision is implemented; demo cleanup remains partial. The controlled RTS support mismatch is corrected under a declared matched-computation
-model; phase 7 has full-budget coverage but observed matrix failures and unestablished
-reward equivalence. All 127 tests pass and all 39 shallow conditions
-pass. Neither result closes the outstanding scientific and execution gates.
+The current phase status is in REVIEW.md and the current execution record is in
+HANDOFF.md. The immutable filter is integrated; reference and rollout regressions
+introduced after that integration are corrected in the September 23 pass.
+Scientific budget qualification and demo consolidation remain open. Old passing
+counts and favorable returns do not supersede the current accuracy gates.
 
 ## Modeling decisions
 

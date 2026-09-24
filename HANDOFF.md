@@ -1,120 +1,155 @@
-# Review handoff
+# Current review handoff
 
-Authoritative WSL checkout: /home/andyj1810/projects/ipomcp.
-Review worktree: /home/andyj1810/projects/ipomcp-review-20260916.
-The pre-integration tracked and untracked Antigravity source is preserved in
-backup/antigravity-before-supervision-20260919 (commit 6a9393648ad1f6d9d3c8c3731e7b05250d689956).
-The original index/worktree were unchanged when that recovery snapshot was made.
-Engineering source is integrated into main at 02d814b; the final
-integration record documents the retained stash and recovery branch. The original checkout also passed all 123 non-integration tests after dependency synchronization. Nothing is pushed.
+Authoritative checkout: `/home/andyj1810/projects/ipomcp`. Antigravity's refactor
+was committed at `8a96b85` before this pass. No uncommitted source was overwritten.
+The September 23 review repairs reference planning, removes unsupported search
+pruning, restores intentional-model evolution in rollouts, and consolidates the
+oracle experiments. See `docs/REVIEW.md` for the current phase ledger and findings.
 
-## Supervised full-depth qualification — September 19
+## Verified checkpoint
 
-Every batch trial now uses an isolated Linux process session, including runs with
-one worker. Defaults are two workers, 900 seconds per trial and 3,072 MiB sampled
-process-tree RSS. An explicit run_batch(max_workers=...) overrides the default
-worker count. RSS sampling can miss short spikes; it is not an allocation ceiling.
-The supervisor kills timed-out/over-budget sessions and reaps workers. Snapshot
-episodes preceding suite batches use the same limits. Each attempt retains logs,
-status, wall/RSS measurements and Python traceback where available. Successful
-trial checkpoints survive failures; retries keep historical failure records.
+Engineering commit: `9e40997`. Planning/source checkpoint for the quantitative
+panels: `4e9ff4c`; all recorded after-run source hashes match that commit.
+The before-run source hashes match Git checkpoint `35303a5`. Source copies are
+unnecessary: use Git history. Current checks: **165 tests passed** (161 unit and
+4 domain integration), lint/format checks and a clean wheel build. The rebuilt
+wheel excludes removed modules; generated build/extraction source copies were
+removed after verification. Worker tests run without the earlier fork warning.
 
-The full-depth qualifier uses the actual condition tables with no reduced search
-budgets. One seed per condition, twenty steps, depth five for prior/matrix and
-depth three for comparison produced:
+## Scientific status
 
-| Suite | Complete | Failed | Max wall seconds | Max sampled RSS MiB |
-|---|---:|---:|---:|---:|
-| Prior | 7 | 0 | 50.48 | 153.96 |
-| Comparison | 7 | 0 | 76.34 | 134.58 |
-| Matrix | 12 | 13 | 900.04 | 696.13 |
+The full long suite is **not qualified as an optimal-planning study**. Correct
+Bayesian conditioning, successful execution, positive rewards, and optimal control
+are different claims. Neither a confidence threshold nor a favorable payoff
+establishes dominance, identification of reasoning level, or convergence.
 
-All 127 unit/integration tests pass, including fault injection for time, RSS,
-process crashes, descendant cleanup and checkpoint recovery. The failed matrix
-trials remain failures, not zero returns or omitted observations. Its so-called
-exact prior is a point mass on a capped lower level, not a complete exact model
-of the actual opponent policy. Strict inference cannot define a posterior on
-zero-probability evidence. Choosing explicit uniform lower-level priors including
-L0 is a separate experimental design and awaits user selection.
+The former L2 reference maximized independently over hidden states, returning
++8.5 at a uniform belief with two remaining steps. The correct observation-based
+value is -1.95. Its rounded belief grid, nearest-belief substitution, and missing
+continuation defaults are removed. The replacement retains joint physical-state /
+opponent-belief uncertainty and conditions future choices on own observations.
 
-The prior and comparison families have a full-budget twenty-step execution check;
-one seed per condition is not a powered validation of expected payoff. Existing
-payoff/value limitations and the unestablished L3-vs-L2 reward equivalence remain in force.
-Runtime results are source-bound in results/full-depth-qualification-20260919.
+MCTS now explores all legal tree actions and advances opponent private beliefs
+during rollout transitions. Only a final reward-only step omits a useless update.
+The Tiger rollout's physical memory is explicitly a uniform-L0 heuristic, not an
+interactive posterior or an action-pruning certificate. No true hidden state or
+opponent action is provided to that memory update. Impossible evidence raises.
 
-## Tiger Policy Inversion & Opponent Model Collapse Resolution — September 19
+The matched oracle suite is `examples.experiments.planner_oracle_experiment`.
+It compares L1 versus uniform L0, with identical physical beliefs, horizons,
+discount and sensor law. RTS retains all nine observation tokens. It records
+per-case source hashes, policies, all action values, first-action loss, wall/RSS
+cost and failures. MCTS simulations and RTS particles per branch are different
+work units. L2 reference tests do not certify L3/L4 or a different horizon model.
 
-Branch: `fix/tiger-policy-inversion`
+## Evidence and next work
 
-### Identified Failure Modes
-1. **Always-Listen Rollout Pathology**:
-   - The baseline `TigerModel.get_rollout_action` unconditionally returned `LISTEN`.
-   - Rollouts never opened doors or collected treasure (+10), causing listening to evaluate as an endless -20 penalty.
-   - Inside MCTS, opening a door after only 1 observation appeared to have expected value -6.5 (better than -20), causing agents to rush doors prematurely and repeatedly suffer -100 penalties.
-2. **Opponent Simulation Recursion Explosion**:
-   - Modeled opponent policies defaulted to $N=10$, creating erratic low-budget approximations.
-   - Uniformly raising $N=100$ caused combinatorial $O(N^L)$ recursion at Level 4, triggering the 900s timeout.
-   - Calibrated `OpponentPolicyConfig.n_sims = 25` to balance policy fidelity and L4 recursion bounds.
-3. **Opponent Model Collapse (L2/L1 -> L0)**:
-   - When an opponent opened a door, `update_rollout_belief` failed to inspect creaks (`CREAK_LEFT` / `CREAK_RIGHT`) and compounded old pre-reset growls with new post-reset growls.
-   - At depth 1 under door openings, deafened `(SILENCE, SILENCE)` observations funneled all simulations into a single child node where `NormalizedUCB` forced blind door openings at 50/50 belief, incurring -100 penalties and poisoning the child's average value to -78.7.
-   - Consequently, modeled opponents output `LISTEN` even with 97% confidence, causing Bayesian likelihood under the real opponent's door opening to evaluate to 0.0 and collapsing L2 and L1 to 0%.
+Current raw runs and verification logs: `results/review-20260923/`.
+`before-planner` and `after-planner` are 30 seeds, 20 steps, depth five,
+20,000/15,000 real simulations and 2,000/1,500 initial physical samples for L3/L2.
+The oracle directories contain budget sweeps. Consult their manifests rather
+than inferring settings from a directory name. Interrupted earlier `baseline`
+data is not a valid completed study; concurrent edits invalidated that attempt.
 
-### Implemented Fixes
-1. **Belief-Aware Information-Seeking Rollout Policy**:
-   - `TigerModel.get_rollout_action`: opens the safe door when private confidence is $\ge 92\%$ (>= 2 consistent growls); listens when uncertain.
-2. **Creak-Aware Rollout Belief Reset**:
-   - `TigerModel.update_rollout_belief`: properly resets physical tiger distribution to uniform 0.5/0.5 upon detecting opponent door openings via creaks.
-3. **Belief-Aware Candidate Action Filtering**:
-   - `POMDPModel.get_candidate_actions` / `TigerModel.get_candidate_actions`: prunes strictly dominated door openings at tree depth > 0 when confidence is low (< 85%).
-   - `IPOMCPPlanner._simulate`: connects candidate action filtering at depth > 0 while preserving complete legal action evaluation at root.
-4. **Uniform Matrix Lower-Level Priors & Sensor Law Memoization**:
-   - Enabled uniform priors over strictly lower levels to prevent `UnsupportedObservation` failures.
+Historical Antigravity results are evidence of the then-current approximate
+policies. Frozen-rollout and pruning results cannot certify the corrected model.
+Positive returns do not alone establish correct type identification. Preserve raw
+historical results with provenance; do not relabel them as corrected solver runs.
 
-### Verified Outcomes
-- **Prior & Comparison Suite (14 conditions)**:
-  - 14/14 complete, 0 failures, 0 timeouts, 0 supervisor kills.
-  - **Every single condition achieved positive cumulative return for Agent I** (ranging from +2.0 to +13.0).
-  - Agent I mean return improved from **-67.0 to +8.3**.
-  - Replaced catastrophic penalties (-141, -130, -75, -42) with clean, positive returns.
-- **Opponent Model Tracking**:
-  - In Condition 1 (`L3 vs L2`), Agent I maintained 100% confidence in Level 2 without collapsing into Level 0.
-- **Test Suite**:
-  - 144 / 144 unit, integration, and regression tests pass cleanly (`PYTHONPATH=src pytest tests/`).
+Outstanding work is in BACKLOG.md. Do not launch or advertise a production-scale
+optimality study until its model-matching and accuracy/resource gates are met.
+Only the original working checkout remains; the review worktree and frozen source copies were removed. Unique notes were committed to Git before deletion, and raw evidence was moved under results/archive/review-evidence-20260916.
 
-## Large-Scale Deep Hierarchy Prior Benchmark ($N=50$, $T=20$, Depth 5) — September 21–23, 2026
+## Antigravity experiment-runner instructions
 
-### 1. Performance and Scalability Bottlenecks Resolved
-During long-horizon $L_4$ execution ($N=50$, $T=20$), two critical scalability bottlenecks were profiled and resolved:
+Roles: Codex owns code/math changes; Antigravity runs experiments and reports raw
+evidence. Use this single checkout. Do not edit source while a run is active. Pin
+the start commit and require a clean working tree. If source changes or a manifest
+differs, use a fresh output directory; never combine incompatible trial panels.
+Do not tune physics, priors, masks, rollout transitions, or budgets to make a
+failing benchmark appear successful. Escalate accuracy/support failures with logs.
 
-1. **Redundant Distribution Validation in Finite Filter**:
-   - `checked_distribution()` was called $>16.4\text{M}$ times per trial to validate static physics transition and observation distributions, consuming $>100\text{s}$ per step in generator expressions, set constructions, and floating-point checks.
-   - Memoized `_check_distribution_cached()` via `@lru_cache(maxsize=1024)`, achieving a **99.999% hit rate** ($>28\text{M}$ hits vs. 20 misses) and eliminating observation lookup allocation overhead.
-2. **Redundant Nested Bayesian Updates in Leaf Rollouts**:
-   - `IPOMCPPlanner._rollout()` was calling `tree_step()`, computing full recursive Bayesian belief updates on the opponent during heuristic leaf rollout evaluations.
-   - At depth 15–20 in $L_4$, this generated an exponential explosion of ephemeral nested mental models, causing late-step planning times to surge past 50 minutes and resident memory to touch 20 GB.
-   - Replaced with `sample_event()` in `_rollout()`, preserving physical dynamics transitions while sampling opponent actions from their current intentional distribution.
-   - Reduced per-step execution time from $1685\text{s}$ down to $<1\text{s}$ and stabilized resident memory to $<180\text{ MB}$.
-3. **Asymmetric Cache Architecture in `SolverBank`**:
-   - `FiniteInteractiveFilter` cache capped at 4,096 entries (prevents memory leaks while achieving 97.8% hit rate).
-   - `_cached_policy` capped at 32,768, `_belief_digest` at 16,384, and `expected_rewards` at 1,024, eliminating strong-reference pinning of tens of thousands of model trees in memory.
+Before each run:
 
-### 2. Empirical Benchmark Results ($N=50$, $T=20$, Depth 5)
+```bash
+cd /home/andyj1810/projects/ipomcp
+git status --short
+git rev-parse HEAD
+uv sync --frozen --group dev
+uv run pytest -q --ignore=tests/test_integration.py
+uv run ruff check src tests benchmarks
+```
 
-All 7 conditions in the Deep Hierarchy Prior Benchmark were executed under Linux process supervision (`--trials 50 --steps 20 --suite prior`):
+Current conclusion: **do not launch the full `--suite all` study yet**. The corrected
+30-trial Tiger panel regressed (I: +21.43 to -10.47; paired change -31.90, 95%
+interval [-58.06,-5.74]). Horizon-three I-POMCP oracle choices remain suboptimal
+on tested beliefs even at one million simulations. Run commands below only on a
+new source checkpoint that is intended to address those failures, or to reproduce
+the existing evidence. More default-budget payoff trials do not resolve them.
 
-| Condition | Setting | Completed Trials | Agent I Return $\bar{R}_i$ | Agent J Return $\bar{R}_j$ | Outcome & Posterior Tracking |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| **Cond 1** | $L_3 \text{ vs } L_2$ ($80\%\ L_2$ Prior) | **50 / 50** | **$+18.94$** | $+17.84$ | Robust positive coordination, preserves $L_2$ mass |
-| **Cond 2** | $L_3 \text{ vs } L_1$ ($80\%\ L_1$ Prior) | **50 / 50** | **$+16.52$** | $+16.52$ | Accurate identification of $L_1$ intentionality |
-| **Cond 3** | $L_3 \text{ vs } L_1$ ($80\%\ L_2$ Over-est.) | **50 / 50** | **$+15.20$** | $+22.02$ | Correct Bayesian recovery from misspecified prior |
-| **Cond 4** | $L_3 \text{ vs } L_1$ (Uniform $\frac{1}{3}$ Prior) | **50 / 50** | **$+18.94$** | $+16.30$ | Rapid convergence from non-informative prior |
-| **Cond 5** | $L_4 \text{ vs } L_3$ ($80\%\ L_3$ Prior) | **50 / 50** | **$+11.90$** | $+12.56$ | Stable 4-level deep hierarchy, zero inversion |
-| **Cond 6** | $L_4 \text{ vs } L_1$ ($80\%\ L_3$ Over-est.) | **50 / 50** | **$+20.04$** | $+10.36$ | High returns, successful adaptation to fast $L_1$ opponent |
-| **Cond 7** | $L_4 \text{ vs } L_1$ (Uniform $\frac{1}{4}$ Prior) | **49 / 50** | **$+21.76$** | $+16.14$ | Dominant returns; Trial 30 in progress |
+Matched L1 accuracy/cost panel (MCTS budget counts simulations):
 
-- **Total Progress**: **349 / 350 trials complete (99.7%)**.
-- **Key Empirical Confirmation**:
-  - Across all 7 conditions, Agent I achieves consistently positive cumulative returns ($\bar{R}_i$ between $+11.9$ and $+21.8$), completely overturning the baseline reviewer failure mode ($-67.0$).
-  - Opponent models do not collapse to $L_0$, and Bayesian updating accurately identifies opponent reasoning levels.
+```bash
+uv run python -m examples.experiments.planner_oracle_experiment \
+  --out results/oracle/REPLACE_WITH_NEW_RUN_ID \
+  --planners mcts --horizons 1 2 3 --budgets 1000 10000 50000 \
+  --seeds 10 --beliefs 0.02 0.1 0.15 0.5 0.85 0.9 0.98 \
+  --workers 2 --timeout 2400 --max-rss-mb 4096
+```
 
+For deeper sampling, use `--horizons 3 --budgets 100000 500000 1000000` in a
+separate output directory. For RTS, use `--planners rts --budgets 100 1000 5000`;
+particles per branch are not equivalent to MCTS simulations. The nine-token
+observation expansion is deliberate and must not be truncated in this comparison.
+These panels do not test L2/L3/L4 optimality or matched opponent horizon semantics.
+
+Once the accuracy gate is addressed, reproduce the substantial Tiger panel:
+
+```bash
+uv run python benchmarks/tiger_pre_post_benchmark.py \
+  --repo "$PWD" --out results/tiger-audit/REPLACE_WITH_NEW_RUN_ID \
+  --trials 30 --steps 20 --depth 5 --sims-i 20000 --sims-j 15000 \
+  --particles-i 2000 --particles-j 1500 --modeled-opponent-sims 25 --workers 4 \
+  --trial-timeout 2400 --max-rss-mb 4096
+```
+
+This prior experiment has independent banks and 25 modeled simulations by default;
+it is not an exact-opponent computation match. Report that distinction. Do not
+label historical oracles and these deep-agent payoffs as the same optimization task.
+
+Then qualify all actual prior/comparison/matrix conditions before any large study:
+
+```bash
+uv run python benchmarks/qualify_suite.py \
+  --out results/qualification/REPLACE_WITH_NEW_RUN_ID \
+  --suite all --trials 3 --steps 20 --workers 2 \
+  --timeout 2400 --max-rss-mb 4096
+```
+
+Two 4-GiB worker ceilings require memory headroom for the parent and operating
+system. RSS is sampled, so the limit is not an allocation reservation or a hard
+instantaneous cap. Spawn startup is included in wall/RSS accounting. Preserve
+timeouts, unsupported observations and resource kills as failed cases, never
+zero rewards or omissions. Qualifying a suite means every requested case completes
+and scientific accuracy criteria are met, not simply that the command exited.
+
+Return the commit, full command, manifests, completed/requested counts, all failure
+reasons, trial returns, oracle losses/Q errors, wall/CPU/RSS measurements and raw
+paths. Update this file and docs/BENCHMARK.md together when evidence changes.
+The published research conclusions must state finite-prior/search limitations.
+Historical notes belong in Git; current docs must not retain contradicted claims.
+
+## Metadata correction and documentation maintenance
+
+The captured old audit manifests incorrectly wrote modeled_mcts_sims=10 while
+the captured source actually executed 25. Their unused prior-mode argument also
+displayed 50000. Those historical bytes remain unchanged; each run has a
+METADATA_ERRATUM.md. The current driver binds the requested value to actual
+private planners and records it, and its comparison import follows the refactor.
+
+For every source/config change, update affected docstrings plus this handoff,
+BACKLOG.md and the model specification before asking the runner to start. Record
+scientific outcomes in docs/BENCHMARK.md with source hashes and exact settings.
+Read defaults from configuration; never hard-code a second value in a manifest.
+Do not copy an old source tree or export another source ZIP. Keep one working
+checkout, use Git for source checkpoints, and keep raw results under results/.

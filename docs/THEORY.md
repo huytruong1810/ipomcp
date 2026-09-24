@@ -58,7 +58,7 @@ Misspecified conditions elsewhere remain subject to strict support failures.
 ## Search policy and reproducibility
 
 Policies are uniform over maximal estimated Q values. MCTS uses the configured
-real simulation budget, but modeled policies use ten simulations by default;
+real simulation budget, but modeled policies use 25 simulations by default;
 these are different computational approximations even with the same decision rule.
 RTS uses sampled lookahead, resampling and a top-k observation limit. Its omitted
 continuation branches are not renormalized, but their error is not yet quantified.
@@ -80,7 +80,7 @@ reference tests verify Q values across several budgets and beliefs.
 
 ## Evidence and boundaries
 
-The test suite has 127 passing tests and no expected-failure theory exceptions.
+Current test results are recorded in the review verification logs; no theory defect is accepted as an expected failure.
 An independent scalar L2 Tiger enumeration covers actions, observations, private
 priors, sensor accuracies and reset/persistent dynamics. Other tests cover deeper
 private-history advancement, diagnostic type elimination, joint correlations,
@@ -95,3 +95,32 @@ UAV or Wumpus research conclusions. See BENCHMARK.md and BACKLOG.md for measured
 evidence and outstanding gates. The foundational interactive-filter literature
 motivates subjective recursive propagation; its theorems are not inherited merely
 by implementing similarly named classes.
+
+## Reference horizon and rollout contracts
+
+The L2 reference performs observation-conditioned Bellman recursion over joint
+physical state and opponent private belief. Both exact agents use a common
+decreasing finite horizon. Production nested MCTS replans at each modeled private
+belief using its configured fixed depth and budget; comparing these policies
+without reconciling that distinction is a model mismatch.
+
+Tree and rollout generative transitions both advance intentional opponent private
+beliefs. A final reward-only transition can omit the update because there is no
+subsequent action. Tiger's rollout action uses physical-only memory under a stated
+uniform-L0 reference model, including noisy creaks and persistent dynamics. That
+is a heuristic policy memory, not authoritative Bayesian interactive inference.
+It sees only its own action and observation and never prunes tree actions.
+
+The matched L1 oracle experiment uses the exact two-state initial measure and the
+same random L0, horizon, discount and sensors for all planners. RTS retains all
+observation tokens there. Search budgets are accuracy/cost variables, not a proof
+of optimality. Production top-k RTS and empirical initial priors remain separate
+approximations whose errors require separate studies.
+
+The POMCP baseline uses history-based rollout policies and a generative model in
+both search and rollout phases; correct sampling does not remove finite-budget
+error. See [Silver and Veness (2010)](https://proceedings.neurips.cc/paper_files/paper/2010/file/edfbe1afcf9246bb0d40eb4d8027d90f-Paper.pdf).
+Recursive interactive-state transitions include the opponent's private update;
+see [Doshi and Gmytrasiewicz (2009)](https://arxiv.org/pdf/1401.3455).
+These references motivate the contracts; their theorems do not automatically
+certify this finite-filter, normalized-UCB, bounded-computation implementation.

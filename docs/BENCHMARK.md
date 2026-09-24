@@ -1,232 +1,76 @@
-# Matched Tiger benchmark and validation
+# September 23 correctness and resource review
 
-## Matched Tiger experiment
+The full experiment suite is not scientifically qualified. Corrected inference/search semantics expose substantial finite-budget planning error.
 
-Each run contains seeds 0–29, 20 environment decisions, depth-five planning, L3 vs
-L2 with the requested 80% L2 prior. Root budgets are 20,000 and 15,000 simulations
-per decision. Nominal particle requests are 2,000/1,500, capped at 1,000 retained
-particles per node. Growl accuracy is 85%, creak accuracy 100%, discount 0.95.
-Reported returns are undiscounted observed totals. All 30 trials have all 21 rows,
-including the initial condition. Source manifests and raw trial JSON are retained.
+## Thirty-seed Tiger comparison
 
-| Source | Agent I mean return | Agent J mean return | Mean trial seconds | Mean I planning seconds/decision | Peak recorded worker RSS (MiB) |
+L3 versus L2, 80% L2 prior; 20 decisions; depth 5; real budgets 20,000/15,000; initial samples 2,000/1,500. All 30 trials completed on each side. The changes restore opponent updates and remove unsupported action pruning; this is a corrected-model comparison, not a pure speed optimization.
+
+| Implementation | Mean I return | Mean J return | Mean trial wall s | Mean trial CPU s | Max RSS MiB |
 |---|---:|---:|---:|---:|---:|
-| Initial WSL snapshot | -30.63 | -19.63 | 177.51 | 5.90 | 2276.41 |
-| Updated Antigravity | -10.10 | 0.90 | 249.70 | 8.10 | 2866.77 |
-| Reviewed | 15.93 | 5.30 | 223.61 | 6.96 | 2461.83 |
+| before-planner | 21.43 | 18.13 | 38.14 | 42.36 | 192.75 |
+| after-planner | -10.47 | -8.27 | 79.36 | 88.16 | 178.61 |
 
-The paired reviewed-minus-updated-Antigravity difference for Agent I is **+26.03**,
-95% t interval **[−6.83, +58.90]**. Agent J's difference is **+4.40**, interval
-**[−18.47, +27.27]**. These intervals cross zero; no statistical improvement or
-equivalence is established. No equivalence margin was selected before the run.
-The same seeds couple environment streams, but action-dependent draw consumption
-means this is not perfect per-step counter-based CRN alignment.
+Paired corrected-minus-before differences (exploratory reused seeds):
 
+- reward_i: -31.90; 95% t interval [-58.06, -5.74].
+- reward_j: -26.40; 95% t interval [-55.38, 2.58].
 
-Machine-readable results (exported audit artifact: `benchmark-comparison.json`) contain trial-level summary
-statistics. The source directories are `wsl-tiger-baseline`,
-`tiger-antigravity-20260917`, and `tiger-reviewed-20260917` beside this report.
-The earlier Windows-clone experiment is excluded because it did not represent the
-authoritative WSL local code.
+No equivalence margin was prespecified. An interval containing zero does not establish equivalence. Action-dependent random draw consumption weakens per-step pairing. Concurrent verification jobs make wall times unsuitable for an isolated speed ratio.
 
-## Efficiency: measured tradeoffs
+## Matched oracle budget sweep
 
-The full reviewed runs recorded lower mean planning latency and peak sampled RSS.
-Those wall-clock runs overlapped other audit workloads, so their difference is not
-an isolated speedup estimate. Fresh-process, alternating-order CPU probes used
-three additional seeds and three steps with the same full planning budgets:
+L1 against uniform L0; exact starting P(TL) in {0.1, 0.5, 0.9}; seeds 0–2; gamma .95; horizons 1–3. The two planners and oracle share the same model. All 189 cases completed. RTS enumerates all nine observation tokens. MCTS simulations and RTS particles per branch are distinct work units.
 
-| Probe | Updated Antigravity | Reviewed |
-|---|---:|---:|
-| Mean process CPU seconds | 42.22 | 49.53 |
-| Mean process peak RSS (MiB) | 758.27 | 924.43 |
+| Planner | Horizon | Budget | Cases | Mean first-action loss | Maximum loss | Mean max Q error | Mean wall s |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| mcts | 1 | 1000 | 9 | 0.000000 | 0.000000 | 0.0000 | 0.028 |
+| mcts | 1 | 10000 | 9 | 0.000000 | 0.000000 | 0.0000 | 0.068 |
+| mcts | 1 | 50000 | 9 | 0.000000 | 0.000000 | 0.0000 | 0.255 |
+| mcts | 2 | 1000 | 9 | 0.243833 | 2.194500 | 24.0279 | 0.031 |
+| mcts | 2 | 10000 | 9 | 0.975333 | 2.194500 | 20.4747 | 0.270 |
+| mcts | 2 | 50000 | 9 | 0.000000 | 0.000000 | 19.9763 | 1.428 |
+| mcts | 3 | 1000 | 9 | 2.227785 | 3.341678 | 39.6917 | 0.059 |
+| mcts | 3 | 10000 | 9 | 2.227785 | 3.341678 | 41.2894 | 0.556 |
+| mcts | 3 | 50000 | 9 | 2.227785 | 3.341678 | 38.9635 | 2.694 |
+| mcts | 3 | 100000 | 9 | 2.227785 | 3.341678 | 40.1394 | 6.209 |
+| mcts | 3 | 500000 | 9 | 2.227785 | 3.341678 | 37.3118 | 30.538 |
+| mcts | 3 | 1000000 | 9 | 2.227785 | 3.341678 | 36.4386 | 53.776 |
+| rts | 1 | 100 | 9 | 0.000000 | 0.000000 | 3.5444 | 0.008 |
+| rts | 1 | 1000 | 9 | 0.000000 | 0.000000 | 0.5867 | 0.016 |
+| rts | 1 | 5000 | 9 | 0.000000 | 0.000000 | 0.5133 | 0.048 |
+| rts | 2 | 100 | 9 | 0.243833 | 2.194500 | 3.0556 | 0.017 |
+| rts | 2 | 1000 | 9 | 0.000000 | 0.000000 | 0.6382 | 0.130 |
+| rts | 2 | 5000 | 9 | 0.000000 | 0.000000 | 0.5299 | 0.507 |
+| rts | 3 | 100 | 9 | 0.000000 | 0.000000 | 3.3430 | 0.082 |
+| rts | 3 | 1000 | 9 | 0.000000 | 0.000000 | 1.3933 | 0.745 |
+| rts | 3 | 5000 | 9 | 0.000000 | 0.000000 | 0.4962 | 4.391 |
 
-The short probes show **17.3% more CPU time** and
-**21.9% more peak memory**. This is a small,
-short-horizon sample, and policy/search trajectories differ. It prevents claiming
-a general efficiency improvement from the full-run wall times alone.
+First-action loss is V*(b) − Σa π(a|b)Q*(b,a), with optimal continuation. It is not full policy regret. Zero observed loss on this small grid cannot certify global optimality. Persistent positive loss at high budgets blocks any claim that current default budgets reliably match the oracle.
 
-The one-step profiles show nested generative simulation and rollout as the main
-costs. The reviewed profile made roughly 1.19 million `tree_step` calls versus
-1.10 million in the baseline; particle mapping protection also has measurable
-allocation cost. Reservoir insertion calls fell from about 1.17 million to 0.73
-million after removing duplicate/root routing. Optimize the specified belief/policy
-semantics before assuming additional caches or model merging are safe.
-Raw profiles and CPU probes are under `runtime-audit/`; aggregate values are in
-runtime-summary.json (exported audit artifact: `runtime-summary.json`).
+## Corrected defects and remaining limits
 
-## Verification and Antigravity evidence
+- L2 hidden-state Bellman maximization replaced by observation-conditioned joint-belief recursion; uniform two-step value corrected from +8.5 to −1.95.
+- Nearest-belief substitution and rounded L2 belief grid removed; H0 and invalid probability queries checked.
+- Unsupported confidence-based tree pruning removed; all legal tree actions remain.
+- Opponent private beliefs advance in every nonterminal rollout transition; final reward-only steps omit unnecessary propagation.
+- Four misleading oracle/report scripts consolidated into one source-bound, supervised, matched comparison.
+- L2 production/reference opponent horizon and computational models are not yet matched. L3/L4 exact optimality is not established.
+- Full current 39-condition qualification remains pending, as do remaining demo/visualization semantic reviews.
 
-- **76 passed, 2 strict expected failures** in the full test suite. The xfails are
-  the diagnostic-creak and nested-history theory counterexamples, not passing
-  correctness tests. See pytest output (exported audit artifact: `pytest.txt`).
-- Ruff checks and formatting checks pass; Git whitespace checks pass.
-- The wheel builds, and all **61 packaged Python modules** import from the
-  extracted wheel. See package verification (exported audit artifact: `package-verification.json`).
-- Exact fixed-policy Tiger tests verify observation normalization, accumulated
-  listening evidence, reset/type separation, and one-step Bellman values.
-- Antigravity's saved N=50, T=10 CSV reproduces mean returns 0.78/1.00, positive
-  trial counts 41/44, and treasure counts 139/149 and 113/120. This verifies that
-  artifact's arithmetic, not an independently pinned source revision for that run.
-  See note verification (exported audit artifact: `antigravity-notes-verification.json`).
+Raw case/trial JSON and manifests are retained under this directory. Earlier interrupted `baseline` output is invalid qualification evidence. Historical favorable runs used different planner semantics and cannot validate the correction.
 
-## Integrated finite-filter qualification — September 18
+## Provenance and final verification
 
-The historical measurements above describe their source snapshots, not current
-solver behavior. All new thirty-trial runs use twenty steps, depth five, L3/L2
-real budgets 20k/15k and the 80% L2 prior. The new model uses shared empirical
-physical priors, exact level weights, recursively evolving immutable beliefs and
-ten-simulation modeled MCTS policies. Old node-capacity clipping no longer applies.
+Planning checkpoint: 4e9ff4c; the after-run source hashes match every Python source
+file at that Git commit. Before-run checkpoint: 35303a5, likewise hash-verified.
+Engineering checkpoint 9e40997 additionally fixes clean worker startup and audit
+budget/import wiring without changing the default planning model tested above.
+The old audit manifest's modeled budget field says 10, but captured source uses
+25; separate METADATA_ERRATUM.md files correct this without rewriting evidence.
+The current driver records and executes the requested budget consistently.
 
-| Implementation | Mean I | Mean J | Mean wall seconds | Max worker MiB |
-|---|---:|---:|---:|---:|
-| Integrated filter | -33.93 | -2.03 | 21.38 | 194.95 |
-| Exact root reward control variate | -21.10 | 8.23 | 24.61 | 190.96 |
-
-Both panels contain all thirty seeds and twenty-one rows per seed. The second
-run's mean CPU time is 24.36 seconds/trial. Paired second-minus-earlier-review
-differences: I=-37.03 (95% t interval [-76.30,2.24]), J=2.93 ([-21.31,27.17]).
-Versus Antigravity: I=-11.00 ([-54.13,32.13]), J=7.33 ([-10.30,24.97]).
-These are descriptive exploratory comparisons on reused seeds, not confirmatory
-equivalence tests. No equivalence margin was prespecified; timings overlapped
-other audit work. The model changed, so this is not a pure optimization comparison.
-
-All 39 depth-one, three-step smoke conditions pass. The full-budget seed-zero
-L4/L3 depth-five twenty-step probe completes in 33.24 seconds, 182.25 MiB peak.
-The RTS L2/MCTS L1 depth-three probe with 500 RTS particles and 50k real opponent
-simulations fails after 7.09 seconds with unsupported right-creak evidence. Its
-point prior models RTS rather than the executing MCTS kernel. Failure remains
-recorded; it is not dropped from a successful-trial average. One-step RTS success
-did not predict multi-step validity. Full-suite launch remains blocked.
-
-## September 19 controlled-comparison qualification
-
-The modeled planner family is now independent of protagonist search. The controlled
-comparison declares the same MCTS L1 budget (50,000), exploration rule, initial
-empirical prior (2,500 samples) and search seed as the executing opponent. Each
-agent maintains isolated private beliefs thereafter. RTS lookahead remains 500
-particles. MCTS protagonist uses 20,000 simulations in this qualification panel.
-This changes the scientific configuration; it is not a pure speed optimization.
-
-Ten seeds, twenty steps, depth three, two workers, 300-second/3,072-MiB per-trial
-limits: RTS completes 10/10 and MCTS completes 10/10. RTS means are I=3.10,
-J=-53.00, 34.61 wall seconds/trial,
-34.58 CPU seconds/trial, max RSS 168.50 MiB.
-MCTS means are I=3.10, J=-53.00,
-38.86 wall seconds/trial, 38.83 CPU seconds/trial,
-max RSS 169.79 MiB. Timing overlaps other qualification work.
-These ten-seed panels demonstrate successful execution, not performance equivalence
-or general optimality. All twenty-one rows per trial and source hashes were verified.
-
-The earlier family/budget-only panel retained independent initial priors and seeds:
-RTS completed 5/10 and MCTS
-completed 8/10. Failed trials
-are retained and excluded from no purported full-panel mean. Matching only a
-planner name and simulation count was insufficient to specify the policy kernel.
-
-All 122 tests pass across unit and integration invocations (no xfails), including
-Wumpus; all 39 reduced-budget smoke conditions pass. The existing L3-vs-L2 prior
-benchmark is unchanged in experimental design; no new equivalence claim is made.
-Ordinary full-suite process supervision, remaining full-depth condition coverage,
-demo consolidation and authoritative-checkout reconciliation are still open.
-
-## Supervised full-depth qualification — September 19
-
-Every batch trial now uses an isolated Linux process session, including runs with
-one worker. Defaults are two workers, 900 seconds per trial and 3,072 MiB sampled
-process-tree RSS. An explicit run_batch(max_workers=...) overrides the default
-worker count. RSS sampling can miss short spikes; it is not an allocation ceiling.
-The supervisor kills timed-out/over-budget sessions and reaps workers. Snapshot
-episodes preceding suite batches use the same limits. Each attempt retains logs,
-status, wall/RSS measurements and Python traceback where available. Successful
-trial checkpoints survive failures; retries keep historical failure records.
-
-The full-depth qualifier uses the actual condition tables with no reduced search
-budgets. One seed per condition, twenty steps, depth five for prior/matrix and
-depth three for comparison produced:
-
-| Suite | Complete | Failed | Max wall seconds | Max sampled RSS MiB |
-|---|---:|---:|---:|---:|
-| Prior | 7 | 0 | 50.48 | 153.96 |
-| Comparison | 7 | 0 | 76.34 | 134.58 |
-| Matrix | 12 | 13 | 900.04 | 696.13 |
-
-All 127 unit/integration tests pass, including fault injection for time, RSS,
-process crashes, descendant cleanup and checkpoint recovery. The failed matrix
-trials remain failures, not zero returns or omitted observations. Its so-called
-exact prior is a point mass on a capped lower level, not a complete exact model
-of the actual opponent policy. Strict inference cannot define a posterior on
-zero-probability evidence. Choosing explicit uniform lower-level priors including
-L0 is a separate experimental design and awaits user selection.
-
-The prior and comparison families have a full-budget twenty-step execution check;
-one seed per condition is not a powered validation of expected payoff. The full
-suite remains unqualified while matrix conditions fail. Existing payoff/value
-limitations and the unestablished L3-vs-L2 reward equivalence remain in force.
-Runtime results are source-bound in results/full-depth-qualification-20260919.
-
-## Large-Scale Deep Hierarchy Prior Benchmark ($N=50$, $T=20$, Depth 5) — September 2026
-
-The large-scale Deep Hierarchy Prior Benchmark evaluates reasoning stability, opponent posterior modeling, and returns under deep hierarchies up to Level 4 across $N=50$ trials, $T=20$ environment steps, depth-five tree search, and 25,000 root simulations per decision.
-
-Output directory: `results/deep_prior/deep_prior_benchmark_20260920_143950_N50_T20`
-
-| Condition | Configuration | Trials Complete | Agent I Mean $\bar{R}_i$ | Agent J Mean $\bar{R}_j$ | Key Observations |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| **Cond 1** | $L_3 \text{ vs } L_2$ ($80\%\ L_2$ Prior) | **50 / 50** | **$+18.94$** | $+17.84$ | Positive coordination; stable $L_2$ tracking |
-| **Cond 2** | $L_3 \text{ vs } L_1$ ($80\%\ L_1$ Prior) | **50 / 50** | **$+16.52$** | $+16.52$ | Accurate detection of $L_1$ opponent policy |
-| **Cond 3** | $L_3 \text{ vs } L_1$ ($80\%\ L_2$ Over-est.) | **50 / 50** | **$+15.20$** | $+22.02$ | Bayesian recovery from misspecified prior |
-| **Cond 4** | $L_3 \text{ vs } L_1$ (Uniform $\frac{1}{3}$ Prior) | **50 / 50** | **$+18.94$** | $+16.30$ | Robust convergence from non-informative prior |
-| **Cond 5** | $L_4 \text{ vs } L_3$ ($80\%\ L_3$ Prior) | **50 / 50** | **$+11.90$** | $+12.56$ | Stable 4-level deep reasoning hierarchy |
-| **Cond 6** | $L_4 \text{ vs } L_1$ ($80\%\ L_3$ Over-est.) | **50 / 50** | **$+20.04$** | $+10.36$ | Successful adaptation to fast intentional opponent |
-| **Cond 7** | $L_4 \text{ vs } L_1$ (Uniform $\frac{1}{4}$ Prior) | **49 / 50** | **$+21.76$** | $+16.14$ | Strongest returns across suite; 349/350 total trials completed |
-
-### Performance Optimization Impact
-- **Rollout Leaf Optimization**: Replaced recursive `tree_step()` in default policy rollouts with `sample_event()`, avoiding millions of unneeded Bayesian updates during leaf value estimation. Reduced step times from $>28$ minutes to $<1\text{s}$ and resident memory from $20\text{ GB}$ to $<180\text{ MB}$.
-- **Kernel Memoization**: Cached `checked_distribution()` with `@lru_cache(maxsize=1024)`, achieving $>28\text{M}$ cache hits and saving $\approx 100\text{s}$ per step.
-- **Asymmetric Solver Caching**: Capped filter updates at 4,096 and policy caches at 32,768 to prevent retention of model trees in memory.
-
-## Bayes-Optimal Solver Suite & I-POMCP Mirroring Benchmarks — September 2026
-
-To definitively ground the correctness and empirical convergence of our sampling-based I-POMCP algorithm against exact game-theoretic oracles, we developed an exact analytical Bayes-optimal solver suite for Finitely Nested I-POMDPs in the multi-agent Tiger domain (`src/solvers/exact/`).
-
-### 1. Exact Analytical Value Iteration Architecture
-- **Level 1 Exact POMDP Solver (`ExactPOMDPSolver` & `AlphaVector2D`/`AlphaVectorND`)**:
-  - Implements incremental pruning value iteration over the continuous belief simplex $\Delta(S)$.
-  - Features an $O(K \log K)$ 2D upper convex hull line-sweep pruning engine (`AlphaVector2D`) for 2-state POMDPs alongside an N-D linear programming dominance pruner (`AlphaVectorND` via `scipy.optimize.linprog`).
-  - Generates closed-form, piecewise-linear and convex (PWLC) value functions $V_t^*(b)$ and analytical action intervals:
-    - Horizon 1: $\text{OpenLeft} \in [0, 0.0909]$, $\text{Listen} \in [0.0909, 0.9091]$, $\text{OpenRight} \in [0.9091, 1.0]$
-    - Horizon 2: $\text{OpenLeft} \in [0, 0.0786]$, $\text{Listen} \in [0.0786, 0.9214]$, $\text{OpenRight} \in [0.9214, 1.0]$
-- **Level 2 Exact Multi-Agent Solver (`ExactIPOMDPSolver`)**:
-  - Solves the game-theoretic interactive state space $IS_{i,2} = S \times M_{j,1}$ by backward induction over the finite reachable observation tree of $L_1$ opponent mental models.
-  - Accounts for intentional opponent action selection and observation-correlated transitions, proving the coordination value gain over a random baseline.
-
-### 2. Empirical Policy Concordance & Value Convergence
-Extensive triangulation between the Exact VI Oracle, I-POMCP, and Sampled RTS across 21 belief points ($b(\text{TL}) \in [0, 1]$) and 4 simulation budgets demonstrates:
-- **100.0% Policy Concordance**: Across all belief test points at Horizon 2, I-POMCP selects identical optimal actions to $\pi^*(b)$, strictly respecting the analytical decision boundaries.
-- **Monotonic Q-Value Convergence**: Mean absolute value error $\|V_{\text{exact}} - V_{\text{IPOMCP}}\|_1$ decreases monotonically as MCTS simulation budget scales:
-  - $N=500$: Mean error $= 1.747$
-  - $N=2,000$: Mean error $= 1.413$
-  - $N=10,000$: Mean error $= 0.958$
-  - $N=25,000$: Mean error $= 0.726$
-- **Control Variate Precision**: Integrating exact immediate root expected rewards (`SolverBank.expected_rewards`) eliminates Tiger penalty variance, matching door opening Q-values to machine precision ($\approx 10^{-14}$).
-
-### 3. Opponent Modeling Sunburst Visualizations
-- **Interactive Scrubber Slider (`results/bayes_optimal/sunburst_optimal_animated_T20.html`)**:
-  - Full 20-step interactive Plotly animation tracing nested belief evolution $L_2 \to L_1 \to L_0$ across time.
-- **Publication-Quality Vector PDFs**:
-  - Exported snapshots at pivotal milestones: `fig_sunburst_step_0.pdf` (uniform prior), `fig_sunburst_step_2.pdf` (early belief concentration), `fig_sunburst_step_3.pdf` (coordinated door opening), `fig_sunburst_step_8.pdf` (second door opening), and `fig_sunburst_step_20.pdf` (final nested state).
-- **Physical vs Mental Invariance**: Door opening events reset the physical environment belief to uniform ($b_i(\text{TL}) = 0.50$), but **do not reset the learned opponent type distribution**, retaining high confidence ($b_i(L_1) \to 100\%$) across multiple episodes.
-
-### 4. Cross-Suite Prior Entropy Reduction
-Across all 7 conditions of the Deep Hierarchy Prior Benchmark ($N=50, T=20$):
-- Opponent mental model Shannon entropy decreases by **$71\%$ to $92\%$** over 20 steps.
-- The recursive Bayesian filter successfully recovers from heavily misspecified priors (Conditions 3 & 6) and resolves uninformative uniform priors (Conditions 4 & 7).
-
-### 5. Unified CLI Execution
-Run the complete Bayes-optimal verification suite via:
-```bash
-PYTHONPATH=src uv run python -m examples.experiments.run_benchmarks --suite optimal
-```
-
-
+Final verification: 165 tests passed (161 unit, 4 integration); lint/format,
+source imports, clean wheel contents, prior/comparison audit CLI smoke and MCTS/RTS
+spawn-worker smoke checks pass. Historical source lives in Git. There is only one
+working checkout. The scientific accuracy and full-suite gates remain open.

@@ -6,12 +6,11 @@ a sampled reachability-tree comparator. Both use immutable joint beliefs and a
 recursive finite Bayesian filter. Finite priors and finite search remain explicit
 approximations; passing tests does not prove optimality or convergence.
 
-**The long full suite is not yet qualified.** All conditions have been exercised at full planning budgets; the matrix still
-has model-support failures. Prior and controlled comparison conditions complete
-the twenty-step qualification. Worker time/RSS supervision is now implemented. Read [the theory contract](docs/THEORY.md),
-[open gates](BACKLOG.md), [benchmark evidence](docs/BENCHMARK.md), and
-[handoff](HANDOFF.md). [The implementation plan](docs/IMPLEMENTATION_PLAN.md) tracks
-completed work separately from outstanding qualification.
+**The long full suite is not yet scientifically qualified.** The current review
+corrects a hidden-state leak in the L2 reference solver and restores intentional
+belief updates during MCTS rollouts. Matched oracle sweeps expose finite-budget
+planning error. Read [the theory contract](docs/THEORY.md), [open gates](BACKLOG.md),
+[review phases](docs/REVIEW.md), and [handoff](HANDOFF.md) before a large study.
 
 ## Setup and validation
 
@@ -34,12 +33,10 @@ Graphviz tree rendering also requires the system `dot` executable. Python's
 `graphviz` package is required; a failed rendering is reported rather than silently
 omitted. Rendering is optional when tree export is disabled.
 
-The current suite has 154 passing tests and no expected-failure theory exceptions.
-Independent bounded Tiger references check filtering and one-step values; they
-do not constitute a general convergence proof. Large-scale benchmark evidence across
-$N=50, T=20$ deep hierarchies ($L_1$ to $L_4$) confirms positive returns without policy inversion.
-The exact Bayes-optimal solver suite (`src/solvers/exact/`) provides closed-form analytical $\alpha$-vector
-value iteration and multi-agent backward induction benchmarks against which I-POMCP is empirically verified.
+Independent finite Tiger references check filtering and action values. They do
+not prove convergence or all-domain optimality. Exact planning is implemented for
+bounded L1/L2 Tiger problems with stated information and horizon conventions.
+The matched numerical comparison currently covers L1 versus uniform L0 only.
 
 ## Experiments
 
@@ -48,14 +45,14 @@ optimizing level-zero POMDP used in some I-POMDP literature. Higher levels model
 mixtures over lower levels. Separate solver banks isolate the two real agents.
 Tiger uses 85% growl accuracy and 100% creak accuracy in the principal experiments;
 an opening resets the physical tiger before observations unless persistent mode
-is explicitly selected. Its leaf rollout always listens, a finite-budget heuristic.
+is explicitly selected. Its leaf rollout uses a declared physical-memory heuristic; every legal tree action remains available.
 
 ```bash
 # One condition: L3 versus L2, with 80% prior mass on L2.
 uv run python -m examples.experiments.deep_hierarchy_prior_experiment --trials 30 --steps 20 --condition 1
 
-# Master Bayes-optimal validation suite (Exact VI vs I-POMCP, Sunburst T=20, and Triangulation)
-uv run python -m examples.experiments.run_benchmarks --suite optimal
+# Matched oracle budget/error/cost sweep; failures remain recorded.
+uv run python -m examples.experiments.planner_oracle_experiment --out results/oracle-study --budgets 1000 10000 50000 --horizons 1 2 3 --seeds 10
 
 # Full-suite entry point; qualification blockers remain (see BACKLOG.md).
 uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite all
@@ -67,7 +64,7 @@ uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --s
 uv run python benchmarks/tiger_pre_post_benchmark.py --repo "$PWD" --out results/tiger-audit --trials 30 --steps 20 --workers 4
 ```
 
-`run_benchmarks` supports `prior`, `comparison`, `matrix`, or `all`. Resuming `all`
+`run_benchmarks` supports `prior`, `comparison`, `matrix`, `optimal`, or `all`. Resuming `all`
 with a single suite directory is rejected. Batch manifests bind source and
 configuration; per-trial CSV checkpoints must contain every step, including step
 zero and absorbing terminal padding. Completion markers bind final CSV bytes.
@@ -80,7 +77,7 @@ Interaction horizon and planning depth are different quantities. The audit uses
 20 environment decisions and depth-five search, with 20,000 L3 and 15,000 L2 root
 simulations per decision. Initial physical sample counts are 2,000 and 1,500. Nested models share their own
 bank's empirical physical prior; level weights are exact and search-node capacity
-does not clip the live belief. Modeled MCTS policies use ten simulations by default,
+does not clip the live belief. Modeled MCTS policies use 25 simulations by default,
 which differs from the real-agent budgets and must be reported.
 
 ## Layout and result interpretation
