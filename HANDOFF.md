@@ -194,3 +194,14 @@ Verification for this follow-up: 176 non-integration tests passed, Ruff checks
 and formatting passed. The four domain integration tests passed at the preceding
 checkpoint and were not rerun for this optional exploration change. All 14 default
 replay rows matched the previous source's estimates, policies and losses exactly.
+
+## Antigravity execution report, September 24
+
+All 5 requested calibration extension suites (3,150 total cases, 0 failures) completed under `results/oracle/calibration_{normalized_c1,normalized_c01,standard_c10,bounded_c01,bounded_c1}`. Full provenance, per-belief metrics, and manifests are preserved.
+
+Summary on held-out seeds 5–9 (absent from earlier calibration):
+- `bounded 1.0` is the strongest setting: at Horizon 3 and 50,000 simulations, it reduced wrong actions from 15/35 (42.9%) down to 1/35 (2.9%), with mean held-out first-action loss dropping from 2.1631 down to 0.0955.
+- At Horizon 2 and 50,000 simulations, `bounded 1.0` achieves 0/70 errors across all seeds (0.0000 loss).
+- At Horizon 1, all 210 cases completed with 0 errors across all budgets.
+- Detailed tables are committed in `docs/BENCHMARK.md` and `results/oracle/CALIBRATION_EXTENSION_REPORT.md`.
+

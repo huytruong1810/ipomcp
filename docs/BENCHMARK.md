@@ -119,3 +119,24 @@ observation probabilities, history-conditioned values, and treatment of noisy
 maximization. Maximizing over sampled hidden states or chance outcomes would
 solve a different information problem. A principled Bellman variant remains a
 possible future design, not an accepted one-line correction.
+
+## Ten-seed exploration calibration extension, September 24
+
+Antigravity completed all five 630-case panels (3,150 total cases, 0 failures, 0 timeouts, 0 resource kills) under `results/oracle/calibration_{normalized_c1,normalized_c01,standard_c10,bounded_c01,bounded_c1}`. All runs used Git checkpoint `d0f5428`, Horizons 1–3, budgets 1k/10k/50k, 10 seeds, and 7 belief simplex points under two supervised workers with 4 GiB limits.
+
+Seeds 5–9 are reported separately below as held-out validation data (seeds 0–4 were previously inspected):
+
+| Exploration Strategy | Coeff $c$ | H3 Wrong (0–4) / 105 | H3 Loss (0–4) | H3 Wrong (5–9) / 105 | H3 Loss (5–9) | H3 50k Wrong (5–9) / 35 | H3 50k Loss (5–9) | H2 Wrong (5–9) / 105 |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `normalized` | 1.0 | 42 (40.0%) | 1.9702 | 47 (44.8%) | 2.3242 | 15 (42.9%) | 2.1631 | 17 / 105 |
+| `normalized` | 0.1 | 20 (19.0%) | 0.8617 | 16 (15.2%) | 0.6772 | 9 (25.7%) | 1.2042 | 28 / 105 |
+| `standard` | 10.0 | 19 (18.1%) | 0.8744 | 19 (18.1%) | 0.8389 | 4 (11.4%) | 0.5409 | 17 / 105 |
+| `bounded` | 0.1 | 21 (20.0%) | 0.7436 | 19 (18.1%) | 0.7684 | 10 (28.6%) | 1.2202 | 23 / 105 |
+| `bounded` | 1.0 | 25 (23.8%) | 0.9906 | 24 (22.9%) | 0.9100 | **1** (2.9%) | **0.0955** | **7** / 105 |
+
+Key findings:
+- `bounded 1.0` achieves clean monotonic convergence with near-identical seen vs held-out loss: at 50,000 simulations and Horizon 3, only 1 of 35 held-out cases failed (at $P=0.90$, seed 7), reducing held-out first-action loss from 2.1631 (`normalized 1.0`) down to 0.0955.
+- At Horizon 2 and 50,000 simulations, `bounded 1.0` achieved 0/70 errors across all 10 seeds (0.0000 loss).
+- At Horizon 1, `bounded 1.0` achieved 0/210 errors across all budgets and seeds.
+- Detailed per-belief breakdown and run logs are in `results/oracle/CALIBRATION_EXTENSION_REPORT.md`.
+
