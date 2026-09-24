@@ -34,6 +34,12 @@ class StandardUCB(ExplorationStrategy):
         self.c = exploration_const
 
     def select_action(self, node: POMCPNode, available_actions: List[Action], **kwargs) -> Action:
+        return self._select(node, available_actions, self.c)
+
+    @staticmethod
+    def _select(node, available_actions, coefficient):
+        if not available_actions:
+            raise ValueError("UCB requires at least one legal action")
         best_action = None
         best_value = -float("inf")
 
@@ -47,7 +53,7 @@ class StandardUCB(ExplorationStrategy):
             q = node.action_values.get(action, 0.0)
             n = node.action_counts[action]
 
-            ucb_val = q + self.c * math.sqrt(log_n / n)
+            ucb_val = q + coefficient * math.sqrt(log_n / n)
 
             if ucb_val > best_value:
                 best_value = ucb_val
@@ -58,11 +64,12 @@ class StandardUCB(ExplorationStrategy):
 
 class NormalizedUCB(ExplorationStrategy):
     """
-    Scale-Invariant UCB.
+    Empirical-return-range UCB with a dimensionless tuning coefficient.
 
-    Uses the dynamically passed `q_min` and `q_max` from `kwargs`
-    to normalize the Q-values to [0, 1]. This ensures the exploration constant
-    remains domain-independent, while keeping the specific MCTS process stateless.
+    The planner supplies extrema pooled across visited depths. This is a
+    heuristic scale, not a certified bound or a domain-independent calibration.
+    In particular, deep sampled penalties can inflate exploration at shallow
+    histories. The strategy has no mutable state between solves.
     """
 
     def __init__(self, exploration_const: float = 1.0, epsilon: float = 1e-6):
@@ -108,3 +115,43 @@ class NormalizedUCB(ExplorationStrategy):
                 best_action = action
 
         return best_action if best_action is not None else random.choice(available_actions)
+
+
+class HorizonBoundUCB(StandardUCB):
+    """Scale UCB by a declared reward interval and the remaining horizon.
+
+    For rewards in [lo, hi], the discounted H-step return has width at most
+    (hi-lo) * sum(gamma**t for t in range(H)). Include zero in the interval
+    because an episode can terminate early. The caller must supply bounds
+    valid for every reachable physical state and joint action, not estimates
+    from the current particle or previously sampled extrema.
+
+    The score is Q(h,a) + c * width(H) * sqrt(log N(h) / N(h,a)). This changes
+    exploration only: it neither clips values nor removes actions nor changes
+    mean-return backups. A valid return interval alone does not make these
+    nonstationary tree estimates statistical confidence bounds, and does not
+    certify finite-budget accuracy for any choice of c.
+    """
+
+    def __init__(self, reward_min, reward_max, exploration_const=1.0):
+        if not all(math.isfinite(x) for x in (reward_min, reward_max, exploration_const)):
+            raise ValueError("Reward bounds and exploration constant must be finite")
+        if reward_min > reward_max or exploration_const <= 0:
+            raise ValueError("Need ordered reward bounds and positive exploration constant")
+        super().__init__(exploration_const)
+        self.reward_min = min(0.0, reward_min)
+        self.reward_max = max(0.0, reward_max)
+
+    def return_width(self, remaining_horizon, gamma):
+        """Compute the finite discounted width, including gamma=0 and gamma=1."""
+        if type(remaining_horizon) is not int or remaining_horizon < 1:
+            raise ValueError("Remaining horizon must be a positive integer")
+        if not math.isfinite(gamma) or not 0 <= gamma <= 1:
+            raise ValueError("Discount must lie in [0,1]")
+        return (self.reward_max - self.reward_min) * sum(
+            gamma**step for step in range(remaining_horizon)
+        )
+
+    def select_action(self, node, available_actions, *, remaining_horizon, gamma, **kwargs):
+        width = self.return_width(remaining_horizon, gamma)
+        return self._select(node, available_actions, self.c * width)

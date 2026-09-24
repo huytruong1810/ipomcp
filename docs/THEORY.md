@@ -124,3 +124,21 @@ Recursive interactive-state transitions include the opponent's private update;
 see [Doshi and Gmytrasiewicz (2009)](https://arxiv.org/pdf/1401.3455).
 These references motivate the contracts; their theorems do not automatically
 certify this finite-filter, normalized-UCB, bounded-computation implementation.
+
+
+## Optional horizon-bound exploration
+
+`HorizonBoundUCB` selects using Q(h,a) + c W_H sqrt(log N(h)/N(h,a)), where
+W_H = (max(0,r_max)-min(0,r_min)) sum_{t=0}^{H-1} gamma^t. H is the remaining
+search horizon, not the full root horizon at every node. The zero extension
+accounts for early termination. Bounds must cover the entire reachable physical
+model and every joint action; a particle-specific interval would leak information
+or understate possible returns. The matched Tiger runner enumerates that support.
+
+This interval bounds discounted reward sums. It does not turn UCT estimates,
+whose continuation policy changes during search, into independently sampled
+confidence intervals. The coefficient still requires calibration; neither
+finite-budget optimality nor a new convergence theorem is claimed. Action sets,
+generative transitions, private-model propagation, and arithmetic mean backups
+are identical across these exploration strategies. The production default remains
+empirical-range UCB. See docs/BENCHMARK.md for failed as well as improved cases.

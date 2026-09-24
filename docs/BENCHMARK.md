@@ -74,3 +74,48 @@ Final verification: 165 tests passed (161 unit, 4 integration); lint/format,
 source imports, clean wheel contents, prior/comparison audit CLI smoke and MCTS/RTS
 spawn-worker smoke checks pass. Historical source lives in Git. There is only one
 working checkout. The scientific accuracy and full-suite gates remain open.
+
+## Exploration diagnosis, September 24
+
+Antigravity's `results/oracle/diagnostic_boundary_{mcts,rts}_20260924`
+contains 315 completed cases per planner, all source hashes matching the
+pre-change checkout. At horizon three and budget 50,000, MCTS has positive
+first-action loss in 12/35 cases; RTS has none at 5,000 particles per branch.
+These are different work units, not a compute-matched superiority claim.
+No separate Antigravity prose report was found in the checkout during this pass.
+
+The new `--exploration normalized|standard|bounded` and `--exploration-const`
+options apply only to the matched oracle runner's MCTS planner. `normalized`
+retains the existing global empirical-return scale; `standard` uses raw reward
+units; `bounded` uses the physical reward interval times the discounted remaining
+horizon. The Tiger interval is exhaustively derived from both states, every joint
+action, and transition support. It is not fitted to the oracle or sampled states.
+Configuration is recorded in the manifest and actual strategy parameters in each
+MCTS row. Production defaults and mean-return backups are unchanged.
+
+A 70-case calibration panel is in `results/exploration-20260924`: horizon three,
+10,000 simulations, seeds 0 and 1, beliefs .02/.1/.15/.5/.85/.9/.98, gamma .95,
+two workers, 120 seconds and 1,024 MiB per case. All completed. The default replay
+matches all original result fields exactly in its 14 overlapping Antigravity cases.
+
+| Exploration | Coefficient | Wrong / 14 | Mean first-action loss |
+| --- | ---: | ---: | ---: |
+| Empirical range | 1 | 8 | 3.371483 |
+| Empirical range | 0.1 | 2 | 0.676106 |
+| Raw reward units | 10 | 4 | 1.518977 |
+| Horizon reward bounds | 0.1 | 4 | 1.320253 |
+| Horizon reward bounds | 1 | 4 | 0.954765 |
+
+No setting passed every case. In particular, empirical coefficient .1 introduced
+errors at beliefs .02/.98. These are reused calibration beliefs/seeds, not held-out
+validation. Do not promote a new default or launch the full study from this table.
+
+Why retain mean backups: Algorithm 1 of Silver and Veness (2010),
+https://proceedings.neurips.cc/paper_files/paper/2010/file/edfbe1afcf9246bb0d40eb4d8027d90f-Paper.pdf,
+uses incremental mean simulated returns. Poor finite-budget results do not alone
+identify that estimator as an implementation defect. A Bellman backup using
+maximal child action estimates is a different estimator and requires explicit
+observation probabilities, history-conditioned values, and treatment of noisy
+maximization. Maximizing over sampled hidden states or chance outcomes would
+solve a different information problem. A principled Bellman variant remains a
+possible future design, not an accepted one-line correction.

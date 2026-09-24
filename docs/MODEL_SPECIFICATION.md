@@ -63,3 +63,14 @@ Production modeled planners use their configured depth at every private solve.
 These must not be compared as if they were identical policy models. The matched
 oracle experiment therefore makes numerical claims only for L1 against random L0.
 Its supplied two-state physical prior is exact, rather than empirically sampled.
+
+
+### Exploration ablations
+
+The matched L1 oracle runner exposes empirical-range, raw-unit, and remaining-
+horizon reward-bound UCB with an explicit coefficient. These change search
+allocation, not the Tiger optimization problem or the intentional opponent model.
+Production modeled/real planners keep their existing empirical-range default.
+Coefficients have different units across strategies and must be reported alongside
+simulation counts, remaining horizon, and wall/RSS costs. No current calibration
+setting is certified by the oracle panel; consult docs/BENCHMARK.md.

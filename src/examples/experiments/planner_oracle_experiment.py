@@ -24,12 +24,22 @@ from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.frame import AgentFrame
 from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
+from solvers.exploration import HorizonBoundUCB, NormalizedUCB, StandardUCB
 from solvers.solver_bank import SolverBank
 from utils.bootstrapper import I_POMDP_Bootstrapper
 from utils.process_supervisor import supervise_jobs
 
 
-def evaluate_case(planner_kind, horizon, budget, seed, belief_p, gamma):
+def evaluate_case(
+    planner_kind,
+    horizon,
+    budget,
+    seed,
+    belief_p,
+    gamma,
+    exploration="normalized",
+    exploration_const=1.0,
+):
     """One independent solve. The supervisor owns time/RSS measurement."""
     model = TigerModel()
     oracle = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma)
@@ -48,9 +58,31 @@ def evaluate_case(planner_kind, horizon, budget, seed, belief_p, gamma):
                     n_sims=budget,
                     max_depth=horizon,
                     node_capacity=200,
+                    exploration_const=exploration_const,
                 )
             ),
         )
+        if exploration == "normalized":
+            strategy = NormalizedUCB(exploration_const)
+        elif exploration == "standard":
+            strategy = StandardUCB(exploration_const)
+        elif exploration == "bounded":
+            # Exhaust the complete Tiger state/joint-action/transition support.
+            # These are physics bounds, never oracle Q-values or sample extrema.
+            rewards = [
+                model.get_reward(state, {"i": own, "j": other}, following, "i")
+                for state in (TIGER_LEFT, TIGER_RIGHT)
+                for own in model.get_all_actions("i")
+                for other in model.get_all_actions("j")
+                for following, probability in model.transition_distribution(
+                    state, {"i": own, "j": other}
+                )
+                if probability > 0
+            ]
+            strategy = HorizonBoundUCB(min(rewards), max(rewards), exploration_const)
+        else:
+            raise ValueError("Unknown exploration strategy")
+        planner.exploration_strategy = strategy
     elif planner_kind == "rts":
         planner = bootstrap.create_level1_rts_solver(
             "i",
@@ -85,6 +117,11 @@ def evaluate_case(planner_kind, horizon, budget, seed, belief_p, gamma):
             "seed": seed,
             "belief_p": belief_p,
             "gamma": gamma,
+            "exploration": (
+                {"strategy": exploration, **vars(planner.exploration_strategy)}
+                if planner_kind == "mcts"
+                else None
+            ),
             "oracle_q": oracle_q,
             "estimated_q": estimates,
             "policy": policy,
@@ -103,6 +140,8 @@ def run_oracle_comparison(
     beliefs=(0.02, 0.15, 0.5, 0.85, 0.98),
     planners=("mcts", "rts"),
     gamma=0.95,
+    exploration="normalized",
+    exploration_const=1.0,
     workers=2,
     timeout=2400,
     max_rss_mb=4096,
@@ -113,6 +152,10 @@ def run_oracle_comparison(
     'optimal' certification. Increasing budgets supplies an error/cost curve;
     sufficient resources depend on the accuracy required for a scientific claim.
     """
+    # Validate before workers start so invalid settings cannot create a partial panel.
+    MCTSConfig(exploration_const=exploration_const)
+    if exploration not in {"normalized", "standard", "bounded"}:
+        raise ValueError("Unknown exploration strategy")
     if seeds < 1 or not budgets or any(b < 3 for b in budgets):
         raise ValueError("Need positive seed count and budgets >= 3")
     if not horizons or any(h < 1 for h in horizons):
@@ -131,6 +174,8 @@ def run_oracle_comparison(
         beliefs=beliefs,
         planners=planners,
         gamma=gamma,
+        exploration=exploration,
+        exploration_const=exploration_const,
         workers=workers,
         timeout=timeout,
         max_rss_mb=max_rss_mb,
@@ -145,7 +190,10 @@ def run_oracle_comparison(
     }
     (directory / "manifest.json").write_text(json.dumps(manifest, indent=2))
     cases = list(itertools.product(planners, horizons, budgets, range(seeds), beliefs))
-    jobs = {i: partial(evaluate_case, *case, gamma) for i, case in enumerate(cases)}
+    jobs = {
+        i: partial(evaluate_case, *case, gamma, exploration, exploration_const)
+        for i, case in enumerate(cases)
+    }
     summaries = []
     for identifier, outcome in supervise_jobs(
         jobs,
@@ -174,6 +222,13 @@ def main():
     parser.add_argument("--seeds", type=int, default=10)
     parser.add_argument("--beliefs", type=float, nargs="+", default=[0.02, 0.15, 0.5, 0.85, 0.98])
     parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts", "rts"])
+    parser.add_argument(
+        "--exploration",
+        choices=["normalized", "standard", "bounded"],
+        default="normalized",
+        help="MCTS only: empirical range, raw reward units, or remaining-horizon reward bounds",
+    )
+    parser.add_argument("--exploration-const", type=float, default=1.0)
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=2400)

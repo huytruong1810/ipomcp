@@ -101,3 +101,10 @@ seed analyses where designs share seeds. A confidence interval crossing zero is
 not evidence of equivalence. Payoff matrices describe a finite policy set and do
 not prove convergence as reasoning depth increases or an equilibrium of the
 underlying partially observed game.
+
+
+The matched oracle runner now exposes `--exploration normalized|standard|bounded`
+and `--exploration-const` for explicit MCTS exploration experiments. Defaults are
+unchanged. Every setting in the September 24 calibration still made some
+suboptimal choices; this is diagnostic tooling, not full-suite qualification.
+See `docs/BENCHMARK.md` for results and `HANDOFF.md` for runner instructions.

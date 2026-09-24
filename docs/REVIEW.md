@@ -158,3 +158,11 @@ of every visualization and demo. Open semantic work remains in BACKLOG.md.
 - `tests/test_tiger_reference.py`
 - `tests/test_uniform_matrix.py`
 - `tests/test_visualization.py`
+
+
+September 24 follow-up: reviewed Antigravity's 630 raw oracle cases with matching
+source hashes; added an optional, documented remaining-horizon reward-bound UCB
+and explicit exploration ablations in the matched runner. Mean backups and
+production defaults remain unchanged. Seventy calibration cases all completed,
+but every strategy tested retains action errors. See docs/BENCHMARK.md and
+HANDOFF.md for evidence and the next runner protocol.

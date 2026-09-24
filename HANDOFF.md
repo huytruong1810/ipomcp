@@ -153,3 +153,44 @@ scientific outcomes in docs/BENCHMARK.md with source hashes and exact settings.
 Read defaults from configuration; never hard-code a second value in a manifest.
 Do not copy an old source tree or export another source ZIP. Keep one working
 checkout, use Git for source checkpoints, and keep raw results under results/.
+
+
+## September 24 exploration follow-up
+
+Codex verified both Antigravity boundary panels against their source hashes:
+630/630 cases completed. A new 70-case exploration calibration is in
+`results/exploration-20260924/`; full settings and failures are documented in
+`docs/BENCHMARK.md`. The default replay exactly reproduces all 14 overlapping
+Antigravity rows. All five exploration settings still miss optimal actions.
+Production defaults and mean backups have therefore not changed.
+
+The oracle CLI now supports `--exploration normalized|standard|bounded` and
+`--exploration-const`. The bounded option computes a full-physics Tiger reward
+interval and scales it by remaining horizon; it is not a confidence certificate.
+Do not substitute a max backup without a separate reviewed algorithm design.
+
+Next runner task: run the following calibration extension separately for the five
+pairs `normalized 1`, `normalized 0.1`, `standard 10`, `bounded 0.1`, `bounded 1`,
+using unique output directories. Replace both option placeholders and RUN_ID.
+
+```bash
+uv run python -m examples.experiments.planner_oracle_experiment \
+  --out results/oracle/RUN_ID --planners mcts --horizons 1 2 3 \
+  --budgets 1000 10000 50000 --seeds 10 \
+  --beliefs 0.02 0.1 0.15 0.5 0.85 0.9 0.98 \
+  --exploration STRATEGY --exploration-const COEFFICIENT \
+  --workers 2 --timeout 2400 --max-rss-mb 4096
+```
+
+Report seeds 5-9 separately: these seed indices were absent from Antigravity's
+boundary panel and the new calibration. All listed beliefs have been inspected;
+this is not held-out-belief evidence. Compare per-belief loss, Q errors and cost,
+not just pooled return or the best cell. Keep all failures. Select any candidate
+and acceptance margin before a separate held-out-belief panel; do not repeatedly
+tune on validation results. Full-suite execution remains blocked.
+
+
+Verification for this follow-up: 176 non-integration tests passed, Ruff checks
+and formatting passed. The four domain integration tests passed at the preceding
+checkpoint and were not rerun for this optional exploration change. All 14 default
+replay rows matched the previous source's estimates, policies and losses exactly.

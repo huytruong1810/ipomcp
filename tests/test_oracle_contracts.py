@@ -35,3 +35,15 @@ def test_oracle_comparison_binds_discount_belief_and_horizon(kind):
     assert row["oracle_q"] == pytest.approx({"L": -1, "OL": -97.8, "OR": 7.8})
     assert row["first_action_loss"] == pytest.approx(0)
     assert row["horizon"] == 1 and row["gamma"] == 0.3
+
+
+@pytest.mark.parametrize("strategy", ["normalized", "standard", "bounded"])
+def test_exploration_ablation_preserves_one_step_problem_and_records_settings(strategy):
+    row = evaluate_case("mcts", 1, 100, 17, 0.98, 0.3, strategy, 0.1)[0]
+    assert row["estimated_q"] == pytest.approx(row["oracle_q"])
+    assert row["first_action_loss"] == pytest.approx(0)
+    assert row["exploration"]["strategy"] == strategy
+    assert row["exploration"]["c"] == 0.1
+    if strategy == "bounded":
+        assert row["exploration"]["reward_min"] == -100
+        assert row["exploration"]["reward_max"] == 10

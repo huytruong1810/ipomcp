@@ -30,6 +30,9 @@
 - Strengthen common-random-number comparisons with per-purpose RNG streams.
 - Investigate optional bound-aware exploration or exact conditional reward
   integration as separately specified algorithms, not unreported benchmark fixes.
+  The September 24 bound-aware exploration ablation is implemented; all tested
+  settings still have positive action loss. See docs/BENCHMARK.md. Mean backups
+  remain unchanged; no new production coefficient is qualified.
 
 ## P2: broader evidence and presentation
 

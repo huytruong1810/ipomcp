@@ -108,7 +108,12 @@ class IPOMCPPlanner(Planner):
         # is not a dominance proof and must never remove tree actions.
         legal = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
         action = self.exploration_strategy.select_action(
-            node, legal, q_min=bounds["q_min"], q_max=bounds["q_max"]
+            node,
+            legal,
+            q_min=bounds["q_min"],
+            q_max=bounds["q_max"],
+            remaining_horizon=self.config.mcts.max_depth - depth,
+            gamma=self.config.mcts.gamma,
         )
         if depth + 1 == self.config.mcts.max_depth:
             _, _, reward, _ = self.gen_model.sample_event(
