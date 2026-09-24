@@ -183,3 +183,11 @@ runner. `tests/test_exact_final_step.py` covers hidden-state independence, priva
 history conditioning, impossible evidence, analytic H1/H2 values and strict option
 validation. A 120-case development comparison fixes the tested H2 errors but not
 H3; no new default or higher-level correctness claim follows.
+
+
+Budget-curve review of 32a01ce: verified all 180 cases and source provenance.
+Exact-tail H3 first passes the sampled grid at 200k, but every grid-optimal action
+is listen; Q errors remain nonzero. Corrected convergence-rate/zero-value-error
+claims and distinguished local ignored raw evidence from committed documentation.
+No algorithm change or default promotion. HANDOFF.md now contains only the current
+fresh-belief/seed validation protocol and active operational constraints.

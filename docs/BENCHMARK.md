@@ -266,7 +266,7 @@ not full L2/L3/L4 experimental qualification.
 
 ## Exact final-step budget curve results, September 24
 
-Antigravity completed both 90-case budget panels (180 total cases, 0 failures, 0 timeouts, 0 resource kills) under `results/oracle/tail_budget_sampled_20260924` (Sampled Tail) and `results/oracle/tail_budget_exact_20260924` (Exact Final Step). Both runs used Git checkpoint `582bf1a`, Horizons 2–3, budgets 50k/200k/1M, seeds 100–104, boundary beliefs .08/.50/.92, and `bounded c=1.0` under two supervised workers with 4 GiB limits. Total measured elapsed time was 712.7s for sampled tail and 770.2s for exact tail (overhead < 8%); peak RSS was 82.7 MiB.
+Antigravity completed both 90-case budget panels (180 total cases, 0 failures, 0 timeouts, 0 resource kills) under `results/oracle/tail_budget_sampled_20260924` (Sampled Tail) and `results/oracle/tail_budget_exact_20260924` (Exact Final Step). Both runs used Git checkpoint `582bf1a`, Horizons 2–3, budgets 50k/200k/1M, seeds 100–104, boundary beliefs .08/.50/.92, and `bounded c=1.0` under two supervised workers with 4 GiB limits. Runner-reported elapsed times were 712.7s for sampled tail and 770.2s for exact tail (about 8.07% higher); peak RSS was 82.7 MiB. The saved case files independently record per-case timings, not panel start/end timestamps.
 
 | Mode | Horizon | Budget | Wrong / 15 | Error Rate | Mean Loss | Max Loss | Mean Max Q Error | Mean Wall Time |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -284,8 +284,48 @@ Antigravity completed both 90-case budget panels (180 total cases, 0 failures, 0
 | **Exact Final Step** | 3 | 1,000,000 | **0 / 15** | **0.0%** | **0.0000** | **0.0000** | **14.49** | 37.88 s |
 
 Key findings:
-- Exact Final Step completely eliminates Horizon 2 boundary errors across all tested budgets (0/15 errors at 50k, 200k, 1M sims, mean Q error ≤ 0.01), whereas Sampled Tail still fails in 8/15 cases at 1,000,000 simulations.
-- At Horizon 3, Exact Final Step achieves 0/15 errors at 200,000 simulations and maintains 0/15 at 1,000,000 simulations (accelerating convergence 5x over Sampled Tail, which required 1M sims to reach 0 errors).
+- Exact Final Step completely eliminates Horizon 2 boundary errors across all tested budgets (0/15 errors at 50k, 200k, 1M sims; mean max Q errors 0.010421, 0.007358, 0.002522 respectively), whereas Sampled Tail still fails in 8/15 cases at 1,000,000 simulations.
+- At Horizon 3, Exact Final Step achieves 0/15 errors at 200,000 simulations and maintains 0/15 at 1,000,000 simulations (the first tested zero-error budgets were 200k and 1M respectively; this coarse grid does not establish a fivefold convergence rate or speedup).
 - Exact Final Step reduces Horizon 3 mean max Q error from 26.03 (Sampled Tail) down to 14.49 at 1M simulations.
 - Detailed tables are in `results/oracle/TAIL_BUDGET_CURVE_REPORT.md`.
 
+
+
+## Independent review of the 180-case budget panel
+
+All 180 requested cases were verified: complete coverage without duplicates,
+source hashes matching 582bf1a, executed mode/strategy matching the manifest,
+row settings matching case keys, and first-action loss recomputed from saved
+policies and reference Q-values. The reported action counts are supported.
+
+The warranted conclusion is improved finite-budget action selection on the tested
+L1 histories. Mean sampled-return backups and UCB exploration are part of standard
+POMCP, not by themselves implementation defects (Silver and Veness 2010, sections
+2.4 and 3.1). Exact final-step integration is an explicitly different finite-model
+boundary evaluator. It removes final-step action exploration by construction,
+while earlier sampling/exploration errors remain. These experiments do not prove
+asymptotic convergence of this implementation or a structural error in POMCP.
+
+Every reference-optimal action in this development grid (.08/.5/.92, H2/H3) is
+**listen**. An always-listen policy would pass its decision test. Consequently the
+zero-error cells do not establish correct opening decisions or global policy
+quality. At H3/200k, mean max Q error remains 15.238546; at H3/1M it is 14.486203.
+At H2/1M, the displayed 0.00 Q error is rounded: the actual mean is 0.002522351.
+Zero first-action loss does not mean an exact value function or zero episode regret.
+
+Verified cumulative case wall times are 1,045.348s sampled and 1,058.789s exact,
+about 1.29% apart. This is a different quantity from runner-reported elapsed panel
+time. Neither figure predicts overhead for deeper interactive posteriors. The
+5:1 ratio of the first passing tested budgets is not a measured convergence rate.
+
+Decision: freeze bounded c=1, exact_final_step=true, 200k traversals as a candidate
+for a **new** held-out L1 action test on both opening and listening regions. The
+previous 50k validation remains failed. No production default is promoted.
+HANDOFF.md states fresh beliefs/seeds and the gate before execution. Higher-level
+horizon matching and resource qualification remain separate unresolved work.
+
+Evidence storage: 32a01ce commits the report text in HANDOFF.md and this file.
+The raw result directories and manifests are present locally but ignored by Git;
+`git ls-files results/oracle` is empty. Do not describe those raw files as committed.
+Preserve them in place, retain their source manifests, and report any separate
+archive location only after such an archive has actually been created.

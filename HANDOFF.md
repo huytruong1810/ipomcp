@@ -1,343 +1,106 @@
 # Current review handoff
 
-Current action: the held-out gate failed; do not rerun that validation or promote
-a default. Review the exact-final-step development instructions at the end of
-this file. Production defaults remain unchanged; the full suite is blocked.
+## Decision and ownership
 
-Authoritative checkout: `/home/andyj1810/projects/ipomcp`. Antigravity's refactor
-was committed at `8a96b85` before this pass. No uncommitted source was overwritten.
-The September 23 review repairs reference planning, removes unsupported search
-pruning, restores intentional-model evolution in rollouts, and consolidates the
-oracle experiments. See `docs/REVIEW.md` for the current phase ledger and findings.
+Antigravity runs experiments; Codex owns algorithm, math and code changes.
+Use the single checkout `/home/andyj1810/projects/ipomcp`, branch
+`fix/tiger-policy-inversion`. Do not edit source while a run is active, create
+source copies, or pool runs from different source/configuration manifests.
 
-## Verified checkpoint
+Current action: run the fixed **new held-out L1 protocol** below. Candidate:
+bounded c=1, exact final-step evaluation, 200,000 traversals. This is a candidate
+at a newly declared resource budget, not a retrospective pass of the failed
+50,000-traversal gate. Production defaults remain unchanged. Do not launch the
+full experiment suite.
 
-Engineering commit: `9e40997`. Planning/source checkpoint for the quantitative
-panels: `4e9ff4c`; all recorded after-run source hashes match that commit.
-The before-run source hashes match Git checkpoint `35303a5`. Source copies are
-unnecessary: use Git history. Current checks: **165 tests passed** (161 unit and
-4 domain integration), lint/format checks and a clean wheel build. The rebuilt
-wheel excludes removed modules; generated build/extraction source copies were
-removed after verification. Worker tests run without the earlier fork warning.
+## Verified evidence and implementation
 
-## Scientific status
+- Source checkpoint 582bf1a: 191 non-integration plus 4 domain integration tests
+  passed; Ruff lint/format passed. Subsequent 32a01ce changed documentation only.
+- All 180 development budget cases independently verified against coverage,
+  source hashes, settings and recomputed first-action losses. H3 exact-tail had
+  0/15 errors at 200k and 1M; sampled-tail had 10/15 at 200k and 0/15 at 1M.
+- Those three beliefs (.08/.5/.92) all have **listen** as the reference-optimal
+  action. This is evidence of progress on listening decisions, not validation of
+  opening decisions, an exact value function, or an asymptotic convergence proof.
+- H3 mean max Q error remains 15.238546 at 200k and 14.486203 at 1M for exact tail.
+  Sampled mean backups are standard POMCP; the integrated boundary is a deliberate
+  finite-model variant. See docs/THEORY.md and docs/BENCHMARK.md.
+- Raw cases/manifests are local under `results/oracle/tail_budget_*_20260924`.
+  Git tracks the documentation, **not** these ignored raw directories. Preserve
+  the raw evidence; do not claim it has been committed or remotely archived.
 
-The full long suite is **not qualified as an optimal-planning study**. Correct
-Bayesian conditioning, successful execution, positive rewards, and optimal control
-are different claims. Neither a confidence threshold nor a favorable payoff
-establishes dominance, identification of reasoning level, or convergence.
+Exact-tail mode uses full private-history joint posteriors and integrates only
+the final decision. No benchmark oracle, sampled hidden state, actual opponent
+action, or heuristic rollout belief enters that maximization. Earlier tree nodes
+retain sampled mean backups. Finite-model enumeration may be costly at deeper
+levels; L1 cost measurements do not qualify L2/L3/L4.
 
-The former L2 reference maximized independently over hidden states, returning
-+8.5 at a uniform belief with two remaining steps. The correct observation-based
-value is -1.95. Its rounded belief grid, nearest-belief substitution, and missing
-continuation defaults are removed. The replacement retains joint physical-state /
-opponent-belief uncertainty and conditions future choices on own observations.
+## Frozen new validation protocol
 
-MCTS now explores all legal tree actions and advances opponent private beliefs
-during rollout transitions. Only a final reward-only step omits a useless update.
-The Tiger rollout's physical memory is explicitly a uniform-L0 heuristic, not an
-interactive posterior or an action-pruning certificate. No true hidden state or
-opponent action is provided to that memory update. Impossible evidence raises.
+Candidate and control differ only in exact-final-step mode. Both use bounded c=1,
+L1 against uniform L0, gamma .95, horizons 1/2/3 and **200,000 traversals**.
+The fresh beliefs below and seed indices 200-219 were checked against local oracle
+manifests: neither the belief points nor the seed range appeared there. Do not
+inspect results and then change this selection, budget, coefficient or gate.
 
-The matched oracle suite is `examples.experiments.planner_oracle_experiment`.
-It compares L1 versus uniform L0, with identical physical beliefs, horizons,
-discount and sensor law. RTS retains all nine observation tokens. It records
-per-case source hashes, policies, all action values, first-action loss, wall/RSS
-cost and failures. MCTS simulations and RTS particles per branch are different
-work units. L2 reference tests do not certify L3/L4 or a different horizon model.
-
-## Evidence and next work
-
-Current raw runs and verification logs: `results/review-20260923/`.
-`before-planner` and `after-planner` are 30 seeds, 20 steps, depth five,
-20,000/15,000 real simulations and 2,000/1,500 initial physical samples for L3/L2.
-The oracle directories contain budget sweeps. Consult their manifests rather
-than inferring settings from a directory name. Interrupted earlier `baseline`
-data is not a valid completed study; concurrent edits invalidated that attempt.
-
-Historical Antigravity results are evidence of the then-current approximate
-policies. Frozen-rollout and pruning results cannot certify the corrected model.
-Positive returns do not alone establish correct type identification. Preserve raw
-historical results with provenance; do not relabel them as corrected solver runs.
-
-Outstanding work is in BACKLOG.md. Do not launch or advertise a production-scale
-optimality study until its model-matching and accuracy/resource gates are met.
-Only the original working checkout remains; the review worktree and frozen source copies were removed. Unique notes were committed to Git before deletion, and raw evidence was moved under results/archive/review-evidence-20260916.
-
-## Antigravity experiment-runner instructions
-
-Roles: Codex owns code/math changes; Antigravity runs experiments and reports raw
-evidence. Use this single checkout. Do not edit source while a run is active. Pin
-the start commit and require a clean working tree. If source changes or a manifest
-differs, use a fresh output directory; never combine incompatible trial panels.
-Do not tune physics, priors, masks, rollout transitions, or budgets to make a
-failing benchmark appear successful. Escalate accuracy/support failures with logs.
-
-Before each run:
+Run the two panels sequentially, with two supervised workers within each:
 
 ```bash
 cd /home/andyj1810/projects/ipomcp
 git status --short
 git rev-parse HEAD
 uv sync --frozen --group dev
-uv run pytest -q --ignore=tests/test_integration.py
-uv run ruff check src tests benchmarks
-```
 
-Current conclusion: **do not launch the full `--suite all` study yet**. The corrected
-30-trial Tiger panel regressed (I: +21.43 to -10.47; paired change -31.90, 95%
-interval [-58.06,-5.74]). Horizon-three I-POMCP oracle choices remain suboptimal
-on tested beliefs even at one million simulations. Run commands below only on a
-new source checkpoint that is intended to address those failures, or to reproduce
-the existing evidence. More default-budget payoff trials do not resolve them.
-
-Matched L1 accuracy/cost panel (MCTS budget counts simulations):
-
-```bash
 uv run python -m examples.experiments.planner_oracle_experiment \
-  --out results/oracle/REPLACE_WITH_NEW_RUN_ID \
-  --planners mcts --horizons 1 2 3 --budgets 1000 10000 50000 \
-  --seeds 10 --beliefs 0.02 0.1 0.15 0.5 0.85 0.9 0.98 \
+  --out results/oracle/tail_validation_exact_200k_20260924 \
+  --planners mcts --exploration bounded --exploration-const 1 --exact-final-step \
+  --horizons 1 2 3 --budgets 200000 --seed-start 200 --seeds 20 \
+  --beliefs 0.03 0.07 0.075 0.085 0.11 0.25 0.75 0.89 0.915 0.925 0.93 0.97 \
   --workers 2 --timeout 2400 --max-rss-mb 4096
-```
 
-For deeper sampling, use `--horizons 3 --budgets 100000 500000 1000000` in a
-separate output directory. For RTS, use `--planners rts --budgets 100 1000 5000`;
-particles per branch are not equivalent to MCTS simulations. The nine-token
-observation expansion is deliberate and must not be truncated in this comparison.
-These panels do not test L2/L3/L4 optimality or matched opponent horizon semantics.
-
-Once the accuracy gate is addressed, reproduce the substantial Tiger panel:
-
-```bash
-uv run python benchmarks/tiger_pre_post_benchmark.py \
-  --repo "$PWD" --out results/tiger-audit/REPLACE_WITH_NEW_RUN_ID \
-  --trials 30 --steps 20 --depth 5 --sims-i 20000 --sims-j 15000 \
-  --particles-i 2000 --particles-j 1500 --modeled-opponent-sims 25 --workers 4 \
-  --trial-timeout 2400 --max-rss-mb 4096
-```
-
-This prior experiment has independent banks and 25 modeled simulations by default;
-it is not an exact-opponent computation match. Report that distinction. Do not
-label historical oracles and these deep-agent payoffs as the same optimization task.
-
-Then qualify all actual prior/comparison/matrix conditions before any large study:
-
-```bash
-uv run python benchmarks/qualify_suite.py \
-  --out results/qualification/REPLACE_WITH_NEW_RUN_ID \
-  --suite all --trials 3 --steps 20 --workers 2 \
-  --timeout 2400 --max-rss-mb 4096
-```
-
-Two 4-GiB worker ceilings require memory headroom for the parent and operating
-system. RSS is sampled, so the limit is not an allocation reservation or a hard
-instantaneous cap. Spawn startup is included in wall/RSS accounting. Preserve
-timeouts, unsupported observations and resource kills as failed cases, never
-zero rewards or omissions. Qualifying a suite means every requested case completes
-and scientific accuracy criteria are met, not simply that the command exited.
-
-Return the commit, full command, manifests, completed/requested counts, all failure
-reasons, trial returns, oracle losses/Q errors, wall/CPU/RSS measurements and raw
-paths. Update this file and docs/BENCHMARK.md together when evidence changes.
-The published research conclusions must state finite-prior/search limitations.
-Historical notes belong in Git; current docs must not retain contradicted claims.
-
-## Metadata correction and documentation maintenance
-
-The captured old audit manifests incorrectly wrote modeled_mcts_sims=10 while
-the captured source actually executed 25. Their unused prior-mode argument also
-displayed 50000. Those historical bytes remain unchanged; each run has a
-METADATA_ERRATUM.md. The current driver binds the requested value to actual
-private planners and records it, and its comparison import follows the refactor.
-
-For every source/config change, update affected docstrings plus this handoff,
-BACKLOG.md and the model specification before asking the runner to start. Record
-scientific outcomes in docs/BENCHMARK.md with source hashes and exact settings.
-Read defaults from configuration; never hard-code a second value in a manifest.
-Do not copy an old source tree or export another source ZIP. Keep one working
-checkout, use Git for source checkpoints, and keep raw results under results/.
-
-
-## September 24 exploration follow-up
-
-Codex verified both Antigravity boundary panels against their source hashes:
-630/630 cases completed. A new 70-case exploration calibration is in
-`results/exploration-20260924/`; full settings and failures are documented in
-`docs/BENCHMARK.md`. The default replay exactly reproduces all 14 overlapping
-Antigravity rows. All five exploration settings still miss optimal actions.
-Production defaults and mean backups have therefore not changed.
-
-The oracle CLI now supports `--exploration normalized|standard|bounded` and
-`--exploration-const`. The bounded option computes a full-physics Tiger reward
-interval and scales it by remaining horizon; it is not a confidence certificate.
-Do not substitute a max backup without a separate reviewed algorithm design.
-
-Completed calibration task (do not rerun): the following extension covered the five
-pairs `normalized 1`, `normalized 0.1`, `standard 10`, `bounded 0.1`, `bounded 1`,
-using unique output directories. Replace both option placeholders and RUN_ID.
-
-```bash
 uv run python -m examples.experiments.planner_oracle_experiment \
-  --out results/oracle/RUN_ID --planners mcts --horizons 1 2 3 \
-  --budgets 1000 10000 50000 --seeds 10 \
-  --beliefs 0.02 0.1 0.15 0.5 0.85 0.9 0.98 \
-  --exploration STRATEGY --exploration-const COEFFICIENT \
-  --workers 2 --timeout 2400 --max-rss-mb 4096
-```
-
-Report seeds 5-9 separately: these seed indices were absent from Antigravity's
-boundary panel and the new calibration. All listed beliefs have been inspected;
-this is not held-out-belief evidence. Compare per-belief loss, Q errors and cost,
-not just pooled return or the best cell. Keep all failures. Select any candidate
-and acceptance margin before a separate held-out-belief panel; do not repeatedly
-tune on validation results. Full-suite execution remains blocked.
-
-
-Verification for this follow-up: 176 non-integration tests passed, Ruff checks
-and formatting passed. The four domain integration tests passed at the preceding
-checkpoint and were not rerun for this optional exploration change. All 14 default
-replay rows matched the previous source's estimates, policies and losses exactly.
-
-## Antigravity execution report, September 24
-
-All 5 requested calibration extension suites (3,150 total cases, 0 failures) completed under `results/oracle/calibration_{normalized_c1,normalized_c01,standard_c10,bounded_c01,bounded_c1}`. Full provenance, per-belief metrics, and manifests are preserved.
-
-Summary on held-out seeds 5–9 (absent from earlier calibration):
-- `bounded 1.0` is the strongest setting: at Horizon 3 and 50,000 simulations, it reduced wrong actions from 15/35 (42.9%) down to 1/35 (2.9%), with mean held-out first-action loss dropping from 2.1631 down to 0.0955.
-- At Horizon 2 and 50,000 simulations, `bounded 1.0` achieves 0/70 errors across all seeds (0.0000 loss).
-- At Horizon 1, all 210 cases completed with 0 errors across all budgets.
-- Detailed tables are committed in `docs/BENCHMARK.md` and `results/oracle/CALIBRATION_EXTENSION_REPORT.md`.
-
-
-
-## Completed runner task: fixed held-out L1 validation
-
-Decision after independent review of checkpoint 9815f47: **advance bounded c=1
-as the sole candidate; do not promote the production default**. Codex verified
-all 3,150 raw cases, requested case coverage, source hashes, actual strategies,
-and first-action loss calculations. The strongest 50k candidate still has errors
-and substantial Q error. See docs/BENCHMARK.md for corrected interpretations of
-convergence, seed selection and aggregate worker time.
-
-Freeze this protocol before any validation run:
-
-- Candidate: `bounded`, coefficient 1. Baseline: `normalized`, coefficient 1.
-- L1 versus uniform L0, gamma .95, horizons 1/2/3; no physical-model changes.
-- New beliefs: .04/.06/.08/.12/.20/.35/.65/.80/.88/.92/.94/.96.
-- New seed indices: 100 through 119 inclusive (`--seed-start 100 --seeds 20`).
-- Primary budget: 50,000 simulations. The 10,000 and 100,000 points are
-  diagnostics and cannot substitute for a failing primary-budget result.
-- Engineering decision gate: all requested cases complete and, at 50k, every
-  candidate case has first-action loss <=1e-8 (floating-point comparison tolerance,
-  not a scientific equivalence margin). This is 720 primary cases, 240 per horizon.
-  Also report the baseline at precisely the same beliefs/seeds/budgets.
-- Preserve/report all losses, Q errors, policies, failure reasons, per-belief
-  counts, per-case wall/RSS, and actual total panel elapsed time. Do not discard
-  failures or average away a failing belief. No accuracy target is asserted for
-  Q estimates by this decision gate; quantify their remaining error separately.
-
-Run these two panels sequentially, using two supervised workers within each:
-
-```bash
-uv run python -m examples.experiments.planner_oracle_experiment \
-  --out results/oracle/heldout_bounded_c1_20260924 \
+  --out results/oracle/tail_validation_sampled_200k_20260924 \
   --planners mcts --exploration bounded --exploration-const 1 \
-  --horizons 1 2 3 --budgets 10000 50000 100000 \
-  --seed-start 100 --seeds 20 \
-  --beliefs 0.04 0.06 0.08 0.12 0.20 0.35 0.65 0.80 0.88 0.92 0.94 0.96 \
-  --workers 2 --timeout 2400 --max-rss-mb 4096
-
-uv run python -m examples.experiments.planner_oracle_experiment \
-  --out results/oracle/heldout_normalized_c1_20260924 \
-  --planners mcts --exploration normalized --exploration-const 1 \
-  --horizons 1 2 3 --budgets 10000 50000 100000 \
-  --seed-start 100 --seeds 20 \
-  --beliefs 0.04 0.06 0.08 0.12 0.20 0.35 0.65 0.80 0.88 0.92 0.94 0.96 \
+  --horizons 1 2 3 --budgets 200000 --seed-start 200 --seeds 20 \
+  --beliefs 0.03 0.07 0.075 0.085 0.11 0.25 0.75 0.89 0.915 0.925 0.93 0.97 \
   --workers 2 --timeout 2400 --max-rss-mb 4096
 ```
 
-Expected coverage: 2,160 cases per panel, 4,320 total. Use a new run identifier
-if those output directories already exist; never merge runs. Record the clean
-start commit and source manifests. The new seed-start option changes only case
-selection; the planner and its production defaults are unchanged.
+Require a clean tree, pin HEAD and keep source fixed during both runs. Use fresh
+output paths if these exist. Each panel has 720 cases (240 per horizon), 1,440
+total. Record actual panel elapsed time separately from summed case wall time.
+Two 4-GiB worker ceilings need additional memory headroom for parent/OS. RSS is
+sampled, not an instantaneous allocation cap; worker startup counts toward limits.
 
-A pass permits considering this candidate for further integration, not a claim
-of optimality everywhere. Failure returns the candidate to development; this
-validation set then becomes development evidence and must not be reused as an
-untouched test. Regardless of outcome, the L2 horizon/computation mismatch,
-deep Tiger before/after comparison, L4 and all 39-condition qualification remain
-separate gates. Antigravity completed these runs; they are now development evidence.
+Gate, fixed before execution: every requested case completes, and every candidate
+case has first-action loss <=1e-8. The tolerance is numerical, not a scientific
+reward-equivalence margin or a population guarantee. Keep all failures. Report
+per-belief/per-horizon decisions, exact optimal action sets, first-action losses,
+all Q errors, wall/RSS cost and raw paths; explicitly separate opening and
+listening decisions. Do not average away a failing belief or replace 200k by a
+higher-budget result. The control is reported in full, not used to relax the gate.
 
-Verification of the seed-range preparation: 180 non-integration tests passed;
-Ruff lint and format checks passed. No planner algorithm/default changed and no
-held-out experiment was executed in this preparation pass.
+A pass qualifies only this observed L1 action panel. It does not certify Q-value
+accuracy, optimal episode returns, a general convergence rate or higher levels.
+A failure returns the candidate to development; these points then cease to be an
+untouched validation set. Do not tune repeatedly on them.
 
-## Antigravity validation execution report, September 24
+## Remaining gates and maintenance
 
-Both validation panels (4,320 total cases, 0 failures) completed under `results/oracle/heldout_bounded_c1_20260924` (candidate) and `results/oracle/heldout_normalized_c1_20260924` (baseline) at commit `eef0e69`.
+The previous 50k held-out test failed (80/720 candidate errors); that outcome
+stands. Before a full study we still need matched L2 opponent horizon/computation
+semantics, long-horizon/deep Tiger before/after evidence, L4 and all 39 production
+conditions at intended resources. A 200k L1 candidate does not validate current
+10k-25k real-agent or default 25-simulation modeled-agent budgets.
 
-Decision gate outcome: **FAILED (candidate returns to development)**.
-- At the primary 50,000 budget (N=720 cases: 240/horizon), candidate first-action loss was not universally $\le 10^{-8}$.
-- Candidate wrong choices: 80 / 720 (11.11%), mean loss 0.0817; Baseline wrong choices: 120 / 720 (16.67%), mean loss 0.3811.
-- Candidate resolved errors across all intermediate beliefs (.12, .20, .35, .65, .80, .88) and extreme beliefs (.04, .06, .94, .96), cutting Horizon 3 errors from 80/240 down to 40/240 (-50%) and mean loss from 1.1186 down to 0.2205 (-80.3%).
-- However, both Candidate and Baseline failed 20/20 at the razor-thin boundary beliefs $P=0.08$ and $P=0.92$ across Horizons 2 and 3 consistent with tree exploration penalty suppressing $\hat{Q}(L)$ below $\hat{Q}(\text{door})$.
-- Detailed tables are in `docs/BENCHMARK.md` and `results/oracle/HELDOUT_VALIDATION_REPORT.md`.
+Configuration is part of the deterministic search seed. In particular, adding
+the exact_final_step field changed streams even when false. Compare both modes
+at the same source checkpoint; same seed index is not a promise of common random
+numbers across configurations. Historical source lives in Git, not copied trees.
+Old prior audit manifests have a documented 10-versus-25 modeled-budget erratum;
+consult their METADATA_ERRATUM.md rather than rewriting captured evidence.
 
-
-
-## Current development task: exact final-step budget curves
-
-The 4,320-case held-out failure is independently verified. The new opt-in
-`--exact-final-step` MCTS evaluator integrates the last decision over the full
-private-history posterior. Earlier nodes still use sampled mean returns.
-It passes analytic information-boundary tests and removed H2 errors in a 120-case
-development comparison, but H3/50k still has 6/15 errors. See BENCHMARK.md and
-`results/exact-tail-20260924/REPORT.md`. Do not promote or run a new validation set.
-
-Configuration contains a new boolean, so deterministic configuration-hash seeds
-change even with the option disabled. Old-source case values are not a bitwise
-control. Run both modes at the same new clean source checkpoint; mode settings
-remain explicit. No comparison should pool old and new trajectories.
-
-Antigravity's next useful experiment is a focused **development** budget curve,
-not a repeat full panel: H2/H3, inspected beliefs .08/.5/.92, seeds 100-104,
-budgets 50k/200k/1m. Run the following command twice, using unique output paths;
-first without `--exact-final-step`, then with it. Keep bounded c=1 in both.
-
-```bash
-uv run python -m examples.experiments.planner_oracle_experiment \
-  --out results/oracle/tail_budget_sampled_RUN_ID \
-  --planners mcts --exploration bounded --exploration-const 1 \
-  --horizons 2 3 --budgets 50000 200000 1000000 \
-  --seed-start 100 --seeds 5 --beliefs 0.08 0.5 0.92 \
-  --workers 2 --timeout 2400 --max-rss-mb 4096
-```
-
-For the second command, change the path to `tail_budget_exact_RUN_ID` and append
-`--exact-final-step`. Expect 90 cases per mode, 180 total. Use the same single
-checkout; record clean HEAD, manifests, all failures, first-action loss, per-action
-Q error, policy and wall/RSS costs. This measures whether additional resources
-address earlier-node bias; a successful cell does not replace the failed original
-gate. Leave the code/config fixed throughout both runs. Deep-agent resource
-qualification, matched L2 semantics and full-suite readiness remain unresolved.
-
-
-Verification of this implementation: 191 non-integration tests passed in 48.77s;
-all four domain integration tests passed in 325.27s; Ruff lint and formatting
-passed. The 120-case development panel completed with source hashes verified.
-No production default has been promoted. Domain integration tests exercise the
-default path; the new exact-tail path has analytic tests and L1 development cases,
-not full L2/L3/L4 experimental qualification.
-
-## Antigravity development execution report, September 24
-
-Both budget curve panels (180 total cases, 0 failures) completed under `results/oracle/tail_budget_sampled_20260924` (Sampled Tail) and `results/oracle/tail_budget_exact_20260924` (Exact Final Step) at commit `582bf1a`.
-
-Key findings:
-- At Horizon 2: Exact Final Step achieves 0/15 errors across all tested budgets (50k, 200k, 1M sims) with Mean Q Error dropping to 0.00. Sampled Tail still fails in 8/15 cases at 1,000,000 simulations due to leaf exploration penalty.
-- At Horizon 3: Exact Final Step resolves all boundary errors at 200,000 simulations (0/15 errors, Loss = 0.0000) and maintains 0/15 at 1,000,000 simulations. Sampled Tail requires 1,000,000 simulations to reach 0 errors (failing 10/15 at 200k).
-- Exact Final Step reduces Horizon 3 mean max Q error from 26.03 (Sampled Tail) down to 14.49 at 1M simulations.
-- Minimal computational overhead: panel elapsed time was 712.7s for sampled tail vs 770.2s for exact tail (<8% overhead). Peak RSS was 82.7 MiB.
-- Detailed tables are committed in `docs/BENCHMARK.md` and `results/oracle/TAIL_BUDGET_CURVE_REPORT.md`.
-
+Update current claims in this file, BACKLOG.md and docs/BENCHMARK.md together.
+Keep HANDOFF.md as the current protocol; historical instructions remain in Git.
+Never describe finite decision agreement as exact values or a convergence proof.

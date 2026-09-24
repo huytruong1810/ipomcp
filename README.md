@@ -117,3 +117,8 @@ The optional `--exact-final-step` MCTS experiment integrates the final decision
 from the full private-history posterior. Earlier backups remain sampled means.
 This hybrid is under development; it is not an oracle shortcut or a qualified
 production default. See `docs/THEORY.md` and `HANDOFF.md` for its scope and cost.
+
+The exact-tail development budget curve supports a new, fixed L1 validation at
+200k traversals, covering fresh opening and listening beliefs. It does not reverse
+the failed 50k gate or qualify a production default. Current commands are in
+HANDOFF.md; all prior instructions remain available through Git history.

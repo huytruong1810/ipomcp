@@ -2,12 +2,11 @@
 
 ## P0: accuracy and resource qualification
 
-- Characterize I-POMCP finite-budget error against the matched L1 reference.
-  Horizon-three action errors persist through 1,000,000 simulations in the
-  reviewed panel (six of nine belief/seed cases at that budget). See
-  docs/BENCHMARK.md for the source-bound measurements.
-  Use budget/error/cost curves and held-out beliefs/seeds; do not reinstate
-  confidence-based action pruning or freeze intentional beliefs to pass a test.
+- Validate the bounded-c1 exact-final-step candidate at a declared 200k budget.
+  Its 180-case development panel has zero H3 errors at 200k on three beliefs,
+  all favoring listen. The fixed fresh opening/listening protocol is in HANDOFF.md.
+  No default is promoted; the previous 50k held-out gate remains failed.
+  Do not reinstate confidence pruning or frozen intentional beliefs to pass a test.
 - Match the intentional policy model before comparing L2 with an exact oracle.
   The L2 reference currently has a common decreasing finite horizon, whereas
   production modeled MCTS policies replan at their configured fixed depth and
@@ -28,16 +27,10 @@
   preserving only the final manifest loses earlier resource settings.
 - Consolidate remaining domain/demo episode loops around the common runner.
 - Strengthen common-random-number comparisons with per-purpose RNG streams.
-- Investigate optional bound-aware exploration or exact conditional reward
-  integration as separately specified algorithms, not unreported benchmark fixes.
-  The September 24 bound-aware exploration ablation is implemented; all tested
-  settings still have positive action loss. The 3,150-case extension selects
-  bounded c=1 for the fixed fresh-belief/seed protocol in HANDOFF.md; production
-  promotion remains blocked: that 4,320-case validation failed (80/720 primary
-  candidate decisions). The set is now development evidence. An opt-in exact
-  final-step evaluator is being qualified; do not launch a new validation panel
-  until its development results are reviewed. See docs/BENCHMARK.md. Mean backups
-  remain unchanged; no new production coefficient is qualified.
+- Bound-aware exploration and exact final-step integration are implemented as
+  explicit options. Qualify their cost/accuracy beyond L1 before any production
+  change. Earlier backups remain sampled means; no general convergence claim
+  follows from finite action agreement. See docs/THEORY.md and docs/BENCHMARK.md.
 
 ## P2: broader evidence and presentation
 
