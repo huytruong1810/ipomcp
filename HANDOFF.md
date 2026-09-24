@@ -272,3 +272,15 @@ separate gates. Antigravity owns execution; Codex has not run these held-out cas
 Verification of the seed-range preparation: 180 non-integration tests passed;
 Ruff lint and format checks passed. No planner algorithm/default changed and no
 held-out experiment was executed in this preparation pass.
+
+## Antigravity validation execution report, September 24
+
+Both validation panels (4,320 total cases, 0 failures) completed under `results/oracle/heldout_bounded_c1_20260924` (candidate) and `results/oracle/heldout_normalized_c1_20260924` (baseline) at commit `eef0e69`.
+
+Decision gate outcome: **FAILED (candidate returns to development)**.
+- At the primary 50,000 budget (N=720 cases: 240/horizon), candidate first-action loss was not universally $\le 10^{-8}$.
+- Candidate wrong choices: 80 / 720 (11.11%), mean loss 0.0817; Baseline wrong choices: 120 / 720 (16.67%), mean loss 0.3811.
+- Candidate resolved errors across all intermediate beliefs (.12, .20, .35, .65, .80, .88) and extreme beliefs (.04, .06, .94, .96), cutting Horizon 3 errors from 80/240 down to 40/240 (-50%) and mean loss from 1.1186 down to 0.2205 (-80.3%).
+- However, both Candidate and Baseline failed 20/20 at the razor-thin boundary beliefs $P=0.08$ and $P=0.92$ across Horizons 2 and 3 due to tree exploration penalty suppressing $\hat{Q}(L)$ below $\hat{Q}(\text{door})$.
+- Detailed tables are in `docs/BENCHMARK.md` and `results/oracle/HELDOUT_VALIDATION_REPORT.md`.
+

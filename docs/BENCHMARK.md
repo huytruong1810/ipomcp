@@ -170,3 +170,34 @@ the primary budget and 10k/100k diagnostic budgets. Do not select a different
 coefficient after inspecting that validation set. The gate concerns observed
 first-action decisions on the specified L1 panel only, not L2/L3/L4 correctness,
 value accuracy, statistical population guarantees, or full-suite qualification.
+
+## Held-out L1 validation results, September 24
+
+Antigravity completed both 2,160-case validation panels (4,320 total cases, 0 failures, 0 timeouts, 0 resource kills) under `results/oracle/heldout_bounded_c1_20260924` (candidate) and `results/oracle/heldout_normalized_c1_20260924` (baseline). Both runs used Git checkpoint `eef0e69`, Horizons 1–3, budgets 10k/50k/100k, seeds 100–119, and 12 fresh beliefs (.04/.06/.08/.12/.20/.35/.65/.80/.88/.92/.94/.96) under two supervised workers with 4 GiB limits. Total measured elapsed time was 3,155.8s for candidate and 2,943.1s for baseline; peak RSS was 75.8 MiB.
+
+### Primary Decision Gate Outcome (50,000 simulations, N=720 cases: 240/horizon)
+
+- **Gate criterion**: First-action loss $\le 10^{-8}$ for all 720 primary cases.
+- **Outcome**: **FAILED** (Candidate: 80 / 720 wrong choices [11.11%], mean loss 0.0817; Baseline: 120 / 720 wrong choices [16.67%], mean loss 0.3811).
+- Per protocol, candidate returns to development; this validation set becomes development evidence.
+
+### Primary Budget Breakdown by Horizon (50,000 simulations)
+
+| Horizon | Candidate Wrong / 240 | Candidate Mean Loss | Candidate Max Loss | Baseline Wrong / 240 | Baseline Mean Loss | Baseline Max Loss |
+|---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1 | 0 / 240 (0.0%) | 0.0000 | 0.0000 | 0 / 240 (0.0%) | 0.0000 | 0.0000 |
+| 2 | 40 / 240 (16.7%) | 0.0246 | 0.1478 | 40 / 240 (16.7%) | 0.0246 | 0.1478 |
+| 3 | **40 / 240 (16.7%)** | **0.2205** | **1.3231** | **80 / 240 (33.3%)** | **1.1186** | **5.3884** |
+
+### Per-Belief Breakdown at Primary Budget (50k simulations, N=20 seeds each)
+
+- At Horizon 3:
+  - Extreme safe door beliefs (.04, .06, .94, .96): Candidate 0/20 wrong; Baseline 0/20 wrong.
+  - Intermediate beliefs (.12, .20, .35, .65, .80, .88): Candidate **0/20 wrong across all 6 beliefs (0.0000 loss)**; Baseline failed 20/20 at .12 and 20/20 at .88 (loss 5.3884 each).
+  - Razor-thin boundary beliefs (.08 and .92): Both Candidate and Baseline failed 20/20 (Candidate loss 1.3231 vs Baseline loss 1.3231). At .08, $Q^*(L)=0.671$ vs $Q^*(OL)=-0.652$ (margin 1.3231), and tree exploration suppression causes premature door opening.
+- At Horizon 2:
+  - Beliefs .04, .06, .12 through .88, .94, .96: Candidate 0/20 wrong.
+  - Boundary beliefs .08 and .92: Both Candidate and Baseline failed 20/20 (margin $\Delta Q = 0.1478$).
+- Diagnostic budget scaling (10k, 50k, 100k): Candidate Horizon 3 errors were 77/240 (10k) $\rightarrow$ 40/240 (50k) $\rightarrow$ 40/240 (100k).
+- Full details in `results/oracle/HELDOUT_VALIDATION_REPORT.md`.
+
