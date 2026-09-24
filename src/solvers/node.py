@@ -7,6 +7,7 @@ models. The number of nodes and referenced beliefs is not globally bounded by
 capacity. Weak parent pointers let obsolete siblings be collected after rerooting.
 """
 
+import math
 import random
 import weakref
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -39,6 +40,13 @@ class POMCPNode:
         self.visit_count: int = 0
         self.action_counts: Dict[Action, int] = {}
         self.action_values: Dict[Action, float] = {}
+        # Used only by empirical Bellman backups. Counts describe nonterminal
+        # outcomes, while action_counts includes all outcomes (including terminal).
+        self.immediate_reward_means: Dict[Action, float] = {}
+        self.continuation_counts: Dict[Action, Dict[Observation, int]] = {}
+        # A freshly expanded frontier has one declared rollout estimate until
+        # actions are evaluated. None means no estimate, never an implicit zero.
+        self.rollout_value: Optional[float] = None
 
         # AND-OR Tree: children[action][observation] -> POMCPNode
         self.children: Dict[Action, Dict[Observation, "POMCPNode"]] = {}
@@ -101,6 +109,54 @@ class POMCPNode:
 
         return self.children[action][observation]
 
+    def value_estimate(self) -> float:
+        """Maximize action estimates at this history, never across observations.
+
+        Until this frontier has evaluated any actions, use its explicit rollout
+        initialization. It is an estimator, not a bound or a repaired posterior.
+        Unvisited actions do not acquire fictitious zero rewards; UCB schedules
+        them on subsequent visits. Exact one-step nodes store integrated Q values.
+        """
+        if self.action_values:
+            return max(self.action_values.values())
+        if self.rollout_value is None:
+            raise ValueError("History node has neither action nor rollout estimates")
+        return self.rollout_value
+
+    def empirical_bellman_backup(self, action: Action, reward: float, gamma: float) -> float:
+        """Recompute Q from the empirical chance law and current child values.
+
+        The caller has counted this action and, for a nonterminal outcome, its
+        observation. Q = mean immediate reward + gamma * sum_o count(o,alive)
+        * V(child(o)) / count(action). Terminal samples stay in the denominator
+        and have zero continuation; conditioning the denominator on survival
+        would incorrectly inflate future values. Child values are reread on every
+        backup, so earlier exploratory action costs are not frozen in this mean.
+
+        Chance frequencies are estimated, not exact model probabilities. Taking
+        maxima of noisy action estimates can introduce optimism. This estimate is
+        neither a confidence bound nor an assertion that a node is solved.
+        """
+        n = self.action_counts[action]
+        if n <= 0:
+            raise ValueError("Bellman backup requires a counted action")
+        previous = self.immediate_reward_means.get(action, 0.0)
+        immediate = previous + (reward - previous) / n
+        self.immediate_reward_means[action] = immediate
+        outcomes = self.continuation_counts.get(action, {})
+        if sum(outcomes.values()) > n:
+            raise ValueError("Continuation counts exceed action count")
+        continuation = (
+            math.fsum(
+                count * self.children[action][obs].value_estimate()
+                for obs, count in outcomes.items()
+            )
+            / n
+        )
+        q = immediate + gamma * continuation
+        self.action_values[action] = q
+        return q
+
     def to_dict(self, max_depth: int = 3, current_depth: int = 0) -> Dict[str, Any]:
         """
         Recursively serializes the sub-tree rooted at this node for Artifact Logging.
@@ -112,6 +168,12 @@ class POMCPNode:
             "action_counts": {str(a): c for a, c in self.action_counts.items()},
             "n_particles": len(self.belief_particles),
             "total_routed": self._total_particles_routed,
+            "rollout_value": self.rollout_value,
+            "immediate_reward_means": {str(a): v for a, v in self.immediate_reward_means.items()},
+            "continuation_counts": {
+                str(a): {str(o): n for o, n in counts.items()}
+                for a, counts in self.continuation_counts.items()
+            },
         }
 
         if current_depth < max_depth:

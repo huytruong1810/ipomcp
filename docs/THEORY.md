@@ -179,3 +179,49 @@ finite belief and modeled policies. It does not resolve empirical-prior error,
 subjective opponent mismatch, or finite-budget exploration bias at earlier nodes.
 Enumeration can be costly in deep hierarchies. Unsupported observations and
 resource-limit exceptions remain failures; there is no sampled-posterior fallback.
+
+
+## Experimental empirical chance-weighted Bellman backups
+
+`MCTSConfig.backup` is `sampled` by default. The `empirical_bellman` option
+changes the action-value estimator, independently of exploration and exact-tail
+choices. For a private history h and action a, let N(h,a) count all sampled
+outcomes, and C(h,a,o,alive) count continuing outcomes with observation o:
+
+Qhat(h,a) = Rbar(h,a) + gamma * sum_o
+            C(h,a,o,alive) / N(h,a) * Vhat(h,a,o,alive).
+
+Rbar is the sample mean immediate reward, except at the root where the existing
+full-belief expected reward is used. Vhat is the maximum of currently evaluated
+action estimates at that history. A frontier with no evaluated actions uses its
+explicit first rollout estimate until expansion; an absent estimate raises, never
+silently becomes zero. Untried actions are still scheduled by UCB and are not
+assigned artificial zero-valued alternatives. Exact one-step nodes use all their
+integrated action values. Every ancestor on the sampled path recomputes its
+selected action from current child values, not an average of old child estimates.
+
+These are **empirical** chance probabilities. The denominator includes terminal
+samples, with zero continuation. Outcomes are neither maximized nor given equal
+weights, and surviving outcomes are not renormalized to probability one. The
+probability count is independent of descendant action counts and reservoir size.
+The maximizing decision is always attached to a private history, never a sampled
+hidden state. Parent reward and future value can be added by linearity of
+expectation; no independence between reward and next observation is assumed.
+
+The backup structure is related to the Max-Monte-Carlo backups in Keller and
+Helmert (2013), section MaxUCT:
+https://ai.dmi.unibas.ch/papers/keller-helmert-icaps2013.pdf . That work describes
+MDP decision/chance nodes; this implementation applies the construction to
+private-history nodes with sampled immediate rewards, public survival and an
+optional finite-belief tail. Its results are not automatically a convergence
+proof for this implementation or its nested finite-budget opponent models.
+
+For a fixed finite-horizon model, a consistency argument would require reward
+and outcome estimates to converge at every relevant history and enough visits
+for every available action and positive-probability branch. Backward induction
+then makes the weighted backup approach the history Bellman equation. This
+conditional argument is not a finite-budget guarantee. Maxima of noisy estimates
+can be optimistic; rare or unseen histories and rollout initialization can still
+matter. No solved-node labels, confidence certificates or action elimination are
+introduced. Compare action loss and value error separately, and charge the extra
+per-backup work (linear in the number of discovered continuing observations).

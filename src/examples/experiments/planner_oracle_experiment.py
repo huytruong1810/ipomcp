@@ -40,6 +40,7 @@ def evaluate_case(
     exploration="normalized",
     exploration_const=1.0,
     exact_final_step=False,
+    backup="sampled",
 ):
     """One independent solve. The supervisor owns time/RSS measurement."""
     model = TigerModel()
@@ -61,6 +62,7 @@ def evaluate_case(
                     node_capacity=200,
                     exploration_const=exploration_const,
                     exact_final_step=exact_final_step,
+                    backup=backup,
                 )
             ),
         )
@@ -86,8 +88,8 @@ def evaluate_case(
             raise ValueError("Unknown exploration strategy")
         planner.exploration_strategy = strategy
     elif planner_kind == "rts":
-        if exact_final_step:
-            raise ValueError("exact_final_step is an MCTS-only ablation")
+        if exact_final_step or backup != "sampled":
+            raise ValueError("Tail and backup ablations are MCTS-only")
         planner = bootstrap.create_level1_rts_solver(
             "i",
             model,
@@ -122,6 +124,7 @@ def evaluate_case(
             "belief_p": belief_p,
             "gamma": gamma,
             "exact_final_step": exact_final_step,
+            "backup": backup if planner_kind == "mcts" else None,
             "exploration": (
                 {"strategy": exploration, **vars(planner.exploration_strategy)}
                 if planner_kind == "mcts"
@@ -149,6 +152,7 @@ def run_oracle_comparison(
     exploration="normalized",
     exploration_const=1.0,
     exact_final_step=False,
+    backup="sampled",
     workers=2,
     timeout=2400,
     max_rss_mb=4096,
@@ -160,8 +164,10 @@ def run_oracle_comparison(
     sufficient resources depend on the accuracy required for a scientific claim.
     """
     # Validate before workers start so invalid settings cannot create a partial panel.
-    MCTSConfig(exploration_const=exploration_const, exact_final_step=exact_final_step)
-    if exact_final_step and any(kind != "mcts" for kind in planners):
+    MCTSConfig(
+        exploration_const=exploration_const, exact_final_step=exact_final_step, backup=backup
+    )
+    if (exact_final_step or backup != "sampled") and any(kind != "mcts" for kind in planners):
         raise ValueError("exact_final_step is an MCTS-only ablation")
     if exploration not in {"normalized", "standard", "bounded"}:
         raise ValueError("Unknown exploration strategy")
@@ -189,6 +195,7 @@ def run_oracle_comparison(
         exploration=exploration,
         exploration_const=exploration_const,
         exact_final_step=exact_final_step,
+        backup=backup,
         workers=workers,
         timeout=timeout,
         max_rss_mb=max_rss_mb,
@@ -210,7 +217,9 @@ def run_oracle_comparison(
         )
     )
     jobs = {
-        i: partial(evaluate_case, *case, gamma, exploration, exploration_const, exact_final_step)
+        i: partial(
+            evaluate_case, *case, gamma, exploration, exploration_const, exact_final_step, backup
+        )
         for i, case in enumerate(cases)
     }
     summaries = []
@@ -253,6 +262,12 @@ def main():
         "--exact-final-step",
         action="store_true",
         help="MCTS only: integrate final-step rewards over the full private-history belief",
+    )
+    parser.add_argument(
+        "--backup",
+        choices=["sampled", "empirical_bellman"],
+        default="sampled",
+        help="MCTS only: mean trajectory returns or empirical chance-weighted Bellman values",
     )
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--workers", type=int, default=2)

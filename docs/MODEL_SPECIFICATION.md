@@ -90,3 +90,19 @@ including the disabled setting. Old-source and new-source runs with the same
 integer seed are not bitwise replays. Compare enabled/disabled runs at the same
 new source checkpoint and preserve both manifests; do not pool old trajectories
 as if they used the current stream. The default algorithmic rules remain sampled.
+
+
+### Backup estimator experiment
+
+`MCTSConfig.backup="sampled"` remains the production default. The matched MCTS
+runner accepts `--backup empirical_bellman` independently of `--exact-final-step`.
+The mode is recorded in configuration, result rows, detailed solver statistics
+and manifests; RTS rejects this MCTS-only option. The empirical chance law,
+frontier initialization and terminal treatment are specified in THEORY.md.
+
+The additional config field changes deterministic search hashes, even for the
+sampled setting. Both controls must be rerun at the same source checkpoint; old
+trajectories are not a bitwise control. No compatibility hash or source snapshot
+is retained. The physical model, observation law, reward law, real filtering and
+private opponent evolution are unchanged. Their computation budgets still need
+separate deep-hierarchy qualification.

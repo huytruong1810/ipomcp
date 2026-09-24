@@ -202,14 +202,26 @@ class IPOMCPPlanner(Planner):
                     )
                 )
             )
+            if self.config.mcts.backup == "empirical_bellman" and not terminal:
+                if new:
+                    child.rollout_value = continuation
+                # Count observed nonterminal outcomes, not visits to a descendant
+                # action or particle-reservoir occupancy. The full action count
+                # below also includes terminal outcomes with zero continuation.
+                counts = node.continuation_counts.setdefault(action, {})
+                counts[observation] = counts.get(observation, 0) + 1
             q = reward + self.config.mcts.gamma * continuation
         if depth == 0:
             q += bounds["root_rewards"][action] - reward
         node.action_counts[action] = node.action_counts.get(action, 0) + 1
-        node.action_values[action] = (
-            node.action_values.get(action, 0)
-            + (q - node.action_values.get(action, 0)) / node.action_counts[action]
-        )
+        if self.config.mcts.backup == "empirical_bellman":
+            immediate = bounds["root_rewards"][action] if depth == 0 else reward
+            q = node.empirical_bellman_backup(action, immediate, self.config.mcts.gamma)
+        else:
+            node.action_values[action] = (
+                node.action_values.get(action, 0)
+                + (q - node.action_values.get(action, 0)) / node.action_counts[action]
+            )
         node.visit_count += 1
         bounds["q_min"], bounds["q_max"] = min(bounds["q_min"], q), max(bounds["q_max"], q)
         return q
@@ -263,6 +275,7 @@ class IPOMCPPlanner(Planner):
             "n_sims": self.config.mcts.n_sims,
             "modeled_n_sims": self.config.opponent.n_sims,
             "exact_final_step": self.config.mcts.exact_final_step,
+            "backup": self.config.mcts.backup,
             "initial_sample_count": self.initial_sample_count,
             "belief_size": len(self.belief.mass),
             "root_visit_count": self.root.visit_count,
