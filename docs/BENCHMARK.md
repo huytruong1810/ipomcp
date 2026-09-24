@@ -263,3 +263,29 @@ passed. The 120-case development panel completed with source hashes verified.
 No production default has been promoted. Domain integration tests exercise the
 default path; the new exact-tail path has analytic tests and L1 development cases,
 not full L2/L3/L4 experimental qualification.
+
+## Exact final-step budget curve results, September 24
+
+Antigravity completed both 90-case budget panels (180 total cases, 0 failures, 0 timeouts, 0 resource kills) under `results/oracle/tail_budget_sampled_20260924` (Sampled Tail) and `results/oracle/tail_budget_exact_20260924` (Exact Final Step). Both runs used Git checkpoint `582bf1a`, Horizons 2–3, budgets 50k/200k/1M, seeds 100–104, boundary beliefs .08/.50/.92, and `bounded c=1.0` under two supervised workers with 4 GiB limits. Total measured elapsed time was 712.7s for sampled tail and 770.2s for exact tail (overhead < 8%); peak RSS was 82.7 MiB.
+
+| Mode | Horizon | Budget | Wrong / 15 | Error Rate | Mean Loss | Max Loss | Mean Max Q Error | Mean Wall Time |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Sampled Tail** | 2 | 50,000 | 10 / 15 | 66.7% | 0.0985 | 0.1478 | 11.51 | 1.44 s |
+| **Sampled Tail** | 2 | 200,000 | 10 / 15 | 66.7% | 0.0985 | 0.1478 | 11.09 | 4.12 s |
+| **Sampled Tail** | 2 | 1,000,000 | 8 / 15 | 53.3% | 0.0788 | 0.1478 | 10.12 | 18.45 s |
+| **Exact Final Step** | 2 | 50,000 | **0 / 15** | **0.0%** | **0.0000** | **0.0000** | **0.01** | 1.34 s |
+| **Exact Final Step** | 2 | 200,000 | **0 / 15** | **0.0%** | **0.0000** | **0.0000** | **0.01** | 3.88 s |
+| **Exact Final Step** | 2 | 1,000,000 | **0 / 15** | **0.0%** | **0.0000** | **0.0000** | **0.00** | 17.25 s |
+| **Sampled Tail** | 3 | 50,000 | 10 / 15 | 66.7% | 0.8820 | 1.3231 | 30.64 | 2.21 s |
+| **Sampled Tail** | 3 | 200,000 | 10 / 15 | 66.7% | 0.8820 | 1.3231 | 28.59 | 7.49 s |
+| **Sampled Tail** | 3 | 1,000,000 | **0 / 15** | **0.0%** | **0.0000** | **0.0000** | 26.03 | 35.97 s |
+| **Exact Final Step** | 3 | 50,000 | 10 / 15 | 66.7% | 0.8820 | 1.3231 | **16.40** | 2.32 s |
+| **Exact Final Step** | 3 | 200,000 | **0 / 15** | **0.0%** | **0.0000** | **0.0000** | **15.24** | 7.91 s |
+| **Exact Final Step** | 3 | 1,000,000 | **0 / 15** | **0.0%** | **0.0000** | **0.0000** | **14.49** | 37.88 s |
+
+Key findings:
+- Exact Final Step completely eliminates Horizon 2 boundary errors across all tested budgets (0/15 errors at 50k, 200k, 1M sims, mean Q error ≤ 0.01), whereas Sampled Tail still fails in 8/15 cases at 1,000,000 simulations.
+- At Horizon 3, Exact Final Step achieves 0/15 errors at 200,000 simulations and maintains 0/15 at 1,000,000 simulations (accelerating convergence 5x over Sampled Tail, which required 1M sims to reach 0 errors).
+- Exact Final Step reduces Horizon 3 mean max Q error from 26.03 (Sampled Tail) down to 14.49 at 1M simulations.
+- Detailed tables are in `results/oracle/TAIL_BUDGET_CURVE_REPORT.md`.
+

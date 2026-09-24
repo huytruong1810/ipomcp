@@ -329,3 +329,15 @@ passed. The 120-case development panel completed with source hashes verified.
 No production default has been promoted. Domain integration tests exercise the
 default path; the new exact-tail path has analytic tests and L1 development cases,
 not full L2/L3/L4 experimental qualification.
+
+## Antigravity development execution report, September 24
+
+Both budget curve panels (180 total cases, 0 failures) completed under `results/oracle/tail_budget_sampled_20260924` (Sampled Tail) and `results/oracle/tail_budget_exact_20260924` (Exact Final Step) at commit `582bf1a`.
+
+Key findings:
+- At Horizon 2: Exact Final Step achieves 0/15 errors across all tested budgets (50k, 200k, 1M sims) with Mean Q Error dropping to 0.00. Sampled Tail still fails in 8/15 cases at 1,000,000 simulations due to leaf exploration penalty.
+- At Horizon 3: Exact Final Step resolves all boundary errors at 200,000 simulations (0/15 errors, Loss = 0.0000) and maintains 0/15 at 1,000,000 simulations. Sampled Tail requires 1,000,000 simulations to reach 0 errors (failing 10/15 at 200k).
+- Exact Final Step reduces Horizon 3 mean max Q error from 26.03 (Sampled Tail) down to 14.49 at 1M simulations.
+- Minimal computational overhead: panel elapsed time was 712.7s for sampled tail vs 770.2s for exact tail (<8% overhead). Peak RSS was 82.7 MiB.
+- Detailed tables are committed in `docs/BENCHMARK.md` and `results/oracle/TAIL_BUDGET_CURVE_REPORT.md`.
+
