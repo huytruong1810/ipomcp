@@ -6,10 +6,11 @@ and descendants, kills the session on budget violation, and always reaps workers
 RSS is sampled, not a hard allocation ceiling: brief spikes between polls can be
 missed. Wall limits include worker startup. No failed job becomes scientific data.
 
-Fork is intentional for the supported Linux/WSL execution environment, permitting
-locally defined research runners without unsafe dynamic import reconstruction.
-Call from the main thread before starting background threads; workers never share
-live planner memory. One process per trial also bounds cross-trial allocator growth.
+Workers use spawn so numerical-library threads and locks are not inherited.
+Jobs must be importable, picklable functions or bound methods; callers use a
+standard __main__ guard. Startup/import costs count toward the wall/RSS limits.
+Call from the main thread. Each trial starts with independent interpreter and
+planner state, which also bounds cross-trial allocator growth.
 """
 
 import contextlib
@@ -100,7 +101,11 @@ def supervise_jobs(jobs, *, workers, timeout_seconds, max_rss_mb, log_directory=
         raise ValueError("Resource limits must be finite and positive")
     if any(type(identifier) is not int or identifier < 0 for identifier in jobs):
         raise ValueError("Job identifiers must be nonnegative integers")
-    context = multiprocessing.get_context("fork")
+    # Numerical libraries can own native threads even when Python calls us
+    # from its main thread. Fork would inherit their locks with no owner in the
+    # child. Spawn starts a clean interpreter; job callables must be picklable
+    # module-level functions or bound methods. Startup counts toward the limit.
+    context = multiprocessing.get_context("spawn")
     waiting = iter(jobs.items())
     active = {}
     exhausted = False

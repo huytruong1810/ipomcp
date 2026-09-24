@@ -54,6 +54,7 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
         prior_weights_i: Optional[Dict[int, float]] = None,
         prior_weights_j: Optional[Dict[int, float]] = None,
         planning_depth: int = 5,
+        modeled_n_sims: Optional[int] = None,
     ):
         super().__init__(config=config, log_dir=log_dir)
         self.level_i = level_i
@@ -61,6 +62,15 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
         self.prior_weights_i = prior_weights_i
         self.prior_weights_j = prior_weights_j
         self.planning_depth = planning_depth
+        # Resolve the default once and store it in runner manifests. An audit
+        # override must affect actual private policies, not just metadata.
+        self.modeled_n_sims = (
+            OpponentPolicyConfig().n_sims if modeled_n_sims is None else modeled_n_sims
+        )
+        OpponentPolicyConfig(n_sims=self.modeled_n_sims)
+        for level in (level_i, level_j):
+            if type(level) is not int or level not in SIM_SCHEDULE:
+                raise ValueError("Prior experiment supports configured levels 0 through 4")
 
     def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
         growl_dict = {"i": 0.85, "j": 0.85}
@@ -74,11 +84,11 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
                 agent_id="j", level=0, model=env, other_agent_ids=["i"]
             )
         else:
-            sims_j = SIM_SCHEDULE.get(self.level_j, 10000 * self.level_j)
-            particles_j = PARTICLE_SCHEDULE.get(self.level_j, 1000 * self.level_j)
+            sims_j = SIM_SCHEDULE[self.level_j]
+            particles_j = PARTICLE_SCHEDULE[self.level_j]
             cfg_j = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_j, max_depth=self.planning_depth, node_capacity=1000),
-                opponent=OpponentPolicyConfig(),
+                opponent=OpponentPolicyConfig(n_sims=self.modeled_n_sims),
             )
 
             planner_j = boot_j.create_solver(
@@ -100,11 +110,11 @@ class DeepHierarchyTigerRunner(GenericBatchRunner):
                 agent_id="i", level=0, model=env, other_agent_ids=["j"]
             )
         else:
-            sims_i = SIM_SCHEDULE.get(self.level_i, 10000 * self.level_i)
-            particles_i = PARTICLE_SCHEDULE.get(self.level_i, 1000 * self.level_i)
+            sims_i = SIM_SCHEDULE[self.level_i]
+            particles_i = PARTICLE_SCHEDULE[self.level_i]
             cfg_i = IPOMCPConfig(
                 mcts=MCTSConfig(n_sims=sims_i, max_depth=self.planning_depth, node_capacity=1000),
-                opponent=OpponentPolicyConfig(),
+                opponent=OpponentPolicyConfig(n_sims=self.modeled_n_sims),
             )
 
             planner_i = boot_i.create_solver(

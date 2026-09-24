@@ -40,9 +40,10 @@ def episode(args, seed):
             {2: 0.8, 1: 0.1, 0: 0.1},
             {1: 0.8, 0: 0.2},
             planning_depth=args.depth,
+            modeled_n_sims=args.modeled_opponent_sims,
         )
     else:
-        from examples.tiger.runners.planner_comparison import ControlledConditionRunner
+        from examples.experiments.planner_comparison_experiment import ControlledConditionRunner
 
         runner = ControlledConditionRunner(
             ExperimentConfig(n_trials=1, max_steps=args.steps),
@@ -157,7 +158,11 @@ def main():
     parser.add_argument(
         "--condition", choices=["prior", "comparison-rts", "comparison-mcts"], default="prior"
     )
-    parser.add_argument("--modeled-opponent-sims", type=int, default=50000)
+    parser.add_argument(
+        "--modeled-opponent-sims",
+        type=int,
+        help="Private MCTS budget; defaults to prior config or matched 50000 for comparison",
+    )
     parser.add_argument("--obs-branching", type=int, default=6)
     parser.add_argument("--repo", required=True)
     parser.add_argument("--out", required=True)
@@ -173,6 +178,13 @@ def main():
     parser.add_argument("--max-rss-mb", type=float, default=3072)
     parser.add_argument("--worker-seed", type=int)
     args = parser.parse_args()
+    sys.path.insert(0, str(Path(args.repo) / "src"))
+    from core.config import OpponentPolicyConfig
+
+    if args.modeled_opponent_sims is None:
+        args.modeled_opponent_sims = (
+            OpponentPolicyConfig().n_sims if args.condition == "prior" else 50000
+        )
     if (
         min(
             args.trials,
@@ -214,7 +226,7 @@ def main():
             else None,
             "real_mcts_sims_i": None if args.condition == "comparison-rts" else args.sims_i,
             "real_mcts_sims_j": args.sims_j,
-            "modeled_mcts_sims": 10 if args.condition == "prior" else args.modeled_opponent_sims,
+            "modeled_mcts_sims": args.modeled_opponent_sims,
         },
         sources=sources,
         driver_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

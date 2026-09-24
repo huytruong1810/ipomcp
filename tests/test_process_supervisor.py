@@ -11,7 +11,7 @@ import pytest
 from core.config import ExperimentConfig
 from examples.tiger.runners.tiger_baseline_runner import TigerBaselineRunner
 from utils.generic_batch_runner import is_batch_complete
-from utils.process_supervisor import _rss_tree_mb, supervise_jobs
+from utils.process_supervisor import supervise_jobs
 
 
 def _sleep():
@@ -20,7 +20,7 @@ def _sleep():
 
 
 def _allocate():
-    allocation = bytearray(128 * 1024 * 1024)
+    allocation = bytearray(512 * 1024 * 1024)
     for offset in range(0, len(allocation), 4096):
         allocation[offset] = 1
     time.sleep(30)
@@ -44,12 +44,12 @@ def test_supervisor_retains_errors_and_reaps_timed_out_workers(tmp_path):
         supervise_jobs(
             {0: _sleep, 1: _crash, 2: _error, 3: _success},
             workers=2,
-            timeout_seconds=0.5,
+            timeout_seconds=5,
             max_rss_mb=4096,
             log_directory=tmp_path,
         )
     )
-    assert time.monotonic() - started < 5
+    assert time.monotonic() - started < 20
     assert outcomes[0]["reason"] == "wall-time limit exceeded"
     assert "17" in outcomes[1]["reason"]
     assert outcomes[2]["error_type"] == "ValueError"
@@ -61,12 +61,10 @@ def test_supervisor_retains_errors_and_reaps_timed_out_workers(tmp_path):
 
 
 def test_supervisor_enforces_rss_budget():
-    baseline = _rss_tree_mb(os.getpid())
-    outcomes = dict(
-        supervise_jobs({0: _allocate}, workers=1, timeout_seconds=5, max_rss_mb=baseline + 40)
-    )
+    limit = 256  # Fresh child RSS is independent of parent import history.
+    outcomes = dict(supervise_jobs({0: _allocate}, workers=1, timeout_seconds=15, max_rss_mb=limit))
     assert outcomes[0]["reason"] == "resident-memory limit exceeded"
-    assert outcomes[0]["monitored_peak_rss_mb"] > baseline + 40
+    assert outcomes[0]["monitored_peak_rss_mb"] > limit
 
 
 class RecoverableRunner(TigerBaselineRunner):
@@ -111,7 +109,7 @@ def test_timeout_stops_descendant_processes(tmp_path):
         supervise_jobs(
             {0: partial(_spawn_descendant, str(path))},
             workers=1,
-            timeout_seconds=0.5,
+            timeout_seconds=5,
             max_rss_mb=4096,
         )
     )
