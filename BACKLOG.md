@@ -3,7 +3,9 @@
 ## P0: accuracy and resource qualification
 
 - Characterize I-POMCP finite-budget error against the matched L1 reference.
-  Horizon-three errors persist at 50,000 simulations in the reviewed panel.
+  Horizon-three action errors persist through 1,000,000 simulations in the
+  reviewed panel (six of nine belief/seed cases at that budget). See
+  docs/BENCHMARK.md for the source-bound measurements.
   Use budget/error/cost curves and held-out beliefs/seeds; do not reinstate
   confidence-based action pruning or freeze intentional beliefs to pass a test.
 - Match the intentional policy model before comparing L2 with an exact oracle.
