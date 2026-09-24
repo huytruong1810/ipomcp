@@ -104,3 +104,15 @@ consult their METADATA_ERRATUM.md rather than rewriting captured evidence.
 Update current claims in this file, BACKLOG.md and docs/BENCHMARK.md together.
 Keep HANDOFF.md as the current protocol; historical instructions remain in Git.
 Never describe finite decision agreement as exact values or a convergence proof.
+
+## Antigravity 200k validation execution report, September 24
+
+Both 200k validation panels (1,440 total cases, 0 failures) completed under `results/oracle/tail_validation_exact_200k_20260924` (Candidate) and `results/oracle/tail_validation_sampled_200k_20260924` (Control) at commit `ccf99b6`.
+
+Decision gate outcome: **FAILED (candidate returns to development)**.
+- At 200,000 traversals (N=720 cases: 240/horizon), Candidate achieved 0 errors across Horizons 1 and 2 (0/480 wrong, loss 0.0000, mean Q error 0.01 at H2).
+- However, at Horizon 3, Candidate failed 20/20 at each of the four razor-thin inflection beliefs ($P \in \{0.070, 0.075, 0.925, 0.930\}$), yielding 80 / 720 overall wrong choices (11.11%, mean loss 0.062899).
+- Control had 85 / 720 wrong choices (11.81%, mean loss 0.075592), additionally failing in 5 cases across .085 and .915 where Candidate was 100% correct.
+- Measured panel elapsed times: 2,870.3s (Candidate) and 3,000.1s (Control); peak monitored RSS was 76.5 MiB.
+- Detailed tables are committed in `docs/BENCHMARK.md` and `results/oracle/TAIL_VALIDATION_200K_REPORT.md`.
+

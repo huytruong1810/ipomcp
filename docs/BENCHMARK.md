@@ -329,3 +329,32 @@ The raw result directories and manifests are present locally but ignored by Git;
 `git ls-files results/oracle` is empty. Do not describe those raw files as committed.
 Preserve them in place, retain their source manifests, and report any separate
 archive location only after such an archive has actually been created.
+
+## Frozen 200k L1 validation results, September 24
+
+Antigravity completed both 720-case panels (1,440 total cases, 0 failures, 0 timeouts, 0 resource kills) under `results/oracle/tail_validation_exact_200k_20260924` (Candidate) and `results/oracle/tail_validation_sampled_200k_20260924` (Control). Both runs used Git checkpoint `ccf99b6`, Horizons 1–3, budget 200,000, seeds 200–219, and 12 fresh beliefs (.03/.07/.075/.085/.11/.25/.75/.89/.915/.925/.93/.97) under two supervised workers with 4 GiB limits. Measured elapsed panel times were 2,870.3s (Candidate) and 3,000.1s (Control); peak monitored RSS was 76.5 MiB.
+
+### Primary Decision Gate Outcome (200,000 traversals, N=720 cases)
+
+- **Gate criterion**: First-action loss $\le 10^{-8}$ for all 720 candidate cases.
+- **Outcome**: **FAILED** (Candidate: 80 / 720 wrong choices [11.11%], mean loss 0.062899; Control: 85 / 720 wrong choices [11.81%], mean loss 0.075592).
+- Per protocol, candidate returns to development; these validation points become development evidence.
+
+### Breakdown by Horizon (200,000 traversals, N=240 cases each)
+
+| Horizon | Candidate Wrong / 240 | Candidate Mean Loss | Candidate Max Loss | Candidate Mean Q Err | Control Wrong / 240 | Control Mean Loss | Control Max Loss | Control Mean Q Err |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **1** | **0 / 240 (0.0%)** | **0.0000** | **0.0000** | **0.00** | **0 / 240 (0.0%)** | 0.0000 | 0.0000 | 0.00 |
+| **2** | **0 / 240 (0.0%)** | **0.0000** | **0.0000** | **0.01** | **0 / 240 (0.0%)** | 0.0000 | 0.0000 | 12.60 |
+| **3** | **80 / 240 (33.3%)** | **0.1887** | **0.8184** | **16.85** | 85 / 240 (35.4%) | 0.2268 | 1.8277 | 32.00 |
+| **Total** | **80 / 720 (11.11%)** | **0.0629** | **0.8184** | — | **85 / 720 (11.81%)** | 0.0756 | 1.8277 | — |
+
+### Per-Belief Breakdown Across All Horizons (N=20 seeds per cell)
+
+- **Horizons 1 and 2**: Both Candidate and Control achieved **0 errors out of 240 cases each (0.0000 loss)** across all 12 beliefs, perfectly executing both door-opening decisions (.03, .07, .075, .925, .93, .97) and listening decisions (.085, .11, .25, .75, .89, .915).
+- **Horizon 3**:
+  - Safe door-opening beliefs (.03, .97): Candidate 0/20 wrong; Control 0/20 wrong.
+  - Interior listening beliefs (.085, .11, .25, .75, .89, .915): Candidate **0/20 wrong across all 6 beliefs (0.0000 loss)**; Control failed 2/20 at .085 and 3/20 at .915.
+  - Razor-thin inflection beliefs (.070, .075, .925, .930): Both Candidate and Control failed 20/20 (Candidate loss 0.3138 at .070/.930 and 0.8184 at .075/.925). The reference optimal action flips from door-opening (H1/H2) to listening (H3), but the true margin ($\Delta Q \in [0.31, 0.82]$) is smaller than intermediate tree exploration suppression at depth 1.
+- Detailed tables are in `results/oracle/TAIL_VALIDATION_200K_REPORT.md`.
+
