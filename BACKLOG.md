@@ -2,24 +2,19 @@
 
 ## P0: accuracy and resource qualification
 
-- The 480-case H4/H5 larger-budget development panel (200k/1M traversals) is complete
-  (14/240 candidate errors versus 60/240 control). The three material 0.53094 loss cases
-  at H5 were fully resolved at 200k and 1M (0 errors at $p=0.070, 0.930$). At 1M traversals,
-  Empirical Bellman achieved 59/60 optimal decisions at H4 (loss $\le 0.00992$) and 57/60
-  at H5 (loss $\le 0.01814$). Max loss across all 240 candidate cases is 0.01814.
-  No default is promoted, and previous failed gates remain historical failures.
-  The numerical loss bound is explicitly frozen at epsilon_loss = 0.020 for the
-  2000-case H1-H5/1M fresh held-out validation panel in HANDOFF.md. Measure elapsed
-  time directly via GNU time; previous claimed elapsed values were withdrawn.
+- Level-1 accuracy gate PASSED: The 2,000-case fresh held-out validation suite
+  (H1–H5, 20 unseen beliefs, seeds 1000–1019, 1M traversals, empirical Bellman, exact
+  final step, bounded $c=1$) completed with 0/2,000 primary gate violations
+  ($\text{loss} \le 0.020$) and 0/2,000 strict errors (100.0% exact oracle agreement;
+  mean loss 0.000000). Direct elapsed panel wall time was 43,392.04 s (12.05 h) and
+  peak RSS was 113.42 MB. Previous 50k and 200k validation failures remain historical
+  failures. Production defaults remain unchanged pending promotion review.
 - Match the intentional policy model before comparing L2 with an exact oracle.
   The L2 reference currently has a common decreasing finite horizon, whereas
   production modeled MCTS policies replan at their configured fixed depth and
   simulation budget. Those are different opponent models.
 - Qualify corrected L4 and all 39 production conditions at intended resources.
   Old uniform-matrix runs with frozen rollout beliefs are not this qualification.
-- Fix the numerical per-case first-action loss bound requested by the user
-  before fresh validation; the bounded-loss preference is confirmed. Establish
-  independent validation seeds. Reused 30-seed comparisons are exploratory, not equivalence proofs.
 
 
 ## P1: architecture and approximation limits

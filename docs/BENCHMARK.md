@@ -605,3 +605,56 @@ was found in 31 panel manifests or 12,513 local recorded case rows; no new case
 has been evaluated. The numerical per-case tolerance remains pending user input,
 so this suite must not start yet. Old gates stay failed, defaults unchanged.
 Audit: results/oracle/bellman_budget_review_20260924.json (local, Git-ignored).
+
+## Frozen 2,000-case fresh held-out Level-1 validation suite
+
+Source checkpoint: a866e69. The numerical first-action loss tolerance threshold was
+explicitly frozen at $\epsilon_{\text{loss}} = 0.020$ per user authorization before execution.
+Evaluated candidate configuration: `backup="empirical_bellman"`, `--exact-final-step`,
+bounded UCB ($c=1.0$), $\gamma=0.95$, fixed budget of 1,000,000 traversals at each of
+Horizons 1–5. Evaluated across 20 strictly unseen beliefs:
+`0.005, 0.035, 0.065, 0.0725, 0.0775, 0.0825, 0.095, 0.125, 0.225, 0.375, 0.625, 0.775, 0.875, 0.905, 0.9175, 0.9225, 0.9275, 0.935, 0.965, 0.995`
+and 20 fresh seeds: `1000–1019` (2,000 cases total). Zero overlap exists with any previous
+development run. Elapsed time was directly measured using GNU time.
+
+Raw cases, manifest, and logs:
+- Results directory: `results/oracle/bellman_validation_20260924/`
+- Direct GNU time log: `results/oracle/bellman_validation_20260924.time` (`elapsed_seconds=43392.04`)
+- Execution log: `results/oracle/bellman_validation_20260924.log`
+
+### Validation Gate Verdict: PASSED
+
+| Metric | Target Specification | Observed Result | Verdict |
+| :--- | :---: | :---: | :---: |
+| **Total Requested Cases** | 2,000 cases | 2,000 cases | Complete (100.0%) |
+| **Incomplete / Timed Out Cases** | 0 allowed | 0 (0.00%) | **PASS** |
+| **Primary Gate Violations ($\text{loss} > 0.020 + 10^{-8}$)** | 0 allowed | **0 / 2,000 (0.00%)** | **PASS** |
+| **Strict Action Errors ($\text{loss} > 10^{-8}$)** | Diagnostic | **0 / 2,000 (0.00%)** | **100.0% Strict Pass** |
+| **Mean First-Action Policy Loss** | Diagnostic | **0.000000** | Perfect first-action agreement |
+| **Max First-Action Policy Loss** | Diagnostic | **0.000000** | Perfect first-action agreement |
+| **Direct Elapsed Panel Wall Time** | Monitored | 43,392.04 s (12.05 h) | Direct GNU time |
+| **Total Worker Wall Time** | Monitored | 90,054.3 s (25.02 h) | Average 45.03 s / case |
+| **Monitored Peak RSS** | < 4,096 MB | **113.42 MB** | Well within memory ceiling |
+
+### Breakdown by Horizon (400 cases per horizon)
+
+| H | Cases | Gate Failures ($\text{loss} > 0.02$) | Strict Errors | Mean Loss | Max Loss | Mean Max Q Error | Max Max Q Error | Mean Case Wall (s) | Peak RSS (MB) |
+| :---: | ---: | :---: | :---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 400 | 0 (0.0%) | 0 (0.0%) | 0.000000 | 0.000000 | 0.0000 | 0.0000 | 0.83 | 82.0 |
+| **2** | 400 | 0 (0.0%) | 0 (0.0%) | 0.000000 | 0.000000 | 0.0098 | 0.1087 | 19.50 | 82.2 |
+| **3** | 400 | 0 (0.0%) | 0 (0.0%) | 0.000000 | 0.000000 | 0.0108 | 0.1012 | 44.47 | 82.8 |
+| **4** | 400 | 0 (0.0%) | 0 (0.0%) | 0.000000 | 0.000000 | 1.3217 | 5.5954 | 68.80 | 87.2 |
+| **5** | 400 | 0 (0.0%) | 0 (0.0%) | 0.000000 | 0.000000 | 3.6684 | 6.4767 | 91.54 | 113.4 |
+
+### Optimal Action Category Breakdown
+
+- **Optimal Action = Listen ($N=1,080$)**: 0 gate failures, 0 strict errors (100% agreement, loss = 0.000000).
+- **Optimal Action = Open ($N=920$)**: 0 gate failures, 0 strict errors (100% agreement, loss = 0.000000).
+
+### Key Takeaways
+
+1. **Definitive Validation Pass**: The candidate planner (`backup="empirical_bellman"` + `--exact-final-step` + bounded UCB $c=1.0$ at 1,000,000 traversals) achieved a 100.0% success rate across all 2,000 held-out cases, meeting the frozen $\epsilon_{\text{loss}} \le 0.020$ primary criterion with 0 failures, and furthermore achieving 0 strict errors across the entire grid.
+2. **Resolution Across All Horizons**: From $H=1$ through $H=5$, every single decision matched the exact oracle optimal policy across both extreme tails ($p=0.005, 0.995$), boundary inflection zones ($p \in [0.065, 0.095]$ and $p \in [0.905, 0.935]$), and uninformative interior beliefs ($p \in [0.125, 0.875]$).
+3. **Execution Integrity**: The suite ran uninterrupted to completion. Elapsed panel wall time was directly recorded as 43,392.04 seconds (12.05 hours) by GNU time, and peak memory stayed at 113.42 MB, confirming operational stability under resource supervision.
+4. **Scope and Future Gates**: This result officially certifies Level-1 Tiger POMDP accuracy at the evaluated budget. In accordance with the project charter, previous 50k and 200k validation failures remain historical failures, and Level-2/Level-4 opponent qualification and production default promotions remain separate pending milestones.
+
