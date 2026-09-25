@@ -833,3 +833,29 @@ parent monotonic elapsed is recorded separately.
 No solver change follows from this audit. Next is a reference for the declared
 finite-budget modeled MCTS policy, with explicit private-belief identity, fixed
 depth, budget, seed and tie rule; see HANDOFF.md. Defaults remain unchanged.
+
+
+## Finite-computation L2 reference implementation and smoke
+
+The new reference exhaustively responds to the bank's declared finite MCTS L1
+policy, preserving complete immutable private-model identity. It is not an
+exact-opponent benchmark. Separate real/modeled configurations and seeds are
+recorded; see L2_CONTRACT.md.
+
+A canonical sampling fix addresses a reproduced identity bug: equal beliefs
+in different insertion orders previously returned different modeled policies
+at the same seed. Old evidence remains tied to its old code; no old validation
+gate is silently extended to changed finite trajectories.
+
+Three 18-case smoke panels completed. Modeled budgets25/100 at depth3 used
+H1-H3, own beliefs .05/.5/.95, b_j=.085, seeds300-301, root budget1000,
+empirical Bellman, exact tail, bounded c=1; modeled policies used sampled
+backups/tail and normalized c=1. All36 decisions had zero first-action loss;
+maximum Q error .881825. A further18-case exact-opponent control matched the
+saved earlier smoke's policies and oracle Q values with no changes.
+Source hashes and monotonic concurrency checks passed in all panels.
+No runtime speed claim is made because the full test suite ran concurrently.
+
+Raw evidence: results/l2-finite-20260925/ including audit.json.
+HANDOFF.md defines the next900-case DEVELOPMENT panel. This is not production
+depth20 qualification, global default promotion or a new held-out validation.

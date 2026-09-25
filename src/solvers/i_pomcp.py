@@ -74,7 +74,7 @@ class IPOMCPPlanner(Planner):
                 raise ValueError("Planning requires one nonterminal observable action set")
             if n_sims < len(next(iter(legal_sets))):
                 raise ValueError("Search budget must evaluate every available action")
-            particles, weights = zip(*model.belief.mass)
+            particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
             bounds = {
                 "q_min": float("inf"),
                 "q_max": -float("inf"),
@@ -83,7 +83,7 @@ class IPOMCPPlanner(Planner):
             root_belief = None
             if model.belief.mass:
                 p_counts = {}
-                for p, mass in model.belief.mass:
+                for p, mass in self.solver_bank.ordered_mass(model.belief):
                     p_counts[p.state] = p_counts.get(p.state, 0.0) + mass
                 total_mass = sum(p_counts.values())
                 if total_mass > 0:

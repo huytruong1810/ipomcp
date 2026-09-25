@@ -253,3 +253,17 @@ timing. Corrected denominator45, nonterminal opening semantics, initial d2
 listening behavior and descriptive (not validation) .020 loss counts.
 No solver changes. Next phase is exact L2 response to explicitly matched
 finite-budget modeled policies, preserving private-model identity.
+
+
+Finite-computation L2 phase: reviewed SolverBank policy identity, MCTS sampling,
+recursive filter, generative transition and oracle runner together. Implemented
+an exhaustive finite-policy response retaining private-model identity, with
+independent H2 enumeration and joint posterior moment checks. Fixed reproduced
+insertion-order dependence of modeled MCTS under equal FiniteBelief values.
+The runner records complete real/modeled settings and seed identity. Preserved
+exact-opponent controls; no silent policy-model substitution or default promotion.
+
+Additional cross-check: with an exact depth2 opponent, the new full-model
+reference matches the existing scalar reference on nine H1-H3 configurations
+to within 8.9e-16 in every action value. This checks the outer recursion beyond
+the independent H2 hand/enumeration tests.

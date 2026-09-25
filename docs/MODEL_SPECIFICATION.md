@@ -116,3 +116,11 @@ specifies the protagonist's point prior on j's initial private P(TL). Private
 beliefs evolve under the same subjective uniform-L0 model in both solvers.
 This reference model does not replace production's finite-budget modeled MCTS.
 See [L2_CONTRACT.md](L2_CONTRACT.md) for the complete comparison contract.
+
+
+The L2 oracle runner additionally accepts an explicit opponent-budget, selecting
+finite modeled MCTS rather than the exact-L1 policy. Opponent depth, budget,
+backup, exact-tail flag, exploration and bank seed are recorded separately from
+the actual root planner. Full immutable private-model identity is preserved by
+the exhaustive best-response reference. Canonical MCTS root mass ordering makes
+policy identity independent of belief insertion order. See L2_CONTRACT.md.

@@ -131,3 +131,11 @@ at a fixed depth; this differs from finite-budget production opponents.
 See docs/L2_CONTRACT.md for the mathematical contract. Oracle panels record
 parent monotonic timing and enforce the worker concurrency bound; older external
 timing discrepancies remain unresolved.
+
+
+For finite modeled opponents, add --opponent-budget to the L2 oracle command.
+The reference then computes an exhaustive response to that declared MCTS L1
+policy; it does not assume the opponent is optimal. Separate opponent backup,
+tail and exploration options are recorded with the full configuration.
+Canonical belief sampling now enforces order-independent private-policy identity.
+Historical runs remain tied to their source checkpoints.

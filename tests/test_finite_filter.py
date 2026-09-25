@@ -2,8 +2,8 @@
 
 The independent Tiger oracle below integrates scalar probabilities directly. It
 does not use finite-filter transition enumeration, belief constructors, or updates.
-Both solver integration counterexamples remain in test_theory_gaps until the
-application actually uses the corrected representation and update.
+Integration checks exercise the production immutable representation and updates;
+these scalar enumerations remain independent checks of the probability law.
 """
 
 import itertools

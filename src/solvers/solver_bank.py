@@ -6,6 +6,7 @@ make cache eviction harmless to the modeled policy. Private beliefs are never
 stored in a registered planner's live root on behalf of another agent.
 """
 
+import json
 import random
 from functools import lru_cache
 
@@ -22,6 +23,7 @@ class SolverBank:
         self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096)
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
         self._belief_digest = lru_cache(maxsize=16384)(self._encode_belief)
+        self.ordered_mass = lru_cache(maxsize=16384)(self._ordered_mass)
         self._state_value = lru_cache(maxsize=65536)(stable_value)
         self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
 
@@ -66,26 +68,35 @@ class SolverBank:
             raise ValueError("Frame physics differs from the registered solver")
         return solver
 
-    def _encode_belief(self, belief):
-        rows = []
-        for atom, mass in belief.mass:
-            opponent = atom.opponent
-            physics = opponent.frame.pomdp_model
-            rows.append(
-                [
-                    self._state_value(atom.state),
-                    mass.hex(),
-                    stable_value(opponent.frame.agent_id),
-                    opponent.frame.level,
-                    type(physics).__module__,
-                    type(physics).__qualname__,
-                    stable_value(vars(physics)),
-                    self._belief_digest(opponent.belief) if opponent.belief else None,
-                ]
-            )
-        import json
+    def _belief_row(self, atom, mass):
+        opponent = atom.opponent
+        physics = opponent.frame.pomdp_model
+        return [
+            self._state_value(atom.state),
+            mass.hex(),
+            stable_value(opponent.frame.agent_id),
+            opponent.frame.level,
+            type(physics).__module__,
+            type(physics).__qualname__,
+            stable_value(vars(physics)),
+            self._belief_digest(opponent.belief) if opponent.belief else None,
+        ]
 
-        return digest(sorted(rows, key=json.dumps))
+    def _encode_belief(self, belief):
+        return digest(
+            sorted([self._belief_row(atom, mass) for atom, mass in belief.mass], key=json.dumps)
+        )
+
+    def _ordered_mass(self, belief):
+        """Sampling order must respect the belief's order-independent equality.
+
+        Equal probability measures already have the same deterministic search
+        seed. random.choices also needs the same cumulative interval ordering;
+        otherwise cache eviction or insertion order changes the modeled policy.
+        Preserve exact masses and nested model objects; no scalar reconstruction
+        or rounding is performed.
+        """
+        return tuple(sorted(belief.mass, key=lambda row: json.dumps(self._belief_row(*row))))
 
     def _expected_rewards(self, model):
         """Integrate immediate reward over the full joint prior and finite dynamics.
@@ -150,6 +161,7 @@ class SolverBank:
         self._cached_policy.cache_clear()
         self.filter.clear_caches()
         self._belief_digest.cache_clear()
+        self.ordered_mass.cache_clear()
         self._state_value.cache_clear()
         self.expected_rewards.cache_clear()
         import gc

@@ -23,8 +23,13 @@
   Codex independently verified all cases, values and timing intervals. The depth
   comparison has 8 action flips out of 45 configurations. Opening resets rather
   than terminates Tiger. Results remain development evidence; production finite-budget
-  modeled opponents remain unmatched. HANDOFF.md specifies the next implementation
-  plan, including exact private-belief identity and deterministic policy semantics.
+  modeled-opponent reference is now implemented for pure L1 Tiger opponents.
+  Run the finite-budget development protocol in HANDOFF.md before production
+  qualification. Fixed depth3 smoke does not qualify production depth20.
+- Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
+  equal beliefs in different insertion orders could return different policies.
+  Preserve old source-bound evidence; qualify the corrected finite policy on
+  declared modeled budgets/depths rather than assuming old trajectories persist.
 - Parent/worker monotonic timing is now recorded and checked. In the L2 study, monotonic
   and external GNU elapsed matched closely across all panels. Older long-duration L1 timing
   discrepancies remain historically unresolved without retroactive replacement.

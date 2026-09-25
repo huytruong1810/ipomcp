@@ -235,3 +235,19 @@ finite-budget modeled MCTS. See [L2_CONTRACT.md](L2_CONTRACT.md) for its joint
 belief Bellman equation, observation/subjective update law, tie convention and
 analytic tests. This is a scoped best-response comparison, not an equilibrium
 claim or a change to global production semantics.
+
+
+## L2 response to finite-computation modeled policies
+
+The finite-opponent reference treats SolverBank's deterministic modeled MCTS
+policy as part of the transition law of the interactive state. It maximizes
+only after marginalizing hidden events at a private observation history.
+Full immutable opponent beliefs and the declared subjective update are retained;
+no scalar rounding or exact-policy substitution is allowed. See L2_CONTRACT.md.
+
+A representation-invariance defect was corrected: equal order-independent
+beliefs previously shared a search seed but could sample different atoms from
+the same random variate due to insertion order. Canonical mass ordering restores
+the requirement that cached finite policies are functions of the immutable
+model and settings. This changes some finite trajectories, not the physical
+model or Bellman objective; old empirical evidence retains its source scope.

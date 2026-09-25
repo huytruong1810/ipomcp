@@ -98,3 +98,69 @@ MCTS opponents, mixtures over levels, empirical physical priors or deeper
 hierarchies. The next production comparison must match those additional policy
 parameters explicitly. Exact recursion grows rapidly with horizon; resource
 failures must remain reported outcomes, never triggers for a cheaper reference.
+
+
+## Finite-computation modeled L1 contract
+
+Supplying --opponent-budget selects a second explicit opponent law: the registered
+IPOMCPPlanner at j/L1, called through SolverBank.policy with modeled=True.
+The depth remains fixed on every call. Its full IPOMCPConfig, exploration
+strategy and constant, and bank seed determine its deterministic finite policy.
+The uniform-exact-maximum tie rule of production greedy_policy applies, rather
+than the exact-L1 reference's 1e-10 tie tolerance. No exact-L1 substitution is
+made when the finite policy is expensive or inaccurate.
+
+FinitePolicyL2Reference exhaustively computes the protagonist's best response
+to this law. Its state is the complete InteractiveState(s,MentalModel_j), not
+(s,scalar_j). It retains the immutable nested belief objects returned by the
+bank's subjective update. Rounding or reconstructing a mathematically close
+scalar belief could change the deterministic search seed and hence the opponent
+action, so such reconstruction is outside this contract.
+
+The joint Bellman equation above is unchanged, but pi_j is now the declared
+finite-computation policy. Outer transition/observation enumeration is implemented
+separately from the production filter. The opponent's subjective update is shared
+because it defines which private model the policy receives. Independent tests
+enumerate H2 physical posteriors without that filter and compare joint posterior
+moments against scalar subjective Bayes updates. Probability support is retained;
+exceeding the explicit branch budget raises InferenceBudgetExceeded.
+
+The reference is exact relative to this specified opponent and finite probability
+model, up to floating arithmetic. It does not certify that j's finite policy is
+optimal. Its caches are bounded and instance-owned; the bank's physics/config/
+seed must remain fixed. The sampled root policy is computed before the exhaustive
+reference, so its oracle Q values cannot guide the root search. Reference and
+planner may reuse cached opponent-policy evaluations: these are part of their
+common modeled dynamics, not information about optimal protagonist actions.
+Worker elapsed includes both computations, so it is not planner-only latency.
+
+## Order-independent finite policy identity
+
+FiniteBelief equality ignores insertion order, and search seeds already hash a
+canonical encoding. Sampling previously used insertion order, however, allowing
+equal models with identical seeds to select different finite-budget actions.
+The reproduced case was seed4, b_j=.085, depth3, modeled budget25: OL versus L
+under reversed input order.
+
+SolverBank now supplies canonical ordered masses to MCTS root sampling and
+physical-marginal accumulation. Ordering uses full immutable atom encodings,
+including exact mass hex values and nested beliefs; nothing is rounded or
+projected to a scalar. The regression checks direct solves and cache eviction.
+This fixes the policy-function contract but may change finite trajectories on
+old input orderings. Historical results remain tied to their recorded source;
+do not silently relabel an older validation as validation of changed code.
+
+The runner records complete actual and modeled configurations in each row,
+the modeled configuration and bank seed range in the manifest, and explicit
+policy type. For this benchmark modeled mcts.n_sims and opponent.n_sims are both
+set to the requested opponent budget; policy_for(modeled=True) uses the latter.
+Production configurations with other inactive fields can hash differently and
+must be recorded separately rather than assumed bitwise equivalent.
+
+## Current finite-opponent experiment limits
+
+The initial test contract is Tiger i/L2 against pure j/L1 under uniform i/L0,
+fixed point prior on j's private belief, and explicit two-state physical priors.
+It does not yet qualify mixed reasoning levels, empirical priors, RTS opponents,
+L4 or all production conditions. Canonical private-policy identity and exact
+small-case enumeration are prerequisites, not substitutes for those gates.

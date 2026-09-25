@@ -1,11 +1,14 @@
 """Matched Tiger oracle comparisons with explicit computational budget sweeps.
 
-Both planners and the reference solve the same finite-horizon problem: the same
-two-state physical belief, uniform L0 opponent, sensor law, discount and horizon.
+Each comparison binds the same physical belief, sensor law, discount, horizon
+and opponent model. L1 uses uniform L0; L2 uses a declared fixed-depth L1.
 No sampled initialization is substituted for the stated reference belief. This
 suite also supports L2 against an explicitly fixed-depth exact L1 policy,
 with a point prior on its private belief. That contract is shared by both
-planners but is distinct from production finite-budget modeled MCTS policies.
+planners. Supplying --opponent-budget selects a finite-computation MCTS L1
+policy instead, with an exhaustive L2 response to that same immutable-model
+policy. Such a reference is optimal relative to the declared opponent, not a
+claim that the finite opponent itself is Bayes-optimal.
 
 MCTS simulations and RTS particles per branch are different work units. Report
 both raw budget and wall/RSS cost, never call equal numbers equal compute. RTS
@@ -19,13 +22,15 @@ import hashlib
 import itertools
 import json
 import time
+from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 
-from core.config import IPOMCPConfig, MCTSConfig, RTSConfig
+from core.config import IPOMCPConfig, MCTSConfig, OpponentPolicyConfig, RTSConfig
 from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.frame import AgentFrame
+from solvers.exact.finite_policy_l2 import FinitePolicyL2Reference
 from solvers.exact.fixed_tiger_opponent import FixedTigerL1Policy
 from solvers.exact.ipomdp_exact_vi import ExactIPOMDPSolver
 from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
@@ -52,14 +57,29 @@ def evaluate_case(
     level=1,
     opponent_depth=None,
     opponent_belief=0.5,
+    opponent_budget=None,
+    opponent_backup="sampled",
+    opponent_exact_final_step=False,
+    opponent_exploration="normalized",
+    opponent_exploration_const=1.0,
 ):
     """One independent solve. The supervisor owns time/RSS measurement."""
     _validate_level_contract(level, opponent_depth, opponent_belief, (planner_kind,))
+    modeled_config = _modeled_config(
+        level,
+        opponent_depth,
+        opponent_budget,
+        gamma,
+        opponent_backup,
+        opponent_exact_final_step,
+        opponent_exploration,
+        opponent_exploration_const,
+    )
     model = TigerModel()
     if level == 1:
         oracle = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma)
         oracle_q = oracle.q_values(belief_p, horizon)
-    else:
+    elif modeled_config is None:
         oracle = ExactIPOMDPSolver(
             model, horizon=horizon, gamma=gamma, opponent_horizon=opponent_depth
         )
@@ -90,30 +110,21 @@ def evaluate_case(
             )
             bank.register_solver(SolverKey("i", 2), planner)
             bank.register_solver(SolverKey("i", 0), RandomPlanner(model.get_all_actions("i")))
-            bank.register_solver(
-                SolverKey("j", 1), FixedTigerL1Policy(model, opponent_depth, gamma)
-            )
-        if exploration == "normalized":
-            strategy = NormalizedUCB(exploration_const)
-        elif exploration == "standard":
-            strategy = StandardUCB(exploration_const)
-        elif exploration == "bounded":
-            # Exhaust the complete Tiger state/joint-action/transition support.
-            # These are physics bounds, never oracle Q-values or sample extrema.
-            rewards = [
-                model.get_reward(state, {"i": own, "j": other}, following, "i")
-                for state in (TIGER_LEFT, TIGER_RIGHT)
-                for own in model.get_all_actions("i")
-                for other in model.get_all_actions("j")
-                for following, probability in model.transition_distribution(
-                    state, {"i": own, "j": other}
+            if modeled_config is None:
+                provider = FixedTigerL1Policy(model, opponent_depth, gamma)
+            else:
+                provider = IPOMCPPlanner(
+                    SolverKey("j", 1),
+                    model,
+                    model.get_all_actions("j"),
+                    bank,
+                    config=modeled_config,
+                    exploration_strategy=_exploration(
+                        model, "j", opponent_exploration, opponent_exploration_const
+                    ),
                 )
-                if probability > 0
-            ]
-            strategy = HorizonBoundUCB(min(rewards), max(rewards), exploration_const)
-        else:
-            raise ValueError("Unknown exploration strategy")
-        planner.exploration_strategy = strategy
+            bank.register_solver(SolverKey("j", 1), provider)
+        planner.exploration_strategy = _exploration(model, "i", exploration, exploration_const)
     elif planner_kind == "rts":
         if exact_final_step or backup != "sampled":
             raise ValueError("Tail and backup ablations are MCTS-only")
@@ -145,6 +156,11 @@ def evaluate_case(
     )
     planner.set_initial_belief(belief, sample_count=0)
     policy = planner.policy_for(planner.model())
+    if modeled_config is not None:
+        # Evaluate the exhaustive response after the sampled choice. Shared
+        # cached opponent policies define the environment, never i's oracle Q.
+        oracle = FinitePolicyL2Reference(model, bank, gamma)
+        oracle_q = oracle.q_values(planner.model(), horizon)
     estimates = (
         dict(planner.root.action_values) if planner_kind == "mcts" else planner.get_action_values()
     )
@@ -160,12 +176,26 @@ def evaluate_case(
                 {"policy": "uniform_l0"}
                 if level == 1
                 else {
+                    "policy": "finite_mcts_l1",
+                    "config": asdict(modeled_config),
+                    "exploration": {
+                        "strategy": opponent_exploration,
+                        **vars(provider.exploration_strategy),
+                    },
+                    "bank_seed": seed,
+                    "initial_belief_p": opponent_belief,
+                    "tie_rule": "uniform_exact_maximum",
+                }
+                if modeled_config is not None
+                else {
                     "policy": "exact_l1_fixed_horizon",
                     "depth": opponent_depth,
                     "initial_belief_p": opponent_belief,
                     "tie_atol": 1e-10,
                 }
             ),
+            "bank_seed": seed,
+            "planner_config": asdict(planner.config),
             "horizon": horizon,
             "budget": budget,
             "seed": seed,
@@ -185,6 +215,51 @@ def evaluate_case(
             "max_abs_q_error": max(abs(estimates[a] - oracle_q[a]) for a in oracle_q),
         }
     ]
+
+
+def _exploration(physics, agent_id, strategy, constant):
+    """Physics-derived bounds, shared by real and declared modeled planners."""
+    if strategy == "normalized":
+        return NormalizedUCB(constant)
+    if strategy == "standard":
+        return StandardUCB(constant)
+    if strategy != "bounded":
+        raise ValueError("Unknown exploration strategy")
+    other = "j" if agent_id == "i" else "i"
+    rewards = [
+        physics.get_reward(state, {agent_id: own, other: action}, following, agent_id)
+        for state in (TIGER_LEFT, TIGER_RIGHT)
+        for own in physics.get_all_actions(agent_id)
+        for action in physics.get_all_actions(other)
+        for following, probability in physics.transition_distribution(
+            state, {agent_id: own, other: action}
+        )
+        if probability > 0
+    ]
+    return HorizonBoundUCB(min(rewards), max(rewards), constant)
+
+
+def _modeled_config(level, depth, budget, gamma, backup, tail, exploration, constant):
+    """A budget explicitly selects finite MCTS; no silent model substitution."""
+    if budget is None:
+        if backup != "sampled" or tail or exploration != "normalized" or constant != 1.0:
+            raise ValueError("Modeled MCTS options require an explicit opponent budget")
+        return None
+    if level != 2 or type(budget) is not int or budget < 3:
+        raise ValueError("Opponent budget requires L2 and at least three simulations")
+    if exploration not in {"normalized", "standard", "bounded"}:
+        raise ValueError("Unknown modeled exploration strategy")
+    return IPOMCPConfig(
+        mcts=MCTSConfig(
+            max_depth=depth,
+            n_sims=budget,
+            gamma=gamma,
+            backup=backup,
+            exact_final_step=tail,
+            exploration_const=constant,
+        ),
+        opponent=OpponentPolicyConfig(n_sims=budget),
+    )
 
 
 def _validate_level_contract(level, opponent_depth, opponent_belief, planners):
@@ -222,6 +297,11 @@ def run_oracle_comparison(
     level=1,
     opponent_depth=None,
     opponent_belief=0.5,
+    opponent_budget=None,
+    opponent_backup="sampled",
+    opponent_exact_final_step=False,
+    opponent_exploration="normalized",
+    opponent_exploration_const=1.0,
 ):
     """Persist every outcome and source fingerprint before interpreting results.
 
@@ -230,6 +310,16 @@ def run_oracle_comparison(
     sufficient resources depend on the accuracy required for a scientific claim.
     """
     _validate_level_contract(level, opponent_depth, opponent_belief, planners)
+    modeled_config = _modeled_config(
+        level,
+        opponent_depth,
+        opponent_budget,
+        gamma,
+        opponent_backup,
+        opponent_exact_final_step,
+        opponent_exploration,
+        opponent_exploration_const,
+    )
     # Validate before workers start so invalid settings cannot create a partial panel.
     MCTSConfig(
         exploration_const=exploration_const, exact_final_step=exact_final_step, backup=backup
@@ -269,10 +359,19 @@ def run_oracle_comparison(
         level=level,
         opponent_depth=opponent_depth,
         opponent_belief=opponent_belief,
+        opponent_budget=opponent_budget,
+        opponent_backup=opponent_backup,
+        opponent_exact_final_step=opponent_exact_final_step,
+        opponent_exploration=opponent_exploration,
+        opponent_exploration_const=opponent_exploration_const,
     )
     manifest = {
         "settings": settings,
-        "scope": "L1 vs uniform L0"
+        "modeled_config": asdict(modeled_config) if modeled_config is not None else None,
+        "bank_seeds": list(range(seed_start, seed_start + seeds)),
+        "scope": "L2 response to declared finite MCTS L1 policy"
+        if modeled_config is not None
+        else "L1 vs uniform L0"
         if level == 1
         else "L2 vs exact fixed-horizon L1; not finite-budget MCTS opponents",
         "source_sha256": {
@@ -300,6 +399,11 @@ def run_oracle_comparison(
             level,
             opponent_depth,
             opponent_belief,
+            opponent_budget,
+            opponent_backup,
+            opponent_exact_final_step,
+            opponent_exploration,
+            opponent_exploration_const,
         )
         for i, case in enumerate(cases)
     }
@@ -379,11 +483,24 @@ def main():
     )
     parser.add_argument("--level", type=int, choices=[1, 2], default=1)
     parser.add_argument(
-        "--opponent-depth", type=int, help="Required for L2: fixed exact L1 replanning depth"
+        "--opponent-depth", type=int, help="Required for L2: fixed L1 replanning depth"
     )
     parser.add_argument(
         "--opponent-belief", type=float, default=0.5, help="L2 point prior on j's P(TL)"
     )
+    parser.add_argument(
+        "--opponent-budget", type=int, help="L2: finite modeled MCTS simulations; omit for exact L1"
+    )
+    parser.add_argument(
+        "--opponent-backup", choices=["sampled", "empirical_bellman"], default="sampled"
+    )
+    parser.add_argument("--opponent-exact-final-step", action="store_true")
+    parser.add_argument(
+        "--opponent-exploration",
+        choices=["normalized", "standard", "bounded"],
+        default="normalized",
+    )
+    parser.add_argument("--opponent-exploration-const", type=float, default=1.0)
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=2400)
