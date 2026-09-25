@@ -206,3 +206,10 @@ passed in 49.13 s, plus all four integration tests in 265.32 s; Final Ruff lint/
 passed across 106 Python files; the 31 focused tests also passed after that polish. Subsequent polish changes an option-validation
 error message only. The user selected bounded first-action loss for future
 validation, with the numerical threshold still pending; old failed gates stand.
+
+Review of 933d917: independently audited all 1,800 development cases and reran
+the exact reference at all 60 horizon/belief pairs. Corrected the incomplete
+near-tie summary: three H5/50k decisions lose 0.530942 each. Clarified mean-max-Q
+table headings and permanent historical gate status. Froze a 480-case larger-
+budget development comparison; numerical validation tolerance remains pending.
+No solver source changed, so previous engineering tests were not rerun.

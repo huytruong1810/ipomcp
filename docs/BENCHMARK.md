@@ -446,7 +446,7 @@ Raw cases and manifests:
 
 #### Breakdown by horizon and budget
 
-| H | Budget | Sampled Errs / 60 | Sampled Mean Loss | Sampled Max Q Error | Empirical Errs / 60 | Empirical Mean Loss | Empirical Max Q Error | Wall Ratio (Emp/Samp) |
+| H | Budget | Sampled Errs / 60 | Sampled Mean Loss | Sampled Mean Max Q Error | Empirical Errs / 60 | Empirical Mean Loss | Empirical Mean Max Q Error | Wall Ratio (Emp/Samp) |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 1 | 1,000 | 0 (0.0%) | 0.00000 | 0.0000 | 0 (0.0%) | 0.00000 | 0.0000 | 1.06x |
 | 1 | 10,000 | 0 (0.0%) | 0.00000 | 0.0000 | 0 (0.0%) | 0.00000 | 0.0000 | 0.98x |
@@ -486,9 +486,38 @@ Raw cases and manifests:
 
 #### Key empirical conclusions
 
-1. **Horizon 3 boundary failure resolved**: At $H=3$, sampled means persistently failed on all 6 boundary beliefs ($p \in \{0.07, 0.075, 0.085, 0.915, 0.925, 0.93\}$) with a 50% error rate and mean Q error of 17.62 due to on-policy leaf exploration penalties dragging down $\hat{Q}(L)$. Empirical Bellman backups completely eliminated this error at 50,000 traversals: 0/60 errors, 0.00000 policy loss, and mean max Q error reduced 450x to 0.0388.
+1. **Horizon 3 agreement on the tested 50k panel**: At $H=3$, at 50k sampled means failed on all 6 tested boundary beliefs ($p \in \{0.07, 0.075, 0.085, 0.915, 0.925, 0.93\}$) with a 50% error rate and mean Q error of 17.62 due to on-policy leaf exploration penalties dragging down $\hat{Q}(L)$. Empirical Bellman backups completely eliminated this error at 50,000 traversals: 0/60 errors, 0.00000 policy loss, and mean max Q error reduced 450x to 0.0388.
 2. **Listen vs Open error asymmetry**: In Sampled Means, errors predominantly hit Listen cases (180/480 errors, 37.5%, mean loss 0.6243) where exploratory door openings drag down listening values. In Empirical Bellman, Listen cases achieved near-perfect accuracy (only 5/480 errors, 1.04%, mean loss 0.00616).
-3. **Horizon 4 and 5 near-tie inflection errors**: At $H=4$ and $H=5$, the true optimal policy boundary shifts outward (opening doors becomes optimal at $p=0.070, 0.075, 0.925, 0.930$). At $p=0.075$ and $p=0.925$, the theoretical gap is miniscule ($\Delta Q^* = 0.00992$ at $H=4$ and $0.01814$ at $H=5$). Under Empirical Bellman, the solver favored Listen over Open, incurring losses of exactly 0.00992 at $H=4$ and 0.01814 at $H=5$. At $H=4, 50\text{k}$, all 5 errors have loss $\le 0.00992$ (mean loss 0.00083 across all 60 cases).
+3. **Horizon 4 and 5 near-tie inflection errors**: At $H=4$ and $H=5$, the true optimal policy boundary shifts outward (opening doors becomes optimal at $p=0.070, 0.075, 0.925, 0.930$). At $p=0.075$ and $p=0.925$, the theoretical gap is miniscule ($\Delta Q^* = 0.00992$ at $H=4$ and $0.01814$ at $H=5$). Under Empirical Bellman, the solver favored Listen over Open, incurring losses of exactly 0.00992 at $H=4$ and 0.01814 at $H=5$. At H4/50k, all five errors have loss approximately 0.009924 (mean loss 0.00083 across all 60 cases). At H5/50k, three additional errors at p=.07/.93 have much larger loss 0.530942; the remaining errors cannot all be described as near ties.
 4. **Computational footprint**: Empirical Bellman backups incurred a modest 9.2% wall-clock overhead across 900 cases (657.8s vs 602.3s elapsed panel time; mean 1.44s vs 1.31s per case) and virtually identical peak RSS (+1.92 MB max peak).
 5. **Validation posture**: These findings represent development evidence on previously inspected points. They do not constitute a held-out validation pass or authorize changing default planner settings. The user-selected bounded first-action loss tolerance threshold remains pending numerical definition before fresh held-out validation can be frozen.
 
+
+
+### Independent review of the 1,800-case report (933d917)
+
+Codex verified all 1,800 case files, complete/unique requested coverage, manifest
+source hashes against 7d8b6bd, settings and status. The exact L1 reference was
+rerun for all 60 horizon/belief pairs; recorded oracle Q values, policy losses
+and maximum absolute Q errors match. Audit aggregates are preserved locally in
+results/oracle/bellman_development_review_20260924.json. This rerun checks the
+report against the existing reference, not an independent proof of that solver.
+
+The aggregate improvements above are confirmed. However, the earlier handoff's
+near-tie takeaway omitted larger H5 errors. At H5/50k, ten candidate errors lose
+about 0.018136 each, while three lose **0.53094248946**: p=.07/seed202 and
+p=.93/seeds201,202. A proposed per-case bound of .020 would therefore still fail
+3/60 cases at this horizon/budget. Lower-budget errors reach 1.00747779510.
+The .020 suggestion is not an approved threshold. No previous failed gate is
+reclassified, and no general action-boundary or convergence guarantee follows.
+
+H3/50k agreement is an empirical result on 60 development cases. The change in
+backup semantics supports the exploration-averaging diagnosis, but aggregate
+action agreement alone does not isolate every source of finite-budget error.
+The table's Q-error columns are means of per-case maximum absolute action-value
+errors, not the maximum across all cases; headings have been clarified.
+
+Next: fixed H4/H5 budgets 200k/1M, both backups, the same twelve development
+beliefs and seeds 200-204 (480 cases total). See HANDOFF.md. This measures whether
+larger computation reduces the material H5 losses before selecting a candidate
+for fresh validation. No production default or theoretical claim is changed.
