@@ -213,3 +213,10 @@ near-tie summary: three H5/50k decisions lose 0.530942 each. Clarified mean-max-
 table headings and permanent historical gate status. Froze a 480-case larger-
 budget development comparison; numerical validation tolerance remains pending.
 No solver source changed, so previous engineering tests were not rerun.
+
+Review of 33c3356: all 480 development cases audited, exact reference rerun at
+24 horizon/belief pairs. Accuracy improvement confirmed; impossible panel
+elapsed-time claims withdrawn, finite-budget convergence claims corrected.
+Prepared 2000-case fresh L1 protocol at 1M traversals; verified no belief/seed
+overlap across 31 manifests and 12,513 local case rows. No fresh solve performed.
+Numerical loss bound still pending; no solver changes or default promotion.

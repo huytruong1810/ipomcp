@@ -539,8 +539,8 @@ Raw cases and manifests:
 
 | Backup | Total Cases | Errors (loss > 1e-8) | Error Rate | Mean First-Action Loss | Max First-Action Loss | Mean Max Q Error | Total Worker Wall (s) | Elapsed Panel Wall (s) | Monitored Peak RSS (MB) |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **sampled** | 240 | 60 | 25.00% | 0.46600 | 3.57187 | 44.81183 | 10,152.4 | 4,818.7 (80.3m) | 107.42 |
-| **empirical_bellman** | 240 | 14 | **5.83%** | **0.00085** | **0.01814** | **2.47296** | 12,064.2 | 5,708.4 (95.1m) | 113.39 |
+| **sampled** | 240 | 60 | 25.00% | 0.46600 | 3.57187 | 44.81183 | 10,152.4 | unavailable; reported value invalid | 107.42 |
+| **empirical_bellman** | 240 | 14 | **5.83%** | **0.00085** | **0.01814** | **2.47296** | 12,064.2 | unavailable; reported value invalid | 113.39 |
 
 #### Breakdown by horizon and budget
 
@@ -571,9 +571,37 @@ Across both 200k and 1M budgets, $p=0.070$ and $p=0.930$ achieved **0/5 errors**
 
 #### Key findings and remaining errors
 
-1. **Max Loss Bound across 240 cases**: The maximum first-action loss observed anywhere in the 240 Empirical Bellman cases is **0.01814** (at $H=5, p \in \{0.075, 0.925\}$). At $H=4$, the maximum loss is **0.00992**.
-2. **Convergence at $H=4, 1\text{M}$**: At 1,000,000 traversals, Empirical Bellman achieved **59/60 strictly optimal decisions (98.33%)**, with only 1 seed failing at $p=0.075$ with loss 0.00992 (mean loss across all 60 cases was 0.00017).
-3. **Convergence at $H=5, 1\text{M}$**: At 1,000,000 traversals, Empirical Bellman achieved **57/60 strictly optimal decisions (95.00%)**, with only 3 remaining cases failing at $p=0.075$ (2 seeds) and $p=0.925$ (1 seed), each with loss 0.01814 (mean loss across all 60 cases was 0.00091).
-4. **Structural limits of Sampled Means**: Even at 1,000,000 traversals, Sampled Means failed on 10/60 cases at $H=4$ and 20/60 cases at $H=5$ (50.0% failure on Listen optimal actions), with mean loss 0.46600 and mean max Q error of 44.81. Increased budget does not repair the depth-1 exploration drag in sampled returns.
-5. **Computational Cost**: Empirical Bellman added 18.5% elapsed wall time across 240 cases (5,708s vs 4,819s; ~95 min vs ~80 min panel time) and peak RSS of 113.4 MB vs 107.4 MB.
+1. **Observed maximum loss across 240 cases**: The maximum first-action loss observed anywhere in the 240 Empirical Bellman cases is **0.01814** (at $H=5, p \in \{0.075, 0.925\}$). At $H=4$, the maximum loss is **0.00992**.
+2. **Observed accuracy at H4/1M**: At 1,000,000 traversals, Empirical Bellman achieved **59/60 strictly optimal decisions (98.33%)**, with only 1 seed failing at $p=0.075$ with loss 0.00992 (mean loss across all 60 cases was 0.00017).
+3. **Observed accuracy at H5/1M**: At 1,000,000 traversals, Empirical Bellman achieved **57/60 strictly optimal decisions (95.00%)**, with only 3 remaining cases failing at $p=0.075$ (2 seeds) and $p=0.925$ (1 seed), each with loss 0.01814 (mean loss across all 60 cases was 0.00091).
+4. **Persistent sampled-mean errors at the tested budgets**: Even at 1,000,000 traversals, Sampled Means failed on 10/60 cases at $H=4$ and 20/60 cases at $H=5$ (50.0% failure on Listen optimal actions), with mean loss 0.46600 and mean max Q error of 44.81. The tested budgets retain these errors; this does not establish failure at all larger budgets or contradict asymptotic convergence under appropriate assumptions.
+5. **Computational Cost**: Verified summed worker wall time increased by 18.83% (12,064.170s versus 10,152.416s), with peak monitored RSS 113.4 versus 107.4 MiB. The originally reported elapsed times are inconsistent with two workers and are withdrawn; see the audit below.
 
+
+
+### Independent review of 33c3356
+
+All 480 cases have verified coverage, status, source fingerprints against 66f9086
+and settings. Exact oracle Q values were recomputed at all 24 horizon/belief
+pairs, and all policy losses/Q errors recomputed. The reported accuracy totals
+are confirmed. The three previously material H5 errors vanish at 200k and 1M
+on the tested seeds; all candidate losses are at most .018135727943.
+
+The report's panel elapsed times (4818.7/5708.4 s) are inconsistent with the raw
+worker sums (10152.416/12064.170 s): two workers require at least half those sums,
+5076.208/6032.085 s elapsed. Actual elapsed cannot be recovered from per-case
+durations alone. The aggregate worker-time ratio is 1.1883; it is not verified
+elapsed overhead or a measurement isolating one algorithm operation. Future
+panels must capture a direct external elapsed timer. Raw cases remain unchanged.
+
+The finite-budget accuracy result is not a convergence proof. H5 mean max Q
+error increases from 3.317310 at 200k to 3.490327 at 1M, despite fewer decisions
+being wrong. Do not conflate action selection with value-estimate accuracy.
+
+Selected configuration for prepared fresh L1 validation: empirical Bellman,
+exact final step, bounded c=1, gamma=.95, 1M traversals, H1-H5. HANDOFF.md specifies
+2000 untouched cases using twenty new beliefs and seeds 1000-1019. No overlap
+was found in 31 panel manifests or 12,513 local recorded case rows; no new case
+has been evaluated. The numerical per-case tolerance remains pending user input,
+so this suite must not start yet. Old gates stay failed, defaults unchanged.
+Audit: results/oracle/bellman_budget_review_20260924.json (local, Git-ignored).

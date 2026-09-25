@@ -1,95 +1,115 @@
 # Current review handoff
 
-## Ownership and status
+## Ownership and decision
 
-Antigravity runs experiments; Codex owns code/math changes. Work only in
-/home/andyj1810/projects/ipomcp on fix/tiger-policy-inversion. Use Git for source
-history; do not create source copies or edit source during experiments.
+Antigravity runs experiments; Codex owns code/math changes. Use only
+/home/andyj1810/projects/ipomcp, branch fix/tiger-policy-inversion.
+Do not change source during a run or make frozen source copies; Git is source
+history. Raw artifacts remain local and Git-ignored unless separately archived.
 
-Next task: evaluate the candidate configuration and finalize the numerical loss
-bound ($\epsilon_{\text{loss}}$) with the user before freezing a fresh held-out validation suite.
-The 480-case H4/H5 budget scaling study is complete. Previous 50k and 200k validation
-gate failures remain historical failures. No production default is promoted.
+The larger-budget evidence supports selecting empirical Bellman for fresh L1
+validation. Production defaults remain unchanged. The numerical loss tolerance
+still requires the user's answer. The protocol below is prepared but MUST NOT
+be run until that number is recorded here. No fresh cases have been evaluated.
 
-## What was verified: 480-case larger-budget development study
+## Independent review of 33c3356
 
-Source checkpoint: 66f9086. Evaluated both `backup="sampled"` and `backup="empirical_bellman"`
-with `--exact-final-step`, bounded UCB ($c=1.0$), $\gamma=0.95$, across Horizons 4 and 5,
-budgets 200k and 1M, seeds 200–204, and all 12 development beliefs (240 cases per mode,
-480 total). Both panels executed sequentially under 2 supervised workers without timeouts,
-crashes, or RSS kills. Source manifests match identically across both runs except for `backup`.
+Verified all 480 cases: complete/unique coverage, settings, source hashes against
+66f9086, and summary status. Recomputed exact L1 oracle Q values at all 24
+horizon/belief pairs, policy losses and maximum absolute Q errors. This checks
+the report against the existing reference, not a new proof of the reference.
 
-Raw results and manifests:
-- Control: `results/oracle/bellman_budget_sampled_20260924/`
-- Candidate: `results/oracle/bellman_budget_empirical_20260924/`
+Sampled: 60/240 errors, mean loss .465996077, mean max Q error 44.811826.
+Candidate: 14/240 errors, mean loss .000852632, maximum loss .018135728,
+mean max Q error 2.472959. All three H5/50k material errors disappear at both
+200k and 1M in the inspected seeds. At 1M, candidate H4 has 1/60 errors and
+H5 has 3/60. These are finite-budget results, not convergence proofs.
+H5 mean max Q error rises from 3.317310 at 200k to 3.490327 at 1M despite
+fewer action errors: correct action selection and accurate Q values differ.
 
-### Resolution of the three H5/50k material errors
+Raw panels:
+- results/oracle/bellman_budget_sampled_20260924/
+- results/oracle/bellman_budget_empirical_20260924/
 
-The three large-loss cases identified at $H=5, 50\text{k}$ in the previous audit:
-1. $p=0.070$, seed 202 (loss was 0.53094 at 1k, 10k, 50k):
-   - At 200k: **chosen=OL (Best=OL), loss = 0.00000** ($\hat{Q}(OL)=1.4083 > \hat{Q}(L)=0.9192$)
-   - At 1M: **chosen=OL (Best=OL), loss = 0.00000** ($\hat{Q}(OL)=1.4177 > \hat{Q}(L)=0.8813$)
-2. $p=0.930$, seed 201 (loss was 0.53094 at 1k, 10k, 50k):
-   - At 200k: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.3995 > \hat{Q}(L)=0.9339$)
-   - At 1M: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.4603 > \hat{Q}(L)=0.9325$)
-3. $p=0.930$, seed 202 (loss was 0.53094 at 10k, 50k):
-   - At 200k: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.3576 > \hat{Q}(L)=0.9371$)
-   - At 1M: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.4234 > \hat{Q}(L)=0.8791$)
+Independent audit: results/oracle/bellman_budget_review_20260924.json.
 
-Across both 200k and 1M budgets, $p=0.070$ and $p=0.930$ achieved **0/5 errors** in Empirical Bellman.
-Added computation fully eliminated the material $0.53094$ errors.
+The previously reported elapsed panel times 4818.7/5708.4 seconds are invalid:
+verified worker sums are 10152.416/12064.170 seconds, so two workers require
+at least 5076.208/6032.085 seconds elapsed. Actual elapsed is unavailable from
+the saved cases. The verified aggregate worker-time ratio is 1.1883, not an
+independently verified elapsed-time ratio or isolated backup overhead.
+Peak monitored RSS is 107.418/113.387 MiB. Preserve raw data; correct reports.
 
-### Comparative accuracy and error distributions
+## Prepared fresh validation protocol -- pending numerical tolerance
 
-1. **Overall error reduction**: Total policy errors (loss > 1e-8) dropped from **60 / 240 (25.0%)**
-   in Sampled Means to **14 / 240 (5.83%)** in Empirical Bellman. Mean loss dropped from 0.46600
-   to **0.00085** (548x reduction), and mean max Q error dropped from 44.81 to **2.47** (18x reduction).
-2. **Listen optimal actions ($N=120$)**:
-   - Sampled Means: **60 / 120 errors (50.0% failure rate!)**, mean loss 0.93199, max loss 3.57187.
-     Sampled means persistently fails on Listen actions even at 1M traversals.
-   - Empirical Bellman: **0 / 120 errors (0.00% failure rate)**, mean loss 0.00000.
-3. **Open optimal actions ($N=120$)**:
-   - Sampled Means: 0 / 120 errors (it aggressively opens doors everywhere).
-   - Empirical Bellman: 14 / 120 errors, exclusively localized to razor-thin inflection boundaries
-     ($p \in \{0.075, 0.925\}$).
-4. **Max Loss Bound across 240 cases**: The maximum first-action loss observed anywhere in the 240
-   Empirical Bellman cases is **0.01814** (at $H=5, p \in \{0.075, 0.925\}$). At $H=4$, the maximum
-   loss is **0.00992**.
-5. **Convergence at 1,000,000 traversals**:
-   - $H=4, 1\text{M}$: **59 / 60 strictly optimal decisions (98.33%)**. Only 1 error (seed 204 at $p=0.075$,
-     loss 0.00992). Mean loss across all 60 cases: 0.00017.
-   - $H=5, 1\text{M}$: **57 / 60 strictly optimal decisions (95.00%)**. Only 3 errors (seeds 200, 204 at
-     $p=0.075$; seed 201 at $p=0.925$; loss 0.01814). Mean loss across all 60 cases: 0.00091.
+Candidate: backup=empirical_bellman, exact_final_step=true, bounded UCB c=1,
+gamma=.95, one fixed budget of 1,000,000 traversals at each H1-H5. This selects
+the largest tested budget for additional action accuracy; it is not proven
+compute-optimal, and no equal-runtime comparison is claimed.
 
-### Computational footprint
+Use twenty beliefs:
+.005 .035 .065 .0725 .0775 .0825 .095 .125 .225 .375
+.625 .775 .875 .905 .9175 .9225 .9275 .935 .965 .995
+and seeds 1000-1019. Total: 5 horizons x 20 beliefs x 20 seeds = 2000 cases.
+They cover both tails, neighborhoods of inspected boundaries and interior
+beliefs. This is a fixed stratified grid, not a random sample of all beliefs.
+No proposed belief or seed occurs in 31 existing panel manifests or 12,513
+recorded case rows checked locally. This does not certify unrecorded runs;
+if Antigravity knows of any overlap, disclose it before starting. Do not
+evaluate proposed cases during preparation.
 
-- Sampled: elapsed panel wall time **4,818.7 s (80.31 min)**, worker sum 10,152.4 s, peak RSS 107.42 MB.
-- Empirical Bellman: elapsed panel wall time **5,708.4 s (95.14 min)**, worker sum 12,064.2 s, peak RSS 113.39 MB.
-- Elapsed runtime ratio (Emp/Samp) was **1.18x** (+18.5% overhead for chance-weighted Bellman backups at 1M).
-- Peak RSS delta was **+5.97 MB**, well within the 4,096 MB monitor ceiling.
+Primary criterion: every requested case completes and has first-action loss
+<= epsilon_loss + 1e-8. epsilon_loss is PENDING; .020 and .010 are proposals,
+not approved values. Numerical allowance is separate from scientific tolerance.
+Loss = V*(b) - sum_a pi(a|b) Q*(b,a), with optimal continuation after the first
+choice. This is not complete-policy/episode regret. Report strict action errors,
+maximum and mean loss, all signed Q errors and per-belief/horizon/seed results.
+Q errors are diagnostics rather than an undisclosed secondary gate.
 
-## Future validation criterion
+Freeze the number, this configuration, exact source HEAD and all case choices
+before executing. Run once: no adaptive budget increases, early-success stopping,
+or substitution of failing cases. Any failed case or resource kill fails the
+panel; retain its evidence. No validation rerun after tuning remains held-out.
+A pass applies only to this L1 finite panel and resource budget. Earlier gates
+remain failures and production promotion/deeper qualification stay separate.
 
-The user requested bounded first-action loss; its numerical maximum is pending.
-Antigravity suggested 0.020, but quoting that suggestion is not user acceptance.
-The definition is V*(b) - sum_a pi(a|b) Q*(b,a), per case. It assumes optimal
-continuation after the first action and is not whole-episode policy regret.
-A numerical comparison allowance (currently 1e-8) is distinct from a scientific
-loss tolerance. Freeze the numerical loss bound, candidate configuration,
-resource budget and fresh belief/seed set before executing future validation.
-A finite grid pass cannot certify every belief or all future random seeds.
+Once the numerical threshold is recorded, use an empty uniquely named output
+directory. Measure elapsed time directly with GNU time; do not infer it from
+first/last completion times or subtract startup from worker measurements.
 
-## Engineering and remaining qualification
+```bash
+cd /home/andyj1810/projects/ipomcp
+git status --short
+git rev-parse HEAD
+uv sync --frozen --group dev
+mkdir -p results/oracle
+/usr/bin/time -f 'elapsed_seconds=%e' -o results/oracle/bellman_validation_RUN_ID.time \
+  uv run python -m examples.experiments.planner_oracle_experiment \
+  --out results/oracle/bellman_validation_RUN_ID \
+  --planners mcts --exploration bounded --exploration-const 1 --exact-final-step \
+  --backup empirical_bellman --horizons 1 2 3 4 5 --budgets 1000000 \
+  --gamma 0.95 --seed-start 1000 --seeds 20 \
+  --beliefs 0.005 0.035 0.065 0.0725 0.0775 0.0825 0.095 0.125 0.225 0.375 0.625 0.775 0.875 0.905 0.9175 0.9225 0.9275 0.935 0.965 0.995 \
+  --workers 2 --timeout 2400 --max-rss-mb 4096 \
+  > results/oracle/bellman_validation_RUN_ID.log 2>&1
+```
 
-No solver changes in this evidence review. Source behavior remains 7d8b6bd:
-204 tests previously passed, with final lint/format and focused checks passing.
-Production defaults remain backup="sampled", exact_final_step=false and
-empirical-range UCB. The optional combination has not been promoted.
+Two 4-GiB RSS ceilings need parent/OS headroom. They are monitored limits,
+not reservations. Capture failures and preserve original manifests unchanged.
+If an operational interruption occurs, report the incomplete attempt rather
+than silently recreating an apparently uninterrupted validation panel.
 
-Still unresolved: matched L2 opponent horizon/computation semantics, long/deep
-Tiger before/after performance, L4/all 39 conditions at intended resources,
-finite-prior effects and remaining demo/visualization review. L1 progress does
-not qualify deeper agents or the default 25-simulation modeled-policy budget.
+## Remaining engineering and research gates
 
-Keep HANDOFF.md, BACKLOG.md and docs/BENCHMARK.md consistent. Historical active
-instructions belong in Git. Read METADATA_ERRATUM.md when using older run data.
+No solver source changed in this review. Previous engineering checks remain
+204 passing tests plus lint/format; those were not rerun for documentation edits.
+Production defaults: sampled backups, sampled final steps, empirical-range UCB.
+
+Still unresolved: matched L2 opponent horizon/computation semantics; long/deep
+Tiger before/after performance; L4/all 39 conditions at intended resources;
+finite-prior effects; remaining demo/visualization semantic review. L1 validation
+cannot certify these or the default 25-simulation modeled-policy budget.
+
+Keep HANDOFF.md, BACKLOG.md and docs/BENCHMARK.md consistent. Active instructions
+are current-only; historical protocols belong in Git. Consult historical
+METADATA_ERRATUM.md files when interpreting older modeled-budget fields.
