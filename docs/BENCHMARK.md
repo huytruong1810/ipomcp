@@ -424,7 +424,71 @@ point ties. They fail strict action agreement; no tolerance is introduced after
 observing them. A scientific loss tolerance, if desired, must be fixed before a
 future validation and cannot reverse old gate failures. No default is promoted.
 
-Next is broader **development** coverage, H1-H5 on already-inspected belief/seed
-points, with both estimators at the same source checkpoint. See HANDOFF.md for the
-fixed commands. Higher-level opponent model matching and the long deep-Tiger
-comparison remain separate gates.
+### 1,800-case H1–H5 development comparison (sampled vs empirical_bellman)
+
+Source checkpoint: 7d8b6bd. Exact final-step integration is enabled in both
+panels (`--exact-final-step`), along with bounded UCB ($c=1.0$). Both use $\gamma=0.95$,
+Horizons 1–5, budgets 1,000, 10,000, and 50,000, seeds 200–204 (5 seeds), and the 12
+development beliefs: 0.03, 0.07, 0.075, 0.085, 0.11, 0.25, 0.75, 0.89, 0.915, 0.925, 0.93, 0.97.
+Both panels completed sequentially without failures, timeouts, or RSS kills (900 cases each,
+1,800 cases total).
+
+Raw cases and manifests:
+- Control: `results/oracle/bellman_development_sampled_20260924/`
+- Candidate: `results/oracle/bellman_development_empirical_20260924/`
+
+#### Overall performance summary
+
+| Backup | Total Cases | Errors (loss > 1e-8) | Error Rate | Mean First-Action Loss | Max First-Action Loss | Mean Max Q Error | Total Worker Wall (s) | Elapsed Panel Wall (s) | Monitored Peak RSS (MB) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **sampled** | 900 | 206 | 22.89% | 0.36433 | 4.58069 | 22.04757 | 1181.29 | 602.29 | 82.42 |
+| **empirical_bellman** | 900 | 89 | 9.89% | 0.02227 | 1.00748 | 1.79991 | 1292.68 | 657.76 | 84.34 |
+
+#### Breakdown by horizon and budget
+
+| H | Budget | Sampled Errs / 60 | Sampled Mean Loss | Sampled Max Q Error | Empirical Errs / 60 | Empirical Mean Loss | Empirical Max Q Error | Wall Ratio (Emp/Samp) |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1,000 | 0 (0.0%) | 0.00000 | 0.0000 | 0 (0.0%) | 0.00000 | 0.0000 | 1.06x |
+| 1 | 10,000 | 0 (0.0%) | 0.00000 | 0.0000 | 0 (0.0%) | 0.00000 | 0.0000 | 0.98x |
+| 1 | 50,000 | 0 (0.0%) | 0.00000 | 0.0000 | 0 (0.0%) | 0.00000 | 0.0000 | 1.05x |
+| 2 | 1,000 | 1 (1.7%) | 0.00607 | 0.1381 | 0 (0.0%) | 0.00000 | 0.1133 | 1.00x |
+| 2 | 10,000 | 0 (0.0%) | 0.00000 | 0.0502 | 0 (0.0%) | 0.00000 | 0.0413 | 0.99x |
+| 2 | 50,000 | 0 (0.0%) | 0.00000 | 0.0201 | 0 (0.0%) | 0.00000 | 0.0196 | 1.11x |
+| 3 | 1,000 | 21 (35.0%) | 0.24439 | 20.3144 | 2 (3.3%) | 0.01046 | 0.4745 | 1.02x |
+| 3 | 10,000 | 30 (50.0%) | 0.49332 | 18.6191 | 1 (1.7%) | 0.00523 | 0.0986 | 1.07x |
+| 3 | 50,000 | 30 (50.0%) | 0.49332 | 17.6159 | **0 (0.0%)** | **0.00000** | **0.0388** | 1.12x |
+| 4 | 1,000 | 20 (33.3%) | 0.70602 | 39.3047 | 20 (33.3%) | 0.08782 | 6.1670 | 0.98x |
+| 4 | 10,000 | 20 (33.3%) | 0.76553 | 38.7978 | 9 (15.0%) | 0.00149 | 2.9157 | 1.04x |
+| 4 | 50,000 | 20 (33.3%) | 0.76553 | 38.6097 | 5 (8.3%) | 0.00083 | 2.2934 | 1.13x |
+| 5 | 1,000 | 24 (40.0%) | 0.46439 | 52.5918 | 19 (31.7%) | 0.10710 | 6.6125 | 1.03x |
+| 5 | 10,000 | 20 (33.3%) | 0.76322 | 51.2494 | 20 (33.3%) | 0.09151 | 4.6968 | 1.02x |
+| 5 | 50,000 | 20 (33.3%) | 0.76322 | 53.4023 | 13 (21.7%) | 0.02957 | 3.5270 | 1.16x |
+
+#### Per-belief error counts (Sampled vs Empirical Bellman over 5 seeds)
+
+| H | Budget | 0.030 | 0.070 | 0.075 | 0.085 | 0.110 | 0.250 | 0.750 | 0.890 | 0.915 | 0.925 | 0.930 | 0.970 |
+| ---: | ---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| 1 | 1,000 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 |
+| 1 | 10,000 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 |
+| 1 | 50,000 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 |
+| 2 | 1,000 | 0/0 | 0/0 | 1/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 |
+| 2 | 10,000 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 |
+| 2 | 50,000 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 |
+| 3 | 1,000 | 0/0 | 5/1 | 5/0 | 1/0 | 0/0 | 0/0 | 0/0 | 0/0 | 1/0 | 5/0 | 4/1 | 0/0 |
+| 3 | 10,000 | 0/0 | 5/1 | 5/0 | 5/0 | 0/0 | 0/0 | 0/0 | 0/0 | 5/0 | 5/0 | 5/0 | 0/0 |
+| 3 | 50,000 | 0/0 | 5/0 | 5/0 | 5/0 | 0/0 | 0/0 | 0/0 | 0/0 | 5/0 | 5/0 | 5/0 | 0/0 |
+| 4 | 1,000 | 0/0 | 0/5 | 1/5 | 5/0 | 4/0 | 0/0 | 0/0 | 5/0 | 5/0 | 0/5 | 0/5 | 0/0 |
+| 4 | 10,000 | 0/0 | 0/0 | 0/4 | 5/0 | 5/0 | 0/0 | 0/0 | 5/0 | 5/0 | 0/5 | 0/0 | 0/0 |
+| 4 | 50,000 | 0/0 | 0/0 | 0/2 | 5/0 | 5/0 | 0/0 | 0/0 | 5/0 | 5/0 | 0/3 | 0/0 | 0/0 |
+| 5 | 1,000 | 3/0 | 5/5 | 5/4 | 0/2 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 5/5 | 4/3 | 2/0 |
+| 5 | 10,000 | 0/0 | 0/5 | 0/5 | 5/0 | 5/0 | 0/0 | 0/0 | 5/0 | 5/0 | 0/5 | 0/5 | 0/0 |
+| 5 | 50,000 | 0/0 | 0/1 | 0/5 | 5/0 | 5/0 | 0/0 | 0/0 | 5/0 | 5/0 | 0/5 | 0/2 | 0/0 |
+
+#### Key empirical conclusions
+
+1. **Horizon 3 boundary failure resolved**: At $H=3$, sampled means persistently failed on all 6 boundary beliefs ($p \in \{0.07, 0.075, 0.085, 0.915, 0.925, 0.93\}$) with a 50% error rate and mean Q error of 17.62 due to on-policy leaf exploration penalties dragging down $\hat{Q}(L)$. Empirical Bellman backups completely eliminated this error at 50,000 traversals: 0/60 errors, 0.00000 policy loss, and mean max Q error reduced 450x to 0.0388.
+2. **Listen vs Open error asymmetry**: In Sampled Means, errors predominantly hit Listen cases (180/480 errors, 37.5%, mean loss 0.6243) where exploratory door openings drag down listening values. In Empirical Bellman, Listen cases achieved near-perfect accuracy (only 5/480 errors, 1.04%, mean loss 0.00616).
+3. **Horizon 4 and 5 near-tie inflection errors**: At $H=4$ and $H=5$, the true optimal policy boundary shifts outward (opening doors becomes optimal at $p=0.070, 0.075, 0.925, 0.930$). At $p=0.075$ and $p=0.925$, the theoretical gap is miniscule ($\Delta Q^* = 0.00992$ at $H=4$ and $0.01814$ at $H=5$). Under Empirical Bellman, the solver favored Listen over Open, incurring losses of exactly 0.00992 at $H=4$ and 0.01814 at $H=5$. At $H=4, 50\text{k}$, all 5 errors have loss $\le 0.00992$ (mean loss 0.00083 across all 60 cases).
+4. **Computational footprint**: Empirical Bellman backups incurred a modest 9.2% wall-clock overhead across 900 cases (657.8s vs 602.3s elapsed panel time; mean 1.44s vs 1.31s per case) and virtually identical peak RSS (+1.92 MB max peak).
+5. **Validation posture**: These findings represent development evidence on previously inspected points. They do not constitute a held-out validation pass or authorize changing default planner settings. The user-selected bounded first-action loss tolerance threshold remains pending numerical definition before fresh held-out validation can be frozen.
+

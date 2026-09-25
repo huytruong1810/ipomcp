@@ -2,11 +2,12 @@
 
 ## P0: accuracy and resource qualification
 
-- The exact-tail candidate failed the 200k held-out gate (80/720 decisions).
-  All inspected validation points are now development data. Evaluate the opt-in
-  empirical chance-weighted Bellman backup against sampled means before any new
-  held-out run. Preserve opening and listening cases and report Q errors separately.
-  No default is promoted; earlier 50k/200k failures remain failures.
+- The 1,800-case H1–H5 development panel comparing empirical chance-weighted Bellman
+  backups against sampled means is complete (89/900 vs 206/900 errors). Empirical Bellman
+  resolved the Horizon 3 boundary failure (0/60 errors at 50k; mean Q error 0.0388 vs 17.62).
+  Remaining errors at H4 and H5 are concentrated on razor-thin boundary inflection beliefs
+  (losses $\le 0.00992$ at H4). No default is promoted; earlier 50k/200k validation gates
+  remain failed until a formal held-out validation suite with a frozen loss threshold is executed.
 - Match the intentional policy model before comparing L2 with an exact oracle.
   The L2 reference currently has a common decreasing finite horizon, whereas
   production modeled MCTS policies replan at their configured fixed depth and
