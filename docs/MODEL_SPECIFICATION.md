@@ -106,3 +106,13 @@ trajectories are not a bitwise control. No compatibility hash or source snapshot
 is retained. The physical model, observation law, reward law, real filtering and
 private opponent evolution are unchanged. Their computation budgets still need
 separate deep-hierarchy qualification.
+
+
+## Explicit L2 reference opponent
+
+The oracle comparison runner's level=2 mode requires a positive opponent-depth
+and uses an exact L1 policy at that fixed depth. An opponent-belief argument
+specifies the protagonist's point prior on j's initial private P(TL). Private
+beliefs evolve under the same subjective uniform-L0 model in both solvers.
+This reference model does not replace production's finite-budget modeled MCTS.
+See [L2_CONTRACT.md](L2_CONTRACT.md) for the complete comparison contract.

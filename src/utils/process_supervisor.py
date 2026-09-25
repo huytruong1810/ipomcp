@@ -156,6 +156,8 @@ def supervise_jobs(jobs, *, workers, timeout_seconds, max_rss_mb, log_directory=
                             result = {"status": "failed", "reason": "wall-time limit exceeded"}
                     result.update(
                         wall_seconds=elapsed,
+                        started_monotonic=started,
+                        finished_monotonic=started + elapsed,
                         monitored_peak_rss_mb=peak,
                         log=str(log_path) if log_directory else None,
                     )

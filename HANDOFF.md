@@ -1,105 +1,95 @@
 # Current review handoff
 
-## Ownership and current decision
+## Ownership and completed implementation
 
-Antigravity runs experiments; Codex owns code/math changes. Use only
-/home/andyj1810/projects/ipomcp on fix/tiger-policy-inversion.
-No source copies or source edits during runs. Raw evidence remains local and
-Git-ignored; a documentation commit is not a raw-data archive.
+Use only /home/andyj1810/projects/ipomcp on fix/tiger-policy-inversion.
+Codex owns code/math; Antigravity runs experiments. No source changes during
+runs or source copies; Git stores source history. Raw results remain local
+and ignored unless explicitly archived elsewhere.
 
-The frozen 2000-case L1 validation accuracy gate PASSED. This qualifies the
-tested first-action decisions and configuration, not all beliefs, all horizons,
-whole-episode policies or deeper agents. Do not call policy inversion permanently
-solved or claim a general Bayes-optimality certificate.
+The fixed-depth L2 contract is implemented and documented in docs/L2_CONTRACT.md.
+ExactIPOMDPSolver accepts an explicit opponent_horizon. The matched runner's
+--level 2 --opponent-depth d uses an exact L1 opponent replanning at depth d
+after every private update. Shared-countdown reference behavior is a separate
+model. Global MCTS defaults and production opponent semantics are unchanged.
 
-Do not promote global MCTSConfig defaults yet. The validated combination includes
-bounded UCB c=1 and 1M traversals as well as empirical Bellman and exact tail.
-Changing only backup/tail defaults would not reproduce it. Current generic
-defaults use n_sims=1000, max_depth=20; modeled policies default to 25 simulations.
-Production schedules and other domains are outside this validation.
+This is intentionally an exact-L1 opponent, not the production 25-simulation
+modeled MCTS opponent. Both compared L2 solvers use this declared law. The root
+MCTS receives no oracle protagonist Q values. Do not label results as production
+L2 qualification or proceed to L4/all39 from this panel.
 
-## Independent audit of 1b3527a
+## Timing instrumentation
 
-Source checkpoint a866e69 froze epsilon_loss=.020 before the run.
-All 2000 raw cases have complete/unique requested coverage and settings matching
-the frozen H1-H5, twenty-belief, seeds1000-1019 protocol. Source fingerprints
-match a866e69. Recomputed exact L1 reference Q values for all 100 horizon/belief
-pairs, every policy loss and maximum absolute Q error. This independently
-checks the report against the existing exact reference, not a new proof of it.
+Worker outcomes now retain monotonic start/finish timestamps. Each oracle panel
+writes timing.json even on a parent exception, with parent monotonic elapsed,
+real-time start/finish, worker sums, coverage and the concurrency-bound check.
+A worker sum larger than workers times parent elapsed raises an explicit error.
+Intervals can also be checked for overlap and containment.
 
-Results:
-- 0 violations of loss <= .020 + 1e-8;
-- 0 strict first-action errors at numerical tolerance 1e-8;
-- maximum and mean first-action loss 0;
-- all 2000 cases complete.
+The 18-case L2 smoke has parent monotonic elapsed 5.329160s, worker sum 9.111192s,
+two workers, and passes the concurrency bound. External GNU time recorded 5.29s,
+while realtime endpoints differ by 4.796633s. The clock measurements differ;
+the instrumentation exposes that discrepancy without rewriting measurements.
+No universal cause is established and older timing records remain unresolved.
 
-This is first-action loss with optimal continuation afterward. At H5 mean max
-absolute Q error is 3.668401 and the largest is 6.476666 reward units; accurate
-selected actions do not imply exact estimated values. Earlier development at
-1M still had four nonzero-loss cases at H4/H5, disproving universal agreement.
-Old 50k/200k validation gates stay historical failures. These newly inspected
-cases must not be represented as untouched validation for later tuned solvers.
+## Evidence and engineering checks
 
-Evidence:
-- results/oracle/bellman_validation_20260924/
-- results/oracle/bellman_validation_20260924.log
-- results/oracle/bellman_validation_20260924.time
-- results/oracle/bellman_validation_review_20260925.json (independent audit)
+The L2 smoke used H1-H3, fixed opponent depth2, b_j=.085, own beliefs .1/.5/.9,
+seeds300-301, 1000 traversals, exact tail, empirical Bellman, bounded c=1.
+All 18 cases completed with zero first-action loss. Maximum Q error at H3 was
+.722473, so exact action agreement does not imply exact value estimates.
+This is smoke/development evidence, not a validation pass.
 
-## Timing discrepancy: unresolved
+Evidence: results/l2-contract-20260925/smoke/, smoke.log and smoke.time.
+The focused reference/runner/supervisor tests passed (35 tests).
+Full-suite verification: 217 tests passed in 303.62s, including all domain
+integration and supervisor fault tests. Ruff lint and formatting passed.
+Raw output: results/l2-contract-20260925/tests.log.
 
-The GNU time file really contains elapsed_seconds=43392.04. However, the
-verified sum of worker monotonic durations is 90054.254809 s. With two workers,
-a comparable panel elapsed duration must be at least 45027.127405 s (12.51 h).
-The reported 43392.04 s (12.05 h) is 1635.087405 s below that lower bound.
+## Antigravity: next development protocol
 
-Do not replace the raw timer, invent a corrected actual duration, or claim
-runtime certification. Clock-domain changes, environment behavior and timing
-provenance need investigation; the cause is not established. The numerical
-accuracy gate is preserved, while elapsed-runtime evidence is unresolved.
-Peak monitored process-tree RSS is 113.421875 MiB (sampled, not a hard peak bound).
+After a clean committed checkout and completed engineering checks, run six
+panels sequentially: opponent depth1/depth2 crossed with b_j=.085/.5/.915.
+Each panel uses H1-H3, budgets1k/10k, seeds300-304 and own beliefs
+.05/.2/.5/.8/.95: 150 cases per panel, 900 total. These are DEVELOPMENT runs.
+There is no held-out gate or adaptive candidate promotion.
 
-## Next phase: instrumentation and matched L2 semantics
+```bash
+cd /home/andyj1810/projects/ipomcp
+git status --short
+git rev-parse HEAD
+uv sync --frozen --group dev
+mkdir -p results/oracle
+for depth in 1 2; do
+  for belief in 0.085 0.5 0.915; do
+    out=results/oracle/l2_fixed_d${depth}_b${belief}_RUN_ID
+    /usr/bin/time -f 'elapsed_seconds=%e' -o "${out}.time" \
+      uv run python -m examples.experiments.planner_oracle_experiment \
+      --out "$out" --level 2 --opponent-depth "$depth" --opponent-belief "$belief" \
+      --planners mcts --horizons 1 2 3 --budgets 1000 10000 \
+      --seed-start 300 --seeds 5 --beliefs 0.05 0.2 0.5 0.8 0.95 \
+      --backup empirical_bellman --exact-final-step --exploration bounded \
+      --exploration-const 1 --gamma 0.95 --workers 2 --timeout 240 \
+      --max-rss-mb 2048 > "${out}.log" 2>&1 || exit 1
+  done
+done
+```
 
-Codex should first make panel/worker timing comparable: inspect the supervisor
-and runner timing boundaries, record parent monotonic elapsed alongside external
-elapsed, and verify worker-sum/concurrency consistency in a short supervised
-multi-job run. Preserve both measurements if they disagree. No need to rerun
-the 12-hour accuracy panel merely to overwrite its timing record.
+Replace RUN_ID with a unique identifier; preserve source/configuration throughout.
+Do not overwrite/retry failures invisibly or replace exact reference computation
+on timeout. Report all coverage/failures; per-depth/private-belief/horizon/budget
+action loss and oracle gaps; signed Q errors; both parent monotonic and external
+elapsed; worker sums/concurrency checks; peak monitored RSS. Keep .020 and strict
+loss summaries descriptive, not new validation gates. Compare both opponent
+depths explicitly to confirm that replanning semantics affect the modeled task.
 
-For the L2 phase, review these coherent modules together:
-- src/solvers/exact/ipomdp_exact_vi.py and pomdp_exact_vi.py;
-- src/solvers/i_pomcp.py and solver_bank.py;
-- src/ipomdp/frame.py, finite_belief.py and the finite filtering machinery;
-- bootstrap configuration, oracle runner and corresponding exact/filter tests.
+## Remaining gates
 
-Current mismatch is explicit in code: ExactIPOMDPSolver uses a common decreasing
-remaining horizon for both agents, whereas SolverBank requests a modeled policy
-whose MCTS uses its fixed max_depth and opponent.n_sims at every private belief.
-An exact L1 opponent and a finite-budget modeled MCTS opponent can also choose
-different actions. Merely giving both solvers the same initial depth is not
-sufficient to match the decision problem.
+Prior L1 2000-case frozen accuracy gate remains passed at its exact tested
+settings. Old 50k/200k failures stay historical failures. No permanent
+all-horizon resolution or global default promotion is claimed.
 
-Before implementation, document one explicit comparison contract: physical
-dynamics, private observations, posterior update, opponent policy law (including
-horizon, computation and tie convention), protagonist horizon and discount.
-Keep countdown finite-horizon and fixed-depth replanning models distinct;
-neither is automatically a bug. Do not silently change production semantics to
-fit a reference. Validate tiny analytically tractable cases, then bounded L2
-comparisons with matched opponent policies before any long higher-level suite.
-
-Antigravity should retain current evidence and await the matched L2 protocol.
-Do not start L4/all39 qualification from this L1 pass alone. Further gates include
-long/deep Tiger before/after performance, intended modeled-policy resources,
-finite-prior approximation and remaining demo/visualization semantic review.
-
-## Engineering state
-
-This evidence review changes documentation only; solver behavior is unchanged.
-The previous 204 passing tests and lint/format results remain the latest
-engineering verification; no claim of a fresh test run is made.
-Defaults remain sampled backups, sampled final steps, empirical-range UCB.
-
-Keep README.md, HANDOFF.md, BACKLOG.md and docs/BENCHMARK.md consistent.
-Historical active protocols belong in Git. Read older METADATA_ERRATUM.md files
-when interpreting historical modeled-policy budgets.
+Still pending: matched finite-budget modeled opponents, deeper level mixtures,
+long/deep Tiger before/after, L4/all39 resource qualification, finite-prior error
+and remaining demo/visualization semantic review. The new exact-opponent L2
+contract isolates one layer of these requirements; it does not discharge all.

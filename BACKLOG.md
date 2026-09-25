@@ -13,10 +13,13 @@
   failures. Global defaults remain unchanged: their budgets, depth, exploration and modeled
   opponents differ from the validated configuration. Resolve instrumentation
   and matched L2 semantics before deeper qualification.
-- Match the intentional policy model before comparing L2 with an exact oracle.
-  The L2 reference currently has a common decreasing finite horizon, whereas
-  production modeled MCTS policies replan at their configured fixed depth and
-  simulation budget. Those are different opponent models.
+- Run the 900-case fixed-depth exact-L1-opponent L2 development comparison in
+  HANDOFF.md. The contract is implemented and has analytic and smoke coverage.
+  This isolates L2 planning; production finite-budget modeled opponents remain
+  unmatched and require a separate reference contract before qualification.
+- Parent/worker monotonic timing is now recorded and checked. Investigate clock
+  disagreement with external/realtime measurements; do not retroactively replace
+  older timing artifacts or claim the clock discrepancy is solved.
 - Qualify corrected L4 and all 39 production conditions at intended resources.
   Old uniform-matrix runs with frozen rollout beliefs are not this qualification.
 

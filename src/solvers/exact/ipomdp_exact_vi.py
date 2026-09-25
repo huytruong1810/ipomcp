@@ -21,7 +21,10 @@ from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
 class ExactIPOMDPSolver:
     """L2 against an exact L1 opponent who models uniform-random L0.
 
-    Both agents use the same decreasing remaining horizon and discount. The
+    The protagonist uses a decreasing horizon. opponent_horizon=None specifies
+    a shared countdown; a positive integer specifies an exact L1 opponent that
+    replans at that fixed depth at every private belief. These are distinct
+    models, not interchangeable approximations. Both use the same discount. The
     public convenience interface starts from a point belief about the opponent's
     private belief. Internally, posteriors retain correlations between physical
     state and all reachable opponent beliefs. Opponent actions are marginalized,
@@ -31,11 +34,24 @@ class ExactIPOMDPSolver:
     1e-10 (no relative tolerance). This is a declared numerical convention.
     """
 
-    def __init__(self, model=None, horizon=3, gamma=0.95, agent_id="i", opponent_id="j"):
+    def __init__(
+        self,
+        model=None,
+        horizon=3,
+        gamma=0.95,
+        agent_id="i",
+        opponent_id="j",
+        opponent_horizon=None,
+    ):
         self.model = TigerModel() if model is None else model
         if not isinstance(self.model, TigerModel):
             raise TypeError("This reference solver supports TigerModel only")
         self._check_horizon(horizon)
+        if opponent_horizon is not None:
+            self._check_horizon(opponent_horizon)
+            if opponent_horizon == 0:
+                raise ValueError("A fixed opponent horizon must be positive")
+        self.opponent_horizon = opponent_horizon
         if not math.isfinite(gamma) or not 0 <= gamma <= 1:
             raise ValueError("gamma must lie in [0, 1]")
         if {agent_id, opponent_id} != {"i", "j"}:
@@ -47,7 +63,7 @@ class ExactIPOMDPSolver:
         self.opponent_actions = tuple(self.model.get_all_actions(opponent_id))
         self.l1_solver = ExactPOMDPSolver(
             self.model,
-            horizon=horizon,
+            horizon=horizon if opponent_horizon is None else opponent_horizon,
             gamma=gamma,
             agent_id=opponent_id,
             opponent_id=agent_id,
@@ -73,10 +89,11 @@ class ExactIPOMDPSolver:
         """Set the planning horizon; joint beliefs are solved lazily on demand."""
         self._check_horizon(horizon)
         self.horizon = horizon
-        self.l1_solver.solve(horizon)
+        self.l1_solver.solve(horizon if self.opponent_horizon is None else self.opponent_horizon)
 
     def _opponent_policy(self, belief, remaining):
-        values = self.l1_solver.q_values(belief, remaining)
+        depth = remaining if self.opponent_horizon is None else self.opponent_horizon
+        values = self.l1_solver.q_values(belief, depth)
         best = max(values.values())
         actions = tuple(a for a, value in values.items() if abs(value - best) <= 1e-10)
         return tuple((a, 1.0 / len(actions)) for a in actions)

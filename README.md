@@ -123,4 +123,11 @@ defaults remain unchanged because their budgets, horizons and opponent models
 differ. Deeper agents and the full suite remain unqualified. Recorded elapsed
 timing is inconsistent with worker durations and is under investigation.
 See docs/THEORY.md for estimator semantics, docs/BENCHMARK.md for the audited
-evidence, and HANDOFF.md for the current instrumentation/L2 review phase.
+evidence, and HANDOFF.md for the current L2 development protocol.
+
+The oracle CLI now supports --level 2 with an explicit --opponent-depth and
+--opponent-belief. Both planners then model the same exact L1 opponent, replanning
+at a fixed depth; this differs from finite-budget production opponents.
+See docs/L2_CONTRACT.md for the mathematical contract. Oracle panels record
+parent monotonic timing and enforce the worker concurrency bound; older external
+timing discrepancies remain unresolved.

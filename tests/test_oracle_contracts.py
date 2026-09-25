@@ -60,7 +60,7 @@ def test_oracle_panel_records_and_executes_requested_seed_range(tmp_path, monkey
         for identifier, job in jobs.items():
             rows = job()
             observed.append(rows[0]["seed"])
-            yield identifier, {"status": "complete", "rows": rows}
+            yield identifier, {"status": "complete", "rows": rows, "wall_seconds": 0.0}
 
     monkeypatch.setattr(experiment, "supervise_jobs", inline_supervisor)
     experiment.run_oracle_comparison(
@@ -89,3 +89,51 @@ def test_oracle_panel_rejects_invalid_seed_start_before_output(tmp_path, seed_st
     with pytest.raises(ValueError, match="seed_start"):
         run_oracle_comparison(out, seed_start=seed_start)
     assert not out.exists()
+
+
+def test_panel_rejects_impossible_worker_timing_and_keeps_evidence(tmp_path, monkeypatch):
+    import json
+
+    from examples.experiments import planner_oracle_experiment as experiment
+
+    def impossible(jobs, **kwargs):
+        for identifier in jobs:
+            yield identifier, {"status": "complete", "rows": [], "wall_seconds": 1e9}
+
+    monkeypatch.setattr(experiment, "supervise_jobs", impossible)
+    with pytest.raises(RuntimeError, match="concurrency bound"):
+        experiment.run_oracle_comparison(
+            tmp_path,
+            planners=("mcts",),
+            horizons=(1,),
+            budgets=(3,),
+            beliefs=(0.5,),
+            seeds=1,
+        )
+    timing = json.loads((tmp_path / "timing.json").read_text())
+    assert not timing["worker_concurrency_bound_satisfied"]
+    assert timing["recorded_cases"] == 1
+    assert (tmp_path / "case-0.json").exists()
+
+
+def test_panel_preserves_timing_when_supervision_raises(tmp_path, monkeypatch):
+    import json
+
+    from examples.experiments import planner_oracle_experiment as experiment
+
+    def interrupted(jobs, **kwargs):
+        raise RuntimeError("injected parent failure")
+        yield
+
+    monkeypatch.setattr(experiment, "supervise_jobs", interrupted)
+    with pytest.raises(RuntimeError, match="injected parent failure"):
+        experiment.run_oracle_comparison(
+            tmp_path,
+            planners=("mcts",),
+            horizons=(1,),
+            budgets=(3,),
+            beliefs=(0.5,),
+            seeds=1,
+        )
+    timing = json.loads((tmp_path / "timing.json").read_text())
+    assert timing["recorded_cases"] == 0 and timing["requested_cases"] == 1

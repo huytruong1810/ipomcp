@@ -225,3 +225,13 @@ can be optimistic; rare or unseen histories and rollout initialization can still
 matter. No solved-node labels, confidence certificates or action elimination are
 introduced. Compare action loss and value error separately, and charge the extra
 per-backup work (linear in the number of discovered continuing observations).
+
+
+## Fixed-depth L2 comparison contract
+
+The matched L2 runner now explicitly models an exact L1 opponent that replans
+at a fixed depth, distinct from both shared-countdown planning and production
+finite-budget modeled MCTS. See [L2_CONTRACT.md](L2_CONTRACT.md) for its joint
+belief Bellman equation, observation/subjective update law, tie convention and
+analytic tests. This is a scoped best-response comparison, not an equilibrium
+claim or a change to global production semantics.

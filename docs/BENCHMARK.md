@@ -689,3 +689,26 @@ changing the independently recomputed action-loss verdict. Raw files are retaine
 Audit aggregates: results/oracle/bellman_validation_review_20260925.json
 (local and Git-ignored). Next steps and the exact default-promotion limitations
 are recorded in HANDOFF.md. No solver code changed in this review.
+
+
+## Matched fixed-depth L2 implementation and smoke (September 25)
+
+The comparison now declares an exact L1 opponent replanning at a fixed depth,
+with a point prior on its private physical belief. Both reference and MCTS use
+that same policy model; this is not a finite-budget production-opponent test.
+See L2_CONTRACT.md for the complete joint-belief recursion and information limits.
+
+An 18-case smoke used H1-H3, 1000 traversals, own beliefs .1/.5/.9,
+b_j=.085, opponent depth2, seeds300-301, bounded c=1, empirical Bellman and
+exact final-step integration. Every case completed with zero first-action loss.
+Maximum Q error at H3 was .722473. This is development evidence only.
+
+New timing records show parent monotonic elapsed 5.329160s, worker sum 9.111192s,
+two workers, and a satisfied concurrency bound. GNU time reports 5.29s; the
+saved realtime endpoints differ by 4.796633s. These clock differences are exposed,
+not resolved. The runner retains parent timing on failures and rejects worker
+durations inconsistent with its monotonic concurrency bound. Older raw records
+are unchanged. Short-run timing under concurrent test load is not a speed claim.
+
+Raw evidence: results/l2-contract-20260925/smoke/ plus smoke.log and smoke.time.
+HANDOFF.md specifies the next 900-case development panel. Defaults remain unchanged.

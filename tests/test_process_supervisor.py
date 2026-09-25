@@ -119,3 +119,30 @@ def test_timeout_stops_descendant_processes(tmp_path):
     # An orphan may briefly remain a zombie awaiting init's reap, but cannot run.
     if status.exists():
         assert "State:\tZ" in status.read_text()
+
+
+def test_supervisor_monotonic_intervals_fit_parent_and_concurrency():
+    """All worker lifetimes lie inside the parent's same-clock measurement."""
+    started = time.monotonic()
+    outcomes = dict(
+        supervise_jobs(
+            dict.fromkeys(range(6), _success),
+            workers=2,
+            timeout_seconds=10,
+            max_rss_mb=4096,
+        )
+    )
+    finished = time.monotonic()
+    intervals = []
+    for outcome in outcomes.values():
+        assert outcome["status"] == "complete"
+        start, end = outcome["started_monotonic"], outcome["finished_monotonic"]
+        assert started <= start <= end <= finished
+        assert outcome["wall_seconds"] == pytest.approx(end - start)
+        intervals.extend(((start, 1), (end, -1)))
+    active = 0
+    for _, change in sorted(intervals):
+        active += change
+        assert 0 <= active <= 2
+    assert active == 0
+    assert sum(o["wall_seconds"] for o in outcomes.values()) <= 2 * (finished - started)

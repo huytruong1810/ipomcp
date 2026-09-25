@@ -1,9 +1,11 @@
-"""Matched L1 Tiger oracle comparison with explicit computational budget sweeps.
+"""Matched Tiger oracle comparisons with explicit computational budget sweeps.
 
 Both planners and the reference solve the same finite-horizon problem: the same
 two-state physical belief, uniform L0 opponent, sensor law, discount and horizon.
 No sampled initialization is substituted for the stated reference belief. This
-suite measures L1 only; it does not certify deeper intentional hierarchies.
+suite also supports L2 against an explicitly fixed-depth exact L1 policy,
+with a point prior on its private belief. That contract is shared by both
+planners but is distinct from production finite-budget modeled MCTS policies.
 
 MCTS simulations and RTS particles per branch are different work units. Report
 both raw budget and wall/RSS cost, never call equal numbers equal compute. RTS
@@ -16,6 +18,7 @@ import argparse
 import hashlib
 import itertools
 import json
+import time
 from functools import partial
 from pathlib import Path
 
@@ -23,9 +26,14 @@ from core.config import IPOMCPConfig, MCTSConfig, RTSConfig
 from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.frame import AgentFrame
+from solvers.exact.fixed_tiger_opponent import FixedTigerL1Policy
+from solvers.exact.ipomdp_exact_vi import ExactIPOMDPSolver
 from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
 from solvers.exploration import HorizonBoundUCB, NormalizedUCB, StandardUCB
+from solvers.i_pomcp import IPOMCPPlanner
+from solvers.random_planner import RandomPlanner
 from solvers.solver_bank import SolverBank
+from solvers.solver_types import SolverKey
 from utils.bootstrapper import I_POMDP_Bootstrapper
 from utils.process_supervisor import supervise_jobs
 
@@ -41,31 +49,50 @@ def evaluate_case(
     exploration_const=1.0,
     exact_final_step=False,
     backup="sampled",
+    level=1,
+    opponent_depth=None,
+    opponent_belief=0.5,
 ):
     """One independent solve. The supervisor owns time/RSS measurement."""
+    _validate_level_contract(level, opponent_depth, opponent_belief, (planner_kind,))
     model = TigerModel()
-    oracle = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma)
-    oracle_q = oracle.q_values(belief_p, horizon)
+    if level == 1:
+        oracle = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma)
+        oracle_q = oracle.q_values(belief_p, horizon)
+    else:
+        oracle = ExactIPOMDPSolver(
+            model, horizon=horizon, gamma=gamma, opponent_horizon=opponent_depth
+        )
+        oracle_q = oracle.q_values(belief_p, opponent_belief, horizon)
     bank = SolverBank(seed=seed)
     bootstrap = I_POMDP_Bootstrapper(bank)
     if planner_kind == "mcts":
-        planner = bootstrap.create_level1_solver(
-            "i",
-            model,
-            ["j"],
-            n_particles=2,
-            config=IPOMCPConfig(
-                mcts=MCTSConfig(
-                    gamma=gamma,
-                    n_sims=budget,
-                    max_depth=horizon,
-                    node_capacity=200,
-                    exploration_const=exploration_const,
-                    exact_final_step=exact_final_step,
-                    backup=backup,
-                )
-            ),
+        config = IPOMCPConfig(
+            mcts=MCTSConfig(
+                gamma=gamma,
+                n_sims=budget,
+                max_depth=horizon,
+                node_capacity=200,
+                exploration_const=exploration_const,
+                exact_final_step=exact_final_step,
+                backup=backup,
+            )
         )
+        if level == 1:
+            planner = bootstrap.create_level1_solver(
+                "i", model, ["j"], n_particles=2, config=config
+            )
+        else:
+            # Build the exact two-state prior below; no empirical bootstrap or
+            # unused modeled MCTS solver participates in this reference problem.
+            planner = IPOMCPPlanner(
+                SolverKey("i", 2), model, model.get_all_actions("i"), bank, config=config
+            )
+            bank.register_solver(SolverKey("i", 2), planner)
+            bank.register_solver(SolverKey("i", 0), RandomPlanner(model.get_all_actions("i")))
+            bank.register_solver(
+                SolverKey("j", 1), FixedTigerL1Policy(model, opponent_depth, gamma)
+            )
         if exploration == "normalized":
             strategy = NormalizedUCB(exploration_const)
         elif exploration == "standard":
@@ -99,7 +126,17 @@ def evaluate_case(
         )
     else:
         raise ValueError("Unknown planner")
-    opponent = MentalModel(AgentFrame("j", 0, model))
+    if level == 1:
+        opponent = MentalModel(AgentFrame("j", 0, model))
+    else:
+        l0 = MentalModel(AgentFrame("i", 0, model))
+        private = FiniteBelief(
+            (
+                (InteractiveState(TIGER_LEFT, l0), opponent_belief),
+                (InteractiveState(TIGER_RIGHT, l0), 1 - opponent_belief),
+            )
+        )
+        opponent = MentalModel(AgentFrame("j", 1, model), private)
     belief = FiniteBelief(
         (
             (InteractiveState(TIGER_LEFT, opponent), belief_p),
@@ -118,6 +155,17 @@ def evaluate_case(
     return [
         {
             "planner": planner_kind,
+            "level": level,
+            "opponent_model": (
+                {"policy": "uniform_l0"}
+                if level == 1
+                else {
+                    "policy": "exact_l1_fixed_horizon",
+                    "depth": opponent_depth,
+                    "initial_belief_p": opponent_belief,
+                    "tie_atol": 1e-10,
+                }
+            ),
             "horizon": horizon,
             "budget": budget,
             "seed": seed,
@@ -139,6 +187,21 @@ def evaluate_case(
     ]
 
 
+def _validate_level_contract(level, opponent_depth, opponent_belief, planners):
+    """Reject ambiguous opponent semantics before creating any run artifacts."""
+    if type(level) is not int or level not in (1, 2):
+        raise ValueError("Reference level must be 1 or 2")
+    if not 0 <= opponent_belief <= 1:
+        raise ValueError("Opponent belief must lie in [0,1]")
+    if level == 1:
+        if opponent_depth is not None or opponent_belief != 0.5:
+            raise ValueError("L1 has uniform L0, not an intentional opponent depth or belief")
+    elif type(opponent_depth) is not int or opponent_depth < 1:
+        raise ValueError("L2 requires an explicit positive fixed opponent depth")
+    elif any(kind != "mcts" for kind in planners):
+        raise ValueError("The matched L2 runner currently evaluates MCTS only")
+
+
 def run_oracle_comparison(
     out,
     *,
@@ -156,6 +219,9 @@ def run_oracle_comparison(
     workers=2,
     timeout=2400,
     max_rss_mb=4096,
+    level=1,
+    opponent_depth=None,
+    opponent_belief=0.5,
 ):
     """Persist every outcome and source fingerprint before interpreting results.
 
@@ -163,6 +229,7 @@ def run_oracle_comparison(
     'optimal' certification. Increasing budgets supplies an error/cost curve;
     sufficient resources depend on the accuracy required for a scientific claim.
     """
+    _validate_level_contract(level, opponent_depth, opponent_belief, planners)
     # Validate before workers start so invalid settings cannot create a partial panel.
     MCTSConfig(
         exploration_const=exploration_const, exact_final_step=exact_final_step, backup=backup
@@ -199,10 +266,15 @@ def run_oracle_comparison(
         workers=workers,
         timeout=timeout,
         max_rss_mb=max_rss_mb,
+        level=level,
+        opponent_depth=opponent_depth,
+        opponent_belief=opponent_belief,
     )
     manifest = {
         "settings": settings,
-        "scope": "L1 vs uniform L0 only",
+        "scope": "L1 vs uniform L0"
+        if level == 1
+        else "L2 vs exact fixed-horizon L1; not finite-budget MCTS opponents",
         "source_sha256": {
             str(p.relative_to(source)): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(source.rglob("*.py"))
@@ -218,28 +290,64 @@ def run_oracle_comparison(
     )
     jobs = {
         i: partial(
-            evaluate_case, *case, gamma, exploration, exploration_const, exact_final_step, backup
+            evaluate_case,
+            *case,
+            gamma,
+            exploration,
+            exploration_const,
+            exact_final_step,
+            backup,
+            level,
+            opponent_depth,
+            opponent_belief,
         )
         for i, case in enumerate(cases)
     }
     summaries = []
-    for identifier, outcome in supervise_jobs(
-        jobs,
-        workers=workers,
-        timeout_seconds=timeout,
-        max_rss_mb=max_rss_mb,
-        log_directory=directory / "logs",
-    ):
-        outcome["case"] = cases[identifier]
-        (directory / f"case-{identifier}.json").write_text(
-            json.dumps(outcome, indent=2, allow_nan=False)
+    started = time.monotonic()
+    started_unix = time.time()
+    try:
+        for identifier, outcome in supervise_jobs(
+            jobs,
+            workers=workers,
+            timeout_seconds=timeout,
+            max_rss_mb=max_rss_mb,
+            log_directory=directory / "logs",
+        ):
+            outcome["case"] = cases[identifier]
+            (directory / f"case-{identifier}.json").write_text(
+                json.dumps(outcome, indent=2, allow_nan=False)
+            )
+            summary = {k: v for k, v in outcome.items() if k not in {"rows", "traceback"}}
+            summaries.append(summary)
+            (directory / "summary.json").write_text(
+                json.dumps(summaries, indent=2, allow_nan=False)
+            )
+            print(json.dumps(summary), flush=True)
+    finally:
+        # Use the same clock as the supervisor. An external elapsed timer may
+        # use a different clock domain; retain both rather than overwriting one.
+        elapsed = time.monotonic() - started
+        worker_sum = sum(row["wall_seconds"] for row in summaries)
+        consistent = worker_sum <= workers * elapsed + 1e-6
+        timing = {
+            "clock": time.get_clock_info("monotonic").implementation,
+            "started_unix": started_unix,
+            "finished_unix": time.time(),
+            "elapsed_monotonic_seconds": elapsed,
+            "worker_wall_sum_seconds": worker_sum,
+            "workers": workers,
+            "requested_cases": len(cases),
+            "recorded_cases": len(summaries),
+            "worker_concurrency_bound_satisfied": consistent,
+        }
+        (directory / "timing.json").write_text(json.dumps(timing, indent=2, allow_nan=False))
+    if not consistent:
+        raise RuntimeError(
+            "Worker durations exceed the panel concurrency bound; inspect timing.json"
         )
-        summary = {k: v for k, v in outcome.items() if k not in {"rows", "traceback"}}
-        summaries.append(summary)
-        (directory / "summary.json").write_text(json.dumps(summaries, indent=2, allow_nan=False))
-        print(json.dumps(summary), flush=True)
-    if any(row["status"] != "complete" for row in summaries):
-        raise RuntimeError("Oracle panel has failed cases; inspect saved outcomes")
+    if len(summaries) != len(cases) or any(row["status"] != "complete" for row in summaries):
+        raise RuntimeError("Oracle panel has failed or missing cases; inspect saved outcomes")
 
 
 def main():
@@ -268,6 +376,13 @@ def main():
         choices=["sampled", "empirical_bellman"],
         default="sampled",
         help="MCTS only: mean trajectory returns or empirical chance-weighted Bellman values",
+    )
+    parser.add_argument("--level", type=int, choices=[1, 2], default=1)
+    parser.add_argument(
+        "--opponent-depth", type=int, help="Required for L2: fixed exact L1 replanning depth"
+    )
+    parser.add_argument(
+        "--opponent-belief", type=float, default=0.5, help="L2 point prior on j's P(TL)"
     )
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--workers", type=int, default=2)
