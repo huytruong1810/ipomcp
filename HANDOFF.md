@@ -40,7 +40,8 @@ All 18 cases completed with zero first-action loss. Maximum Q error at H3 was
 .722473, so exact action agreement does not imply exact value estimates.
 This is smoke/development evidence, not a validation pass.
 
-Evidence: results/l2-contract-20260925/smoke/, smoke.log and smoke.time.
+Source checkpoint: 1fad300. Evidence: results/l2-contract-20260925/smoke/,
+smoke.log and smoke.time.
 The focused reference/runner/supervisor tests passed (35 tests).
 Full-suite verification: 217 tests passed in 303.62s, including all domain
 integration and supervisor fault tests. Ruff lint and formatting passed.
