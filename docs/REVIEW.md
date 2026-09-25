@@ -244,3 +244,12 @@ Final verification: all 217 tests passed in 303.62s, including domain integratio
 Ruff lint/format and diff whitespace checks passed. The 18-case L2 smoke also
 passed source-hash, coverage, contract metadata and worker-interval concurrency
 checks. No production default was changed. Source checkpoint: 1fad300.
+
+
+Independent review of 661fb59: verified all 900 fixed-depth L2 cases and
+recomputed 90 reference configurations; confirmed the single .3377-loss case
+and zero errors at10k. Checked worker intervals, concurrency and aggregate
+timing. Corrected denominator45, nonterminal opening semantics, initial d2
+listening behavior and descriptive (not validation) .020 loss counts.
+No solver changes. Next phase is exact L2 response to explicitly matched
+finite-budget modeled policies, preserving private-model identity.

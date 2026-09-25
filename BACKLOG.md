@@ -20,8 +20,11 @@
   H3, 1k budget, seed 301, loss 0.3377; resolved at 10k). Concurrency bounds passed on
   all 6 panels, with parent monotonic elapsed (~52-55 s) matching GNU time within fractions
   of a second. Depth comparison confirmed 8 oracle action flips between d=1 and d=2.
-  Results are development evidence awaiting Codex independent review; production finite-budget
-  modeled opponents remain unmatched and require a separate reference contract before qualification.
+  Codex independently verified all cases, values and timing intervals. The depth
+  comparison has 8 action flips out of 45 configurations. Opening resets rather
+  than terminates Tiger. Results remain development evidence; production finite-budget
+  modeled opponents remain unmatched. HANDOFF.md specifies the next implementation
+  plan, including exact private-belief identity and deterministic policy semantics.
 - Parent/worker monotonic timing is now recorded and checked. In the L2 study, monotonic
   and external GNU elapsed matched closely across all panels. Older long-duration L1 timing
   discrepancies remain historically unresolved without retroactive replacement.

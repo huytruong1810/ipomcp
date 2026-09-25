@@ -1,136 +1,106 @@
 # Current review handoff
 
-## Ownership and completed implementation
+## Ownership and status
 
-Use only /home/andyj1810/projects/ipomcp on fix/tiger-policy-inversion.
-Codex owns code/math; Antigravity runs experiments. No source changes during
-runs or source copies; Git stores source history. Raw results remain local
-and ignored unless explicitly archived elsewhere.
+One checkout: /home/andyj1810/projects/ipomcp, branch fix/tiger-policy-inversion.
+Codex owns code/math; Antigravity owns experiment execution. Do not edit source
+during experiments or create source snapshots outside Git. Raw cases remain
+local and Git-ignored unless explicitly archived elsewhere.
 
-The fixed-depth L2 contract is implemented and documented in docs/L2_CONTRACT.md.
-ExactIPOMDPSolver accepts an explicit opponent_horizon. The matched runner's
---level 2 --opponent-depth d uses an exact L1 opponent replanning at depth d
-after every private update. Shared-countdown reference behavior is a separate
-model. Global MCTS defaults and production opponent semantics are unchanged.
+The 900-case exact-opponent L2 development study has been independently audited.
+No solver/default change is justified by this audit. Antigravity should retain
+all evidence and await the finite-budget modeled-opponent comparison contract
+before further qualification runs.
 
-This is intentionally an exact-L1 opponent, not the production 25-simulation
-modeled MCTS opponent. Both compared L2 solvers use this declared law. The root
-MCTS receives no oracle protagonist Q values. Do not label results as production
-L2 qualification or proceed to L4/all39 from this panel.
+## Verified results at 661fb59
 
-## Timing instrumentation
+Six panels at source01f36cf: d1/d2 x b_j=.085/.5/.915; H1-H3; budgets1k/10k;
+seeds300-304; own beliefs .05/.2/.5/.8/.95. Exact tail, empirical Bellman,
+bounded c=1, gamma=.95. Two workers, timeout240s, RSS limit2048MiB.
 
-Worker outcomes now retain monotonic start/finish timestamps. Each oracle panel
-writes timing.json even on a parent exception, with parent monotonic elapsed,
-real-time start/finish, worker sums, coverage and the concurrency-bound check.
-A worker sum larger than workers times parent elapsed raises an explicit error.
-Intervals can also be checked for overlap and containment.
+All 900 case files have complete/unique coverage, matching source fingerprints,
+settings and status. Recomputed exact reference values for all 90 configurations
+(45 per depth), every policy loss and max Q error. All recorded policies are
+valid distributions. Summaries agree with case coverage/status.
 
-The 18-case L2 smoke has parent monotonic elapsed 5.329160s, worker sum 9.111192s,
-two workers, and passes the concurrency bound. External GNU time recorded 5.29s,
-while realtime endpoints differ by 4.796633s. The clock measurements differ;
-the instrumentation exposes that discrepancy without rewriting measurements.
-No universal cause is established and older timing records remain unresolved.
+899/900 first actions match the reference. The sole error:
+d1, b_j=.915, H3, budget1000, b_i=.05, seed301, chosen L rather than OL,
+loss .3377000000000012. Its 10k case has zero loss. All 450 budget10k cases
+and all 450 d2 cases have zero strict errors. Maximum Q error remains 1.656668.
+These are development results; .020 loss counts are diagnostics, not a declared
+L2 validation gate, and cannot qualify untested beliefs/budgets/deeper agents.
 
-## Evidence and engineering checks
+For depth comparisons there are 45 configurations, not 30:
+3 opponent beliefs x 3 horizons x 5 own beliefs. Eight optimal-action sets
+change; eighteen configurations have Q/value changes above1e-4; maximum action
+Q difference7.733. Physics is unchanged; the opponent policy law changes.
 
-The L2 smoke used H1-H3, fixed opponent depth2, b_j=.085, own beliefs .1/.5/.9,
-seeds300-301, 1000 traversals, exact tail, empirical Bellman, bounded c=1.
-All 18 cases completed with zero first-action loss. Maximum Q error at H3 was
-.722473, so exact action agreement does not imply exact value estimates.
-This is smoke/development evidence, not a validation pass.
+Opening is NOT terminal. TigerModel resets the physical state after opening
+and continues. Opening Q errors here are at most1.43e-14 because, over H1-H3,
+the post-reset short-horizon optimum is to listen. The continuation is present:
+Q(open)=E[R(open)]-sum_(t=1)^(H-1) gamma^t. At b_j=.085/.915 the d1 initial
+opponent opens and d2 listens; the report's former safe-opening/collision-risk
+explanation was incorrect. No collision penalty exists in this reward model.
 
-Source checkpoint: 1fad300. Evidence: results/l2-contract-20260925/smoke/,
-smoke.log and smoke.time.
-The focused reference/runner/supervisor tests passed (35 tests).
-Full-suite verification: 217 tests passed in 303.62s, including all domain
-integration and supervisor fault tests. Ruff lint and formatting passed.
-Raw output: results/l2-contract-20260925/tests.log.
+## Timing and provenance
 
-## Completed 900-case L2 fixed-depth development comparison
+Each panel's worker sum fits twice parent monotonic elapsed. All worker
+start/finish intervals match durations, with at most two overlapping workers.
+External timers and parent monotonic elapsed differ by fractions of a second
+on these short panels. This does not resolve earlier long-run discrepancies.
 
-Antigravity completed all six panels sequentially under source checkpoint 01f36cf
-(preceded by implementation at 1fad300) with RUN_ID `20260925`:
-- `results/oracle/l2_fixed_d1_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_fixed_d1_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_fixed_d1_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_fixed_d2_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_fixed_d2_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_fixed_d2_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+timing.json stores parent monotonic ELAPSED plus realtime endpoints, not parent
+monotonic start/finish timestamps. Per-worker endpoints are monotonic.
+Do not invent stronger endpoint checks than the available metadata supports.
 
-All 900 requested cases completed with status `complete` under two supervised
-spawned workers with 240s timeout and 2,048 MiB memory limit. Zero timeouts,
-crashes, or resource kills occurred.
+Raw directories: results/oracle/l2_fixed_d{1,2}_b{0.085,0.5,0.915}_20260925/.
+External .time/.log files are siblings. Independent audit:
+results/oracle/l2_fixed_review_20260925.json. Preserve original artifacts.
+Documentation commits do not constitute a Git archive of these raw cases.
 
-### Timing and concurrency instrumentation audit
+## Next coding phase: match finite-budget modeled opponents
 
-Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and
-concurrency bound checks for all six panels:
+The existing contract in docs/L2_CONTRACT.md uses an exact fixed-depth L1 policy.
+Production instead asks SolverBank for a finite-budget private MCTS solve.
+Its budget, depth, estimator, tail setting, exploration, deterministic search
+seed and tie convention are all part of the opponent model. Replacing that
+policy by exact L1 is not the same decision problem.
 
-| Panel | GNU Elapsed | Parent Monotonic | Worker Wall Sum | Concurrency Bound | Peak RSS |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| d=1, b_j=0.085 | 54.07 s | 54.57 s | 94.40 s | PASS (47.20 <= 54.57) | 74.68 MB |
-| d=1, b_j=0.500 | 54.47 s | 54.87 s | 94.45 s | PASS (47.23 <= 54.87) | 74.79 MB |
-| d=1, b_j=0.915 | 54.36 s | 54.79 s | 94.00 s | PASS (47.00 <= 54.79) | 74.72 MB |
-| d=2, b_j=0.085 | 52.14 s | 52.07 s | 91.38 s | PASS (45.69 <= 52.07) | 74.52 MB |
-| d=2, b_j=0.500 | 53.12 s | 53.66 s | 92.03 s | PASS (46.02 <= 53.66) | 74.51 MB |
-| d=2, b_j=0.915 | 53.43 s | 53.88 s | 93.71 s | PASS (46.86 <= 53.88) | 75.01 MB |
+Plan before implementation:
+1. Define the reference as an exhaustive L2 best response to the declared,
+   deterministic finite-computation L1 policy, rather than to an exact L1.
+   Keep the current exact-L1 experiment explicit as a distinct model.
+2. Preserve complete immutable opponent MentalModel/FiniteBelief identity
+   through reference transitions. Do not round or reconstruct a scalar belief
+   and assume the resulting modeled policy is identical: search seeds hash the
+   private belief representation and settings, so floating differences can
+   change a finite-budget action. Define precisely how private updates and
+   policy identity are shared across the reference and tree planner.
+3. Fix opponent configuration and policy provider for a run. Record both real
+   and modeled budgets/depths/estimators/exploration plus bank seed in manifests.
+   Shared policy calls are legitimate model definitions; protagonist oracle
+   values must remain outside its action-selection path.
+4. Test H1 immediate reward, uniform H2 information limits, posterior
+   correlation and private-information restrictions. Check that reference and
+   planner query identical opponent policies at identical private models.
+   Use independent tiny enumerations so a shared filtering bug is not accepted
+   merely because both implementations use the same kernel.
+5. Establish small H1-H3 development comparisons before increasing depth and
+   modeled simulation budgets. Preserve resource failures; no cheaper reference
+   or nearest-belief fallback on timeout.
 
-All six panels strictly satisfied the concurrency bound check. External GNU
-time agreed with parent monotonic elapsed within fractions of a second (total
-wall time ~324s, ~5.4 min).
+This plan preserves fixed-depth production replanning rather than silently
+changing it to shared countdown. Do not launch a production L2/L4/all39 suite
+until that comparison and resource contract exist.
 
-### Decision accuracy and loss summary
+## Engineering and remaining gates
 
-| Panel | Cases | Errors (loss > 1e-8) | Gate Fail (>0.02) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| d=1, b_j=0.085 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0227 | 0.3979 |
-| d=1, b_j=0.500 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0707 | 0.8183 |
-| d=1, b_j=0.915 | 150 | 1 (0.7%) | 1 | 0.002251 | 0.337700 | 0.0273 | 0.4615 |
-| d=2, b_j=0.085 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.1034 | 1.6567 |
-| d=2, b_j=0.500 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0707 | 0.8183 |
-| d=2, b_j=0.915 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0867 | 1.0469 |
-| **Total** | **900** | **1 (0.11%)** | **1 (0.11%)** | **0.000375** | **0.337700** | **0.0636** | **1.6567** |
+No source changes in this audit. Latest implementation verification remains
+217 passing tests plus lint/format at the preceding implementation checkpoint;
+tests were not rerun for these documentation edits.
 
-Across all 900 cases, **899 decisions (99.89%)** achieved exact oracle agreement.
-Under Opponent Depth d=2: **450 / 450 decisions (100.0%)** were strictly optimal.
-The single error occurred at d=1, b_j=0.915, H=3, B=1000, b_i=0.05, seed 301:
-chosen `L` (est Q 2.7713) vs oracle Best `OL` (Q* 2.6475, oracle gap 0.3377 over `L`
-at 2.3098), policy loss 0.33770. At budget 10,000 (seed 301), est Q(L)=2.3421 < 2.6475,
-selecting `OL` with zero loss.
-
-### Opponent replanning semantics: depth 1 vs depth 2 comparison
-
-Comparing oracle evaluations across all 30 horizon/belief combinations:
-- **8 out of 30 combinations flip their Bayes-optimal action** between d=1 and d=2:
-  * At b_j=0.085: H=2 (b_i=0.05, 0.95) and H=3 (b_i=0.05, 0.95) flip from opening
-    doors under d=1 (`OL` or `OR`) to listening (`L`) under d=2 (value gap up to 7.7330).
-  * At b_j=0.915: Symmetrical flips occur at H=2 (b_i=0.05, 0.95) and H=3 (b_i=0.05, 0.95).
-  * At b_j=0.500: 0 flips (uninformative opponent listens under both depths).
-- **18 out of 30 combinations have oracle Q-value differences > 1e-4**.
-This confirms that opponent replanning horizon alters the underlying game dynamics.
-The fixed-depth contract correctly aligns the reference oracle with the tree planner.
-
-### Signed Q errors
-
-Terminal door-opening actions (`OL`, `OR`) had **identically zero Q error** (+-0.0000)
-across all 900 cases. All estimation error was on `L` (recursive opponent rollout):
-mean signed Q error on `L` ranged from +0.0001 to +0.0107 (d=1) and -0.0179 to +0.0107 (d=2).
-
-### Next steps: Codex independent review
-
-These are developmental runs under declared fixed-depth exact-opponent semantics.
-Ready for Codex review and verification of manifests, source hashes against 01f36cf,
-and recomputation of reference values. Production modeled-opponent matching remains pending.
-
-
-## Remaining gates
-
-Prior L1 2000-case frozen accuracy gate remains passed at its exact tested
-settings. Old 50k/200k failures stay historical failures. No permanent
-all-horizon resolution or global default promotion is claimed.
-
-Still pending: matched finite-budget modeled opponents, deeper level mixtures,
-long/deep Tiger before/after, L4/all39 resource qualification, finite-prior error
-and remaining demo/visualization semantic review. The new exact-opponent L2
-contract isolates one layer of these requirements; it does not discharge all.
+The earlier 2000-case L1 accuracy gate remains passed for its specific settings.
+Older 50k/200k gates remain failures. Global defaults remain sampled backups,
+sampled final steps and empirical-range UCB. Long/deep Tiger before/after,
+finite-prior error, production modeled-policy resources and remaining
+demo/visualization semantic review are still pending.
