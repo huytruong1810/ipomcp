@@ -351,10 +351,80 @@ Antigravity completed both 720-case panels (1,440 total cases, 0 failures, 0 tim
 
 ### Per-Belief Breakdown Across All Horizons (N=20 seeds per cell)
 
-- **Horizons 1 and 2**: Both Candidate and Control achieved **0 errors out of 240 cases each (0.0000 loss)** across all 12 beliefs, perfectly executing both door-opening decisions (.03, .07, .075, .925, .93, .97) and listening decisions (.085, .11, .25, .75, .89, .915).
+- **Horizons 1 and 2**: Both Candidate and Control achieved **0 errors out of 240 cases each (0.0000 loss)** across all 12 beliefs. At H1, opening is optimal at .03/.07/.075/.085/.915/.925/.93/.97, and listening at .11/.25/.75/.89. At H2, opening is optimal at .03/.07/.075/.925/.93/.97, and listening at .085/.11/.25/.75/.89/.915.
 - **Horizon 3**:
   - Safe door-opening beliefs (.03, .97): Candidate 0/20 wrong; Control 0/20 wrong.
   - Interior listening beliefs (.085, .11, .25, .75, .89, .915): Candidate **0/20 wrong across all 6 beliefs (0.0000 loss)**; Control failed 2/20 at .085 and 3/20 at .915.
   - Razor-thin inflection beliefs (.070, .075, .925, .930): Both Candidate and Control failed 20/20 (Candidate loss 0.3138 at .070/.930 and 0.8184 at .075/.925). The reference optimal action flips from door-opening (H1/H2) to listening (H3), but the true margin ($\Delta Q \in [0.31, 0.82]$) is smaller than intermediate tree exploration suppression at depth 1.
 - Detailed tables are in `results/oracle/TAIL_VALIDATION_200K_REPORT.md`.
 
+
+
+## Independent review of the 1,440-case validation and next design
+
+Codex verified all 1,440 requested cases: unique coverage, source hashes,
+row/case settings, actual tail/exploration modes and recomputed first-action
+losses. The 200k gate remains failed: exact tail 80/720 errors, sampled tail
+85/720. These are measured outcomes at twelve belief points, not an exact global
+mapping of the action boundary. The report incorrectly grouped the H1/H2 optimal
+actions together; the corrected per-horizon action sets are above. In particular,
+p=.085/.915 favors opening at H1 and listening at H2.
+
+The next opt-in estimator is `empirical_bellman`: chance frequencies average
+successor history values, while decisions maximize only at a private-history
+node. Terminal samples remain in the action-count denominator. Frontier rollout
+estimates are explicit and replaced when action values are available. See
+THEORY.md for the formula, relation to prior work, and finite-budget limitations.
+Production defaults remain sampled backups and a sampled final step.
+
+As before, e7f27ff commits the documentation only; the raw result directories and
+manifests are local and Git-ignored. Preserve those artifacts, and do not report
+that they were committed. All previous gate failures remain failures.
+
+
+## Empirical Bellman backup development comparison
+
+Source checkpoint: 2230786. Exact final-step integration is enabled in both
+controls; only the intermediate backup estimator differs. Both use bounded c=1,
+gamma .95, H2/H3, budgets 10k/50k, inspected beliefs
+.03/.07/.075/.5/.925/.93/.97 and seeds 200-201. All 112 cases completed under
+two workers, 240-second and 1,024-MiB per-case limits. Source hashes were verified.
+Raw cases and manifests: `results/bellman-backup-20260924/{sampled,empirical_bellman}`.
+
+| Backup | H | Traversals | Errors / 14 | Mean first-action loss | Mean max Q error | Mean case wall s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| sampled | 2 | 10000 | 0 | 0.000000 | 0.064570 | 0.710 |
+| sampled | 2 | 50000 | 0 | 0.000000 | 0.017752 | 1.466 |
+| sampled | 3 | 10000 | 8 | 0.323483 | 17.410287 | 0.915 |
+| sampled | 3 | 50000 | 8 | 0.323483 | 17.635496 | 2.565 |
+| empirical_bellman | 2 | 10000 | 0 | 0.000000 | 0.038409 | 0.717 |
+| empirical_bellman | 2 | 50000 | 0 | 0.000000 | 0.023486 | 1.637 |
+| empirical_bellman | 3 | 10000 | 0 | 0.000000 | 0.070815 | 1.029 |
+| empirical_bellman | 3 | 50000 | 0 | 0.000000 | 0.033812 | 3.001 |
+
+These are development points, not a new held-out pass. At H3/50k, empirical
+Bellman removed the 8/14 observed errors and substantially reduced Q error;
+it also cost more per case. Equal traversal counts are not equal work. No
+convergence, population-error bound or production readiness follows from this
+small panel. No confidence pruning or hidden-state maximization was introduced.
+
+A further 20-case smoke panel used the same estimator and tail at H4/H5,
+budgets 1k/10k, seed 200 and beliefs .03/.075/.5/.925/.97. All completed.
+
+| Horizon | Traversals | Errors / 5 | Mean first-action loss | Mean max Q error |
+| --- | ---: | ---: | ---: | ---: |
+| 4 | 1000 | 2 | 0.003970 | 6.904961 |
+| 4 | 10000 | 1 | 0.001985 | 3.340033 |
+| 5 | 1000 | 2 | 0.007254 | 6.878925 |
+| 5 | 10000 | 2 | 0.007254 | 4.567808 |
+
+Remaining wrong choices occur at .075/.925, with losses approximately .009924
+at H4 and .018136 at H5. These are actual near-tie decision errors, not floating-
+point ties. They fail strict action agreement; no tolerance is introduced after
+observing them. A scientific loss tolerance, if desired, must be fixed before a
+future validation and cannot reverse old gate failures. No default is promoted.
+
+Next is broader **development** coverage, H1-H5 on already-inspected belief/seed
+points, with both estimators at the same source checkpoint. See HANDOFF.md for the
+fixed commands. Higher-level opponent model matching and the long deep-Tiger
+comparison remain separate gates.

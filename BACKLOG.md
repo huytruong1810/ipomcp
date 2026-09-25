@@ -2,19 +2,20 @@
 
 ## P0: accuracy and resource qualification
 
-- Validate the bounded-c1 exact-final-step candidate at a declared 200k budget.
-  Its 180-case development panel has zero H3 errors at 200k on three beliefs,
-  all favoring listen. The fixed fresh opening/listening protocol is in HANDOFF.md.
-  No default is promoted; the previous 50k held-out gate remains failed.
-  Do not reinstate confidence pruning or frozen intentional beliefs to pass a test.
+- The exact-tail candidate failed the 200k held-out gate (80/720 decisions).
+  All inspected validation points are now development data. Evaluate the opt-in
+  empirical chance-weighted Bellman backup against sampled means before any new
+  held-out run. Preserve opening and listening cases and report Q errors separately.
+  No default is promoted; earlier 50k/200k failures remain failures.
 - Match the intentional policy model before comparing L2 with an exact oracle.
   The L2 reference currently has a common decreasing finite horizon, whereas
   production modeled MCTS policies replan at their configured fixed depth and
   simulation budget. Those are different opponent models.
 - Qualify corrected L4 and all 39 production conditions at intended resources.
   Old uniform-matrix runs with frozen rollout beliefs are not this qualification.
-- Establish meaningful reward equivalence margins and independent validation
-  seeds. Reused 30-seed comparisons are exploratory, not equivalence proofs.
+- Fix the numerical per-case first-action loss bound requested by the user
+  before fresh validation; the bounded-loss preference is confirmed. Establish
+  independent validation seeds. Reused 30-seed comparisons are exploratory, not equivalence proofs.
 
 
 ## P1: architecture and approximation limits
@@ -29,7 +30,7 @@
 - Strengthen common-random-number comparisons with per-purpose RNG streams.
 - Bound-aware exploration and exact final-step integration are implemented as
   explicit options. Qualify their cost/accuracy beyond L1 before any production
-  change. Earlier backups remain sampled means; no general convergence claim
+  change. Empirical Bellman backups are also opt-in; no general convergence claim
   follows from finite action agreement. See docs/THEORY.md and docs/BENCHMARK.md.
 
 ## P2: broader evidence and presentation

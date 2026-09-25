@@ -191,3 +191,18 @@ is listen; Q errors remain nonzero. Corrected convergence-rate/zero-value-error
 claims and distinguished local ignored raw evidence from committed documentation.
 No algorithm change or default promotion. HANDOFF.md now contains only the current
 fresh-belief/seed validation protocol and active operational constraints.
+
+
+Intermediate-backup phase: independently verified the 1,440-case failed gate;
+corrected H1/H2 action classification. Reviewed and implemented empirical
+chance-weighted history Bellman backups in node/search/configuration/runner.
+`tests/test_bellman_backups.py` covers nonuniform chance weights, terminal mass,
+current-child reevaluation, explicit frontier values and analytic Tiger boundaries.
+Development evidence: 112 H2/H3 comparison cases and 20 H4/H5 smoke cases; strong
+H3 improvement but remaining near-tie errors at H4/H5. No default promotion.
+
+Engineering verification for source checkpoint 2230786: 200 non-integration tests
+passed in 49.13 s, plus all four integration tests in 265.32 s; Final Ruff lint/format
+passed across 106 Python files; the 31 focused tests also passed after that polish. Subsequent polish changes an option-validation
+error message only. The user selected bounded first-action loss for future
+validation, with the numerical threshold still pending; old failed gates stand.

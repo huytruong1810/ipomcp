@@ -168,7 +168,7 @@ def run_oracle_comparison(
         exploration_const=exploration_const, exact_final_step=exact_final_step, backup=backup
     )
     if (exact_final_step or backup != "sampled") and any(kind != "mcts" for kind in planners):
-        raise ValueError("exact_final_step is an MCTS-only ablation")
+        raise ValueError("Tail and backup ablations are MCTS-only")
     if exploration not in {"normalized", "standard", "bounded"}:
         raise ValueError("Unknown exploration strategy")
     if type(seed_start) is not int or seed_start < 0:
