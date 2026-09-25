@@ -9,8 +9,9 @@ history. Raw artifacts remain local and Git-ignored unless separately archived.
 
 The larger-budget evidence supports selecting empirical Bellman for fresh L1
 validation. Production defaults remain unchanged. The numerical loss tolerance
-still requires the user's answer. The protocol below is prepared but MUST NOT
-be run until that number is recorded here. No fresh cases have been evaluated.
+has been explicitly selected by the user and frozen at **epsilon_loss = 0.020**.
+The primary validation gate requires every requested case to satisfy
+loss <= 0.020 + 1e-8. No fresh cases have been evaluated yet.
 
 ## Independent review of 33c3356
 
@@ -40,7 +41,7 @@ the saved cases. The verified aggregate worker-time ratio is 1.1883, not an
 independently verified elapsed-time ratio or isolated backup overhead.
 Peak monitored RSS is 107.418/113.387 MiB. Preserve raw data; correct reports.
 
-## Prepared fresh validation protocol -- pending numerical tolerance
+## Frozen fresh validation protocol -- epsilon_loss = 0.020
 
 Candidate: backup=empirical_bellman, exact_final_step=true, bounded UCB c=1,
 gamma=.95, one fixed budget of 1,000,000 traversals at each H1-H5. This selects
@@ -59,12 +60,11 @@ if Antigravity knows of any overlap, disclose it before starting. Do not
 evaluate proposed cases during preparation.
 
 Primary criterion: every requested case completes and has first-action loss
-<= epsilon_loss + 1e-8. epsilon_loss is PENDING; .020 and .010 are proposals,
-not approved values. Numerical allowance is separate from scientific tolerance.
-Loss = V*(b) - sum_a pi(a|b) Q*(b,a), with optimal continuation after the first
-choice. This is not complete-policy/episode regret. Report strict action errors,
-maximum and mean loss, all signed Q errors and per-belief/horizon/seed results.
-Q errors are diagnostics rather than an undisclosed secondary gate.
+<= 0.020 + 1e-8. The numerical loss bound is explicitly frozen at **0.020** per
+user authorization. Loss = V*(b) - sum_a pi(a|b) Q*(b,a), with optimal continuation
+after the first choice. This is not complete-policy/episode regret. Report strict
+action errors, maximum and mean loss, all signed Q errors and per-belief/horizon/seed
+results. Q errors are diagnostics rather than an undisclosed secondary gate.
 
 Freeze the number, this configuration, exact source HEAD and all case choices
 before executing. Run once: no adaptive budget increases, early-success stopping,

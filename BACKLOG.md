@@ -8,10 +8,9 @@
   Empirical Bellman achieved 59/60 optimal decisions at H4 (loss $\le 0.00992$) and 57/60
   at H5 (loss $\le 0.01814$). Max loss across all 240 candidate cases is 0.01814.
   No default is promoted, and previous failed gates remain historical failures.
-  Freeze the user-selected numerical loss bound before the prepared 2000-case
-  H1-H5/1M fresh validation in HANDOFF.md. No new cases have been evaluated.
-  Report elapsed time from a direct timer: the last panel's claimed elapsed
-  values are inconsistent with verified worker durations and are withdrawn.
+  The numerical loss bound is explicitly frozen at epsilon_loss = 0.020 for the
+  2000-case H1-H5/1M fresh held-out validation panel in HANDOFF.md. Measure elapsed
+  time directly via GNU time; previous claimed elapsed values were withdrawn.
 - Match the intentional policy model before comparing L2 with an exact oracle.
   The L2 reference currently has a common decreasing finite horizon, whereas
   production modeled MCTS policies replan at their configured fixed depth and
