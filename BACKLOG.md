@@ -6,9 +6,13 @@
   (H1–H5, 20 unseen beliefs, seeds 1000–1019, 1M traversals, empirical Bellman, exact
   final step, bounded $c=1$) completed with 0/2,000 primary gate violations
   ($\text{loss} \le 0.020$) and 0/2,000 strict errors (100.0% exact oracle agreement;
-  mean loss 0.000000). Direct elapsed panel wall time was 43,392.04 s (12.05 h) and
-  peak RSS was 113.42 MB. Previous 50k and 200k validation failures remain historical
-  failures. Production defaults remain unchanged pending promotion review.
+  mean loss 0.000000). Accuracy is scoped to the tested grid/configuration, not all horizons.
+  External elapsed time (43,392.04 s) contradicts the worker-sum lower bound
+  (45,027.127 s); investigate clock/provenance consistency before runtime claims.
+  Peak monitored RSS was 113.42 MiB. Previous 50k and 200k validation failures remain historical
+  failures. Global defaults remain unchanged: their budgets, depth, exploration and modeled
+  opponents differ from the validated configuration. Resolve instrumentation
+  and matched L2 semantics before deeper qualification.
 - Match the intentional policy model before comparing L2 with an exact oracle.
   The L2 reference currently has a common decreasing finite horizon, whereas
   production modeled MCTS policies replan at their configured fixed depth and

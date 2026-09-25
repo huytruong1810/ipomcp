@@ -220,3 +220,11 @@ elapsed-time claims withdrawn, finite-budget convergence claims corrected.
 Prepared 2000-case fresh L1 protocol at 1M traversals; verified no belief/seed
 overlap across 31 manifests and 12,513 local case rows. No fresh solve performed.
 Numerical loss bound still pending; no solver changes or default promotion.
+
+September 25 review of 1b3527a: independently checked all 2000 cases and recomputed
+the exact reference for 100 horizon/belief pairs. Confirmed zero frozen-gate
+violations and zero strict first-action errors on the panel. Rejected universal
+policy/convergence claims and global default promotion from this evidence.
+Identified continuing disagreement between external elapsed and worker-duration
+records. Next phase is consistent timing instrumentation and matched L2 policy
+semantics; solver code and previous engineering test status are unchanged.

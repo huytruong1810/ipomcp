@@ -114,11 +114,13 @@ gates; the 200k exact-tail run failed 80/720 decisions. Those inspected cases ar
 now development data. The oracle CLI's `--seed-start` records seed ranges in each
 manifest; fresh validation requires an untouched set and a predeclared loss bound.
 
-Two opt-in MCTS experiments are available. `--exact-final-step` integrates the
-last decision from the full private-history posterior. `--backup empirical_bellman`
-uses empirical observation frequencies and current successor-history values for
-earlier backups. Both are under development; production defaults remain sampled
-backups and sampled final steps. The small H2/H3 comparison improved H3 accuracy,
-but H4/H5 retain near-tie action errors. This does not qualify the full suite.
-See `docs/THEORY.md` for estimator semantics, `docs/BENCHMARK.md` for evidence,
-and `HANDOFF.md` for Antigravity's current development run.
+Two opt-in MCTS options are available: exact final-step posterior integration
+and empirical chance-weighted Bellman backups. With bounded UCB c=1 and 1M
+traversals, their combination passed the frozen .020 first-action-loss gate on
+2000 fresh L1 Tiger cases (H1-H5): all tested actions matched the exact reference.
+This is a finite-panel result, not a general optimality guarantee. Production
+defaults remain unchanged because their budgets, horizons and opponent models
+differ. Deeper agents and the full suite remain unqualified. Recorded elapsed
+timing is inconsistent with worker durations and is under investigation.
+See docs/THEORY.md for estimator semantics, docs/BENCHMARK.md for the audited
+evidence, and HANDOFF.md for the current instrumentation/L2 review phase.

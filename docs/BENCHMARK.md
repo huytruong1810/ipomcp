@@ -603,7 +603,8 @@ exact final step, bounded c=1, gamma=.95, 1M traversals, H1-H5. HANDOFF.md speci
 2000 untouched cases using twenty new beliefs and seeds 1000-1019. No overlap
 was found in 31 panel manifests or 12,513 local recorded case rows; no new case
 has been evaluated. The numerical per-case tolerance remains pending user input,
-so this suite must not start yet. Old gates stay failed, defaults unchanged.
+at that preparation checkpoint. Threshold freezing and execution are recorded
+below. Old gates stay failed, defaults unchanged.
 Audit: results/oracle/bellman_budget_review_20260924.json (local, Git-ignored).
 
 ## Frozen 2,000-case fresh held-out Level-1 validation suite
@@ -632,7 +633,7 @@ Raw cases, manifest, and logs:
 | **Strict Action Errors ($\text{loss} > 10^{-8}$)** | Diagnostic | **0 / 2,000 (0.00%)** | **100.0% Strict Pass** |
 | **Mean First-Action Policy Loss** | Diagnostic | **0.000000** | Perfect first-action agreement |
 | **Max First-Action Policy Loss** | Diagnostic | **0.000000** | Perfect first-action agreement |
-| **Direct Elapsed Panel Wall Time** | Monitored | 43,392.04 s (12.05 h) | Direct GNU time |
+| **Direct Elapsed Panel Wall Time** | Monitored | 43,392.04 s recorded; inconsistent | Unresolved; see audit |
 | **Total Worker Wall Time** | Monitored | 90,054.3 s (25.02 h) | Average 45.03 s / case |
 | **Monitored Peak RSS** | < 4,096 MB | **113.42 MB** | Well within memory ceiling |
 
@@ -654,7 +655,37 @@ Raw cases, manifest, and logs:
 ### Key Takeaways
 
 1. **Definitive Validation Pass**: The candidate planner (`backup="empirical_bellman"` + `--exact-final-step` + bounded UCB $c=1.0$ at 1,000,000 traversals) achieved a 100.0% success rate across all 2,000 held-out cases, meeting the frozen $\epsilon_{\text{loss}} \le 0.020$ primary criterion with 0 failures, and furthermore achieving 0 strict errors across the entire grid.
-2. **Resolution Across All Horizons**: From $H=1$ through $H=5$, every single decision matched the exact oracle optimal policy across both extreme tails ($p=0.005, 0.995$), boundary inflection zones ($p \in [0.065, 0.095]$ and $p \in [0.905, 0.935]$), and uninformative interior beliefs ($p \in [0.125, 0.875]$).
-3. **Execution Integrity**: The suite ran uninterrupted to completion. Elapsed panel wall time was directly recorded as 43,392.04 seconds (12.05 hours) by GNU time, and peak memory stayed at 113.42 MB, confirming operational stability under resource supervision.
-4. **Scope and Future Gates**: This result officially certifies Level-1 Tiger POMDP accuracy at the evaluated budget. In accordance with the project charter, previous 50k and 200k validation failures remain historical failures, and Level-2/Level-4 opponent qualification and production default promotions remain separate pending milestones.
+2. **Agreement across the five tested horizons and twenty belief points**: From $H=1$ through $H=5$, every single decision matched the exact oracle optimal policy across both extreme tails ($p=0.005, 0.995$), boundary inflection zones ($p \in [0.065, 0.095]$ and $p \in [0.905, 0.935]$), and uninformative interior beliefs ($p \in [0.125, 0.875]$).
+3. **Execution Integrity**: The suite ran uninterrupted to completion. All recorded cases completed, and sampled peak RSS was 113.42 MiB. GNU time recorded 43,392.04 seconds, but this contradicts the worker-duration lower bound; elapsed-time integrity remains unresolved.
+4. **Scope and Future Gates**: This result passes the finite L1 first-action validation panel at the evaluated settings; it does not certify all beliefs, horizons, full policies or value estimates. In accordance with the project charter, previous 50k and 200k validation failures remain historical failures, and Level-2/Level-4 opponent qualification and production default promotions remain separate pending milestones.
 
+
+
+### Independent audit of 1b3527a (September 25)
+
+All 2000 cases, source hashes against a866e69, exact requested coverage, settings
+and summary statuses were checked. Exact reference Q values were recomputed for
+100 horizon/belief pairs; all reported policy losses and maximum absolute Q
+errors match. The frozen .020 + 1e-8 numerical gate passes with zero violations,
+zero strict first-action errors and exactly zero recorded loss on this panel.
+
+This is evidence for the specified L1 configuration (uniform L0 opponent, H1-H5,
+twenty physical beliefs, seeds1000-1019, gamma=.95, bounded c=1, empirical Bellman,
+exact final step, 1M traversals). It is not proof of permanent resolution or
+agreement at untested horizons/beliefs/budgets. Prior 1M development cases still
+include four action errors. H5 mean max Q error is 3.668401, with largest
+per-case error 6.476666: selected actions match, estimated values are not exact.
+Global defaults remain unchanged because their configuration and modeled-policy
+resources differ. L2 matching precedes L4/all39 production qualification.
+
+The external .time file does contain 43392.04 s. Verified worker durations sum
+to 90054.254809 s, requiring at least 45027.127405 s with two workers on a
+comparable elapsed clock. These records therefore conflict. The cause has not
+been established; clock domains and timing provenance require investigation.
+Do not label the 12.05 h figure verified or replace it with the lower bound as
+an actual measurement. This discrepancy limits runtime conclusions without
+changing the independently recomputed action-loss verdict. Raw files are retained.
+
+Audit aggregates: results/oracle/bellman_validation_review_20260925.json
+(local and Git-ignored). Next steps and the exact default-promotion limitations
+are recorded in HANDOFF.md. No solver code changed in this review.
