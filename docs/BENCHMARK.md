@@ -859,3 +859,84 @@ No runtime speed claim is made because the full test suite ran concurrently.
 Raw evidence: results/l2-finite-20260925/ including audit.json.
 HANDOFF.md defines the next900-case DEVELOPMENT panel. This is not production
 depth20 qualification, global default promotion or a new held-out validation.
+
+## 900-case Level-2 finite-budget modeled-opponent development study (September 25)
+
+Source checkpoint: bf1c225. Evaluated candidate protagonist MCTS (`backup="empirical_bellman"`,
+`--exact-final-step`, bounded UCB $c=1.0$, $\gamma=0.95$) against the exhaustive best-response reference
+(`FinitePolicyL2Reference`) conditional on the declared `SolverBank` modeled MCTS L1 policy (sampled backups,
+sampled final step, normalized UCB $c=1.0$, fixed depth 3).
+
+Six panels were executed sequentially, crossing Modeled Opponent Budget $B_{\text{opp}} \in \{25, 100\}$ with
+Opponent Physical Belief $b_j \in \{0.085, 0.500, 0.915\}$ across Horizons 1–3, protagonist budgets 1,000
+and 10,000 traversals, seeds 400–404 (5 seeds), and own physical beliefs $b_i \in \{0.05, 0.20, 0.50, 0.80, 0.95\}$
+(150 cases per panel, 900 cases total). All cases ran under 2 supervised spawned workers with 240s timeout and
+2,048 MiB RSS ceiling. Zero timeouts, crashes, or resource kills occurred.
+
+Raw cases, manifests, and logs:
+- `results/oracle/l2_finite_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+
+### Timing and concurrency instrumentation audit
+
+Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and concurrency bound checks:
+
+| Panel | External GNU Elapsed (s) | Parent Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\le 2 \times \text{Elapsed}$) | Monitored Peak RSS (MB) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 50.62 | 53.62 | 93.18 | **PASS** ($46.59 \le 53.62$) | 74.49 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 54.21 | 55.61 | 95.38 | **PASS** ($47.69 \le 55.61$) | 74.49 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 51.32 | 54.28 | 92.86 | **PASS** ($46.43 \le 54.28$) | 74.72 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 51.74 | 54.80 | 94.96 | **PASS** ($47.48 \le 54.80$) | 74.77 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 52.09 | 53.41 | 93.08 | **PASS** ($46.54 \le 53.41$) | 74.54 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 54.50 | 57.38 | 98.26 | **PASS** ($49.13 \le 57.38$) | 75.03 |
+| **Total / Summary** | **314.48 s** | **329.10 s** | **567.72 s** | **PASS (6/6)** | **75.03 MB** |
+
+The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time closely matched
+parent monotonic elapsed time on these short panels (total elapsed ~5.2–5.5 min).
+
+### Accuracy and policy loss performance
+
+Evaluating first-action loss $\mathcal{L} = \max_{a} Q^*(b, a) - Q^*(b, a_{\text{chosen}})$:
+
+| Panel | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Policy Loss | Max Policy Loss | Mean Max Q Error | Max Max Q Error |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0721 | 0.8602 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0978 | 1.6300 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0744 | 1.0749 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0809 | 0.8602 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0693 | 0.6448 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0881 | 1.0749 |
+| **Total / Summary** | **900** | **0 (0.00%)** | **0** | **0.000000** | **0.000000** | **0.0804** | **1.6300** |
+
+Across all 900 cases, **900 decisions (100.0%)** achieved exact oracle agreement.
+
+### Breakdown by horizon and protagonist budget
+
+| Horizon | Root Budget | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err | Mean Oracle Gap |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1** | 1,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0000 | 0.0000 | 15.4000 |
+| **1** | 10,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0000 | 0.0000 | 15.4000 |
+| **2** | 1,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0790 | 0.4024 | 15.7799 |
+| **2** | 10,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0243 | 0.1192 | 15.7799 |
+| **3** | 1,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.2869 | 1.6300 | 17.3169 |
+| **3** | 10,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0924 | 0.7663 | 17.3169 |
+
+### Modeled opponent computation sensitivity ($B_{\text{opp}}=25$ vs $B_{\text{opp}}=100$)
+
+Evaluating across the 225 matched configurations $(b_j, H, b_i, \text{seed})$:
+- **Oracle Action Flips**: **9 out of 225 configuration pairs (4.00%) flip their Bayes-optimal action set** between $B_{\text{opp}}=25$ and $B_{\text{opp}}=100$ (0 at $H=1$, 4 at $H=2$, 5 at $H=3$).
+- **Oracle Value Differences**: **21 out of 225 configuration pairs (9.33%) exhibit value shifts** $> 10^{-4}$ (max action Q difference $7.7330$).
+- At 25 simulations, finite sampling noise causes the opponent to open a door in select boundary conditions where 100 simulations resolve to listening. The reference oracle tracks this policy change exactly, and protagonist MCTS selects the optimal response in 100% of cases under both budgets.
+
+### Signed Q-error analysis
+
+Terminal door-opening actions (`OL`, `OR`) had zero Q error ($\pm 0.0000$) across all cases for $b_j \in \{0.085, 0.915\}$ and for $B_{\text{opp}}=100$ at $b_j=0.5$. Mean signed Q error on action `L` was $+0.0146$ to $+0.0284$ ($B_{\text{opp}}=25$) and $-0.0048$ to $+0.0361$ ($B_{\text{opp}}=100$).
+
+### Development conclusions
+
+These results validate that protagonist MCTS with empirical Bellman backups accurately solves against finite-computation modeled opponents at fixed depth 3. This is development evidence; production depth 20, mixed levels, and empirical priors remain pending.
+

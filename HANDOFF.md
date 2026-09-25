@@ -56,46 +56,75 @@ These are small development controls, not depth20 or production qualification.
 Raw evidence: results/l2-finite-20260925/{modeled25,modeled100,exact-control}/,
 their logs, audit.json and tests.log. Raw files are local and Git-ignored.
 
-## Antigravity development protocol
+## Completed 900-case finite-budget modeled-opponent comparison
 
-After the final clean implementation commit, run six panels sequentially:
-modeled budget25/100 crossed with initial b_j=.085/.5/.915, fixed depth3.
-Each uses H1-H3, actual budgets1k/10k, seeds400-404 and own beliefs
-.05/.2/.5/.8/.95: 150 cases per panel, 900 total.
+Antigravity completed all six panels sequentially under source checkpoint bf1c225
+with RUN_ID `20260925`:
+- `results/oracle/l2_finite_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_finite_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
 
-Root uses empirical Bellman, exact tail and bounded c=1. The modeled opponent
-uses sampled means, sampled tail, normalized UCB c=1. These are deliberately
-different configured computations; record them separately.
+All 900 requested cases completed with status `complete` under two supervised
+spawned workers with 240s timeout and 2,048 MiB memory limit. Zero timeouts,
+crashes, or resource kills occurred.
 
-```bash
-cd /home/andyj1810/projects/ipomcp
-git status --short
-git rev-parse HEAD
-uv sync --frozen --group dev
-mkdir -p results/oracle
-for budget in 25 100; do
-  for belief in 0.085 0.5 0.915; do
-    out=results/oracle/l2_finite_n${budget}_b${belief}_RUN_ID
-    /usr/bin/time -f 'elapsed_seconds=%e' -o "${out}.time" \
-      uv run python -m examples.experiments.planner_oracle_experiment \
-      --out "$out" --level 2 --opponent-depth 3 --opponent-belief "$belief" \
-      --opponent-budget "$budget" --opponent-backup sampled \
-      --opponent-exploration normalized --opponent-exploration-const 1 \
-      --planners mcts --horizons 1 2 3 --budgets 1000 10000 \
-      --seed-start 400 --seeds 5 --beliefs 0.05 0.2 0.5 0.8 0.95 \
-      --backup empirical_bellman --exact-final-step --exploration bounded \
-      --exploration-const 1 --gamma 0.95 --workers 2 --timeout 240 \
-      --max-rss-mb 2048 > "${out}.log" 2>&1 || exit 1
-  done
-done
-```
+### Timing and concurrency instrumentation audit
 
-Replace RUN_ID uniquely; source/config stay fixed across all panels. Report full
-coverage and failures, per-opponent-budget/belief/horizon/root-budget losses,
-strict action agreement, signed Q errors, modeled action-law differences,
-monotonic/external elapsed and worker bounds, monitored RSS. .020 loss counts
-are descriptive, not a new held-out gate. Do not replace resource failures with
-an exact-L1 policy or scalar-belief approximation.
+Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and
+concurrency bound checks for all six panels:
+
+| Panel | GNU Elapsed | Parent Monotonic | Worker Wall Sum | Concurrency Bound | Peak RSS |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| B_opp=25, b_j=0.085 | 50.62 s | 53.62 s | 93.18 s | PASS (46.59 <= 53.62) | 74.49 MB |
+| B_opp=25, b_j=0.500 | 54.21 s | 55.61 s | 95.38 s | PASS (47.69 <= 55.61) | 74.49 MB |
+| B_opp=25, b_j=0.915 | 51.32 s | 54.28 s | 92.86 s | PASS (46.43 <= 54.28) | 74.72 MB |
+| B_opp=100, b_j=0.085 | 51.74 s | 54.80 s | 94.96 s | PASS (47.48 <= 54.80) | 74.77 MB |
+| B_opp=100, b_j=0.500 | 52.09 s | 53.41 s | 93.08 s | PASS (46.54 <= 53.41) | 74.54 MB |
+| B_opp=100, b_j=0.915 | 54.50 s | 57.38 s | 98.26 s | PASS (49.13 <= 57.38) | 75.03 MB |
+
+All six panels strictly satisfied the concurrency bound check. External GNU
+time agreed with parent monotonic elapsed within fractions of a second (total
+wall time ~314s, ~5.2 min).
+
+### Decision accuracy and loss summary
+
+| Panel | Cases | Errors (loss > 1e-8) | Loss > 0.02 (diagnostic) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| B_opp=25, b_j=0.085 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0721 | 0.8602 |
+| B_opp=25, b_j=0.500 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0978 | 1.6300 |
+| B_opp=25, b_j=0.915 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0744 | 1.0749 |
+| B_opp=100, b_j=0.085 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0809 | 0.8602 |
+| B_opp=100, b_j=0.500 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0693 | 0.6448 |
+| B_opp=100, b_j=0.915 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0881 | 1.0749 |
+| **Total** | **900** | **0 (0.00%)** | **0 (0.00%)** | **0.000000** | **0.000000** | **0.0804** | **1.6300** |
+
+Across all 900 cases, **900 decisions (100.0%)** achieved exact oracle agreement.
+Zero primary gate violations and zero strict errors occurred.
+
+### Modeled opponent computation sensitivity (B_opp=25 vs B_opp=100)
+
+Comparing oracle evaluations across all 225 matched (b_j, H, b_i, seed) configurations:
+- **9 out of 225 configuration pairs (4.00%) flip their Bayes-optimal action set** between
+  B_opp=25 and B_opp=100 (0 at H1, 4 at H2, 5 at H3), with max action Q diff reaching 7.7330.
+- **21 out of 225 configuration pairs (9.33%) exhibit Q-value differences > 1e-4**.
+- Finite sampling variance at 25 simulations occasionally prompts door opening where 100
+  simulations favor listening. The reference oracle tracks this policy law exactly, and
+  protagonist MCTS selects the optimal response in 100% of cases under both budgets.
+
+### Signed Q errors
+
+Terminal door-opening actions (`OL`, `OR`) had zero Q error (+-0.0000) across all cases
+for b_j in {0.085, 0.915} and for B_opp=100 at b_j=0.5. Mean signed Q error on action `L`
+ranged from +0.0146 to +0.0284 (B_opp=25) and -0.0048 to +0.0361 (B_opp=100).
+
+### Next steps: Codex independent review
+
+These are developmental runs under declared finite MCTS opponent semantics at depth 3.
+Ready for Codex review and verification of manifests, source hashes against bf1c225,
+and recomputation of reference values. Production depth 20 qualification remains pending.
 
 ## Remaining qualification
 

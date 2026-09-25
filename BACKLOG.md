@@ -20,12 +20,15 @@
   H3, 1k budget, seed 301, loss 0.3377; resolved at 10k). Concurrency bounds passed on
   all 6 panels, with parent monotonic elapsed (~52-55 s) matching GNU time within fractions
   of a second. Depth comparison confirmed 8 oracle action flips between d=1 and d=2.
-  Codex independently verified all cases, values and timing intervals. The depth
-  comparison has 8 action flips out of 45 configurations. Opening resets rather
-  than terminates Tiger. Results remain development evidence; production finite-budget
-  modeled-opponent reference is now implemented for pure L1 Tiger opponents.
-  Run the finite-budget development protocol in HANDOFF.md before production
-  qualification. Fixed depth3 smoke does not qualify production depth20.
+- Level-2 finite-budget modeled-opponent development comparison COMPLETED: The 900-case
+  development suite (modeled budgets 25 and 100, b_j in {.085, .5, .915}, H1-H3, budgets 1k/10k,
+  seeds 400-404, own beliefs .05/.2/.5/.8/.95) completed with 900/900 strictly optimal decisions
+  (100.0% strict pass rate) and zero gate violations across all 6 panels. Concurrency bounds passed
+  on all panels (parent monotonic elapsed ~53-57s matching external GNU time within seconds).
+  Opponent budget comparison confirmed 9 oracle action flips and 21 Q-value shifts between 25 and 100
+  simulations, demonstrating that modeled computation alters the policy law and induced decision task.
+  Results are development evidence awaiting Codex independent review; production depth 20 qualification
+  remains pending.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on
