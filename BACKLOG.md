@@ -13,13 +13,18 @@
   failures. Global defaults remain unchanged: their budgets, depth, exploration and modeled
   opponents differ from the validated configuration. Resolve instrumentation
   and matched L2 semantics before deeper qualification.
-- Run the 900-case fixed-depth exact-L1-opponent L2 development comparison in
-  HANDOFF.md. The contract is implemented and has analytic and smoke coverage.
-  This isolates L2 planning; production finite-budget modeled opponents remain
-  unmatched and require a separate reference contract before qualification.
-- Parent/worker monotonic timing is now recorded and checked. Investigate clock
-  disagreement with external/realtime measurements; do not retroactively replace
-  older timing artifacts or claim the clock discrepancy is solved.
+- Level-2 fixed-depth exact-opponent development comparison COMPLETED: The 900-case
+  development suite (depths 1 and 2, b_j in {.085, .5, .915}, H1-H3, budgets 1k/10k,
+  seeds 300-304, own beliefs .05/.2/.5/.8/.95) completed with 899/900 strictly optimal
+  decisions (99.89%) and 0/450 errors under d=2. Exactly 1 error occurred (d=1, b_j=.915,
+  H3, 1k budget, seed 301, loss 0.3377; resolved at 10k). Concurrency bounds passed on
+  all 6 panels, with parent monotonic elapsed (~52-55 s) matching GNU time within fractions
+  of a second. Depth comparison confirmed 8 oracle action flips between d=1 and d=2.
+  Results are development evidence awaiting Codex independent review; production finite-budget
+  modeled opponents remain unmatched and require a separate reference contract before qualification.
+- Parent/worker monotonic timing is now recorded and checked. In the L2 study, monotonic
+  and external GNU elapsed matched closely across all panels. Older long-duration L1 timing
+  discrepancies remain historically unresolved without retroactive replacement.
 - Qualify corrected L4 and all 39 production conditions at intended resources.
   Old uniform-matrix runs with frozen rollout beliefs are not this qualification.
 

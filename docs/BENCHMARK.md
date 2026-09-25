@@ -712,3 +712,93 @@ are unchanged. Short-run timing under concurrent test load is not a speed claim.
 
 Raw evidence: results/l2-contract-20260925/smoke/ plus smoke.log and smoke.time.
 HANDOFF.md specifies the next 900-case development panel. Defaults remain unchanged.
+
+## 900-case Level-2 fixed-depth contract development study (September 25)
+
+Source checkpoint: 01f36cf (preceded by implementation at 1fad300).
+Evaluated candidate MCTS (`backup="empirical_bellman"`, `--exact-final-step`, bounded UCB $c=1.0$, $\gamma=0.95$)
+against the fixed-depth exact reference oracle (`ExactIPOMDPSolver` with explicit `opponent_horizon=d`).
+Six panels were executed sequentially, crossing Opponent Replanning Depth $d \in \{1, 2\}$ with Opponent
+Prior Physical Belief $b_j \in \{0.085, 0.5, 0.915\}$ across Horizons 1–3, budgets 1,000 and 10,000 traversals,
+seeds 300–304 (5 seeds), and own physical beliefs $b_i \in \{0.05, 0.20, 0.50, 0.80, 0.95\}$ (150 cases per panel,
+900 cases total). All cases ran under 2 supervised spawned workers with 240-second timeout and 2,048-MiB RSS ceiling.
+Zero crashes, timeouts, or resource kills occurred.
+
+Raw cases, manifests, and logs:
+- `results/oracle/l2_fixed_d1_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fixed_d1_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fixed_d1_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fixed_d2_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fixed_d2_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fixed_d2_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+
+### Timing and concurrency instrumentation audit
+
+Parent monotonic start/finish endpoints (`CLOCK_MONOTONIC`), individual worker wall times, and external
+GNU `/usr/bin/time` measurements were captured. The monotonic concurrency bound
+($\sum t_{\text{worker}} / 2 \le \Delta t_{\text{monotonic}}$) was strictly satisfied across all six panels:
+
+| Panel | External GNU Elapsed (s) | Parent Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\le 2 \times \text{Elapsed}$) | Monitored Peak RSS (MB) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| $d=1, b_j=0.085$ | 54.07 | 54.57 | 94.40 | **PASS** ($47.20 \le 54.57$) | 74.68 |
+| $d=1, b_j=0.500$ | 54.47 | 54.87 | 94.45 | **PASS** ($47.23 \le 54.87$) | 74.79 |
+| $d=1, b_j=0.915$ | 54.36 | 54.79 | 94.00 | **PASS** ($47.00 \le 54.79$) | 74.72 |
+| $d=2, b_j=0.085$ | 52.14 | 52.07 | 91.38 | **PASS** ($45.69 \le 52.07$) | 74.52 |
+| $d=2, b_j=0.500$ | 53.12 | 53.66 | 92.03 | **PASS** ($46.02 \le 53.66$) | 74.51 |
+| $d=2, b_j=0.915$ | 53.43 | 53.88 | 93.71 | **PASS** ($46.86 \le 53.88$) | 75.01 |
+| **Total / Summary** | **321.59 s** | **323.84 s** | **560.00 s** | **PASS (6/6)** | **75.01 MB** |
+
+External GNU elapsed time matches parent monotonic elapsed time within fractions of a second across all panels,
+demonstrating measurement agreement under clean single-panel batch execution.
+
+### Accuracy and policy loss performance
+
+Evaluating first-action loss $\mathcal{L} = \max_{a} Q^*(b, a) - Q^*(b, a_{\text{chosen}})$:
+
+| Panel | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Gate Fail ($\mathcal{L} > 0.02$) | Mean Policy Loss | Max Policy Loss | Mean Max Q Error | Max Max Q Error |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| $d=1, b_j=0.085$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0227 | 0.3979 |
+| $d=1, b_j=0.500$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0707 | 0.8183 |
+| $d=1, b_j=0.915$ | 150 | 1 (0.7%) | 1 | 0.002251 | 0.337700 | 0.0273 | 0.4615 |
+| $d=2, b_j=0.085$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.1034 | 1.6567 |
+| $d=2, b_j=0.500$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0707 | 0.8183 |
+| $d=2, b_j=0.915$ | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0867 | 1.0469 |
+| **Total / Summary** | **900** | **1 (0.11%)** | **1** | **0.000375** | **0.337700** | **0.0636** | **1.6567** |
+
+Across all 900 cases, **899 decisions (99.89%)** achieved exact oracle agreement. Under Opponent Depth $d=2$,
+the solver achieved **450 / 450 (100.0%) strictly optimal decisions**.
+
+### Breakdown by horizon and budget
+
+| Horizon | Budget | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Gate Fail ($>0.02$) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err | Mean Oracle Gap |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1** | 1,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0000 | 0.0000 | 15.4000 |
+| **1** | 10,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0000 | 0.0000 | 15.4000 |
+| **2** | 1,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0519 | 0.3199 | 15.6713 |
+| **2** | 10,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0140 | 0.0891 | 15.6713 |
+| **3** | 1,000 | 150 | 1 (0.7%) | 1 | 0.002251 | 0.337700 | 0.2556 | 1.6567 | 17.0110 |
+| **3** | 10,000 | 150 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0599 | 0.2965 | 17.0110 |
+
+The single observed error occurred at $d=1, b_j=0.915, H=3, B=1000, b_i=0.05$, seed 301. Oracle best was
+`OL` ($Q^*=2.6475$, gap $0.3377$ over `L` at $2.3098$). Sampling noise at 1,000 traversals estimated $\hat{Q}(L)=2.7713$,
+incurring loss $0.33770$. At budget 10,000 (seed 301), $\hat{Q}(L)=2.3421 < 2.6475 = \hat{Q}(OL)$, achieving **zero loss**.
+
+### Opponent depth semantics: depth 1 vs depth 2 comparison
+
+Holding physical beliefs and horizons identical, comparing oracle evaluations under $d=1$ vs $d=2$:
+- **Oracle Action Flips**: **8 out of 30 horizon/belief configurations (26.7%) flip their Bayes-optimal action**, with value discrepancies up to $\Delta Q^* = 7.7330$.
+- **Oracle Value Differences**: **18 out of 30 configurations (60.0%) have value shifts** exceeding $10^{-4}$.
+- **Flips at $b_j=0.085$**: At $H=2$ ($b_i=0.05, 0.95$) and $H=3$ ($b_i=0.05, 0.95$), the optimal action flips from opening doors under $d=1$ (`OL` or `OR`) to listening (`L`) under $d=2$. Under $d=2$, the opponent plans ahead and opens the door safely, allowing protagonist $i$ to listen without collision risk.
+- **Flips at $b_j=0.915$**: Symmetrical flips occur at $H=2$ ($b_i=0.05, 0.95$) and $H=3$ ($b_i=0.05, 0.95$).
+- **$b_j=0.500$**: An uninformative opponent listens under both $d=1$ and $d=2$; 0 action flips occur.
+
+This confirms that opponent replanning horizon is an intrinsic part of the game model. MCTS with fixed opponent depth $d$ correctly tracks the reference oracle under that same model.
+
+### Signed Q-error analysis
+
+Terminal door-opening actions (`OL`, `OR`) exhibited **identically zero Q error** ($\pm 0.0000$) across all 900 cases because immediate door opening resolves without nested recursive tree search. All value estimation error was confined to action `L`, where the agent simulates recursive opponent planning. Mean signed Q error on `L` was $+0.0001$ to $+0.0107$ under $d=1$, and $-0.0179$ to $+0.0107$ under $d=2$.
+
+### Development conclusions
+
+These results validate the fixed-depth contract implementation in `ExactIPOMDPSolver` and runner. This is development evidence under declared exact-L1 opponent semantics. It does not qualify production Level-2 configurations (which feature finite-budget 25-simulation modeled opponents) or authorize global default changes.
+
