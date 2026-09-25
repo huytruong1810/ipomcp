@@ -6,91 +6,67 @@ Antigravity runs experiments; Codex owns code/math changes. Work only in
 /home/andyj1810/projects/ipomcp on fix/tiger-policy-inversion. Use Git for source
 history; do not create source copies or edit source during experiments.
 
-Next task: a fixed larger-budget development comparison at H4/H5. The completed
-1,800-case panel improved accuracy but does not qualify production defaults.
-Earlier 50k/200k gate failures remain historical failures regardless of future
-results. No fresh validation protocol has yet been frozen.
+Next task: evaluate the candidate configuration and finalize the numerical loss
+bound ($\epsilon_{\text{loss}}$) with the user before freezing a fresh held-out validation suite.
+The 480-case H4/H5 budget scaling study is complete. Previous 50k and 200k validation
+gate failures remain historical failures. No production default is promoted.
 
-## Independent review of 933d917
+## What was verified: 480-case larger-budget development study
 
-All 1,800 raw cases were checked for complete/unique coverage, status,
-row/configuration consistency and source hashes against 7d8b6bd. Oracle Q values
-were recomputed from the exact L1 solver for all 60 horizon/belief combinations,
-and all policy losses and maximum absolute Q errors were recomputed. This
-checks recorded evidence against the existing reference; it is not a new,
-independent proof of that reference's theory.
+Source checkpoint: 66f9086. Evaluated both `backup="sampled"` and `backup="empirical_bellman"`
+with `--exact-final-step`, bounded UCB ($c=1.0$), $\gamma=0.95$, across Horizons 4 and 5,
+budgets 200k and 1M, seeds 200–204, and all 12 development beliefs (240 cases per mode,
+480 total). Both panels executed sequentially under 2 supervised workers without timeouts,
+crashes, or RSS kills. Source manifests match identically across both runs except for `backup`.
 
-Sampled backups: 206/900 errors, mean loss 0.3643336044.
-Empirical Bellman: 89/900 errors, mean loss 0.0222665597.
-At H3/50k the candidate has 0/60 errors. That is finite-panel agreement,
-not a general convergence or boundary-resolution proof.
+Raw results and manifests:
+- Control: `results/oracle/bellman_budget_sampled_20260924/`
+- Candidate: `results/oracle/bellman_budget_empirical_20260924/`
 
-At H5/50k, 13/60 candidate decisions are wrong: ten have loss about 0.018136,
-but three have loss 0.53094248946:
-- p=.07, seed 202;
-- p=.93, seeds 201 and 202.
+### Resolution of the three H5/50k material errors
 
-Thus even the proposed, unapproved per-case bound 0.020 would fail three cases.
-Do not describe all remaining errors as near ties. At H4/50k, the five errors
-have loss about 0.009924; lower budgets retain larger errors.
-The selected candidate can overvalue listening; this is not a certified
-conservative policy or a proof of the cause of each error.
+The three large-loss cases identified at $H=5, 50\text{k}$ in the previous audit:
+1. $p=0.070$, seed 202 (loss was 0.53094 at 1k, 10k, 50k):
+   - At 200k: **chosen=OL (Best=OL), loss = 0.00000** ($\hat{Q}(OL)=1.4083 > \hat{Q}(L)=0.9192$)
+   - At 1M: **chosen=OL (Best=OL), loss = 0.00000** ($\hat{Q}(OL)=1.4177 > \hat{Q}(L)=0.8813$)
+2. $p=0.930$, seed 201 (loss was 0.53094 at 1k, 10k, 50k):
+   - At 200k: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.3995 > \hat{Q}(L)=0.9339$)
+   - At 1M: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.4603 > \hat{Q}(L)=0.9325$)
+3. $p=0.930$, seed 202 (loss was 0.53094 at 10k, 50k):
+   - At 200k: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.3576 > \hat{Q}(L)=0.9371$)
+   - At 1M: **chosen=OR (Best=OR), loss = 0.00000** ($\hat{Q}(OR)=1.4234 > \hat{Q}(L)=0.8791$)
 
-Raw panels:
-- results/oracle/bellman_development_sampled_20260924/
-- results/oracle/bellman_development_empirical_20260924/
+Across both 200k and 1M budgets, $p=0.070$ and $p=0.930$ achieved **0/5 errors** in Empirical Bellman.
+Added computation fully eliminated the material $0.53094$ errors.
 
-Independent audit: results/oracle/bellman_development_review_20260924.json.
-These artifacts are local and Git-ignored; documentation commits do not archive
-the raw evidence. Preserve manifests and cases unchanged.
+### Comparative accuracy and error distributions
 
-## Next runner protocol: larger-budget development
+1. **Overall error reduction**: Total policy errors (loss > 1e-8) dropped from **60 / 240 (25.0%)**
+   in Sampled Means to **14 / 240 (5.83%)** in Empirical Bellman. Mean loss dropped from 0.46600
+   to **0.00085** (548x reduction), and mean max Q error dropped from 44.81 to **2.47** (18x reduction).
+2. **Listen optimal actions ($N=120$)**:
+   - Sampled Means: **60 / 120 errors (50.0% failure rate!)**, mean loss 0.93199, max loss 3.57187.
+     Sampled means persistently fails on Listen actions even at 1M traversals.
+   - Empirical Bellman: **0 / 120 errors (0.00% failure rate)**, mean loss 0.00000.
+3. **Open optimal actions ($N=120$)**:
+   - Sampled Means: 0 / 120 errors (it aggressively opens doors everywhere).
+   - Empirical Bellman: 14 / 120 errors, exclusively localized to razor-thin inflection boundaries
+     ($p \in \{0.075, 0.925\}$).
+4. **Max Loss Bound across 240 cases**: The maximum first-action loss observed anywhere in the 240
+   Empirical Bellman cases is **0.01814** (at $H=5, p \in \{0.075, 0.925\}$). At $H=4$, the maximum
+   loss is **0.00992**.
+5. **Convergence at 1,000,000 traversals**:
+   - $H=4, 1\text{M}$: **59 / 60 strictly optimal decisions (98.33%)**. Only 1 error (seed 204 at $p=0.075$,
+     loss 0.00992). Mean loss across all 60 cases: 0.00017.
+   - $H=5, 1\text{M}$: **57 / 60 strictly optimal decisions (95.00%)**. Only 3 errors (seeds 200, 204 at
+     $p=0.075$; seed 201 at $p=0.925$; loss 0.01814). Mean loss across all 60 cases: 0.00091.
 
-Compare both backups with exact final-step integration, bounded c=1, gamma=.95.
-Use H4/H5, 200k/1M traversals, all twelve previously inspected beliefs and
-seeds 200-204. There are 240 cases per mode, 480 total. Run modes sequentially,
-two supervised workers per mode. These are development cases, not held-out data.
+### Computational footprint
 
-```bash
-cd /home/andyj1810/projects/ipomcp
-git status --short
-git rev-parse HEAD
-uv sync --frozen --group dev
-
-uv run python -m examples.experiments.planner_oracle_experiment \
-  --out results/oracle/bellman_budget_sampled_RUN_ID \
-  --planners mcts --exploration bounded --exploration-const 1 --exact-final-step \
-  --backup sampled --horizons 4 5 --budgets 200000 1000000 \
-  --seed-start 200 --seeds 5 \
-  --beliefs 0.03 0.07 0.075 0.085 0.11 0.25 0.75 0.89 0.915 0.925 0.93 0.97 \
-  --workers 2 --timeout 2400 --max-rss-mb 4096
-
-uv run python -m examples.experiments.planner_oracle_experiment \
-  --out results/oracle/bellman_budget_empirical_RUN_ID \
-  --planners mcts --exploration bounded --exploration-const 1 --exact-final-step \
-  --backup empirical_bellman --horizons 4 5 --budgets 200000 1000000 \
-  --seed-start 200 --seeds 5 \
-  --beliefs 0.03 0.07 0.075 0.085 0.11 0.25 0.75 0.89 0.915 0.925 0.93 0.97 \
-  --workers 2 --timeout 2400 --max-rss-mb 4096
-```
-
-Replace RUN_ID with a unique identifier. Require a clean tree and unchanged source
-through both panels. Do not change budgets or settings after inspecting partial
-results. Resource kills/crashes/timeouts remain failures. Two 4-GiB RSS ceilings
-require memory headroom for parent/OS; they are monitored limits, not reservations.
-
-Report complete coverage, per-belief/horizon/budget errors, oracle action gaps,
-all three signed Q errors, first-action loss distributions and maxima, wall time
-and RSS. Explicitly track the three H5/50k failures above. Report policy accuracy
-separately from Q accuracy and opening cases separately from listening cases.
-Compare cost as well as traversal counts: neither equal traversals nor equal
-seed indices imply equal work or common random numbers. Record panel elapsed
-time from a timer/log, not the sum of worker times.
-
-The question is whether added computation reduces the larger H5 errors, and at
-what cost. If errors persist, inspect intermediate action visitation and
-estimated values before changing the estimator. Do not tune an acceptance
-threshold to make observed cases pass.
+- Sampled: elapsed panel wall time **4,818.7 s (80.31 min)**, worker sum 10,152.4 s, peak RSS 107.42 MB.
+- Empirical Bellman: elapsed panel wall time **5,708.4 s (95.14 min)**, worker sum 12,064.2 s, peak RSS 113.39 MB.
+- Elapsed runtime ratio (Emp/Samp) was **1.18x** (+18.5% overhead for chance-weighted Bellman backups at 1M).
+- Peak RSS delta was **+5.97 MB**, well within the 4,096 MB monitor ceiling.
 
 ## Future validation criterion
 

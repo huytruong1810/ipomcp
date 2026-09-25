@@ -2,12 +2,13 @@
 
 ## P0: accuracy and resource qualification
 
-- The 1,800-case H1-H5 development panel is independently verified (89/900
-  candidate errors versus 206/900 control). H3/50k has 0/60 candidate errors;
-  H5/50k retains three losses of 0.530942, besides ten near-tie losses of 0.018136.
-  Run the fixed H4/H5 200k/1M development comparison in HANDOFF.md before selecting
-  a fresh validation configuration. No default is promoted, and previous failed
-  gates remain failures permanently; a future gate is a separate result.
+- The 480-case H4/H5 larger-budget development panel (200k/1M traversals) is complete
+  (14/240 candidate errors versus 60/240 control). The three material 0.53094 loss cases
+  at H5 were fully resolved at 200k and 1M (0 errors at $p=0.070, 0.930$). At 1M traversals,
+  Empirical Bellman achieved 59/60 optimal decisions at H4 (loss $\le 0.00992$) and 57/60
+  at H5 (loss $\le 0.01814$). Max loss across all 240 candidate cases is 0.01814.
+  No default is promoted, and previous failed gates remain historical failures.
+  Freeze the numerical loss bound ($\epsilon_{\text{loss}}$) before running fresh validation.
 - Match the intentional policy model before comparing L2 with an exact oracle.
   The L2 reference currently has a common decreasing finite horizon, whereas
   production modeled MCTS policies replan at their configured fixed depth and

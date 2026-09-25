@@ -521,3 +521,59 @@ Next: fixed H4/H5 budgets 200k/1M, both backups, the same twelve development
 beliefs and seeds 200-204 (480 cases total). See HANDOFF.md. This measures whether
 larger computation reduces the material H5 losses before selecting a candidate
 for fresh validation. No production default or theoretical claim is changed.
+
+### 480-case H4–H5 larger-budget development comparison (200k and 1M traversals)
+
+Source checkpoint: 66f9086. Evaluated both `backup="sampled"` and `backup="empirical_bellman"`
+with `--exact-final-step`, bounded UCB ($c=1.0$), $\gamma=0.95$, across Horizons 4 and 5,
+budgets of 200,000 and 1,000,000 traversals, seeds 200–204 (5 seeds), and all 12 development
+beliefs: 0.03, 0.07, 0.075, 0.085, 0.11, 0.25, 0.75, 0.89, 0.915, 0.925, 0.93, 0.97 (240 cases
+per mode, 480 total). Both panels executed sequentially under 2 supervised workers without
+timeouts, crashes, or memory kills.
+
+Raw cases and manifests:
+- Control: `results/oracle/bellman_budget_sampled_20260924/`
+- Candidate: `results/oracle/bellman_budget_empirical_20260924/`
+
+#### Overall performance summary
+
+| Backup | Total Cases | Errors (loss > 1e-8) | Error Rate | Mean First-Action Loss | Max First-Action Loss | Mean Max Q Error | Total Worker Wall (s) | Elapsed Panel Wall (s) | Monitored Peak RSS (MB) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **sampled** | 240 | 60 | 25.00% | 0.46600 | 3.57187 | 44.81183 | 10,152.4 | 4,818.7 (80.3m) | 107.42 |
+| **empirical_bellman** | 240 | 14 | **5.83%** | **0.00085** | **0.01814** | **2.47296** | 12,064.2 | 5,708.4 (95.1m) | 113.39 |
+
+#### Breakdown by horizon and budget
+
+| H | Budget | Sampled Errs / 60 | Sampled Mean Loss | Sampled Mean Max Q Error | Empirical Errs / 60 | Empirical Mean Loss | Empirical Mean Max Q Error | Wall Ratio (Emp/Samp) |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 200,000 | 10 (16.7%) | 0.16877 | 38.0633 | **5 (8.3%)** | **0.00083** | **1.7239** | 1.16x |
+| 4 | 1,000,000 | 10 (16.7%) | 0.16877 | 36.6313 | **1 (1.7%)** | **0.00017** | **1.3603** | 1.19x |
+| 5 | 200,000 | 20 (33.3%) | 0.76322 | 52.0554 | **5 (8.3%)** | **0.00151** | **3.3173** | 1.19x |
+| 5 | 1,000,000 | 20 (33.3%) | 0.76322 | 52.4974 | **3 (5.0%)** | **0.00091** | **3.4903** | 1.19x |
+
+#### Per-belief error counts (Sampled vs Empirical Bellman over 5 seeds)
+
+| H | Budget | 0.030 | 0.070 | 0.075 | 0.085 | 0.110 | 0.250 | 0.750 | 0.890 | 0.915 | 0.925 | 0.930 | 0.970 |
+| ---: | ---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| 4 | 200,000 | 0/0 | 0/0 | 0/3 | 5/0 | 0/0 | 0/0 | 0/0 | 0/0 | 5/0 | 0/2 | 0/0 | 0/0 |
+| 4 | 1,000,000 | 0/0 | 0/0 | 0/1 | 5/0 | 0/0 | 0/0 | 0/0 | 0/0 | 5/0 | 0/0 | 0/0 | 0/0 |
+| 5 | 200,000 | 0/0 | 0/0 | 0/3 | 5/0 | 5/0 | 0/0 | 0/0 | 5/0 | 5/0 | 0/2 | 0/0 | 0/0 |
+| 5 | 1,000,000 | 0/0 | 0/0 | 0/2 | 5/0 | 5/0 | 0/0 | 0/0 | 5/0 | 5/0 | 0/1 | 0/0 | 0/0 |
+
+#### Resolution of the three H5/50k material errors
+
+The three large-loss cases identified at $H=5, 50\text{k}$ in the previous audit:
+1. $p=0.070$, seed 202 (loss was 0.53094 at 1k, 10k, 50k): resolved to **0.00000** at 200k ($\hat{Q}(OL)=1.4083 > \hat{Q}(L)=0.9192$) and **0.00000** at 1M ($\hat{Q}(OL)=1.4177 > \hat{Q}(L)=0.8813$).
+2. $p=0.930$, seed 201 (loss was 0.53094 at 1k, 10k, 50k): resolved to **0.00000** at 200k ($\hat{Q}(OR)=1.3995 > \hat{Q}(L)=0.9339$) and **0.00000** at 1M ($\hat{Q}(OR)=1.4603 > \hat{Q}(L)=0.9325$).
+3. $p=0.930$, seed 202 (loss was 0.53094 at 10k, 50k): resolved to **0.00000** at 200k ($\hat{Q}(OR)=1.3576 > \hat{Q}(L)=0.9371$) and **0.00000** at 1M ($\hat{Q}(OR)=1.4234 > \hat{Q}(L)=0.8791$).
+
+Across both 200k and 1M budgets, $p=0.070$ and $p=0.930$ achieved **0/5 errors** in Empirical Bellman. Added computation fully eliminated the material $0.53094$ errors.
+
+#### Key findings and remaining errors
+
+1. **Max Loss Bound across 240 cases**: The maximum first-action loss observed anywhere in the 240 Empirical Bellman cases is **0.01814** (at $H=5, p \in \{0.075, 0.925\}$). At $H=4$, the maximum loss is **0.00992**.
+2. **Convergence at $H=4, 1\text{M}$**: At 1,000,000 traversals, Empirical Bellman achieved **59/60 strictly optimal decisions (98.33%)**, with only 1 seed failing at $p=0.075$ with loss 0.00992 (mean loss across all 60 cases was 0.00017).
+3. **Convergence at $H=5, 1\text{M}$**: At 1,000,000 traversals, Empirical Bellman achieved **57/60 strictly optimal decisions (95.00%)**, with only 3 remaining cases failing at $p=0.075$ (2 seeds) and $p=0.925$ (1 seed), each with loss 0.01814 (mean loss across all 60 cases was 0.00091).
+4. **Structural limits of Sampled Means**: Even at 1,000,000 traversals, Sampled Means failed on 10/60 cases at $H=4$ and 20/60 cases at $H=5$ (50.0% failure on Listen optimal actions), with mean loss 0.46600 and mean max Q error of 44.81. Increased budget does not repair the depth-1 exploration drag in sampled returns.
+5. **Computational Cost**: Empirical Bellman added 18.5% elapsed wall time across 240 cases (5,708s vs 4,819s; ~95 min vs ~80 min panel time) and peak RSS of 113.4 MB vs 107.4 MB.
+
