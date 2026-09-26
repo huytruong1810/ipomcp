@@ -979,3 +979,84 @@ not long-horizon production qualification.
 Audit: results/oracle/l2_finite_review_20260925.json.
 Pilot: results/oracle/l2_finite_depth20_pilot_20260925/ and sibling log.
 No solver changes; HANDOFF.md defines a360-case depth20 development extension.
+
+## 360-case Level-2 depth-20 development extension (September 25)
+
+Source checkpoint: 06cdcd3. Evaluated candidate protagonist MCTS (`backup="empirical_bellman"`,
+`--exact-final-step`, bounded UCB $c=1.0$, $\gamma=0.95$) against the exhaustive best-response reference
+(`FinitePolicyL2Reference`) conditional on the declared `SolverBank` modeled MCTS L1 policy at depth 20
+(sampled backups, sampled final step, normalized UCB $c=1.0$, fixed depth 20).
+
+Six panels were executed sequentially, crossing Modeled Opponent Budget $B_{\text{opp}} \in \{25, 100\}$ with
+Opponent Physical Belief $b_j \in \{0.085, 0.500, 0.915\}$ across Horizons 1–3, protagonist budgets 1,000
+and 10,000 traversals, seeds 400–401 (2 seeds), and own physical beliefs $b_i \in \{0.05, 0.20, 0.50, 0.80, 0.95\}$
+(60 cases per panel, 360 cases total). All cases ran under 2 supervised spawned workers with 240s timeout and
+2,048 MiB RSS ceiling. Zero timeouts, crashes, or resource kills occurred.
+
+Raw cases, manifests, and logs:
+- `results/oracle/l2_depth20_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth20_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth20_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth20_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth20_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth20_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+
+### Timing and concurrency instrumentation audit
+
+Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and concurrency bound checks:
+
+| Panel | External GNU Elapsed (s) | Parent Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\le 2 \times \text{Elapsed}$) | Monitored Peak RSS (MB) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 21.58 | 22.27 | 39.02 | **PASS** ($19.51 \le 22.27$) | 74.59 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 19.49 | 20.65 | 36.47 | **PASS** ($18.24 \le 20.65$) | 74.79 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 22.80 | 22.28 | 38.45 | **PASS** ($19.23 \le 22.28$) | 74.77 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 25.22 | 26.46 | 46.67 | **PASS** ($23.34 \le 26.46$) | 74.55 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 22.27 | 23.51 | 41.79 | **PASS** ($20.90 \le 23.51$) | 74.65 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 24.31 | 25.63 | 45.37 | **PASS** ($22.69 \le 25.63$) | 75.09 |
+| **Total / Summary** | **135.67 s** | **140.80 s** | **247.77 s** | **PASS (6/6)** | **75.09 MB** |
+
+The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time agreed with
+parent monotonic elapsed time on these short panels within 1.3 seconds (total elapsed ~2.26–2.35 min).
+
+### Accuracy and policy loss performance
+
+Evaluating first-action loss $\mathcal{L} = \max_{a} Q^*(b, a) - Q^*(b, a_{\text{chosen}})$:
+
+| Panel | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Policy Loss | Max Policy Loss | Mean Max Q Error | Max Max Q Error |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.1166 | 1.5352 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0685 | 0.5145 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0843 | 0.8467 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0789 | 0.7453 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0685 | 0.5145 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.1076 | 1.7135 |
+| **Total / Summary** | **360** | **0 (0.00%)** | **0** | **0.000000** | **0.000000** | **0.0874** | **1.7135** |
+
+Across all 360 cases, **360 decisions (100.0%)** achieved exact oracle agreement.
+
+### Breakdown by horizon and protagonist budget
+
+| Horizon | Root Budget | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err | Mean Oracle Gap |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1** | 1,000 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0000 | 0.0000 | 15.4000 |
+| **1** | 10,000 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0000 | 0.0000 | 15.4000 |
+| **2** | 1,000 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0900 | 0.4024 | 15.8070 |
+| **2** | 10,000 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0319 | 0.0632 | 15.8070 |
+| **3** | 1,000 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.3290 | 1.7135 | 17.4422 |
+| **3** | 10,000 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0736 | 0.3935 | 17.4422 |
+
+### Opponent depth comparison: depth 3 vs depth 20 (matched seeds 400–401)
+
+Comparing the 360 matched cases between opponent depth 3 and depth 20 on seeds 400 and 401:
+- **Oracle Action Flips**: **18 out of 360 pairs (5.00%) flip their Bayes-optimal action set** (all 18 occurred under $B_{\text{opp}}=25$).
+- **Oracle Value Differences**: **62 out of 360 pairs (17.22%) exhibit value shifts** $> 10^{-4}$ (max action Q difference $7.7330$).
+- Under $B_{\text{opp}}=100$: **0 action flips** occurred between $d=3$ and $d=20$, indicating that at 100 simulations the opponent's policy distribution at horizons 1–3 had already stabilized to the deep-horizon policy. Protagonist MCTS achieved 100% agreement with the reference under depth 20.
+
+### Signed Q-error analysis
+
+Nonterminal door-opening actions (`OL`, `OR`) had zero Q error ($\pm 0.0000$) across all cases. Mean signed Q error on action `L` was $-0.0394$ to $+0.0350$ ($B_{\text{opp}}=25$) and $-0.0055$ to $+0.0163$ ($B_{\text{opp}}=100$).
+
+### Development conclusions
+
+These results confirm that candidate protagonist MCTS reliably tracks the optimal policy when the modeled opponent replans out to depth 20. This is development evidence; production protagonist depth 20, mixed levels, and empirical priors remain pending.
+
