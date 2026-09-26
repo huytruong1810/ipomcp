@@ -276,3 +276,10 @@ but external timers differ by1.32–3.06s per panel. Corrected repeated terminal
 opening language and separated54-case smoke from9-case reference cross-check.
 A six-case depth20 pilot completed with zero loss; fixed360-case development
 extension prepared. No solver source change or default promotion.
+
+
+Review of ee3d5b4: all 360 depth20 cases audited and 180 distinct reference
+problems recomputed. Confirmed zero first-action loss and monotonic interval
+concurrency. Corrected independence/stability interpretations of duplicated
+root-budget rows. A two-case H4/H5 resource pilot completed; next360-case
+development protocol targets protagonist H4/H5. No solver changes.

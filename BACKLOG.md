@@ -81,3 +81,11 @@ and consolidation of four misleading oracle/report scripts into one matched,
 resource-supervised budget sweep. Historical results remain source-bound evidence.
 
 Worker startup now uses spawn to avoid inheriting numerical-library thread locks. Fault-injection, resume, and domain integration checks cover the change.
+
+
+Current next step after ee3d5b4 audit: run the 360-case H4/H5 protagonist
+development panel in HANDOFF.md. The 360 H1-H3 depth20 rows contain 180
+distinct reference problems; unchanged best actions at opponent budget100 do
+not imply stable values (five Q/value changes, max2.264711). A two-case H4/H5
+resource pilot completed; boundary accuracy remains to be tested. No source
+changes or default promotion in this audit.

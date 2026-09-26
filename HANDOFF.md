@@ -1,132 +1,99 @@
 # Current review handoff
 
-## Ownership and state
+## Ownership and audited checkpoint
 
-Single checkout: /home/andyj1810/projects/ipomcp, fix/tiger-policy-inversion.
-Codex owns code/math; Antigravity runs experiments. No source changes during
-runs, source copies outside Git, silent retries or rewritten raw evidence.
+One checkout: /home/andyj1810/projects/ipomcp, branch fix/tiger-policy-inversion.
+Codex owns code/math; Antigravity runs experiments. Keep source fixed during
+runs; no source copies outside Git or overwritten raw evidence.
 
-Access is restored. Antigravity committed the pre-outage implementation as
-bf1c225 and its900-case study documentation as123701b. Saved test evidence
-confirms225 tests passed in310.22s. This audit changes documentation only;
-no solver changes/default promotions and no redundant test rerun.
+Codex independently reviewed ee3d5b4. All 360 cases have verified coverage,
+source hashes against 06cdcd3, real/modeled settings, seeds and status.
+Recomputed all 180 distinct reference problems and checked both root-budget
+copies, policy probabilities, losses and maximum Q errors.
 
-## Independent900-case audit
+All 360 first actions match the reference; mean/max first-action loss is zero.
+Maximum Q error is 1.713519. This is development evidence with protagonist
+H1-H3 and a depth-20 modeled opponent. No new validation gate or global
+default promotion follows.
 
-Verified every requested case, coverage/uniqueness, settings, bank seeds,
-source hashes againstbf1c225 and summary statuses. Recomputed450 distinct
-oracle configurations and checked both root-budget copies, policy distributions,
-first-action losses and max Q errors. All900 choices match the reference:
-mean/max first-action loss0. This remains DEVELOPMENT evidence at opponent
-depth3, not general finite-policy optimality or a fresh validation gate.
+## Depth comparison and timing corrections
 
-Budget25 versus100:9/225 optimal-action sets change;21 Q/value changes exceed
-1e-4; max Q difference7.733. Budget changes also change hashed solver settings,
-so equal bank seed indices are not a common-random-number intervention. The
-observed policy differences are real; do not claim a population convergence
-rate or that each additional simulation caused a particular action change.
+The reported 18/360 action changes and 62/360 Q changes count both protagonist
+budget copies of each oracle problem. There are 180 distinct comparisons:
+- modeled budget25: 9 action changes and 26 Q/value changes out of90;
+- modeled budget100: 0 action changes and 5 Q/value changes out of90.
 
-All six panels pass monotonic worker-duration and interval concurrency checks.
-GNU times sum314.48s; parent monotonic times sum329.10s. Differences1.32–3.06s
-per panel remain unresolved. Keep both records, rather than calling them equal.
+At budget100, maximum Q change is2.264711 despite identical best actions.
+Do not infer opponent-policy stability from unchanged protagonist decisions.
+Changing depth also changes deterministic search settings/seeds; matching bank
+seed indices is not a common-random-number depth experiment.
 
-Opening is not terminal. At modeled budget25,b_j=.5, opening-action max Q error
-is .766343 despite zero action loss. Other panels have only roundoff opening
-errors. Exact chosen actions do not imply exact estimates or zero continuation.
+All worker intervals match durations, at most two overlap, and every panel
+passes the monotonic concurrency bound. External elapsed sums135.67s versus
+parent monotonic140.804341s. Differences reach1.323687s and change sign in one
+panel. The discrepancy remains unresolved; preserve both measurements.
 
-Artifacts:
-- results/oracle/l2_finite_n{25,100}_b{0.085,0.5,0.915}_20260925/
-- results/oracle/l2_finite_review_20260925.json
-- results/l2-finite-20260925/ (pre-outage tests and smoke evidence)
+Artifacts: results/oracle/l2_depth20_n{25,100}_b{0.085,0.5,0.915}_20260925/
+plus sibling logs/timers. Independent audit:
+results/oracle/l2_depth20_review_20260925.json.
+Raw artifacts remain local and Git-ignored; documentation commits are not raw
+data archives. Opening remains nonterminal, and near-zero opening Q error in
+this short panel must not be generalized to longer horizons.
 
-The54 smoke cases and9-case exact-reference cross-check are separate evidence:
-zero action loss in the former; max Q difference8.88e-16 in the latter.
-Raw artifacts remain local and Git-ignored; documentation commits do not archive them.
+## Next phase: protagonist H4/H5 development
 
-## Depth20 resource pilot and next development run
+A two-case resource pilot at H4/H5 completed with zero first-action loss.
+It used root1000, opponent depth20/budget25, b_j=.5, own belief .5, seed400.
+H5 maximum Q error was3.355773. Both worker durations fit the parent monotonic
+concurrency bound. Evidence: results/oracle/l2_h45_resource_pilot_20260925/.
+The pilot is only a feasibility check at one easy belief, not an accuracy gate.
 
-Six pilot cases completed: modeled depth20,budget25,b_j=.5; H1-H2; root1000;
-seed400; own beliefs .05/.5/.95. Zero policy loss, max Q error .402376,
-max case time .486818s, peak monitored RSS74.094MiB. Parent monotonic1.630009s,
-worker sum2.792059s; concurrency bound passes. Evidence:
-results/oracle/l2_finite_depth20_pilot_20260925/ plus sibling log.
-This checks feasibility at small protagonist horizons only.
+Run six sequential panels crossing modeled budgets25/100 and b_j=.085/.5/.915.
+Each uses protagonist H4/H5, budgets1k/10k/50k, seeds400-401, and own beliefs
+.05/.075/.5/.925/.95: 60 cases per panel, 360 total. These are development
+beliefs/seeds, with both opening and listening regions to be reported.
 
-## Completed 360-case depth20 development extension
+Root: empirical Bellman, exact tail, bounded c=1, gamma=.95.
+Opponent: fixed depth20, sampled backup, sampled tail, normalized c=1.
+No adaptive budget increases, reference substitutions or default changes.
 
-Antigravity completed all six panels sequentially under source checkpoint 06cdcd3
-with RUN_ID `20260925`:
-- `results/oracle/l2_depth20_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+```bash
+cd /home/andyj1810/projects/ipomcp
+git status --short
+git rev-parse HEAD
+uv sync --frozen --group dev
+mkdir -p results/oracle
+for budget in 25 100; do
+  for belief in 0.085 0.5 0.915; do
+    out=results/oracle/l2_h45_n${budget}_b${belief}_RUN_ID
+    /usr/bin/time -f 'elapsed_seconds=%e' -o "${out}.time" \
+      uv run python -m examples.experiments.planner_oracle_experiment \
+      --out "$out" --level 2 --opponent-depth 20 --opponent-belief "$belief" \
+      --opponent-budget "$budget" --opponent-backup sampled \
+      --opponent-exploration normalized --opponent-exploration-const 1 \
+      --planners mcts --horizons 4 5 --budgets 1000 10000 50000 \
+      --seed-start 400 --seeds 2 --beliefs 0.05 0.075 0.5 0.925 0.95 \
+      --backup empirical_bellman --exact-final-step --exploration bounded \
+      --exploration-const 1 --gamma 0.95 --workers 2 --timeout 240 \
+      --max-rss-mb 2048 > "${out}.log" 2>&1 || exit 1
+  done
+done
+```
 
-All 360 requested cases completed with status `complete` under two supervised
-spawned workers with 240s timeout and 2,048 MiB memory limit. Zero timeouts,
-crashes, or resource kills occurred.
+Replace RUN_ID uniquely. Preserve every failed/timed-out case and source manifest.
+Report per-case and per-horizon/belief/root-budget loss, oracle gaps/action sets,
+signed Q errors, external and parent monotonic elapsed, worker sums/intervals and
+RSS. Loss>.020 counts remain descriptive, not a new held-out validation gate.
+Report opening and listening cases separately. Do not call zero loss at one
+budget or unchanged action labels general convergence or opponent stability.
 
-### Timing and concurrency instrumentation audit
+## Remaining qualification
 
-Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and
-concurrency bound checks for all six panels:
-
-| Panel | GNU Elapsed | Parent Monotonic | Worker Wall Sum | Concurrency Bound | Peak RSS |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| B_opp=25, b_j=0.085 | 21.58 s | 22.27 s | 39.02 s | PASS (19.51 <= 22.27) | 74.59 MB |
-| B_opp=25, b_j=0.500 | 19.49 s | 20.65 s | 36.47 s | PASS (18.24 <= 20.65) | 74.79 MB |
-| B_opp=25, b_j=0.915 | 22.80 s | 22.28 s | 38.45 s | PASS (19.23 <= 22.28) | 74.77 MB |
-| B_opp=100, b_j=0.085 | 25.22 s | 26.46 s | 46.67 s | PASS (23.34 <= 26.46) | 74.55 MB |
-| B_opp=100, b_j=0.500 | 22.27 s | 23.51 s | 41.79 s | PASS (20.90 <= 23.51) | 74.65 MB |
-| B_opp=100, b_j=0.915 | 24.31 s | 25.63 s | 45.37 s | PASS (22.69 <= 25.63) | 75.09 MB |
-
-All six panels strictly satisfied the concurrency bound check. External GNU
-time agreed with parent monotonic elapsed within 1.3 seconds (total wall time ~136s, ~2.26 min).
-
-### Decision accuracy and loss summary
-
-| Panel | Cases | Errors (loss > 1e-8) | Loss > 0.02 (diagnostic) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| B_opp=25, b_j=0.085 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.1166 | 1.5352 |
-| B_opp=25, b_j=0.500 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0685 | 0.5145 |
-| B_opp=25, b_j=0.915 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0843 | 0.8467 |
-| B_opp=100, b_j=0.085 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0789 | 0.7453 |
-| B_opp=100, b_j=0.500 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.0685 | 0.5145 |
-| B_opp=100, b_j=0.915 | 60 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 0.1076 | 1.7135 |
-| **Total** | **360** | **0 (0.00%)** | **0 (0.00%)** | **0.000000** | **0.000000** | **0.0874** | **1.7135** |
-
-Across all 360 cases, **360 decisions (100.0%)** achieved exact oracle agreement.
-Zero primary gate violations and zero strict errors occurred.
-
-### Opponent depth comparison: depth 3 vs depth 20 (matched seeds 400-401)
-
-Comparing the 360 matched cases between opponent depth 3 and depth 20:
-- **18 out of 360 pairs (5.00%) flip their Bayes-optimal action set** (all 18 occurred under B_opp=25).
-- **62 out of 360 pairs (17.22%) exhibit Q-value differences > 1e-4** (max action Q diff reaching 7.7330).
-- Under B_opp=100: **0 action flips** occurred between d=3 and d=20, showing policy stability
-  across deeper search horizons. Protagonist MCTS accurately selected optimal actions across all 360 cases.
-
-### Signed Q errors
-
-Nonterminal door-opening actions (`OL`, `OR`) had zero Q error (+-0.0000) across all cases.
-Mean signed Q error on action `L` was -0.0394 to +0.0350 (B_opp=25) and -0.0055 to +0.0163 (B_opp=100).
-
-### Next steps: Codex independent review
-
-These are developmental runs under declared finite MCTS opponent semantics at depth 20.
-Ready for Codex review and verification of manifests, source hashes against 06cdcd3,
-and recomputation of reference values. Production protagonist depth 20 qualification remains pending.
-
-## Remaining limits
-
-This matches the declared pure finite L1 opponent at fixed depth20; it still
-does not reproduce every production config field. In this runner modeled
-mcts.n_sims and opponent.n_sims both equal the requested budget; other full
-configs hash differently. Actual protagonist horizons remain H1-H3, not20.
-Mixed levels, empirical priors, long/deep Tiger before/after, L4/all39 and
-remaining script semantic review are still pending.
-
-Canonical sampling corrected representation dependence; older results remain
-source-bound. Historical L1 passes/failures keep their original meanings.
-No global default promotion or claim of universal optimality follows.
+No source changes in this audit; latest implementation verification remains
+225 passing tests plus lint/format. Production defaults remain unchanged.
+The runner declares modeled mcts.n_sims and opponent.n_sims equal to the chosen
+budget; other complete production configs can hash differently. Model depth20
+does not imply protagonist depth20, and the point prior is not an empirical
+nested hierarchy. Longer-horizon/episode checks, mixtures, finite-prior error,
+L4/all39, full script review and global default promotion remain separate gates.
+Historical validation results retain their original source/configuration scope.

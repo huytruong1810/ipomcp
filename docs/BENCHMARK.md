@@ -1050,7 +1050,7 @@ Across all 360 cases, **360 decisions (100.0%)** achieved exact oracle agreement
 Comparing the 360 matched cases between opponent depth 3 and depth 20 on seeds 400 and 401:
 - **Oracle Action Flips**: **18 out of 360 pairs (5.00%) flip their Bayes-optimal action set** (all 18 occurred under $B_{\text{opp}}=25$).
 - **Oracle Value Differences**: **62 out of 360 pairs (17.22%) exhibit value shifts** $> 10^{-4}$ (max action Q difference $7.7330$).
-- Under $B_{\text{opp}}=100$: **0 action flips** occurred between $d=3$ and $d=20$, indicating that at 100 simulations the opponent's policy distribution at horizons 1–3 had already stabilized to the deep-horizon policy. Protagonist MCTS achieved 100% agreement with the reference under depth 20.
+- Under $B_{\text{opp}}=100$: **0 action flips** occurred between $d=3$ and $d=20$, showing only that the protagonist's best action is unchanged on these pairs. Five distinct reference problems still change in Q/value at this budget (maximum Q change 2.264711); opponent-policy stability does not follow. Protagonist MCTS achieved 100% agreement with the reference under depth 20.
 
 ### Signed Q-error analysis
 
@@ -1058,5 +1058,42 @@ Nonterminal door-opening actions (`OL`, `OR`) had zero Q error ($\pm 0.0000$) ac
 
 ### Development conclusions
 
-These results confirm that candidate protagonist MCTS reliably tracks the optimal policy when the modeled opponent replans out to depth 20. This is development evidence; production protagonist depth 20, mixed levels, and empirical priors remain pending.
+These results show matching first actions on the tested H1-H3 grid with a depth-20 modeled opponent; they do not establish accuracy at untested protagonist horizons. This is development evidence; production protagonist depth 20, mixed levels, and empirical priors remain pending.
 
+
+
+### Independent review of ee3d5b4
+
+Verified all 360 case files: complete/unique requested coverage, source hashes
+against 06cdcd3, real/modeled configuration, seeds, statuses, valid policies,
+losses and Q errors. Recomputed the 180 distinct oracle problems and checked
+both root-budget copies. All first-action losses are zero; maximum Q error is
+1.713519. Worker intervals match durations, no more than two workers overlap,
+and each panel satisfies the parent monotonic concurrency bound.
+
+The depth comparison includes two copies of each reference problem because
+protagonist search budget does not enter the oracle. At the distinct-problem
+level, 9/180 action sets change and 31/180 Q/value sets differ above 1e-4:
+- modeled budget 25: 9 action changes, 26 Q/value changes out of 90;
+- modeled budget 100: 0 action changes, 5 Q/value changes out of 90, with
+  maximum Q change 2.264711.
+
+Thus 18/360 and 62/360 are correct row counts, but not 360 independent oracle
+comparisons. Unchanged best actions cannot establish unchanged opponent policy
+or values. Depth changes also affect the hashed finite-search settings, so
+equal seed indices do not isolate a common-random-number depth effect.
+
+The external/parent-monotonic totals are 135.67/140.804341 seconds. Individual
+differences reach 1.323687 seconds and change sign in one panel. Keep both
+measurements; short-run concurrency consistency does not resolve older clock
+discrepancies. No new statistical loss gate was declared for this development run.
+
+A two-case protagonist H4/H5 feasibility pilot with opponent depth20/budget25,
+b_j=.5, own belief .5, seed400 and root1000 completed with zero first-action
+loss. H5 maximum Q error was 3.355773. Worker sum1.364052s fits two times parent
+elapsed .800306s. A uniform-belief pilot does not qualify boundary decisions.
+
+Audit: results/oracle/l2_depth20_review_20260925.json.
+Pilot: results/oracle/l2_h45_resource_pilot_20260925/ and sibling log.
+HANDOFF.md specifies the next 360-case H4/H5 development panel. No solver code
+or default changed; the last implementation test result remains 225 passes.
