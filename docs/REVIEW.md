@@ -330,3 +330,12 @@ Final implementation verification: all 241 tests passed in 392.64s, including
 domain integration. Ruff lint and format checks passed across 103 Python files,
 and diff whitespace checks passed. Full log:
 results/history-rewards-20260925/tests.log.
+
+
+Review of a7a8b75: verified all 3,360 paired development rows and source/manifests
+against 4c17278, with independent reference recomputation for the seven residual
+candidate errors. Confirmed gains and identified four new strict errors, two
+new primary violations. Corrected strict-fix count, bias-elimination language,
+invariant-RSS claim and isolated-overhead interpretation. Kept option opt-in.
+Froze 3,360-case fresh candidate protocol after checking local manifests and
+22,303 case rows for belief/seed novelty. No fresh solves or solver changes.

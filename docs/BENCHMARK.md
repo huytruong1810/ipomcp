@@ -1548,11 +1548,11 @@ and seeds 6000–6003 at root budget 50,000 traversals.
 | $B_{\text{opp}}=100, b_j=0.915$ | Control | 275 / 280 | 5 / 280 | 0.508595 | 1.3147 | 1,441.8 s |
 | | **Candidate** | **278 / 280** | **1 / 280** | **0.024690** | **0.4230** | 1,479.5 s |
 
-#### Signed Q errors: elimination of door-opening upward bias
+#### Signed Q errors: observed reduction on the development grid
 
-In Control, sampling door opening rewards inside sparsely visited subtrees injected
-severe positive bias (mean signed error $+0.7104$ for `OL` and $+0.7089$ for `OR`, with
-peak overestimates exceeding $+9.95$). In Candidate, this bias was largely eliminated:
+Control has positive mean signed opening errors (mean signed error $+0.7104$ for `OL` and $+0.7089$ for `OR`, with
+peak overestimates exceeding $+9.95$). Candidate has smaller positive mean signed errors. These finite-grid statistics
+do not establish estimator bias, its elimination or a universal causal mechanism:
 
 | Action | Arm | Mean Signed Error ($\hat{Q} - Q^*$) | Std Dev | Median Error | Min Error | Max Error | Mean Absolute Error |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -1590,7 +1590,9 @@ At $H=8$, mean Q error contracted 3.1x ($4.3577 \to 1.4097$), and violations fel
 
 #### Resolution of baseline errors
 
-Candidate completely cured 15 of the 19 Control errors (loss reduced to 0.000000), including
+Candidate removes 16 of the 19 strict control errors, retains three, and introduces
+four new strict errors. It removes 15 primary violations and introduces two new
+ones. Corrected large-loss cases include
 all peak-regret cases:
 - $H=8, b_i=0.9675, n=100, b_j=0.915$: Control loss was 0.508595 (Q err 6.0083); Candidate loss: 0.000000 (Q err 1.1894).
 - $H=8, b_i=0.9675, n=25, b_j=0.915$: Control loss was 0.506799 (Q err 2.5204); Candidate loss: 0.000000 (Q err 0.9463).
@@ -1626,9 +1628,32 @@ The 3 residual Candidate violations ($> 0.020$) occurred exclusively at $H=8$:
 | **Grand Total** | Both | 3,360 / 3,360 | 8,055.1 s | 8,563.2 s | 16,554.2 s | Passed (12/12) |
 
 Worker concurrency bounds passed on all 12 panels ($\sum t_{\text{worker}} / 2 \le \Delta t_{\text{parent}}$).
-Total worker overhead of integrating exact history rewards was **+2.84%** across 1,680 cases.
-Monitored peak RSS across all 3,360 cases was invariant at 139.67 MiB.
+The observed worker-sum increase is **2.84%**, including reference computation;
+this does not isolate planner overhead. Per-case peak RSS ranges from 73.58 to
+139.67 MiB in control and 73.59 to 138.98 MiB in candidate, rather than remaining invariant.
 
 Raw artifacts: `results/oracle/l2_rewards_{control,candidate}_n{25,100}_b{0.085,0.5,0.915}_20260925/`.
 These results are development evidence on the observed grid and do not alter the historical validation gate failure.
 
+
+
+### Independent review of a7a8b75 and promotion decision
+
+Codex checked all 3,360 rows, manifest/source hashes against 4c17278, paired model
+identity, probability/loss/Q-error arithmetic and worker intervals. All 1,680
+paired reference vectors agree. Independently recomputed all seven candidate
+error references within 1e-8; the remaining references were checked for paired
+equality and arithmetic, not independently rerun in this audit.
+
+Keep exact_history_rewards opt-in. Development improves strongly but retains
+three losses above the frozen .020 limit and introduces regressions. It is the
+candidate for a fresh test, not yet a qualified Level-2 production default.
+The existing global config also controls modeled opponents, which this evidence
+does not authorize changing.
+
+HANDOFF.md freezes a new 3,360-case candidate gate: root 50k, H1–H6/H8, ten
+unused physical beliefs, seeds 7000–7007, fixed opponent/evaluator parameters,
+same .020 + 1e-8 tolerance and no selective retries. No fresh solves performed.
+Freshness checked against local manifests and 22,303 local case rows. The
+historical failed gate remains failed. Audit:
+results/oracle/l2_rewards_review_20260926.json.

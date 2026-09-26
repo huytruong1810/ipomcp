@@ -68,11 +68,11 @@
   decision errors (19 -> 7), a 14.8x reduction in mean policy loss (0.001584 -> 0.000107), an 81.3%
   reduction in maximum policy loss (0.508595 -> 0.094981), and a 3.7x reduction in mean max Q error
   (1.4400 -> 0.3896). Candidate achieved 100.0% strict optimality across H1–H5 (1,200/1,200 cases)
-  and zero violations at H6 (239/240 optimal, sole error loss 0.001120). Systematic upward Q-value bias
-  on door openings was largely eliminated (+0.71 -> +0.06). All 12 concurrency bounds passed
+  and zero violations at H6 (239/240 optimal, sole error loss 0.001120). Positive mean signed Q errors
+  on door openings decreased (+0.71 -> +0.06); this does not establish zero bias. All 12 concurrency bounds passed
   (monotonic elapsed sum 8,563.19s, worker sum 16,554.17s; external GNU wall time 8,055.05s). Total
-  worker overhead for exact history reward integration was +2.84%. Monitored peak RSS was invariant
-  at 139.67 MiB. Results constitute development evidence on the observed grid; fresh validation
+  worker-sum increase was +2.84%, including reference work. Maximum observed RSS was
+  139.67 MiB. Results constitute development evidence on the observed grid; fresh validation
   requires an unseen design.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
@@ -120,15 +120,9 @@ resource-supervised budget sweep. Historical results remain source-bound evidenc
 Worker startup now uses spawn to avoid inheriting numerical-library thread locks. Fault-injection, resume, and domain integration checks cover the change.
 
 
-Current next step: matched control/candidate development for the implemented
-opt-in conditional immediate-reward estimator, as specified in HANDOFF.md. The fresh 1,680-case gate failed permanently;
-the observed grid may now support development only.
-No global default promotion or L4/all39 launch is authorized by these results.
-
-
-Codex independently audited f0b98c5 and reproduced two failing solves. Root
-chance-frequency error is small relative to child-value error in both diagnoses.
-Implemented opt-in exact conditional immediate rewards at internal tree histories.
-The 12-pair smoke has 1 control violation and 0 candidate violations; this does not
-repair the historical gate. Next: full matched development comparison, preserving
-the same new-source modeled-policy law between arms. No global promotion.
+Current next step: the fresh 3,360-case candidate gate frozen in HANDOFF.md.
+The development comparison was independently audited: 16 to 3 primary violations,
+19 to 7 strict errors, with four new strict errors and two new primary violations.
+Keep exact_history_rewards opt-in pending fresh evidence; even a pass applies
+only to the declared finite-policy contract. No global/default promotion or
+production L4/all39 qualification follows from development improvements.
