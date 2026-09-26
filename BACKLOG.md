@@ -74,6 +74,19 @@
   worker-sum increase was +2.84%, including reference work. Maximum observed RSS was
   139.67 MiB. Results constitute development evidence on the observed grid; fresh validation
   requires an unseen design.
+- Level-2 fresh candidate validation suite (3,360 cases across 6 panels:
+  6 modeled opponent conditions, H1–H6, H8, 10 unseen physical beliefs, seeds 7000–7007, root 50k,
+  empirical Bellman, exact tail, bounded c=1, --exact-history-rewards) COMPLETED: Primary
+  gate FAILED under frozen zero-tolerance criterion (3,351/3,360 passes = 99.73%; 9 violations > 0.020,
+  max loss 0.205046). Strict optimal choices: 3,345/3,360 (99.55%), 15 strict errors (6 near-ties <= 0.020).
+  Compared to the previous fresh validation gate (ac3df1c, sampled rewards), the violation rate fell by 5.1x
+  (1.37% -> 0.27%), max loss contracted from 0.741558 to 0.205046, mean loss dropped by 7.2x
+  (0.002198 -> 0.000307), and mean max Q error dropped by 3.5x (1.4400 -> 0.4124). Flawless scaling through H4:
+  1,920/1,920 strictly optimal (100.0%). All 9 violations localized to H >= 5 (H5: 1, H6: 1, H8: 7) at frontier
+  beliefs b_i in {.0275, .0375, .9625, .9725}; all six non-frontier beliefs had 100.0% strict optimality
+  (2,016/2,016). All 6 concurrency bounds passed (parent monotonic 10,436.89s, external wall 10,327.93s,
+  worker wall sum 20,220.20s). Monitored peak RSS ranged from 73.74 to 138.27 MiB. Production defaults
+  remain unchanged; evidence handed off to Codex.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on

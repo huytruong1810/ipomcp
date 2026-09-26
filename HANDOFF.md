@@ -106,39 +106,80 @@ gate would support only this source/configuration/grid, not full L2 production,
 nested priors, larger horizons, L4/all39 or universal reliability. Historical
 ac3df1c validation remains failed regardless of this result.
 
-### Antigravity command
+## Antigravity completed run: 3,360-case fresh candidate validation
 
-Use Bash, replace RUN_ID uniquely, and keep source fixed across all six panels.
-Do not enable exact-history-rewards for the modeled opponent.
+Antigravity completed the six sequential fresh validation panels on clean commit
+f4d2aef (RUN_ID 20260926, supervisor script scratch/run_l2_fresh_candidate_validation.sh).
+All 3,360 requested cases completed validly with exit code 0.
 
-```bash
-cd /home/andyj1810/projects/ipomcp
-git status --short
-git rev-parse HEAD
-uv sync --frozen --group dev
-mkdir -p results/oracle
-for budget in 25 100; do
-  for belief in 0.085 0.5 0.915; do
-    out=results/oracle/l2_rewards_fresh_n${budget}_b${belief}_RUN_ID
-    /usr/bin/time -f 'elapsed_seconds=%e' -o "${out}.time" \
-      uv run python -m examples.experiments.planner_oracle_experiment \
-      --out "$out" --level 2 --opponent-depth 20 --opponent-belief "$belief" \
-      --opponent-budget "$budget" --opponent-backup sampled \
-      --opponent-exploration normalized --opponent-exploration-const 1 \
-      --planners mcts --horizons 1 2 3 4 5 6 8 --budgets 50000 \
-      --seed-start 7000 --seeds 8 \
-      --beliefs 0.002 0.0175 0.0275 0.0375 0.0875 0.9125 0.9625 0.9725 0.9825 0.998 \
-      --backup empirical_bellman --exact-final-step --exact-history-rewards \
-      --exploration bounded --exploration-const 1 --gamma 0.95 \
-      --workers 2 --timeout 240 --max-rss-mb 2048 > "${out}.log" 2>&1 || exit 1
-  done
-done
-```
+### Primary gate outcome: FAILED
 
-## Status
+Under the frozen zero-tolerance criterion (first_action_loss <= .020 + 1e-8), the
+primary validation gate FAILED. Across the 3,360 cases, 9 cases exceeded .020
+(maximum loss .205046). Compliance rate is 99.73% (3,351/3,360 passed).
 
-No solver changes or default promotion in this audit. Last implementation
-verification remains 241 tests passed plus Ruff lint/format. Documentation
-and command syntax are checked; implementation tests were not redundantly rerun.
-Timing provenance, production configuration matching, mixed/empirical priors,
-L3-versus-L2 episode qualification and the remaining script review stay open.
+### Summary metrics and comparison to prior fresh gate
+
+| Metric | Prior Fresh Gate (ac3df1c, sampled rewards) | Candidate Fresh Gate (f4d2aef, --exact-history-rewards) | Relative change |
+| --- | ---: | ---: | ---: |
+| Cases evaluated | 1,680 | 3,360 | 2x scale |
+| Strictly optimal (<= 1e-8) | 1,654 / 1,680 (98.45%) | **3,345 / 3,360 (99.55%)** | +1.10 percentage points |
+| Strict errors (> 1e-8) | 26 / 1,680 (1.55%) | **15 / 3,360 (0.45%)** | 71% reduction |
+| Tolerance violations (> .020) | 23 / 1,680 (1.37%) | **9 / 3,360 (0.27%)** | **5.1x reduction in violation rate** |
+| Gate compliance rate (<= .020) | 98.63% | **99.73%** | +1.10 percentage points |
+| Mean first-action policy loss | .002198 | **.000307** | **7.2x reduction** |
+| Maximum policy loss | .741558 | **.205046** | **3.6x contraction** |
+| Mean maximum Q error | 1.4400 | **.4124** | **3.5x reduction** |
+| Peak absolute Q error | 8.5238 | **5.8211** | 31.7% contraction |
+
+### Panel-by-panel breakdown
+
+- **n25, b=0.085**: 559/560 optimal (99.82%), 1 violation (.205046), mean loss .000366, mean maxQ .3888.
+- **n25, b=0.500**: 559/560 optimal (99.82%), 1 violation (.058131), mean loss .000104, mean maxQ .4060.
+- **n25, b=0.915**: 557/560 optimal (99.46%), 3 violations (.163827, .147591, .065675), mean loss .000673, mean maxQ .4284.
+- **n100, b=0.085**: 556/560 optimal (99.29%), 3 violations (.145390, .056220, .021715), mean loss .000410, mean maxQ .3816.
+- **n100, b=0.500**: 556/560 optimal (99.29%), **0 violations (max loss .019711)**, mean loss .000077, mean maxQ .4603.
+- **n100, b=0.915**: 558/560 optimal (99.64%), 1 violation (.113124), mean loss .000214, mean maxQ .4095.
+
+### Failure anatomy and signed Q errors
+
+1. **Horizon strata**:
+   - H1–H4: 1,920 / 1,920 strictly optimal (100.0%), zero errors, zero violations.
+   - H5: 479/480 optimal (99.79%), 1 violation (case-353, loss .058131).
+   - H6: 474/480 optimal (98.75%), 1 violation (case-403, loss .021715), 5 near-ties (.0051–.0090).
+   - H8: 472/480 optimal (98.33%), 7 violations (.0562–.2050), 1 near-tie (.0197).
+2. **Belief localization**:
+   - All 15 errors (9 violations, 6 near-ties) occurred strictly at the four frontier beliefs:
+     b_i=.0275 (3 errors, 1 violation), b_i=.0375 (4 errors, 3 violations),
+     b_i=.9625 (4 errors, 3 violations), b_i=.9725 (4 errors, 2 violations).
+   - All six non-frontier beliefs (.0020, .0175, .0875, .9125, .9825, .9980) had zero errors
+     across 100% of cases (2,016 / 2,016 strictly optimal).
+3. **Signed Q errors**:
+   - Listen (`L`): mean +.0024, std .0421, min -.3233, max +.2863, mean absolute error .0247.
+   - Open Left (`OL`): mean +.0620, std .5450, min -5.4072, max +3.6596, mean absolute error .2107.
+   - Open Right (`OR`): mean +.0572, std .5579, min -5.8211, max +3.5842, mean absolute error .2140.
+4. **Action strata coverage**: Oracle best L: 1,233 (36.70%), OL: 1,058 (31.49%), OR: 1,069 (31.82%).
+   Of the 15 errors, 12 were listening instead of opening; 3 were opening instead of listening.
+
+### Timing and resources
+
+- External wall sum: 10,327.93s (2.87 hours); parent monotonic: 10,436.89s (2.90 hours);
+  worker wall sum: 20,220.20s (5.62 hours).
+- Worker concurrency bounds passed on all 6 panels (sum t_worker / 2 <= delta t_parent).
+- Monitored peak RSS ranged from 73.74 to 138.27 MiB across cases.
+- Raw artifacts: results/oracle/l2_rewards_fresh_n{25,100}_b{0.085,0.5,0.915}_20260926/.
+
+## Verification, status and handoff to Codex
+
+All checks passed prior to launch; Ruff lint/format passed.
+No global defaults have been modified.
+The fresh validation gate failed under the frozen rule, though demonstrating substantial
+progress over ac3df1c. Full report artifact: `l2_fresh_candidate_validation_report.md`.
+Documentation updated in `HANDOFF.md`, `BACKLOG.md`, and `docs/BENCHMARK.md`.
+
+Next decisions for Codex:
+1. Conduct independent review and Bellman error decomposition of the 15 strict error cases
+   (especially the 7 violations at H8).
+2. Determine next algorithmic or architectural steps (e.g. higher root traversal budgets
+   such as 100k at H >= 8 or boundary-targeted budget scaling).
+

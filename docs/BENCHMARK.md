@@ -1657,3 +1657,110 @@ same .020 + 1e-8 tolerance and no selective retries. No fresh solves performed.
 Freshness checked against local manifests and 22,303 local case rows. The
 historical failed gate remains failed. Audit:
 results/oracle/l2_rewards_review_20260926.json.
+
+
+### 3,360-case Level-2 fresh candidate validation (September 26)
+
+Antigravity executed the frozen 3,360-case fresh candidate validation suite on
+commit `f4d2aefb41e0a9ce195ec274fc8aff97fbd28bb8` (RUN_ID `20260926`, supervisor script
+`scratch/run_l2_fresh_candidate_validation.sh`). The evaluation tested protagonist
+Level-2 MCTS with `--exact-history-rewards` across six panels on completely unseen
+physical beliefs ($b_i \in \{0.0020, 0.0175, 0.0275, 0.0375, 0.0875, 0.9125, 0.9625, 0.9725, 0.9825, 0.9980\}$)
+and unseen seeds ($7000$–$7007$).
+
+#### Primary gate outcome: FAILED
+
+Under the frozen zero-tolerance criterion ($\text{loss} \le 0.020 + 10^{-8}$), any single
+completed violation fails the accuracy gate. Across the 3,360 requested and completed
+cases, **9 cases exceeded $0.020$** (maximum loss $0.205046$). The gate formally **FAILS**.
+
+#### Benchmark metrics and comparison to prior fresh gate
+
+| Metric | Prior Fresh Gate (`ac3df1c`, sampled rewards) | Candidate Fresh Gate (`f4d2aef`, `--exact-history-rewards`) | Relative change |
+|---|---:|---:|---:|
+| Total cases evaluated | 1,680 | 3,360 | 2x scale |
+| Strictly optimal decisions ($\le 10^{-8}$) | 1,654 / 1,680 (98.45%) | **3,345 / 3,360 (99.55%)** | +1.10 percentage points |
+| Strict decision errors ($> 10^{-8}$) | 26 / 1,680 (1.55%) | **15 / 3,360 (0.45%)** | 71% reduction |
+| Primary gate violations ($> 0.020$) | 23 / 1,680 (1.37%) | **9 / 3,360 (0.27%)** | **5.1x reduction in violation rate** |
+| Gate compliance rate ($\le 0.020$) | 98.63% | **99.73%** | +1.10 percentage points |
+| Mean first-action policy loss | 0.002198 | **0.000307** | **7.2x reduction** |
+| Maximum policy loss | 0.741558 | **0.205046** | **3.6x contraction** |
+| Mean maximum Q error | 1.4400 | **0.4124** | **3.5x reduction** |
+| Peak absolute Q error | 8.5238 | **5.8211** | 31.7% contraction |
+
+#### Panel-by-panel performance
+
+| Opponent Condition ($B_{\text{opp}} \times b_j$) | Completed Cases | Strict Optimal | Violations ($> 0.020$) | Max Policy Loss | Mean Policy Loss | Mean Max Q Error |
+|---|---:|---:|---:|---:|---:|---:|
+| $B=25, b_j=0.085$ | 560 / 560 | 559 / 560 (99.82%) | 1 / 560 (0.18%) | 0.205046 | 0.000366 | 0.3888 |
+| $B=25, b_j=0.500$ | 560 / 560 | 559 / 560 (99.82%) | 1 / 560 (0.18%) | 0.058131 | 0.000104 | 0.4060 |
+| $B=25, b_j=0.915$ | 560 / 560 | 557 / 560 (99.46%) | 3 / 560 (0.54%) | 0.163827 | 0.000673 | 0.4284 |
+| $B=100, b_j=0.085$ | 560 / 560 | 556 / 560 (99.29%) | 3 / 560 (0.54%) | 0.145390 | 0.000410 | 0.3816 |
+| $B=100, b_j=0.500$ | 560 / 560 | 556 / 560 (99.29%) | **0 / 560 (0.00%)** | 0.019711 | 0.000077 | 0.4603 |
+| $B=100, b_j=0.915$ | 560 / 560 | 558 / 560 (99.64%) | 1 / 560 (0.18%) | 0.113124 | 0.000214 | 0.4095 |
+| **Total / Overall** | **3,360 / 3,360** | **3,345 / 3,360 (99.55%)** | **9 / 3,360 (0.27%)** | **0.205046** | **0.000307** | **0.4124** |
+
+#### Signed Q errors by action
+
+| Action | Mean Signed Error ($\hat{Q} - Q^*$) | Std Dev | Median Error | Min Error | Max Error | Mean Absolute Error |
+|---|---:|---:|---:|---:|---:|---:|
+| **Listen (`L`)** | **$+0.0024$** | 0.0421 | $+0.0000$ | $-0.3233$ | $+0.2863$ | **0.0247** |
+| **Open Left (`OL`)** | **$+0.0620$** | 0.5450 | $+0.0000$ | $-5.4072$ | $+3.6596$ | **0.2107** |
+| **Open Right (`OR`)** | **$+0.0572$** | 0.5579 | $+0.0000$ | $-5.8211$ | $+3.5842$ | **0.2140** |
+
+#### Horizon and belief strata
+
+- **Horizon Strata**:
+  - $H \in \{1, 2, 3, 4\}$: **1,920 / 1,920 strictly optimal (100.0%)**, zero errors, zero violations.
+  - $H=5$: 479 / 480 optimal (99.79%), 1 violation (loss 0.058131).
+  - $H=6$: 474 / 480 optimal (98.75%), 1 violation (loss 0.021715), 5 near-ties ($0.0051 \to 0.0090$).
+  - $H=8$: 472 / 480 optimal (98.33%), 7 violations (losses $0.0562 \to 0.2050$), 1 near-tie ($0.0197$).
+- **Physical Belief Strata**:
+  - Non-frontier beliefs ($b_i \in \{0.0020, 0.0175, 0.0875, 0.9125, 0.9825, 0.9980\}$):
+    **2,016 / 2,016 strictly optimal (100.0%)**, zero errors, zero violations.
+  - Frontier beliefs: all 15 errors (and all 9 violations) are strictly localized to
+    $b_i \in \{0.0275, 0.0375, 0.9625, 0.9725\}$.
+- **Action Strata Coverage**:
+  - Oracle best `L`: 1,233 / 3,360 cases (36.70%)
+  - Oracle best `OL`: 1,058 / 3,360 cases (31.49%)
+  - Oracle best `OR`: 1,069 / 3,360 cases (31.82%)
+  - Of the 15 errors, 12 were listening instead of opening; 3 were opening instead of listening.
+
+#### Audit of all 15 strict errors (9 violations, 6 near-ties)
+
+| Case ID | Panel | Horizon & Belief | Seed | Oracle Best ($Q^*$) | Gap | MCTS Action | Policy Loss | Max Q Error |
+|---|---|---|:---:|---|---:|---|---:|---:|
+| `case-403` | `n100_b0.085` | $H=6, b_i=0.0375$ | 7000 | `OL` ($8.4195$) | 0.0217 | `L` | **0.021715** | 0.1548 |
+| `case-406` | `n100_b0.085` | $H=6, b_i=0.9625$ | 7000 | `OR` ($8.4195$) | 0.0061 | `L` | 0.006058 | 0.6031 |
+| `case-537` | `n100_b0.085` | $H=8, b_i=0.9725$ | 7005 | `OR` ($10.8497$) | 0.0562 | `L` | **0.056220** | 1.6985 |
+| `case-553` | `n100_b0.085` | $H=8, b_i=0.0375$ | 7007 | `L` ($10.0316$) | 0.1454 | `OL` | **0.145390** | 1.7669 |
+| `case-432` | `n100_b0.500` | $H=6, b_i=0.0275$ | 7003 | `OL` ($9.1576$) | 0.0090 | `L` | 0.009035 | 0.6388 |
+| `case-437` | `n100_b0.500` | $H=6, b_i=0.9725$ | 7003 | `OR` ($9.1576$) | 0.0052 | `L` | 0.005156 | 0.8048 |
+| `case-442` | `n100_b0.500` | $H=6, b_i=0.0275$ | 7004 | `OL` ($9.1576$) | 0.0090 | `L` | 0.009035 | 0.1320 |
+| `case-517` | `n100_b0.500` | $H=8, b_i=0.9725$ | 7003 | `OR` ($11.0163$) | 0.0197 | `L` | 0.019711 | 3.1007 |
+| `case-403` | `n100_b0.915` | $H=6, b_i=0.0375$ | 7000 | `OL` ($8.4195$) | 0.0067 | `L` | 0.006699 | 0.8608 |
+| `case-502` | `n100_b0.915` | $H=8, b_i=0.0275$ | 7002 | `OL` ($11.2216$) | 0.1131 | `L` | **0.113124** | 0.4082 |
+| `case-526` | `n25_b0.085` | $H=8, b_i=0.9625$ | 7004 | `L` ($10.2037$) | 0.2050 | `OR` | **0.205046** | 0.1870 |
+| `case-353` | `n25_b0.500` | $H=5, b_i=0.0375$ | 7003 | `L` ($8.3612$) | 0.0581 | `OL` | **0.058131** | 0.2605 |
+| `case-486` | `n25_b0.915` | $H=8, b_i=0.9625$ | 7000 | `OR` ($10.0304$) | 0.1476 | `L` | **0.147591** | 1.7221 |
+| `case-523` | `n25_b0.915` | $H=8, b_i=0.0375$ | 7004 | `OL` ($9.9986$) | 0.1638 | `L` | **0.163827** | 0.1504 |
+| `case-536` | `n25_b0.915` | $H=8, b_i=0.9625$ | 7005 | `OR` ($9.8965$) | 0.0657 | `L` | **0.065675** | 3.0121 |
+
+#### Timing, concurrency, and resource accounting
+
+| Panel Identifier | Recorded Cases | External Wall (s) | Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\sum t_w / 2 \le \Delta t_{\text{mono}}$) |
+|---|---:|---:|---:|---:|:---:|
+| `n25_b0.085` | 560 / 560 | 1,319.69 | 1,343.01 | 2,592.57 | Passed (`True`) |
+| `n25_b0.500` | 560 / 560 | 1,379.94 | 1,403.44 | 2,712.08 | Passed (`True`) |
+| `n25_b0.915` | 560 / 560 | 1,375.48 | 1,396.69 | 2,697.74 | Passed (`True`) |
+| `n100_b0.085` | 560 / 560 | 1,601.99 | 1,625.53 | 3,157.88 | Passed (`True`) |
+| `n100_b0.500` | 560 / 560 | 2,261.81 | 2,280.57 | 4,432.14 | Passed (`True`) |
+| `n100_b0.915` | 560 / 560 | 2,389.02 | 2,387.65 | 4,627.79 | Passed (`True`) |
+| **Grand Total** | **3,360 / 3,360** | **10,327.93 s** | **10,436.89 s** | **20,220.20 s** | **100% Passed (6/6)** |
+
+Worker concurrency bounds passed on all 6 panels.
+Total external wall time was 10,327.93s (2.87 hours); total parent monotonic was 10,436.89s (2.90 hours);
+total worker wall sum was 20,220.20s (5.62 hours). Monitored peak RSS ranged from 73.74 to 138.27 MiB.
+Raw artifacts: `results/oracle/l2_rewards_fresh_n{25,100}_b{0.085,0.5,0.915}_20260926/`.
+This fresh validation gate fails under the frozen criterion; production defaults remain unchanged and evidence is handed off to Codex.
+
