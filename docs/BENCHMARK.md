@@ -1097,3 +1097,102 @@ Audit: results/oracle/l2_depth20_review_20260925.json.
 Pilot: results/oracle/l2_h45_resource_pilot_20260925/ and sibling log.
 HANDOFF.md specifies the next 360-case H4/H5 development panel. No solver code
 or default changed; the last implementation test result remains 225 passes.
+
+## 360-case Level-2 H4/H5 development study (September 25)
+
+Source checkpoint: 1359053. Evaluated candidate protagonist MCTS (`backup="empirical_bellman"`,
+`--exact-final-step`, bounded UCB $c=1.0$, $\gamma=0.95$) against the exhaustive best-response reference
+(`FinitePolicyL2Reference`) conditional on the declared `SolverBank` modeled MCTS L1 policy at fixed depth 20
+(sampled backups, sampled final step, normalized UCB $c=1.0$) across longer protagonist horizons ($H \in \{4, 5\}$).
+
+Six panels crossed Modeled Opponent Budgets $B_{\text{opp}} \in \{25, 100\}$ with Opponent Beliefs
+$b_j \in \{0.085, 0.500, 0.915\}$ across Horizons 4–5, protagonist budgets 1,000, 10,000, and 50,000 traversals,
+seeds 400–401 (2 seeds), and own physical beliefs $b_i \in \{0.050, 0.075, 0.500, 0.925, 0.950\}$ (60 cases per panel,
+360 total). All cases ran under 2 supervised spawned workers with 240s timeout and 2,048 MiB RSS ceiling.
+Zero timeouts, crashes, or resource kills occurred.
+
+Raw cases, manifests, and logs:
+- `results/oracle/l2_h45_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h45_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h45_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h45_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h45_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h45_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+
+### Timing and concurrency instrumentation audit
+
+Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and concurrency bound checks:
+
+| Panel | External GNU Elapsed (s) | Parent Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\le 2 \times \text{Elapsed}$) | Monitored Peak RSS (MB) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 69.23 | 74.17 | 140.48 | **PASS** ($70.24 \le 74.17$) | 79.66 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 67.03 | 70.01 | 134.08 | **PASS** ($67.04 \le 70.01$) | 78.53 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 69.93 | 73.28 | 139.92 | **PASS** ($69.96 \le 73.28$) | 79.10 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 86.63 | 91.45 | 176.81 | **PASS** ($88.41 \le 91.45$) | 78.25 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 75.97 | 81.00 | 155.83 | **PASS** ($77.92 \le 81.00$) | 78.21 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 85.30 | 88.29 | 169.32 | **PASS** ($84.66 \le 88.29$) | 79.14 |
+| **Total / Summary** | **454.09 s** | **478.20 s** | **916.44 s** | **PASS (6/6)** | **79.66 MB** |
+
+The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time and parent monotonic elapsed time differ by 2.99–5.03s per panel (total elapsed ~7.57–7.97 min). Both measurements are preserved.
+
+### Accuracy and policy loss performance
+
+Evaluating first-action loss $\mathcal{L} = \max_{a} Q^*(b, a) - Q^*(b, a_{\text{chosen}})$:
+
+| Panel | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Policy Loss | Max Policy Loss | Mean Max Q Error | Max Max Q Error |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 60 | 4 (6.67%) | 4 | 0.032912 | 0.954069 | 2.1765 | 9.5404 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 60 | 1 (1.67%) | 1 | 0.010268 | 0.616052 | 1.8571 | 14.1285 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 60 | 1 (1.67%) | 1 | 0.001048 | 0.062898 | 1.7438 | 9.0502 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 60 | 0 (0.00%) | 0 | 0.000000 | 0.000000 | 1.7256 | 9.8171 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 60 | 0 (0.00%) | 0 | 0.000000 | 0.000000 | 1.7341 | 5.4413 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 60 | 0 (0.00%) | 0 | 0.000000 | 0.000000 | 1.6739 | 8.1720 |
+| **Total / Summary** | **360** | **6 (1.67%)** | **6 (1.67%)** | **0.007371** | **0.954069** | **1.8185** | **14.1285** |
+
+Across all 360 cases, **354 decisions (98.33%)** achieved exact oracle agreement. All 6 decision errors occurred under $B_{\text{opp}}=25$. Under $B_{\text{opp}}=100$, 180/180 decisions (100.0%) were strictly optimal.
+
+### Breakdown by horizon and protagonist budget
+
+| Horizon | Root Budget | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **4** | 1,000 | 60 | 1 (1.67%) | 1 | 0.002808 | 0.168457 | 1.7266 | 6.8501 |
+| **4** | 10,000 | 60 | 2 (3.33%) | 2 | 0.003856 | 0.168457 | 0.8924 | 4.6836 |
+| **4** | 50,000 | 60 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | **0.4920** | **2.2622** |
+| **5** | 1,000 | 60 | 3 (5.00%) | 3 | 0.037564 | 0.954069 | 3.9125 | 14.1285 |
+| **5** | 10,000 | 60 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | **2.2123** | **4.4549** |
+| **5** | 50,000 | 60 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | **1.6753** | **4.2010** |
+
+At root budget 50,000, **120/120 decisions (100.0%)** achieved exact oracle agreement, demonstrating budget convergence.
+
+### Breakdown by own physical belief
+
+| Belief ($b_i$) | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Policy Loss | Max Policy Loss | Mean Max Q Error |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **0.050** | 72 | 3 (4.17%) | 3 | 0.013236 | 0.616052 | 2.0848 |
+| **0.075** | 72 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | 2.0880 |
+| **0.500** | 72 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | 1.0232 |
+| **0.925** | 72 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | 1.8818 |
+| **0.950** | 72 | 3 (4.17%) | 3 | 0.023621 | 0.954069 | 2.0148 |
+
+Near-boundary transition points $b_i \in \{0.075, 0.925\}$ achieved 100.0% accuracy (144/144).
+
+### Opening vs. listening breakdown
+
+In `TigerModel`, opening is nonterminal; continuation paths extend 3–4 steps:
+- **Opening Cases (oracle prefers `OL` or `OR`)**: 72 cases, 2 errors (2.78%; both at $B_{\text{opp}}=25, b_j=0.085, H=4, b_i=0.05$, resolved at 50k budget).
+- **Listening Cases (oracle prefers `L`)**: 288 cases, 4 errors (1.39%; premature opening due to search variance at 1k/10k, all resolved at 50k budget).
+
+### Signed Q-error analysis
+
+- Action `L`: Mean signed error contracts from $+0.5653$ (1k) $\to +0.0464$ (10k) $\to -0.0082$ (50k); mean absolute error contracts from $0.7735 \to 0.0577$.
+- Actions `OL` and `OR`: Positive bias under nonterminal continuation contracts from $+1.44$ to $+1.58$ at 1k to $+0.39$ to $+0.53$ at 50k.
+
+### Opponent budget sensitivity: $B_{\text{opp}}=25$ vs. $B_{\text{opp}}=100$
+
+Across 60 distinct $(H, b_j, \text{seed}, b_i)$ configurations:
+- **6 action flips (10.00%)**: $H=4, b_j=0.085, s=400, b_i=0.95$ ($25 \to \text{L}$ vs $100 \to \text{OR}$); $H=4, b_j=0.915, s=400, b_i=0.05$ ($25 \to \text{L}$ vs $100 \to \text{OL}$); $H=4, b_j=0.915, s=400, b_i=0.95$ ($25 \to \text{L}$ vs $100 \to \text{OR}$); $H=5, b_j=0.085, s=400, b_i=0.05$ ($25 \to \text{OL}$ vs $100 \to \text{L}$); $H=5, b_j=0.915, s=400, b_i=0.05$ ($25 \to \text{OL}$ vs $100 \to \text{L}$); $H=5, b_j=0.915, s=400, b_i=0.95$ ($25 \to \text{OR}$ vs $100 \to \text{L}$).
+- **42 Q-value shifts $> 10^{-4}$ (70.00%)**, with max Q shift 2.723554.
+
+### Development conclusions
+
+These results confirm that candidate protagonist MCTS accurately solves against finite-computation modeled opponents at horizons 4 and 5, with 100% agreement at 50k budget and 100% agreement under $B_{\text{opp}}=100$. This is development evidence; production qualification and empirical nested priors remain pending.

@@ -38,6 +38,16 @@
   18 action flips and 62 Q shifts > 1e-4 under B_opp=25, and 0 action flips under B_opp=100.
   Nonterminal door-opening actions had zero Q error across all cases. Awaiting Codex independent review.
   Full production configuration and long-horizon qualification remain pending.
+- Level-2 H4/H5 finite-budget modeled-opponent development study COMPLETED: The 360-case
+  development suite (protagonist H4-H5, budgets 1k/10k/50k, seeds 400-401, own beliefs .05/.075/.5/.925/.95,
+  modeled depth 20, budgets 25/100, b_j in {.085, .5, .915}) completed with 354/360 strictly optimal
+  decisions (98.33% agreement; mean loss 0.007371, max loss 0.954069). Concurrency bounds passed on
+  all 6 panels (parent monotonic 478.20s, external GNU 454.09s, peak RSS 79.7 MB). All 6 errors occurred
+  under B_opp=25; under B_opp=100, 180/180 decisions were strictly optimal (100.0%, 0 loss). Across all
+  conditions, scaling protagonist budget to 50k resolved every error (120/120 strictly optimal, 100.0%
+  agreement). Boundary transition beliefs .075/.925 and symmetric belief .5 had zero errors (216/216, 100%).
+  Opponent budget comparison (25 vs 100 on 60 distinct problems) confirmed 6 action flips and 42 Q shifts
+  > 1e-4 (max shift 2.7236). Awaiting Codex independent review.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on
