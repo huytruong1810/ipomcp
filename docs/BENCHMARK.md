@@ -847,8 +847,8 @@ in different insertion orders previously returned different modeled policies
 at the same seed. Old evidence remains tied to its old code; no old validation
 gate is silently extended to changed finite trajectories.
 
-Three 18-case smoke panels completed. Modeled budgets25/100 at depth3 used
-H1-H3, own beliefs .05/.5/.95, b_j=.085, seeds300-301, root budget1000,
+Three 18-case smoke panels completed. Modeled budgets 25/100 at depth3 used
+H1-H3, own beliefs .05/.5/.95, b_j=.085, seeds300-301, root budget 1000,
 empirical Bellman, exact tail, bounded c=1; modeled policies used sampled
 backups/tail and normalized c=1. All36 decisions had zero first-action loss;
 maximum Q error .881825. A further18-case exact-opponent control matched the
@@ -858,7 +858,7 @@ No runtime speed claim is made because the full test suite ran concurrently.
 
 Raw evidence: results/l2-finite-20260925/ including audit.json.
 HANDOFF.md defines the next900-case DEVELOPMENT panel. This is not production
-depth20 qualification, global default promotion or a new held-out validation.
+depth 20 qualification, global default promotion or a new held-out validation.
 
 ## 900-case Level-2 finite-budget modeled-opponent development study (September 25)
 
@@ -950,13 +950,13 @@ pre-outage full-suite log confirms225 tests passed in310.22s. bf1c225 contains
 the finite-policy reference, canonical sampling fix, tests and contract;123701b
 contains the subsequent experiment documentation.
 
-Independently verified all900 raw cases: requested coverage/uniqueness, status,
+Independently verified all 900 raw cases: requested coverage/uniqueness, status,
 source hashes againstbf1c225, complete modeled/root settings, seed identity,
 policy distributions, first-action losses and max Q errors. Recomputed all450
 distinct oracle configurations with the declared finite opponent and compared
 both root-budget copies. Confirmed zero strict action errors and zero loss,
 nine optimal-action-set changes out of225 modeled-budget pairs, and21 Q/value
-changes above1e-4 (maximum Q change7.733). The audit uses the existing exhaustive
+changes above 1e-4 (maximum Q change7.733). The audit uses the existing exhaustive
 reference independently of the report; it is not a separate proof of that code.
 
 Worker interval durations and maximum concurrency of two passed for all panels.
@@ -969,8 +969,8 @@ against inferring accurate action values from zero first-action loss.
 The previously drafted54-case smoke had zero policy errors; the separate9-case
 reference cross-check had max Q difference8.88e-16. Those are different checks.
 
-A six-case depth20 resource pilot used modeled budget25, b_j=.5, own beliefs
-.05/.5/.95, H1-H2, root budget1000, seed400, and the same root/ modeled estimators.
+A six-case depth 20 resource pilot used modeled budget 25, b_j=.5, own beliefs
+.05/.5/.95, H1-H2, root budget 1000, seed400, and the same root/ modeled estimators.
 All cases completed with zero loss; max Q error .402376, max case time .486818s,
 peak monitored RSS74.094MiB. Parent monotonic elapsed1.630009s and worker
 sum2.792059s satisfy the two-worker bound. This is a small feasibility check,
@@ -978,7 +978,7 @@ not long-horizon production qualification.
 
 Audit: results/oracle/l2_finite_review_20260925.json.
 Pilot: results/oracle/l2_finite_depth20_pilot_20260925/ and sibling log.
-No solver changes; HANDOFF.md defines a360-case depth20 development extension.
+No solver changes; HANDOFF.md defines a360-case depth 20 development extension.
 
 ## 360-case Level-2 depth-20 development extension (September 25)
 
@@ -1088,7 +1088,7 @@ differences reach 1.323687 seconds and change sign in one panel. Keep both
 measurements; short-run concurrency consistency does not resolve older clock
 discrepancies. No new statistical loss gate was declared for this development run.
 
-A two-case protagonist H4/H5 feasibility pilot with opponent depth20/budget25,
+A two-case protagonist H4/H5 feasibility pilot with opponent depth 20/budget 25,
 b_j=.5, own belief .5, seed400 and root1000 completed with zero first-action
 loss. H5 maximum Q error was 3.355773. Worker sum1.364052s fits two times parent
 elapsed .800306s. A uniform-belief pilot does not qualify boundary decisions.
@@ -1162,7 +1162,10 @@ Across all 360 cases, **354 decisions (98.33%)** achieved exact oracle agreement
 | **5** | 10,000 | 60 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | **2.2123** | **4.4549** |
 | **5** | 50,000 | 60 | **0 (0.0%)** | **0** | **0.000000** | **0.000000** | **1.6753** | **4.2010** |
 
-At root budget 50,000, **120/120 decisions (100.0%)** achieved exact oracle agreement, demonstrating budget convergence.
+At root budget 50,000, **120/120 decisions (100.0%)** achieved exact oracle agreement
+on this development grid. This does not establish convergence: H4 errors increase
+from one at 1k to two at 10k before reaching zero at 50k. Budget is part of the
+deterministic seed identity, so these runs are not nested prefixes of one search.
 
 ### Breakdown by own physical belief
 
@@ -1180,12 +1183,12 @@ Near-boundary transition points $b_i \in \{0.075, 0.925\}$ achieved 100.0% accur
 
 In `TigerModel`, opening is nonterminal; continuation paths extend 3–4 steps:
 - **Opening Cases (oracle prefers `OL` or `OR`)**: 72 cases, 2 errors (2.78%; both at $B_{\text{opp}}=25, b_j=0.085, H=4, b_i=0.05$, resolved at 50k budget).
-- **Listening Cases (oracle prefers `L`)**: 288 cases, 4 errors (1.39%; premature opening due to search variance at 1k/10k, all resolved at 50k budget).
+- **Listening Cases (oracle prefers `L`)**: 288 cases, 4 errors (1.39%; premature opening at 1k/10k; this panel does not isolate its statistical cause, all resolved at 50k budget).
 
 ### Signed Q-error analysis
 
 - Action `L`: Mean signed error contracts from $+0.5653$ (1k) $\to +0.0464$ (10k) $\to -0.0082$ (50k); mean absolute error contracts from $0.7735 \to 0.0577$.
-- Actions `OL` and `OR`: Positive bias under nonterminal continuation contracts from $+1.44$ to $+1.58$ at 1k to $+0.39$ to $+0.53$ at 50k.
+- Actions `OL` and `OR`: Mean signed errors under nonterminal continuation are respectively $+1.44$ and $+1.58$ at 1k, and $+0.39$ and $+0.53$ at 50k. These finite-panel means do not establish estimator bias.
 
 ### Opponent budget sensitivity: $B_{\text{opp}}=25$ vs. $B_{\text{opp}}=100$
 
@@ -1195,4 +1198,41 @@ Across 60 distinct $(H, b_j, \text{seed}, b_i)$ configurations:
 
 ### Development conclusions
 
-These results confirm that candidate protagonist MCTS accurately solves against finite-computation modeled opponents at horizons 4 and 5, with 100% agreement at 50k budget and 100% agreement under $B_{\text{opp}}=100$. This is development evidence; production qualification and empirical nested priors remain pending.
+The candidate matches the reference on all tested H4/H5 cases at 50k and on all tested cases under $B_{\text{opp}}=100$. These results select a candidate resource budget for further testing; they do not certify every belief, seed, opponent configuration or horizon. Production qualification and empirical nested priors remain pending.
+
+
+### Independent Codex audit of c68754b
+
+Verified all 360 case identities, source hashes against 1359053, root and modeled
+configurations, policy probabilities, statuses and recorded losses. Recomputed
+all 120 distinct reference problems and checked all three root-budget copies.
+Confirmed 6/360 strict errors, all greater than .020; that threshold remains
+descriptive for this development study. At root 50k, maximum Q error is 4.200977
+and mean maximum Q error is 1.083629 despite zero first-action loss. Accurate
+action ranking is a different requirement from accurate values.
+
+The 60 distinct opponent-budget comparisons reproduce six action-set changes,
+42 Q changes above 1e-4, and maximum Q change 2.723554. Increasing modeled budget
+changes the opponent's policy law and the decision problem; the zero-error
+budget 100 group does not imply a better protagonist algorithm.
+
+Worker endpoints reproduce durations and at most two simultaneous workers.
+All monotonic concurrency bounds pass. External elapsed 454.09s remains smaller
+than parent monotonic 478.198078s; clock/provenance discrepancies are unresolved.
+Worker durations include both planner and reference, not planner-only latency.
+
+Audit artifact: results/oracle/l2_h45_review_20260925.json. Raw evidence remains
+local and Git-ignored. Source/configuration scope of older gates is unchanged.
+
+
+### H6/H8 resource pilot
+
+At source c68754b (solver files unchanged from 1359053), six cases crossed H6/H8
+with own beliefs .05/.5/.95, root 50k, opponent depth 20/budget 25 and b_j=.5,
+seed 500. All completed with zero first-action loss. Maximum Q errors were
+7.042874 at H6 and 6.630328 at H8. Worker durations were 7.09–8.36s and 11.94–15.29s;
+peak monitored RSS 85.78/125.63 MiB. Parent monotonic elapsed 15.802889/28.178427s
+and worker sums 22.608093/39.254578s satisfy two-worker concurrency bounds.
+These combined planner/reference costs show pilot feasibility, not broad
+accuracy or planner-only efficiency. The next 120-case development protocol
+is fixed in HANDOFF.md. Pilot raw data: results/oracle/l2_h{6,8}_resource_pilot_20260925/.

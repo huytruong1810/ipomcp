@@ -248,7 +248,7 @@ checks. No production default was changed. Source checkpoint: 1fad300.
 
 Independent review of 661fb59: verified all 900 fixed-depth L2 cases and
 recomputed 90 reference configurations; confirmed the single .3377-loss case
-and zero errors at10k. Checked worker intervals, concurrency and aggregate
+and zero errors at 10k. Checked worker intervals, concurrency and aggregate
 timing. Corrected denominator45, nonterminal opening semantics, initial d2
 listening behavior and descriptive (not validation) .020 loss counts.
 No solver changes. Next phase is exact L2 response to explicitly matched
@@ -270,16 +270,29 @@ the independent H2 hand/enumeration tests.
 
 
 Post-outage audit of bf1c225/123701b: confirmed saved225-test result; verified
-all900 finite-policy cases and recomputed450 oracle configurations. Zero policy
+all 900 finite-policy cases and recomputed 450 oracle configurations. Zero policy
 loss and9/225 action-set changes confirmed. Monotonic concurrency checks pass,
-but external timers differ by1.32–3.06s per panel. Corrected repeated terminal-
+but external timers differ by 1.32–3.06s per panel. Corrected repeated terminal-
 opening language and separated54-case smoke from9-case reference cross-check.
-A six-case depth20 pilot completed with zero loss; fixed360-case development
+A six-case depth 20 pilot completed with zero loss; fixed360-case development
 extension prepared. No solver source change or default promotion.
 
 
-Review of ee3d5b4: all 360 depth20 cases audited and 180 distinct reference
+Review of ee3d5b4: all 360 depth 20 cases audited and 180 distinct reference
 problems recomputed. Confirmed zero first-action loss and monotonic interval
 concurrency. Corrected independence/stability interpretations of duplicated
 root-budget rows. A two-case H4/H5 resource pilot completed; next360-case
 development protocol targets protagonist H4/H5. No solver changes.
+
+
+Review of c68754b: independently verified 360 H4/H5 rows against 1359053 and
+recomputed 120 reference configurations. Confirmed 6 material errors at 1k/10k,
+zero first-action loss across 120 cases at 50k, and remaining maximum Q error
+4.200977 at 50k. Corrected convergence, variance-causation and bias claims;
+refreshed stale README coverage and BACKLOG audit status. Worker concurrency
+checks pass; external versus monotonic discrepancy remains unresolved.
+
+Ran six H6/H8 resource pilot cases atroot 50k against depth 20/budget 25.
+All completed with zero first-action loss; maximum Q errors 7.042874/6.630328.
+Prepared a fixed 120-case H6/H8 development panel for Antigravity. No solver
+source or defaults changed; implementation tests were not redundantly rerun.

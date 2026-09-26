@@ -36,7 +36,10 @@ omitted. Rendering is optional when tree export is disabled.
 Independent finite Tiger references check filtering and action values. They do
 not prove convergence or all-domain optimality. Exact planning is implemented for
 bounded L1/L2 Tiger problems with stated information and horizon conventions.
-The matched numerical comparison currently covers L1 versus uniform L0 only.
+Matched comparisons cover L1 versus uniform L0 and bounded L2 best responses
+to declared exact or finite-computation L1 policies. The L2 studies use a point
+prior on the opponent's private belief; they do not qualify empirical mixed
+hierarchies or long episode performance.
 
 ## Experiments
 
