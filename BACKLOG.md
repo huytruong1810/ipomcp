@@ -48,9 +48,17 @@
   is listen, minimum gap .640013; opening and near-tie coverage are absent.
   Maximum Q error 8.523833 remains. Six pilot repeats reproduce exactly.
   All concurrency checks pass; external 555.49s versus monotonic 588.865233s
-  is unresolved. Next: frozen 1,680-case fresh L2 validation in HANDOFF.md,
-  with .020 first-action loss tolerance, unused physical beliefs/seeds and
-  no selective case removal or adaptive budgets.
+  is unresolved.
+- Level-2 fresh held-out validation suite (1,680 cases: H1–H6, H8, 10 fresh physical beliefs,
+  seeds 6000–6003, root 50k, empirical Bellman, exact tail, bounded c=1) COMPLETED: Primary
+  gate FAILED under frozen zero-violation criterion (1,657/1,680 passes = 98.63%; 23/1,680
+  violations = 1.37% exceeding the frozen .020 bound; mean loss 0.002198, max loss 0.741558).
+  Strict optimal choices: 1,654/1,680 (98.45%). All 960 cases across H1–H4 passed with zero
+  violations and zero strict errors (100.0%). All 23 violations were concentrated at H>=5,
+  with 22/23 localized at the critical transition frontier beliefs b_i in {.0325, .9675}
+  (12 at .0325, 10 at .9675, 1 at .0625). Extreme and moderate beliefs achieved 100.0%
+  pass rate (1,176/1,176). Concurrency bounds passed on all 6 panels (parent monotonic 4,318.68s,
+  external GNU 4,148.29s, peak RSS 134.34 MB). Awaiting Codex independent audit.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on

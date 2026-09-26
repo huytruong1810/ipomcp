@@ -1350,3 +1350,93 @@ retries or adaptive budgets. No new validation solve has been performed.
 Freshness was checked against local manifests and 17,239 case rows. This is
 validation of a declared finite grid, not a distribution-free reliability
 claim or permission to promote global defaults.
+
+## 1,680-case Fresh Level-2 validation suite (September 25)
+
+Source checkpoint: ac3df1c. Evaluated candidate protagonist MCTS (`backup="empirical_bellman"`,
+`--exact-final-step`, bounded UCB $c=1.0$, node capacity 200, $\gamma=0.95$) with root budget fixed at
+50,000 traversals against the exhaustive best-response reference (`FinitePolicyL2Reference`) conditional on
+the declared `SolverBank` modeled MCTS L1 policy at fixed depth 20 (sampled backups, sampled final step,
+normalized UCB $c=1.0$, $\epsilon=10^{-6}$, node capacity 500).
+
+Six panels crossed Modeled Opponent Budgets $B_{\text{opp}} \in \{25, 100\}$ with Opponent Beliefs
+$b_j \in \{0.085, 0.500, 0.915\}$ across Horizons 1, 2, 3, 4, 5, 6, 8, 10 fresh physical beliefs
+($0.0010, 0.0125, 0.0325, 0.0625, 0.1375, 0.8625, 0.9375, 0.9675, 0.9875, 0.9990$), and 4 fresh seeds
+(6000–6003 inclusive). All cases ran under 2 supervised spawned workers with 240s timeout and 2,048 MiB RSS ceiling.
+Zero timeouts, crashes, or resource kills occurred (280 cases per panel, 1,680 total).
+
+Raw cases, manifests, and logs:
+- `results/oracle/l2_fresh_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+
+### Timing and concurrency instrumentation audit
+
+Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and concurrency bound checks:
+
+| Panel | External GNU Elapsed (s) | Parent Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\le 2 \times \text{Elapsed}$) | Monitored Peak RSS (MB) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 637.28 | 663.85 | 1297.07 | **PASS** ($648.54 \le 663.85$) | 133.52 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 632.74 | 660.18 | 1289.44 | **PASS** ($644.72 \le 660.18$) | 133.25 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 671.36 | 700.17 | 1369.31 | **PASS** ($684.66 \le 700.17$) | 133.62 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 744.15 | 773.30 | 1515.15 | **PASS** ($757.58 \le 773.30$) | 133.82 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 702.43 | 730.83 | 1432.22 | **PASS** ($716.11 \le 730.83$) | 134.34 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 760.33 | 790.35 | 1548.88 | **PASS** ($774.44 \le 790.35$) | 133.72 |
+| **Total / Summary** | **4,148.29 s** | **4,318.68 s** | **8,452.07 s** | **PASS (6/6)** | **134.34 MB** |
+
+The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time (4,148.29s, ~1.15h) and parent monotonic elapsed time (4,318.68s, ~1.20h) differ by 26.57–30.02s per panel (~4.1%). Both measurements are preserved.
+
+### Primary gate outcome: GATE FAILED
+
+Under the frozen acceptance criteria ($\text{loss} \le 0.020 + 10^{-8}$ on 100% of cases without selective retries or budget escalation), the validation gate **FAILS** due to 23 violations:
+- **Primary Gate Passes ($\mathcal{L} \le 0.020$)**: **1,657 / 1,680 (98.63%)**
+- **Primary Gate Violations ($\mathcal{L} > 0.020$)**: **23 / 1,680 (1.37%)**
+- **Strict Optimal Decisions ($\mathcal{L} \le 10^{-8}$)**: **1,654 / 1,680 (98.45%)**
+- **Near-Tie Bounded Passes ($10^{-8} < \mathcal{L} \le 0.020$)**: **3 / 1,680 (0.18%)**
+- **Overall Policy Loss**: Mean 0.002198, Max 0.741558
+- **Overall Q Errors**: Mean max Q error 1.4544, Max max Q error 9.4911
+
+### Accuracy breakdown by panel
+
+| Panel | Cases | Gate Violations ($\mathcal{L} > 0.02$) | Strict Errors ($\mathcal{L} > 10^{-8}$) | Pass Rate | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 280 | 5 | 6 | 98.21% | 0.005394 | 0.741558 | 1.3838 | 8.8418 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 280 | 3 | 3 | 98.93% | 0.000872 | 0.137071 | 1.5864 | 9.4911 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 280 | 3 | 3 | 98.93% | 0.002083 | 0.261441 | 1.4129 | 9.0953 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 280 | 3 | 3 | 98.93% | 0.000672 | 0.109319 | 1.5203 | 7.4656 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 280 | 3 | 5 | 98.93% | 0.001475 | 0.164706 | 1.3743 | 8.8610 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 280 | 6 | 6 | 97.86% | 0.002689 | 0.402415 | 1.4490 | 6.7104 |
+| **Total / Summary** | **1,680** | **23** | **26** | **98.63%** | **0.002198** | **0.741558** | **1.4544** | **9.4911** |
+
+### Horizon and physical belief localization
+
+- **Horizons 1–4**: **960 / 960 cases (100.0%) passed** with zero gate violations and zero strict errors (mean loss 0.000000).
+- **Horizons 5–8**: 23 violations across 720 cases (96.81% pass rate):
+  - H5: 5 violations / 240 cases (97.92% pass rate; max loss 0.137071)
+  - H6: 4 violations / 240 cases (98.33% pass rate; max loss 0.165231)
+  - H8: 14 violations / 240 cases (94.17% pass rate; max loss 0.741558)
+- **Belief Concentration**:
+  - Boundary transition beliefs: $b_i = 0.0325$ (12 violations) and $b_i = 0.9675$ (10 violations), plus 1 violation at $b_i = 0.0625$.
+  - Extreme ($0.0010, 0.0125, 0.9875, 0.9990$) and moderate ($0.1375, 0.8625, 0.9375$) beliefs: **1,176 / 1,176 cases (100.0%) passed** with zero violations.
+
+### Action strata and signed Q errors
+
+- **Opening Cases (oracle prefers `OL` or `OR`)**: 915 cases (54.46%), 12 violations (98.69% pass rate; mean loss 0.003004, max loss 0.741558).
+- **Listening Cases (oracle prefers `L`)**: 765 cases (45.54%), 11 violations (98.56% pass rate; mean loss 0.001233, max loss 0.164706).
+- **Signed Q Errors**:
+  - Action `L`: Mean signed error $+0.098280$, mean absolute error $0.127690$ (range $[-0.885658, +1.520081]$).
+  - Actions `OL`, `OR`: Mean signed errors $+0.721414$ and $+0.732191$; mean absolute errors $0.766387$ and $0.781955$.
+
+### Opponent budget sensitivity: $B_{\text{opp}}=25$ vs. $B_{\text{opp}}=100$
+
+Across 840 distinct $(H, b_j, \text{seed}, b_i)$ problems:
+- **67 action flips (7.98%)**
+- **490 Q-value shifts $> 10^{-4}$ (58.33%)**
+- **Maximum Q-value shift**: 10.345500.
+
+### Validation conclusions
+
+While candidate protagonist MCTS achieved 100.0% accuracy on H1–H4 (960/960) and 98.63% overall pass rate (1,657/1,680), the primary accuracy gate fails under the frozen zero-violation bound due to 23 violations localized at transition frontier beliefs $b_i \in \{0.0325, 0.9675\}$ under horizons $H \ge 5$. Production promotion remains blocked; findings are handed off to Codex for architectural and algorithmic review.

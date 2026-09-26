@@ -121,6 +121,96 @@ for budget in 25 100; do
 done
 ```
 
+## Completed 1,680-case fresh L2 validation suite
+
+Antigravity completed all six panels sequentially under source checkpoint ac3df1c
+with RUN_ID `20260925`:
+- `results/oracle/l2_fresh_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_fresh_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+
+All 1,680 requested cases completed with status `complete` under two supervised
+spawned workers with 240s timeout and 2,048 MiB memory limit. Zero timeouts,
+crashes, or resource kills occurred.
+
+### Timing and concurrency instrumentation audit
+
+| Panel | GNU Elapsed | Parent Monotonic | Worker Wall Sum | Concurrency Bound | Peak RSS |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| B_opp=25, b_j=0.085 | 637.28 s | 663.85 s | 1297.07 s | PASS (648.54 <= 663.85) | 133.52 MB |
+| B_opp=25, b_j=0.500 | 632.74 s | 660.18 s | 1289.44 s | PASS (644.72 <= 660.18) | 133.25 MB |
+| B_opp=25, b_j=0.915 | 671.36 s | 700.17 s | 1369.31 s | PASS (684.66 <= 700.17) | 133.62 MB |
+| B_opp=100, b_j=0.085 | 744.15 s | 773.30 s | 1515.15 s | PASS (757.58 <= 773.30) | 133.82 MB |
+| B_opp=100, b_j=0.500 | 702.43 s | 730.83 s | 1432.22 s | PASS (716.11 <= 730.83) | 134.34 MB |
+| B_opp=100, b_j=0.915 | 760.33 s | 790.35 s | 1548.88 s | PASS (774.44 <= 790.35) | 133.72 MB |
+| **Total** | **4,148.29 s** | **4,318.68 s** | **8,452.07 s** | **PASS (6/6)** | **134.34 MB** |
+
+All six panels passed the monotonic concurrency bound. External GNU time (4,148.29s,
+~1.15h) and parent monotonic elapsed (4,318.68s, ~1.20h) differ by 26.57–30.02s
+per panel (~4.1%); both measurements are preserved.
+
+### Primary gate outcome: GATE FAILED
+
+Under the frozen protocol ($\text{loss} \le 0.020 + 1e-8$ for every case without selective
+retries or budget escalation), the validation gate **FAILS** due to 23 violations:
+- **Primary Gate Passes ($\mathcal{L} \le 0.020$)**: **1,657 / 1,680 (98.63%)**
+- **Primary Gate Violations ($\mathcal{L} > 0.020$)**: **23 / 1,680 (1.37%)**
+- **Strict Optimal Choices ($\mathcal{L} \le 1e-8$)**: **1,654 / 1,680 (98.45%)**
+- **Near-Tie Bounded Passes ($1e-8 < \mathcal{L} \le 0.020$)**: **3 / 1,680 (0.18%)**
+- **Overall Policy Loss**: Mean 0.002198, Max 0.741558
+- **Overall Q Errors**: Mean max Q error 1.4544, Max max Q error 9.4911
+
+### Panel breakdown
+
+| Panel | Cases | Gate Violations | Strict Errors | Pass Rate | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| B_opp=25, b_j=0.085 | 280 | 5 | 6 | 98.21% | 0.005394 | 0.741558 | 1.3838 | 8.8418 |
+| B_opp=25, b_j=0.500 | 280 | 3 | 3 | 98.93% | 0.000872 | 0.137071 | 1.5864 | 9.4911 |
+| B_opp=25, b_j=0.915 | 280 | 3 | 3 | 98.93% | 0.002083 | 0.261441 | 1.4129 | 9.0953 |
+| B_opp=100, b_j=0.085 | 280 | 3 | 3 | 98.93% | 0.000672 | 0.109319 | 1.5203 | 7.4656 |
+| B_opp=100, b_j=0.500 | 280 | 3 | 5 | 98.93% | 0.001475 | 0.164706 | 1.3743 | 8.8610 |
+| B_opp=100, b_j=0.915 | 280 | 6 | 6 | 97.86% | 0.002689 | 0.402415 | 1.4490 | 6.7104 |
+| **Total** | **1,680** | **23** | **26** | **98.63%** | **0.002198** | **0.741558** | **1.4544** | **9.4911** |
+
+### Horizon and belief localization
+
+- **Horizons 1–4**: **960 / 960 cases (100.0%) passed** with zero gate violations and
+  zero strict errors (mean loss 0.000000).
+- **Horizons 5–8**: 23 violations across 720 cases (96.81% pass rate):
+  - H5: 5 violations / 240 cases (97.92% pass rate; max loss 0.137071)
+  - H6: 4 violations / 240 cases (98.33% pass rate; max loss 0.165231)
+  - H8: 14 violations / 240 cases (94.17% pass rate; max loss 0.741558)
+- **Belief Concentration**:
+  - Boundary transition beliefs: $b_i = 0.0325$ (12 violations) and $b_i = 0.9675$ (10 violations),
+    plus 1 violation at $b_i = 0.0625$.
+  - Extreme ($0.0010, 0.0125, 0.9875, 0.9990$) and moderate ($0.1375, 0.8625, 0.9375$) beliefs:
+    **1,176 / 1,176 cases (100.0%) passed** with zero violations.
+
+### Action strata and signed Q errors
+
+- **Opening Cases (oracle prefers OL/OR)**: 915 cases (54.46%), 12 violations (98.69% pass rate;
+  mean loss 0.003004, max loss 0.741558).
+- **Listening Cases (oracle prefers L)**: 765 cases (45.54%), 11 violations (98.56% pass rate;
+  mean loss 0.001233, max loss 0.164706).
+- **Signed Q Errors**:
+  - Action `L`: Mean signed error +0.098280, mean absolute error 0.127690 (range [-0.885658, +1.520081]).
+  - Actions `OL`, `OR`: Mean signed errors +0.721414 and +0.732191; mean absolute errors 0.766387 and 0.781955.
+
+### Opponent budget sensitivity (25 vs 100 on 840 distinct problems)
+
+Comparing the 840 distinct $(H, b_j, \text{seed}, b_i)$ problems between $B_{\text{opp}}=25$ and $B_{\text{opp}}=100$:
+- **67 action flips (7.98%)**
+- **490 Q-value shifts > 1e-4 (58.33%)**
+- **Maximum Q-value shift**: 10.345500.
+
+### Next steps: Codex independent audit
+
+All 1,680 case files and manifests are stored in `results/oracle/l2_fresh_n{25,100}_b{0.085,0.5,0.915}_20260925/`.
+Ready for Codex audit, manifest verification against ac3df1c, and recomputation of reference values.
+
 ## Remaining qualification
 
 No solver source changed; the latest implementation test result remains 225
