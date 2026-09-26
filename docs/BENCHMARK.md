@@ -1236,3 +1236,94 @@ and worker sums 22.608093/39.254578s satisfy two-worker concurrency bounds.
 These combined planner/reference costs show pilot feasibility, not broad
 accuracy or planner-only efficiency. The next 120-case development protocol
 is fixed in HANDOFF.md. Pilot raw data: results/oracle/l2_h{6,8}_resource_pilot_20260925/.
+
+## 120-case Level-2 H6/H8 development study (September 25)
+
+Source checkpoint: e63db30. Evaluated candidate protagonist MCTS (`backup="empirical_bellman"`,
+`--exact-final-step`, bounded UCB $c=1.0$, $\gamma=0.95$) against the exhaustive best-response reference
+(`FinitePolicyL2Reference`) conditional on the declared `SolverBank` modeled MCTS L1 policy at fixed depth 20
+(sampled backups, sampled final step, normalized UCB $c=1.0$, $\epsilon=10^{-6}$) across deep protagonist horizons ($H \in \{6, 8\}$).
+
+Six panels crossed Modeled Opponent Budgets $B_{\text{opp}} \in \{25, 100\}$ with Opponent Beliefs
+$b_j \in \{0.085, 0.500, 0.915\}$ across Horizons 6 and 8, protagonist root budget fixed at 50,000 traversals,
+seeds 500–501 (2 seeds), and own physical beliefs $b_i \in \{0.050, 0.075, 0.500, 0.925, 0.950\}$ (20 cases per panel,
+120 total). All cases ran under 2 supervised spawned workers with 240s timeout and 2,048 MiB RSS ceiling.
+Zero timeouts, crashes, or resource kills occurred.
+
+Raw cases, manifests, and logs:
+- `results/oracle/l2_h68_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h68_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h68_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h68_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h68_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_h68_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+
+### Timing and concurrency instrumentation audit
+
+Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and concurrency bound checks:
+
+| Panel | External GNU Elapsed (s) | Parent Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\le 2 \times \text{Elapsed}$) | Monitored Peak RSS (MB) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 89.97 | 95.08 | 184.03 | **PASS** ($92.02 \le 95.08$) | 132.08 |
+| $B_{\text{opp}}=25, b_j=0.500$ | 83.42 | 89.08 | 172.46 | **PASS** ($86.23 \le 89.08$) | 125.92 |
+| $B_{\text{opp}}=25, b_j=0.915$ | 87.33 | 93.02 | 179.43 | **PASS** ($89.72 \le 93.02$) | 132.38 |
+| $B_{\text{opp}}=100, b_j=0.085$ | 98.75 | 104.32 | 202.57 | **PASS** ($101.29 \le 104.32$) | 132.00 |
+| $B_{\text{opp}}=100, b_j=0.500$ | 94.29 | 99.97 | 193.67 | **PASS** ($96.84 \le 99.97$) | 129.29 |
+| $B_{\text{opp}}=100, b_j=0.915$ | 101.73 | 107.39 | 208.76 | **PASS** ($104.38 \le 107.39$) | 126.76 |
+| **Total / Summary** | **555.49 s** | **588.87 s** | **1140.93 s** | **PASS (6/6)** | **132.38 MB** |
+
+The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time and parent monotonic elapsed time differ by 5.11–5.66s per panel (total elapsed ~9.26–9.81 min). Both measurements are preserved.
+
+### Accuracy and policy loss performance
+
+Evaluating first-action loss $\mathcal{L} = \max_{a} Q^*(b, a) - Q^*(b, a_{\text{chosen}})$:
+
+| Panel | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Loss > 0.02 (diagnostic) | Mean Policy Loss | Max Policy Loss | Mean Max Q Error | Max Max Q Error | Accuracy |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| $B_{\text{opp}}=25, b_j=0.085$ | 20 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 3.4836 | 7.6314 | 100.0% |
+| $B_{\text{opp}}=25, b_j=0.500$ | 20 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 4.3732 | 7.0429 | 100.0% |
+| $B_{\text{opp}}=25, b_j=0.915$ | 20 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 3.5872 | 7.1004 | 100.0% |
+| $B_{\text{opp}}=100, b_j=0.085$ | 20 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 3.3236 | 8.5238 | 100.0% |
+| $B_{\text{opp}}=100, b_j=0.500$ | 20 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 3.7174 | 6.2539 | 100.0% |
+| $B_{\text{opp}}=100, b_j=0.915$ | 20 | 0 (0.0%) | 0 | 0.000000 | 0.000000 | 2.9572 | 6.2639 | 100.0% |
+| **Total / Summary** | **120** | **0 (0.00%)** | **0 (0.00%)** | **0.000000** | **0.000000** | **3.5737** | **8.5238** | **100.0%** |
+
+Across all 120 cases, **120 decisions (100.0%)** achieved exact oracle agreement.
+
+### Breakdown by horizon and physical belief
+
+| Horizon | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err | Accuracy |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **6** | 60 | 0 (0.0%) | 0.000000 | 0.000000 | 2.8410 | 8.5238 | 100.0% |
+| **8** | 60 | 0 (0.0%) | 0.000000 | 0.000000 | 4.3064 | 7.6314 | 100.0% |
+
+| Belief ($b_i$) | Cases | Errors ($\mathcal{L} > 10^{-8}$) | Mean Loss | Max Loss | Mean Max Q Err | Max Max Q Err | Accuracy |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **0.050** | 24 | 0 (0.0%) | 0.000000 | 0.000000 | 3.3083 | 7.0429 | 100.0% |
+| **0.075** | 24 | 0 (0.0%) | 0.000000 | 0.000000 | 3.8035 | 6.7721 | 100.0% |
+| **0.500** | 24 | 0 (0.0%) | 0.000000 | 0.000000 | 2.7476 | 5.0341 | 100.0% |
+| **0.925** | 24 | 0 (0.0%) | 0.000000 | 0.000000 | 3.8893 | 6.2539 | 100.0% |
+| **0.950** | 24 | 0 (0.0%) | 0.000000 | 0.000000 | 4.1198 | 8.5238 | 100.0% |
+
+### Action classification: uniform optimality of listening
+
+In all 120 cases at $H \in \{6, 8\}$, the Bayes-optimal oracle action is **`L` (Listen)**:
+- **Opening Cases (oracle prefers `OL` or `OR`)**: 0 / 120.
+- **Listening Cases (oracle prefers `L`)**: 120 / 120 (100.0% accuracy).
+
+At long horizons, information gathering strictly dominates door opening across all tested beliefs. Protagonist MCTS accurately selected `L` in 100% of cases.
+
+### Signed Q-error analysis
+
+- Action `L`: Mean signed error is $+0.298149$, mean absolute error is $0.332974$ (range $[-0.304545, +1.071613]$).
+- Nonterminal door opening (`OL`, `OR`): Continuation search through 5–7 post-opening steps shows positive bias ($+2.156583$ on `OL`, $+2.031731$ on `OR`; max error $8.523833$). This continuation bias does not impair decision accuracy because $Q^*(L)$ exceeds opening values by a wide margin.
+
+### Opponent budget sensitivity: $B_{\text{opp}}=25$ vs. $B_{\text{opp}}=100$
+
+Across the 60 distinct $(H, b_j, \text{seed}, b_i)$ problems:
+- **0 action flips (0.00%)**: Optimal policy uniformly listens under both modeled budgets.
+- **60 out of 60 Q vectors shift $> 10^{-4}$ (100.0%)**, with max Q shift $1.616884$.
+
+### Development conclusions
+
+These results confirm that candidate protagonist MCTS at 50k budget accurately tracks the optimal listening policy across deep horizons ($H=6$ and $H=8$). This is development evidence; production qualification, empirical nested priors, and multi-step episode evaluations remain pending.
