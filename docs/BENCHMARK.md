@@ -1272,7 +1272,7 @@ Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and co
 | $B_{\text{opp}}=100, b_j=0.915$ | 101.73 | 107.39 | 208.76 | **PASS** ($104.38 \le 107.39$) | 126.76 |
 | **Total / Summary** | **555.49 s** | **588.87 s** | **1140.93 s** | **PASS (6/6)** | **132.38 MB** |
 
-The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time and parent monotonic elapsed time differ by 5.11–5.66s per panel (total elapsed ~9.26–9.81 min). Both measurements are preserved.
+The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time and parent monotonic elapsed time differ by 5.11–5.69s per panel (total elapsed ~9.26–9.81 min). Both measurements are preserved.
 
 ### Accuracy and policy loss performance
 
@@ -1311,12 +1311,12 @@ In all 120 cases at $H \in \{6, 8\}$, the Bayes-optimal oracle action is **`L` (
 - **Opening Cases (oracle prefers `OL` or `OR`)**: 0 / 120.
 - **Listening Cases (oracle prefers `L`)**: 120 / 120 (100.0% accuracy).
 
-At long horizons, information gathering strictly dominates door opening across all tested beliefs. Protagonist MCTS accurately selected `L` in 100% of cases.
+At H6/H8 in this tested grid, the reference assigns listening a strictly higher value than either opening action. Protagonist MCTS accurately selected `L` in 100% of cases.
 
 ### Signed Q-error analysis
 
 - Action `L`: Mean signed error is $+0.298149$, mean absolute error is $0.332974$ (range $[-0.304545, +1.071613]$).
-- Nonterminal door opening (`OL`, `OR`): Continuation search through 5–7 post-opening steps shows positive bias ($+2.156583$ on `OL`, $+2.031731$ on `OR`; max error $8.523833$). This continuation bias does not impair decision accuracy because $Q^*(L)$ exceeds opening values by a wide margin.
+- Nonterminal door opening (`OL`, `OR`): Continuation search through 5–7 post-opening steps has positive mean signed errors ($+2.156583$ on `OL`, $+2.031731$ on `OR`; max error $8.523833$). These finite-panel statistics do not establish estimator bias or its cause. All sampled first-action choices agree with the reference on this grid.
 
 ### Opponent budget sensitivity: $B_{\text{opp}}=25$ vs. $B_{\text{opp}}=100$
 
@@ -1326,4 +1326,27 @@ Across the 60 distinct $(H, b_j, \text{seed}, b_i)$ problems:
 
 ### Development conclusions
 
-These results confirm that candidate protagonist MCTS at 50k budget accurately tracks the optimal listening policy across deep horizons ($H=6$ and $H=8$). This is development evidence; production qualification, empirical nested priors, and multi-step episode evaluations remain pending.
+Candidate protagonist MCTS at 50k agrees with the optimal listening action on these 120 H6/H8 development cases. This is development evidence; production qualification, empirical nested priors, and multi-step episode evaluations remain pending.
+
+
+### Independent audit of 03ca490 and next validation design
+
+Codex verified all 120 case identities, configurations and source hashes against
+e63db30, and recomputed all 120 reference problems within 1e-8. Probability,
+loss, Q-error and signed-error statistics agree. Six pilot repeats reproduce
+identical rows. Minimum oracle action gap is .640013; maximum is 48.400338.
+The study has no opening-optimal cases and does not establish near-tie accuracy.
+
+All worker endpoint/duration and two-worker concurrency checks pass. The exact
+parent monotonic total is 588.865233s versus external 555.49s, with differences
+5.110796–5.693711s. The previously reported 5.66s upper endpoint was inaccurate.
+Audit artifact: results/oracle/l2_h68_review_20260925.json.
+
+HANDOFF.md now freezes a separate 1,680-case fresh L2 validation design at
+50k root simulations, H1–H6/H8, two modeled budgets, three opponent beliefs,
+ten unused physical beliefs and seeds 6000–6003. Primary first-action loss
+tolerance is .020 + 1e-8 for every case; failures cannot be removed by selective
+retries or adaptive budgets. No new validation solve has been performed.
+Freshness was checked against local manifests and 17,239 case rows. This is
+validation of a declared finite grid, not a distribution-free reliability
+claim or permission to promote global defaults.

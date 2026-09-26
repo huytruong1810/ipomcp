@@ -296,3 +296,12 @@ Ran six H6/H8 resource pilot cases atroot 50k against depth 20/budget 25.
 All completed with zero first-action loss; maximum Q errors 7.042874/6.630328.
 Prepared a fixed 120-case H6/H8 development panel for Antigravity. No solver
 source or defaults changed; implementation tests were not redundantly rerun.
+
+
+Review of 03ca490: verified all 120 H6/H8 cases against e63db30 and recomputed
+all 120 reference problems. Zero loss confirmed, but every optimum is listen
+and minimum gap is .640013. Repeated six pilot rows reproduce exactly.
+Corrected timing discrepancy endpoint and unsupported bias attribution.
+Froze 1,680-case fresh L2 validation after checking physical-belief/seed
+novelty against local manifests and 17,239 rows; no new validation solve.
+Solver code/defaults unchanged; no redundant implementation test rerun.

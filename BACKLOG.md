@@ -43,14 +43,14 @@
   Modeled budget 25 versus 100 changes 6/60 optimal action sets and 42/60 Q vectors.
   All concurrency bounds pass; external 454.09s versus monotonic 478.198078s
   remains unresolved. Next resource protocol is in HANDOFF.md.
-- Level-2 H6/H8 finite-budget modeled-opponent development study COMPLETED: The 120-case
-  development suite (protagonist H6-H8, root 50k, seeds 500-501, own beliefs .05/.075/.5/.925/.95,
-  modeled depth 20, budgets 25/100, b_j in {.085, .5, .915}) completed with 120/120 strictly optimal
-  decisions (100.0% agreement; mean/max loss 0.000000). In all 120 cases the oracle strictly prefers
-  listening (L), which protagonist MCTS chose in 100% of cases. Maximum Q error is 8.5238 (mean max Q
-  error 3.5737). Concurrency bounds passed on all 6 panels (parent monotonic 588.87s, external GNU 555.49s,
-  peak RSS 132.38 MB). Opponent budget comparison (25 vs 100 on 60 distinct problems) confirmed 0 action flips
-  (uniform listening) and 60/60 Q vector shifts > 1e-4 (max shift 1.6169). Awaiting Codex independent review.
+- Level-2 H6/H8 development independently AUDITED: all 120 references recomputed,
+  source hashes verified against e63db30, zero first-action loss. Every optimum
+  is listen, minimum gap .640013; opening and near-tie coverage are absent.
+  Maximum Q error 8.523833 remains. Six pilot repeats reproduce exactly.
+  All concurrency checks pass; external 555.49s versus monotonic 588.865233s
+  is unresolved. Next: frozen 1,680-case fresh L2 validation in HANDOFF.md,
+  with .020 first-action loss tolerance, unused physical beliefs/seeds and
+  no selective case removal or adaptive budgets.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on
@@ -97,6 +97,6 @@ resource-supervised budget sweep. Historical results remain source-bound evidenc
 Worker startup now uses spawn to avoid inheriting numerical-library thread locks. Fault-injection, resume, and domain integration checks cover the change.
 
 
-Current next step: resource-limited longer-horizon L2 development as specified
-in HANDOFF.md, followed by a separately frozen fresh validation design.
+Current next step: the separately frozen 1,680-case fresh L2 validation
+in HANDOFF.md. No new validation solves have been performed at this checkpoint.
 No global default promotion or L4/all39 launch is authorized by these results.
