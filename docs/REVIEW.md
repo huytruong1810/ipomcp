@@ -339,3 +339,27 @@ new primary violations. Corrected strict-fix count, bias-elimination language,
 invariant-RSS claim and isolated-overhead interpretation. Kept option opt-in.
 Froze 3,360-case fresh candidate protocol after checking local manifests and
 22,303 case rows for belief/seed novelty. No fresh solves or solver changes.
+
+
+September 26 workflow: main fast-forwarded to bc35a16 and pushed to origin.
+Deleted fix/tiger-policy-inversion locally and remotely after verifying both
+local/remote main were ancestors. One checkout remains; continue on main,
+creating branches only for separately justified side work as requested.
+User reports concurrent CPU/GPU load from another codebase; isolate accuracy
+reproducibility from resource and timing interpretation.
+
+
+Review of bc35a16: checked all 3,360 fresh candidate rows and reproduced all 15
+strict errors at the original 50k settings, with independent reference solves.
+Verified Bellman error decompositions and child-error dominance in 14/15 action
+ranking errors. Replayed eight H8 errors at 100k; all became optimal. Added
+lower-horizon checks and prepared a full 1,440-case H5/H6/H8 budget experiment.
+No solver/default changes; previous 241-test implementation result remains.
+Concurrent workloads preclude isolated runtime comparisons, not preservation
+of the failed gate.
+
+
+Completed all 30 diagnostic jobs: 15 exact 50k replays and 15 selected 100k solves.
+All 15 selected 100k cases meet tolerance; 13 are strictly optimal. Verified
+unchanged reference values/model identity, source hashes and concurrency
+checks. No inference of full-grid qualification follows from selected errors.

@@ -77,16 +77,17 @@
 - Level-2 fresh candidate validation suite (3,360 cases across 6 panels:
   6 modeled opponent conditions, H1–H6, H8, 10 unseen physical beliefs, seeds 7000–7007, root 50k,
   empirical Bellman, exact tail, bounded c=1, --exact-history-rewards) COMPLETED: Primary
-  gate FAILED under frozen zero-tolerance criterion (3,351/3,360 passes = 99.73%; 9 violations > 0.020,
+  gate FAILED under the frozen all-case bounded-loss criterion (3,351/3,360 passes = 99.73%; 9 violations > 0.020,
   max loss 0.205046). Strict optimal choices: 3,345/3,360 (99.55%), 15 strict errors (6 near-ties <= 0.020).
-  Compared to the previous fresh validation gate (ac3df1c, sampled rewards), the violation rate fell by 5.1x
-  (1.37% -> 0.27%), max loss contracted from 0.741558 to 0.205046, mean loss dropped by 7.2x
-  (0.002198 -> 0.000307), and mean max Q error dropped by 3.5x (1.4400 -> 0.4124). Flawless scaling through H4:
+  Mean loss .000307 and mean maximum Q error .4124. Comparisons to earlier gates
+  use different grids/seeds/model identities and are descriptive, not causal.
+  H1–H4 on this tested grid:
   1,920/1,920 strictly optimal (100.0%). All 9 violations localized to H >= 5 (H5: 1, H6: 1, H8: 7) at frontier
   beliefs b_i in {.0275, .0375, .9625, .9725}; all six non-frontier beliefs had 100.0% strict optimality
   (2,016/2,016). All 6 concurrency bounds passed (parent monotonic 10,436.89s, external wall 10,327.93s,
   worker wall sum 20,220.20s). Monitored peak RSS ranged from 73.74 to 138.27 MiB. Production defaults
-  remain unchanged; evidence handed off to Codex.
+  remain unchanged. Codex independently audited metadata/arithmetic and replayed
+  all 15 strict errors exactly; see HANDOFF.md for the 100k development probe.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on
@@ -133,9 +134,11 @@ resource-supervised budget sweep. Historical results remain source-bound evidenc
 Worker startup now uses spawn to avoid inheriting numerical-library thread locks. Fault-injection, resume, and domain integration checks cover the change.
 
 
-Current next step: the fresh 3,360-case candidate gate frozen in HANDOFF.md.
-The development comparison was independently audited: 16 to 3 primary violations,
-19 to 7 strict errors, with four new strict errors and two new primary violations.
-Keep exact_history_rewards opt-in pending fresh evidence; even a pass applies
-only to the declared finite-policy contract. No global/default promotion or
-production L4/all39 qualification follows from development improvements.
+Current next step: the full observed H5/H6/H8 grid at 100k, as declared in
+HANDOFF.md. The new fresh candidate gate also failed (9 violations/3,360 cases);
+all 15 strict errors reproduce exactly at 50k despite concurrent host workloads.
+Child-value error dominates root chance error in 14/15 ranking errors. All eight
+selected H8 errors become optimal at 100k; the seven selected H5/H6 errors
+also meet tolerance, with two small strict losses remaining. Full-grid
+regressions remain untested. Do not change depth/objective or promote defaults on this subset.
+Work directly on main; the merged fix branch was deleted locally and remotely.

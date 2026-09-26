@@ -1670,7 +1670,7 @@ and unseen seeds ($7000$–$7007$).
 
 #### Primary gate outcome: FAILED
 
-Under the frozen zero-tolerance criterion ($\text{loss} \le 0.020 + 10^{-8}$), any single
+Under the frozen all-case bounded-loss criterion ($\text{loss} \le 0.020 + 10^{-8}$), any single
 completed violation fails the accuracy gate. Across the 3,360 requested and completed
 cases, **9 cases exceeded $0.020$** (maximum loss $0.205046$). The gate formally **FAILS**.
 
@@ -1685,8 +1685,8 @@ cases, **9 cases exceeded $0.020$** (maximum loss $0.205046$). The gate formally
 | Gate compliance rate ($\le 0.020$) | 98.63% | **99.73%** | +1.10 percentage points |
 | Mean first-action policy loss | 0.002198 | **0.000307** | **7.2x reduction** |
 | Maximum policy loss | 0.741558 | **0.205046** | **3.6x contraction** |
-| Mean maximum Q error | 1.4400 | **0.4124** | **3.5x reduction** |
-| Peak absolute Q error | 8.5238 | **5.8211** | 31.7% contraction |
+| Mean maximum Q error | 1.4544 | **0.4124** | **3.5x reduction** |
+| Peak absolute Q error | 9.4911 | **5.8211** | 38.7% contraction |
 
 #### Panel-by-panel performance
 
@@ -1764,3 +1764,83 @@ total worker wall sum was 20,220.20s (5.62 hours). Monitored peak RSS ranged fro
 Raw artifacts: `results/oracle/l2_rewards_fresh_n{25,100}_b{0.085,0.5,0.915}_20260926/`.
 This fresh validation gate fails under the frozen criterion; production defaults remain unchanged and evidence is handed off to Codex.
 
+
+
+#### Interpretation under concurrent workloads
+
+The user reports a separate codebase's agent consuming CPU/GPU resources during
+these experiments. Wall time, resource-limit failures and cross-run throughput
+are therefore confounded by host load. Do not attribute timing changes solely
+to solver changes. Fixed traversal counts are computational work budgets, not
+wall-clock deadlines; a completed deterministic seeded solve is expected to
+retain its result. Replays, rather than an assumption, test that property.
+
+The two fresh gates use different physical beliefs, seeds, source/configuration
+identities and sample counts. Their historical rates are descriptive, not a
+paired causal estimate of this estimator's improvement. The earlier gate's
+mean maximum Q error is 1.4544 and maximum 9.4911; copied values from other panels
+were corrected in the table above. Both gates remain failed.
+
+
+#### Independent audit and post-search decomposition of bc35a16
+
+All3,360 case identities, source hashes against f4d2aef, full configurations,
+policy/loss/Q-error arithmetic and timing intervals were checked. Confirmed
+9 primary violations, 15 strict errors and mean loss .000307266. All15 strict
+errors were rerun at 50k and reproduced exactly, including their Q estimates.
+Their reference values were independently recomputed. No reference values
+were provided to the planner; decomposition runs after search.
+
+For an action a, the Bellman error splits into immediate-reward error,
+gamma times chance-frequency error weighted by exact child values, and
+gamma times child-value error weighted by empirical frequencies. The table
+subtracts the optimal action's error from the chosen action's error, thereby
+explaining the ranking inversion. Immediate root error is zero. Child error
+dominates in magnitude in 14/15 cases; both competing root actions receive
+roughly 24,600–24,950 visits. The H5 case has substantial root chance error too.
+
+| B_opp | b_j | H | Seed | b_i | Loss | Chosen/best | Chance ranking error | Child ranking error |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: |
+| 25 | 0.085 | 8 | 7004 | 0.9625 | 0.205046 | OR/L | 0.011202 | 0.217004 |
+| 25 | 0.915 | 8 | 7004 | 0.0375 | 0.163827 | L/OL | -0.001593 | 0.174115 |
+| 25 | 0.915 | 8 | 7000 | 0.9625 | 0.147591 | L/OR | 0.001423 | 0.154569 |
+| 100 | 0.085 | 8 | 7007 | 0.0375 | 0.145390 | OL/L | 0.013195 | 0.145059 |
+| 100 | 0.915 | 8 | 7002 | 0.0275 | 0.113124 | L/OL | 0.011028 | 0.191339 |
+| 25 | 0.915 | 8 | 7005 | 0.9625 | 0.065675 | L/OR | 0.000614 | 0.110666 |
+| 25 | 0.5 | 5 | 7003 | 0.0375 | 0.058131 | OL/L | 0.035497 | 0.024024 |
+| 100 | 0.085 | 8 | 7005 | 0.9725 | 0.056220 | L/OR | -0.010281 | 0.100949 |
+| 100 | 0.085 | 6 | 7000 | 0.0375 | 0.021715 | L/OL | 0.002544 | 0.063690 |
+| 100 | 0.5 | 8 | 7003 | 0.9725 | 0.019711 | L/OR | 0.004554 | 0.054456 |
+| 100 | 0.5 | 6 | 7003 | 0.0275 | 0.009035 | L/OL | -0.001877 | 0.036523 |
+| 100 | 0.5 | 6 | 7004 | 0.0275 | 0.009035 | L/OL | -0.008632 | 0.024712 |
+| 100 | 0.915 | 6 | 7000 | 0.0375 | 0.006699 | L/OL | 0.000912 | 0.039495 |
+| 100 | 0.085 | 6 | 7000 | 0.9625 | 0.006058 | L/OR | -0.012269 | 0.053242 |
+| 100 | 0.5 | 6 | 7003 | 0.9725 | 0.005156 | L/OR | -0.006987 | 0.028178 |
+
+The eight H8 errors were rerun at 100k; all eight now select the reference-optimal
+action with zero loss and unchanged modeled policies/reference values.
+Lower-horizon supplemental evidence is recorded in HANDOFF.md. These cases
+were selected after observing failure, so improvements are development evidence
+only. The historical 50k gate remains failed; untested originally correct cases
+can regress when the budget and corresponding deterministic root seed change.
+
+The next fixed resource experiment covers all 1,440 observed H5/H6/H8 cases
+at 100k, preserving horizon, exploration and modeled-policy semantics. H8-only
+budget increases would leave the original H5 and H6 violations unaddressed.
+No depth adaptation or boundary-specific exception is introduced.
+
+Audit: results/oracle/l2_rewards_fresh_review_20260926.json.
+Replay/decomposition: results/oracle/l2_rewards_fresh_diagnosis_20260926/.
+Ranking errors: results/oracle/l2_fresh_margin_decomposition_20260926.json.
+Supplement: results/oracle/l2_rewards_lower_horizon_100k_20260926/.
+
+
+Supplemental outcome: all seven selected H5/H6 cases meet the .020 tolerance
+at 100k; five have zero loss, while two H6 losses remain .006699 and .005156.
+Across all 15 selected errors, 100k has zero tolerance violations and two strict
+errors. This supports testing the full observed H5/H6/H8 grid at 100k, not
+promoting a default or declaring the original gate repaired. The 15 old 50k
+rows reproduce exactly, and opponent metadata/reference Q vectors remain
+unchanged across budgets. All diagnostic jobs completed and their worker
+interval/concurrency checks pass. Aggregate:
+results/oracle/l2_rewards_budget_probe_review_20260926.json.
