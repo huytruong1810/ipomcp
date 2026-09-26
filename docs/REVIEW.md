@@ -305,3 +305,28 @@ Corrected timing discrepancy endpoint and unsupported bias attribution.
 Froze 1,680-case fresh L2 validation after checking physical-belief/seed
 novelty against local manifests and 17,239 rows; no new validation solve.
 Solver code/defaults unchanged; no redundant implementation test rerun.
+
+
+Review of f0b98c5: audited the frozen 1,680-case L2 gate and independently
+recomputed all reference configurations. Confirmed failure with 23 primary
+violations and 26 strict errors. Reproduced two failing solves and decomposed
+root Q errors into immediate, chance-frequency and child-value contributions.
+Reviewed node Bellman backups, MCTS history propagation and bank reward
+integration together. Planned an explicit conditional-reward ablation with
+separate model-identity controls; no solver source or defaults changed.
+
+
+Conditional-reward implementation: added opt-in config/runner metadata and
+internal-tree reward integration using full private-history beliefs. Covered
+analytic posterior rewards under both sampled hidden states, both backups,
+terminal outcomes, independent tail/history flags and identical modeled laws
+between arms. All 46 focused tests pass. A 12-pair new-source smoke improves
+1 control violation to 0 candidate violations; full paired development remains.
+Global defaults remain unchanged; new configuration changes seed identities,
+so older source-bound evidence is not silently transferred.
+
+
+Final implementation verification: all 241 tests passed in 392.64s, including
+domain integration. Ruff lint and format checks passed across 103 Python files,
+and diff whitespace checks passed. Full log:
+results/history-rewards-20260925/tests.log.

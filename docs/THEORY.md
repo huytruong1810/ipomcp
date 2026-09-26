@@ -251,3 +251,33 @@ the same random variate due to insertion order. Canonical mass ordering restores
 the requirement that cached finite policies are functions of the immutable
 model and settings. This changes some finite trajectories, not the physical
 model or Bellman objective; old empirical evidence retains its source scope.
+
+
+## Optional conditional rewards at tree histories
+
+MCTSConfig.exact_history_rewards integrates each visited tree action's immediate
+reward against the full finite joint posterior b_h and modeled policy:
+r_bar(h,a) = sum_x b_h(x) sum_events P(event | x,a) R(x,a,event).
+The production reward integrator enumerates physical transitions and opponent
+actions. It receives a private-history model, never an oracle Q or the sampled
+hidden state. Own action, private observation and public continuation determine
+the next posterior. Root integration already applies independently of this option.
+
+Linearity gives Q(h,a) = r_bar(h,a) + gamma E[V(next history) | h,a].
+Replacing a sampled immediate term therefore preserves the target under the
+declared model. It does not make adaptive tree estimates unbiased or guarantee
+a lower variance for their sum: reward and continuation can be correlated.
+Empirical chance frequencies, noisy child maxima and frontier rollouts remain.
+
+The option works with sampled-return and empirical Bellman backups. It is
+independent of exact_final_step: the latter solves the last decision's complete
+action set, whereas exact_history_rewards still visits and counts actions.
+Non-boundary rollout rewards remain sampled; they use the declared domain
+rollout policy. Terminal events retain zero continuation and remain in empirical
+action-count denominators. No hidden-state maximization is introduced.
+
+Full private-history propagation can be expensive for larger hierarchies.
+Both options default to false. Configuration enters deterministic policy seed
+identity, so adding a field can change finite trajectories even when it is false.
+Compare control/candidate arms on the same source and same complete modeled
+configuration; historical source-bound evidence cannot be transferred silently.

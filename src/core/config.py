@@ -46,6 +46,10 @@ class MCTSConfig:
     # are propagated during search; only the last decision is integrated exactly.
     # This can cost substantially more than generative-only search at high levels.
     exact_final_step: bool = False
+    # Integrate immediate rewards at visited tree histories from the full joint
+    # posterior. Continuations and rollout rewards remain sampled. This is
+    # independent of the exact final-step boundary and is not an exact Q solver.
+    exact_history_rewards: bool = False
     # Experimental empirical Bellman estimates are distinct from mean trajectory
     # returns. Keep the estimator explicit in policy seeds and run manifests.
     backup: str = "sampled"
@@ -60,6 +64,8 @@ class MCTSConfig:
             raise ValueError("backup must be sampled or empirical_bellman")
         if type(self.exact_final_step) is not bool:
             raise ValueError("exact_final_step must be a boolean")
+        if type(self.exact_history_rewards) is not bool:
+            raise ValueError("exact_history_rewards must be a boolean")
 
 
 @dataclass(frozen=True)

@@ -57,8 +57,9 @@
   violations and zero strict errors (100.0%). All 23 violations were concentrated at H>=5,
   with 22/23 localized at the critical transition frontier beliefs b_i in {.0325, .9675}
   (12 at .0325, 10 at .9675, 1 at .0625). Extreme and moderate beliefs achieved 100.0%
-  pass rate (1,176/1,176). Concurrency bounds passed on all 6 panels (parent monotonic 4,318.68s,
-  external GNU 4,148.29s, peak RSS 134.34 MB). Awaiting Codex independent audit.
+  pass rate (1,176/1,176). Concurrency bounds passed on all 6 panels (raw parent monotonic 4,426.169385s,
+  external GNU 4,152.20s). Codex independently recomputed all references; the
+  original report timing table did not match raw files and has been corrected.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on
@@ -105,6 +106,15 @@ resource-supervised budget sweep. Historical results remain source-bound evidenc
 Worker startup now uses spawn to avoid inheriting numerical-library thread locks. Fault-injection, resume, and domain integration checks cover the change.
 
 
-Current next step: the separately frozen 1,680-case fresh L2 validation
-in HANDOFF.md. No new validation solves have been performed at this checkpoint.
+Current next step: matched control/candidate development for the implemented
+opt-in conditional immediate-reward estimator, as specified in HANDOFF.md. The fresh 1,680-case gate failed permanently;
+the observed grid may now support development only.
 No global default promotion or L4/all39 launch is authorized by these results.
+
+
+Codex independently audited f0b98c5 and reproduced two failing solves. Root
+chance-frequency error is small relative to child-value error in both diagnoses.
+Implemented opt-in exact conditional immediate rewards at internal tree histories.
+The 12-pair smoke has 1 control violation and 0 candidate violations; this does not
+repair the historical gate. Next: full matched development comparison, preserving
+the same new-source modeled-policy law between arms. No global promotion.

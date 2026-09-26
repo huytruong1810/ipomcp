@@ -142,3 +142,10 @@ policy; it does not assume the opponent is optimal. Separate opponent backup,
 tail and exploration options are recorded with the full configuration.
 Canonical belief sampling now enforces order-independent private-policy identity.
 Historical runs remain tied to their source checkpoints.
+
+
+The matched MCTS runner also offers --exact-history-rewards to integrate
+immediate rewards at visited tree histories from the full joint posterior.
+It is independent of --exact-final-step; other rollout rewards remain sampled.
+This is an opt-in development estimator, not a promoted production default.
+The fresh L2 gate failed; consult HANDOFF.md for current control/candidate work.

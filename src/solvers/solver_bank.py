@@ -101,8 +101,8 @@ class SolverBank:
     def _expected_rewards(self, model):
         """Integrate immediate reward over the full joint prior and finite dynamics.
 
-        Used both as the root control variate and by the optional exact final-
-        step evaluator. With one decision left these are the complete action
+        Used as the root control variate, by the optional internal-history
+        reward estimator, and by the optional exact final-step evaluator. With one decision left these are the complete action
         values, so maximization happens after integrating the full joint belief.
         For root-sampling MCTS, Q(b,a) equals this
         expectation plus the discounted expected continuation. UCB's root action

@@ -62,6 +62,7 @@ def evaluate_case(
     opponent_exact_final_step=False,
     opponent_exploration="normalized",
     opponent_exploration_const=1.0,
+    exact_history_rewards=False,
 ):
     """One independent solve. The supervisor owns time/RSS measurement."""
     _validate_level_contract(level, opponent_depth, opponent_belief, (planner_kind,))
@@ -95,6 +96,7 @@ def evaluate_case(
                 node_capacity=200,
                 exploration_const=exploration_const,
                 exact_final_step=exact_final_step,
+                exact_history_rewards=exact_history_rewards,
                 backup=backup,
             )
         )
@@ -126,8 +128,8 @@ def evaluate_case(
             bank.register_solver(SolverKey("j", 1), provider)
         planner.exploration_strategy = _exploration(model, "i", exploration, exploration_const)
     elif planner_kind == "rts":
-        if exact_final_step or backup != "sampled":
-            raise ValueError("Tail and backup ablations are MCTS-only")
+        if exact_final_step or exact_history_rewards or backup != "sampled":
+            raise ValueError("Reward, tail and backup ablations are MCTS-only")
         planner = bootstrap.create_level1_rts_solver(
             "i",
             model,
@@ -202,6 +204,7 @@ def evaluate_case(
             "belief_p": belief_p,
             "gamma": gamma,
             "exact_final_step": exact_final_step,
+            "exact_history_rewards": exact_history_rewards,
             "backup": backup if planner_kind == "mcts" else None,
             "exploration": (
                 {"strategy": exploration, **vars(planner.exploration_strategy)}
@@ -302,6 +305,7 @@ def run_oracle_comparison(
     opponent_exact_final_step=False,
     opponent_exploration="normalized",
     opponent_exploration_const=1.0,
+    exact_history_rewards=False,
 ):
     """Persist every outcome and source fingerprint before interpreting results.
 
@@ -322,10 +326,15 @@ def run_oracle_comparison(
     )
     # Validate before workers start so invalid settings cannot create a partial panel.
     MCTSConfig(
-        exploration_const=exploration_const, exact_final_step=exact_final_step, backup=backup
+        exploration_const=exploration_const,
+        exact_final_step=exact_final_step,
+        exact_history_rewards=exact_history_rewards,
+        backup=backup,
     )
-    if (exact_final_step or backup != "sampled") and any(kind != "mcts" for kind in planners):
-        raise ValueError("Tail and backup ablations are MCTS-only")
+    if (exact_final_step or exact_history_rewards or backup != "sampled") and any(
+        kind != "mcts" for kind in planners
+    ):
+        raise ValueError("Reward, tail and backup ablations are MCTS-only")
     if exploration not in {"normalized", "standard", "bounded"}:
         raise ValueError("Unknown exploration strategy")
     if type(seed_start) is not int or seed_start < 0:
@@ -352,6 +361,7 @@ def run_oracle_comparison(
         exploration=exploration,
         exploration_const=exploration_const,
         exact_final_step=exact_final_step,
+        exact_history_rewards=exact_history_rewards,
         backup=backup,
         workers=workers,
         timeout=timeout,
@@ -404,6 +414,7 @@ def run_oracle_comparison(
             opponent_exact_final_step,
             opponent_exploration,
             opponent_exploration_const,
+            exact_history_rewards,
         )
         for i, case in enumerate(cases)
     }
@@ -474,6 +485,11 @@ def main():
         "--exact-final-step",
         action="store_true",
         help="MCTS only: integrate final-step rewards over the full private-history belief",
+    )
+    parser.add_argument(
+        "--exact-history-rewards",
+        action="store_true",
+        help="MCTS only: integrate immediate rewards at tree histories; rollouts stay sampled",
     )
     parser.add_argument(
         "--backup",

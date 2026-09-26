@@ -97,7 +97,9 @@ class IPOMCPPlanner(Planner):
                     0,
                     bounds,
                     belief=root_belief,
-                    history_model=model if self.config.mcts.exact_final_step else None,
+                    history_model=model
+                    if self.config.mcts.exact_final_step or self.config.mcts.exact_history_rewards
+                    else None,
                 )
             policy = greedy_policy(node.action_values)
         if not modeled:
@@ -110,7 +112,7 @@ class IPOMCPPlanner(Planner):
     def _history_successor(self, model, action, observation):
         """Condition only on own action, private observation and public survival.
 
-        The optional exact tail uses the full joint finite posterior, not the
+        The optional reward integrator and exact tail use the full joint finite posterior, not the
         Tiger rollout memory or a particle reservoir. No sampled hidden state,
         actual opponent action, or sampled opponent belief enters this update.
         Unsupported evidence and enumeration limits propagate as explicit errors.
@@ -181,7 +183,8 @@ class IPOMCPPlanner(Planner):
             )
             next_model = (
                 self._history_successor(history_model, action, observation)
-                if self.config.mcts.exact_final_step and not terminal
+                if (self.config.mcts.exact_final_step or self.config.mcts.exact_history_rewards)
+                and not terminal
                 else None
             )
             continuation = (
@@ -211,11 +214,21 @@ class IPOMCPPlanner(Planner):
                 counts = node.continuation_counts.setdefault(action, {})
                 counts[observation] = counts.get(observation, 0) + 1
             q = reward + self.config.mcts.gamma * continuation
+        # Q(h,a) = E[R | h,a] + gamma E[continuation | h,a]. Integrate
+        # against the private-history joint belief, never the sampled state or
+        # its observed opponent action. Reward/continuation correlation does not
+        # change this expectation identity, but total estimator variance need
+        # not decrease: only the immediate term's sampling noise is removed.
+        immediate = reward
         if depth == 0:
-            q += bounds["root_rewards"][action] - reward
+            immediate = bounds["root_rewards"][action]
+        elif self.config.mcts.exact_history_rewards:
+            if history_model is None:
+                raise ValueError("Exact history rewards require a private-history belief")
+            immediate = dict(self.solver_bank.expected_rewards(history_model))[action]
+        q += immediate - reward
         node.action_counts[action] = node.action_counts.get(action, 0) + 1
         if self.config.mcts.backup == "empirical_bellman":
-            immediate = bounds["root_rewards"][action] if depth == 0 else reward
             q = node.empirical_bellman_backup(action, immediate, self.config.mcts.gamma)
         else:
             node.action_values[action] = (
@@ -227,6 +240,12 @@ class IPOMCPPlanner(Planner):
         return q
 
     def _rollout(self, particle, depth, belief=None, history_model=None):
+        """Sample the frontier policy; history-reward integration is tree-only.
+
+        The separate exact-final-step option still integrates its boundary here.
+        Keeping other rollout rewards sampled isolates the internal-tree reward
+        estimator and avoids changing the declared domain rollout policy.
+        """
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             return 0.0
         if self.config.mcts.exact_final_step and depth + 1 == self.config.mcts.max_depth:
@@ -275,6 +294,7 @@ class IPOMCPPlanner(Planner):
             "n_sims": self.config.mcts.n_sims,
             "modeled_n_sims": self.config.opponent.n_sims,
             "exact_final_step": self.config.mcts.exact_final_step,
+            "exact_history_rewards": self.config.mcts.exact_history_rewards,
             "backup": self.config.mcts.backup,
             "initial_sample_count": self.initial_sample_count,
             "belief_size": len(self.belief.mass),

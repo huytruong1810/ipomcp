@@ -977,7 +977,7 @@ sum2.792059s satisfy the two-worker bound. This is a small feasibility check,
 not long-horizon production qualification.
 
 Audit: results/oracle/l2_finite_review_20260925.json.
-Pilot: results/oracle/l2_finite_depth20_pilot_20260925/ and sibling log.
+Pilot: results/oracle/l2_finite_depth 20_pilot_20260925/ and sibling log.
 No solver changes; HANDOFF.md defines a360-case depth 20 development extension.
 
 ## 360-case Level-2 depth-20 development extension (September 25)
@@ -994,12 +994,12 @@ and 10,000 traversals, seeds 400–401 (2 seeds), and own physical beliefs $b_i 
 2,048 MiB RSS ceiling. Zero timeouts, crashes, or resource kills occurred.
 
 Raw cases, manifests, and logs:
-- `results/oracle/l2_depth20_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
-- `results/oracle/l2_depth20_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth 20_n25_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth 20_n25_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth 20_n25_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth 20_n100_b0.085_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth 20_n100_b0.5_20260925/` (`.time`, `.log`, `timing.json`)
+- `results/oracle/l2_depth 20_n100_b0.915_20260925/` (`.time`, `.log`, `timing.json`)
 
 ### Timing and concurrency instrumentation audit
 
@@ -1093,7 +1093,7 @@ b_j=.5, own belief .5, seed400 and root1000 completed with zero first-action
 loss. H5 maximum Q error was 3.355773. Worker sum1.364052s fits two times parent
 elapsed .800306s. A uniform-belief pilot does not qualify boundary decisions.
 
-Audit: results/oracle/l2_depth20_review_20260925.json.
+Audit: results/oracle/l2_depth 20_review_20260925.json.
 Pilot: results/oracle/l2_h45_resource_pilot_20260925/ and sibling log.
 HANDOFF.md specifies the next 360-case H4/H5 development panel. No solver code
 or default changed; the last implementation test result remains 225 passes.
@@ -1377,17 +1377,17 @@ Raw cases, manifests, and logs:
 
 Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and concurrency bound checks:
 
-| Panel | External GNU Elapsed (s) | Parent Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\le 2 \times \text{Elapsed}$) | Monitored Peak RSS (MB) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| $B_{\text{opp}}=25, b_j=0.085$ | 637.28 | 663.85 | 1297.07 | **PASS** ($648.54 \le 663.85$) | 133.52 |
-| $B_{\text{opp}}=25, b_j=0.500$ | 632.74 | 660.18 | 1289.44 | **PASS** ($644.72 \le 660.18$) | 133.25 |
-| $B_{\text{opp}}=25, b_j=0.915$ | 671.36 | 700.17 | 1369.31 | **PASS** ($684.66 \le 700.17$) | 133.62 |
-| $B_{\text{opp}}=100, b_j=0.085$ | 744.15 | 773.30 | 1515.15 | **PASS** ($757.58 \le 773.30$) | 133.82 |
-| $B_{\text{opp}}=100, b_j=0.500$ | 702.43 | 730.83 | 1432.22 | **PASS** ($716.11 \le 730.83$) | 134.34 |
-| $B_{\text{opp}}=100, b_j=0.915$ | 760.33 | 790.35 | 1548.88 | **PASS** ($774.44 \le 790.35$) | 133.72 |
-| **Total / Summary** | **4,148.29 s** | **4,318.68 s** | **8,452.07 s** | **PASS (6/6)** | **134.34 MB** |
+| Panel | External GNU (s) | Parent monotonic (s) | Worker sum (s) | Concurrency | Peak RSS (MiB) |
+| --- | ---: | ---: | ---: | --- | ---: |
+| B=25, b_j=0.085 | 638.24 | 680.72 | 1311.81 | PASS | 134.16 |
+| B=25, b_j=0.5 | 633.13 | 675.37 | 1303.81 | PASS | 141.02 |
+| B=25, b_j=0.915 | 672.50 | 716.59 | 1381.64 | PASS | 138.52 |
+| B=100, b_j=0.085 | 744.10 | 794.25 | 1540.08 | PASS | 132.07 |
+| B=100, b_j=0.5 | 703.82 | 749.47 | 1449.20 | PASS | 129.79 |
+| B=100, b_j=0.915 | 760.41 | 809.77 | 1571.04 | PASS | 136.36 |
+| Total / maximum | 4152.20 | 4426.17 | 8557.58 | 6/6 PASS | 141.02 |
 
-The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time (4,148.29s, ~1.15h) and parent monotonic elapsed time (4,318.68s, ~1.20h) differ by 26.57–30.02s per panel (~4.1%). Both measurements are preserved.
+The monotonic concurrency bound is satisfied across all six panels. Raw external elapsed totals 4,152.20s and parent monotonic totals 4,426.169385s. Differences range 42.238877–50.151477s per panel. Both measurements remain preserved; the original report table required correction.
 
 ### Primary gate outcome: GATE FAILED
 
@@ -1440,3 +1440,60 @@ Across 840 distinct $(H, b_j, \text{seed}, b_i)$ problems:
 ### Validation conclusions
 
 While candidate protagonist MCTS achieved 100.0% accuracy on H1–H4 (960/960) and 98.63% overall pass rate (1,657/1,680), the primary accuracy gate fails under the frozen zero-violation bound due to 23 violations localized at transition frontier beliefs $b_i \in \{0.0325, 0.9675\}$ under horizons $H \ge 5$. Production promotion remains blocked; findings are handed off to Codex for architectural and algorithmic review.
+
+
+### Codex audit and failure decomposition of f0b98c5
+
+Verified the frozen source hashes against ac3df1c, full settings, all 1,680 case
+identities and loss/Q-error arithmetic, with independent recomputation of all
+reference configurations. The gate remains FAILED: 23 primary violations and 26
+strict errors. Earlier successful development panels do not supersede this gate.
+
+Reproduced the largest-loss case (H8, root 50k, seed 6000, own belief .9675,
+opponent budget 25/belief .085) exactly. Its listening Q error 1.520081 decomposes
+into zero immediate error, .000127 root chance-frequency error and 1.519954
+child-value error. Root counts are 25,485 for L and 24,075 for correct OR.
+The H5 seed 6000, own .0625, opponent25/.5 failure also reproduces; listening
+Q error -.156645 decomposes into -.026491 chance error and -.130154 child
+error. These two diagnoses motivate investigating internal estimates rather
+than assuming insufficient root-action visits or incorrect root chance weights.
+
+Exact conditional immediate rewards at tree histories are the next planned
+opt-in ablation. The Bellman target is unchanged, but neither total variance
+reduction nor finite-budget accuracy follows automatically. The option was subsequently implemented and checked in the development smoke below. HANDOFF.md specifies the coding,
+testing and model-identity requirements. Antigravity should retain evidence
+and use the matched development command; no new fresh gate is launched.
+
+Audit: results/oracle/l2_fresh_review_20260925.json.
+Decomposition: results/oracle/l2_fresh_failure_decomposition_20260925.json.
+
+
+Timing correction: the original f0b98c5 table's totals (4,148.29 external,
+4,318.68 monotonic, 8,452.07 worker seconds) do not match the preserved raw
+files. The corrected table above is recomputed directly: 4,152.20 external,
+4,426.169385 monotonic, 8,557.582909 worker seconds. This reporting mismatch
+is distinct from the unresolved external-versus-monotonic clock discrepancy.
+
+
+### Conditional tree rewards: first matched development smoke
+
+The implemented exact_history_rewards option integrates internal-tree immediate
+rewards from the full finite posterior and leaves other rollout rewards sampled.
+It is independent of the exact final-step boundary. Adding its configuration
+field changes deterministic search identities, so both arms ran on the same
+new source and the modeled opponent kept the option false in both arms.
+
+Twelve pairs crossed H5/H8, beliefs .0325/.0625/.9675, seeds 6000–6001,
+root 50k and opponent depth 20/budget 25/belief .085. All cases completed.
+Paired modeled configurations and oracle Q vectors are identical. Control:
+1/12 strict and primary error, maximum loss .054675. Candidate:0/12 errors.
+Mean maximum Q error falls 3.049762 to .925429; maximum falls 6.537329 to 3.205354.
+This is small, observed-grid development evidence, not fresh validation.
+
+Parent monotonic times 66.648420/69.417155s and worker sums 128.703867/134.941155s
+pass concurrency checks. Concurrent implementation tests prevent an isolated
+estimator-overhead claim. No new-source run changes the failed historical gate.
+
+Artifacts: results/oracle/l2_history_rewards_{control,candidate}_20260925/.
+Audit: results/oracle/l2_history_rewards_paired_review_20260925.json.
+HANDOFF.md freezes the next 3,360-case paired development comparison.
