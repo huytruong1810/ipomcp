@@ -1497,3 +1497,138 @@ estimator-overhead claim. No new-source run changes the failed historical gate.
 Artifacts: results/oracle/l2_history_rewards_{control,candidate}_20260925/.
 Audit: results/oracle/l2_history_rewards_paired_review_20260925.json.
 HANDOFF.md freezes the next 3,360-case paired development comparison.
+
+
+### 3,360-case matched Level-2 tree-reward comparison (September 26)
+
+Following the Bellman error decomposition of the failed 1,680-case validation gate
+at `ac3df1c`, which showed that sampled transition reward variance inside the tree
+distorted continuation values near decision boundaries, Codex implemented
+`MCTSConfig.exact_history_rewards` (`--exact-history-rewards`). This replaces sampled
+single-particle transition rewards within the search tree with integrated posterior
+expected rewards conditioned on observation histories (`self.solver_bank.expected_rewards(history_model)`).
+
+Antigravity completed the prescribed 3,360-case matched development comparison on Git
+commit `4c172785cfe3653711d173fdca32506d39bb128c`. The evaluation crossed 12 sequential
+panels (both `control` and `candidate` on all six modeled opponent conditions:
+$B_{\text{opp}} \in \{25, 100\} \times b_j \in \{0.085, 0.500, 0.915\}$), evaluating
+280 cases per panel across $H \in \{1, 2, 3, 4, 5, 6, 8\}$, 10 physical beliefs,
+and seeds 6000–6003 at root budget 50,000 traversals.
+
+#### Global arm comparison
+
+| Metric | Control Arm (sampled rewards) | Candidate Arm (`--exact-history-rewards`) | Relative change |
+|---|---:|---:|---:|
+| Total cases evaluated | 1,680 | 1,680 | — |
+| Strictly optimal decisions ($\le 10^{-8}$) | 1,661 / 1,680 (98.87%) | **1,673 / 1,680 (99.58%)** | +12 optimal decisions |
+| Strict decision errors ($> 10^{-8}$) | 19 | **7** | 63.2% reduction |
+| Primary gate violations ($> 0.020$) | 16 | **3** | **81.2% reduction** |
+| Primary gate pass rate ($\le 0.020$) | 99.05% | **99.82%** | +0.77 percentage points |
+| Mean first-action policy loss | 0.001584 | **0.000107** | **14.8x reduction** |
+| Maximum first-action policy loss | 0.508595 | **0.094981** | **81.3% reduction** |
+| Mean maximum Q error | 1.4400 | **0.3896** | **3.7x reduction** |
+| Peak absolute Q error | 9.9570 | **5.7991** | 41.8% reduction |
+| Total external wall time | 3,971.0 s | 4,084.1 s | +2.85% overhead |
+| Total worker wall time sum | 8,161.4 s | 8,392.8 s | +2.84% overhead |
+
+#### Panel-by-panel performance
+
+| Opponent Condition | Arm | Strict Optimal | Violations ($> 0.020$) | Max Policy Loss | Mean Max Q Error | Worker Wall Time |
+|---|---|---:|---:|---:|---:|---:|
+| $B_{\text{opp}}=25, b_j=0.085$ | Control | 278 / 280 | 1 / 280 | 0.054675 | 1.4192 | 1,311.9 s |
+| | **Candidate** | **280 / 280** | **0 / 280** | **0.000000** | **0.3778** | 1,337.6 s |
+| $B_{\text{opp}}=25, b_j=0.500$ | Control | 277 / 280 | 3 / 280 | 0.410764 | 1.7116 | 1,271.2 s |
+| | **Candidate** | **279 / 280** | **1 / 280** | **0.094981** | **0.3901** | 1,319.6 s |
+| $B_{\text{opp}}=25, b_j=0.915$ | Control | 277 / 280 | 2 / 280 | 0.506799 | 1.3955 | 1,293.2 s |
+| | **Candidate** | **279 / 280** | **0 / 280** | **0.014233** | **0.3772** | 1,337.4 s |
+| $B_{\text{opp}}=100, b_j=0.085$ | Control | 279 / 280 | 1 / 280 | 0.113193 | 1.3422 | 1,473.1 s |
+| | **Candidate** | **279 / 280** | **1 / 280** | **0.022339** | **0.4009** | 1,512.8 s |
+| $B_{\text{opp}}=100, b_j=0.500$ | Control | 275 / 280 | 4 / 280 | 0.077662 | 1.4565 | 1,370.1 s |
+| | **Candidate** | **278 / 280** | **0 / 280** | **0.011982** | **0.3683** | 1,405.9 s |
+| $B_{\text{opp}}=100, b_j=0.915$ | Control | 275 / 280 | 5 / 280 | 0.508595 | 1.3147 | 1,441.8 s |
+| | **Candidate** | **278 / 280** | **1 / 280** | **0.024690** | **0.4230** | 1,479.5 s |
+
+#### Signed Q errors: elimination of door-opening upward bias
+
+In Control, sampling door opening rewards inside sparsely visited subtrees injected
+severe positive bias (mean signed error $+0.7104$ for `OL` and $+0.7089$ for `OR`, with
+peak overestimates exceeding $+9.95$). In Candidate, this bias was largely eliminated:
+
+| Action | Arm | Mean Signed Error ($\hat{Q} - Q^*$) | Std Dev | Median Error | Min Error | Max Error | Mean Absolute Error |
+|---|---|---:|---:|---:|---:|---:|---:|
+| **Listen (`L`)** | Control | $+0.0916$ | 0.2412 | $+0.0046$ | $-0.4116$ | $+1.4797$ | 0.1232 |
+| | **Candidate** | **$+0.0029$** | **0.0386** | **$+0.0000$** | **$-0.3288$** | **$+0.2110$** | **0.0225** |
+| **Open Left (`OL`)** | Control | $+0.7104$ | 1.5381 | $+0.0000$ | $-3.0569$ | $+9.2904$ | 0.7676 |
+| | **Candidate** | **$+0.0748$** | **0.4874** | **$+0.0000$** | **$-3.4350$** | **$+3.8014$** | **0.1957** |
+| **Open Right (`OR`)** | Control | $+0.7089$ | 1.5860 | $+0.0000$ | $-3.9312$ | $+9.9570$ | 0.7683 |
+| | **Candidate** | **$+0.0557$** | **0.5427** | **$+0.0000$** | **$-5.7991$** | **$+3.3760$** | **0.2085** |
+
+#### Horizon strata
+
+| Horizon | Total Cases | Control Optimal | Control Violations ($> 0.02$) | Control Mean Q Error | Candidate Optimal | Candidate Violations ($> 0.02$) | Candidate Mean Q Error |
+|:---:|---:|---:|---:|---:|---:|---:|---:|
+| **H1** | 240 | 240 / 240 (100.0%) | 0 / 240 | 0.0000 | **240 / 240 (100.0%)** | **0 / 240** | **0.0000** |
+| **H2** | 240 | 240 / 240 (100.0%) | 0 / 240 | 0.0117 | **240 / 240 (100.0%)** | **0 / 240** | **0.0119** |
+| **H3** | 240 | 238 / 240 (99.17%) | 2 / 240 | 0.0540 | **240 / 240 (100.0%)** | **0 / 240** | **0.0255** |
+| **H4** | 240 | 240 / 240 (100.0%) | 0 / 240 | 0.5988 | **240 / 240 (100.0%)** | **0 / 240** | **0.3526** |
+| **H5** | 240 | 236 / 240 (98.33%) | 4 / 240 | 2.0670 | **240 / 240 (100.0%)** | **0 / 240** | **0.4183** |
+| **H6** | 240 | 238 / 240 (99.17%) | 2 / 240 | 2.9905 | **239 / 240 (99.58%)** | **0 / 240** | **0.5089** |
+| **H8** | 240 | 229 / 240 (95.42%) | 8 / 240 | 4.3577 | **234 / 240 (97.50%)** | **3 / 240** | **1.4097** |
+
+Across $H \in \{1, 2, 3, 4, 5\}$, Candidate achieved 100.0% strict optimality (1,200/1,200 cases).
+At $H=6$, Candidate had zero violations ($> 0.020$) with its sole error having loss 0.001120.
+At $H=8$, mean Q error contracted 3.1x ($4.3577 \to 1.4097$), and violations fell from 8 to 3.
+
+#### Physical belief strata
+
+- Across all eight non-frontier beliefs ($b_i \in \{0.0010, 0.0125, 0.0625, 0.1375, 0.8625, 0.9375, 0.9875, 0.9990\}$),
+  Candidate achieved **1,344 / 1,344 strictly optimal decisions (100.0%)**.
+- At frontier belief $b_i = 0.0325$: Control had 11 errors (10 violations, mean loss 0.006872);
+  Candidate had 4 errors (2 violations, mean loss 0.000777) — an 8.8x loss reduction.
+- At frontier belief $b_i = 0.9675$: Control had 6 errors (4 violations, mean loss 0.008042);
+  Candidate had 3 errors (1 violation, mean loss 0.000289) — a 27.8x loss reduction.
+
+#### Resolution of baseline errors
+
+Candidate completely cured 15 of the 19 Control errors (loss reduced to 0.000000), including
+all peak-regret cases:
+- $H=8, b_i=0.9675, n=100, b_j=0.915$: Control loss was 0.508595 (Q err 6.0083); Candidate loss: 0.000000 (Q err 1.1894).
+- $H=8, b_i=0.9675, n=25, b_j=0.915$: Control loss was 0.506799 (Q err 2.5204); Candidate loss: 0.000000 (Q err 0.9463).
+- $H=8, b_i=0.0325, n=25, b_j=0.500$: Control loss was 0.410764 (Q err 6.1867); Candidate loss: 0.000000 (Q err 0.2049).
+- $H=8, b_i=0.0325, n=25, b_j=0.915$: Control loss was 0.190739 (Q err 9.4702); Candidate loss: 0.000000 (Q err 0.1447).
+- $H=8, b_i=0.0325, n=100, b_j=0.085$: Control loss was 0.113193 (Q err 2.2892); Candidate loss: 0.000000 (Q err 1.6005).
+
+The 3 residual Candidate violations ($> 0.020$) occurred exclusively at $H=8$:
+1. $B=100, b_j=0.085, b_i=0.9675$, seed 6001: Oracle gap between L ($10.3099$) and OR ($10.2875$) is 0.0223;
+   Candidate chose OR with loss 0.022339 (barely above threshold).
+2. $B=100, b_j=0.915, b_i=0.0325$, seed 6002: Oracle gap between OL ($10.7965$) and L ($10.7719$) is 0.0247;
+   Candidate chose L with loss 0.024690 (Control made identical choice, but with Q error 6.6856 vs. Candidate 0.7439).
+3. $B=25, b_j=0.500, b_i=0.0325$, seed 6002: Candidate chose L with loss 0.094981.
+
+#### Timing, concurrency, and overhead
+
+| Panel Identifier | Arm | Recorded Cases | External Wall (s) | Monotonic Elapsed (s) | Worker Wall Sum (s) | Concurrency Bound ($\sum t_w / 2 \le \Delta t_{\text{mono}}$) |
+|---|---|---:|---:|---:|---:|:---:|
+| `n25_b0.085` | Control | 280 / 280 | 640.11 | 680.89 | 1,311.86 | Passed (`True`) |
+| | Candidate | 280 / 280 | 651.71 | 694.21 | 1,337.57 | Passed (`True`) |
+| `n25_b0.500` | Control | 280 / 280 | 620.86 | 659.49 | 1,271.24 | Passed (`True`) |
+| | Candidate | 280 / 280 | 640.92 | 683.37 | 1,319.56 | Passed (`True`) |
+| `n25_b0.915` | Control | 280 / 280 | 630.92 | 671.20 | 1,293.24 | Passed (`True`) |
+| | Candidate | 280 / 280 | 653.14 | 693.29 | 1,337.39 | Passed (`True`) |
+| `n100_b0.085` | Control | 280 / 280 | 712.53 | 758.52 | 1,473.15 | Passed (`True`) |
+| | Candidate | 280 / 280 | 734.20 | 779.85 | 1,512.79 | Passed (`True`) |
+| `n100_b0.500` | Control | 280 / 280 | 666.52 | 708.20 | 1,370.11 | Passed (`True`) |
+| | Candidate | 280 / 280 | 685.67 | 727.18 | 1,405.94 | Passed (`True`) |
+| `n100_b0.915` | Control | 280 / 280 | 700.02 | 743.30 | 1,441.79 | Passed (`True`) |
+| | Candidate | 280 / 280 | 718.45 | 763.68 | 1,479.54 | Passed (`True`) |
+| **Control Total** | Control | 1,680 / 1,680 | 3,971.0 s | 4,221.6 s | 8,161.4 s | Passed (6/6) |
+| **Candidate Total** | Candidate | 1,680 / 1,680 | 4,084.1 s | 4,341.6 s | 8,392.8 s | Passed (6/6) |
+| **Grand Total** | Both | 3,360 / 3,360 | 8,055.1 s | 8,563.2 s | 16,554.2 s | Passed (12/12) |
+
+Worker concurrency bounds passed on all 12 panels ($\sum t_{\text{worker}} / 2 \le \Delta t_{\text{parent}}$).
+Total worker overhead of integrating exact history rewards was **+2.84%** across 1,680 cases.
+Monitored peak RSS across all 3,360 cases was invariant at 139.67 MiB.
+
+Raw artifacts: `results/oracle/l2_rewards_{control,candidate}_n{25,100}_b{0.085,0.5,0.915}_20260925/`.
+These results are development evidence on the observed grid and do not alter the historical validation gate failure.
+

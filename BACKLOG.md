@@ -60,6 +60,20 @@
   pass rate (1,176/1,176). Concurrency bounds passed on all 6 panels (raw parent monotonic 4,426.169385s,
   external GNU 4,152.20s). Codex independently recomputed all references; the
   original report timing table did not match raw files and has been corrected.
+- Level-2 matched tree-reward development comparison (3,360 cases across 12 panels:
+  6 modeled opponent conditions x 2 arms, H1–H6, H8, root 50k, empirical Bellman, exact tail,
+  bounded c=1) COMPLETED: Evaluated standard sampled tree rewards (control) vs. integrated posterior
+  expected rewards (--exact-history-rewards, candidate). Candidate achieved an 81.2% reduction in
+  primary gate violations (> 0.020: 16 -> 3; pass rate 99.05% -> 99.82%), a 63.2% reduction in strict
+  decision errors (19 -> 7), a 14.8x reduction in mean policy loss (0.001584 -> 0.000107), an 81.3%
+  reduction in maximum policy loss (0.508595 -> 0.094981), and a 3.7x reduction in mean max Q error
+  (1.4400 -> 0.3896). Candidate achieved 100.0% strict optimality across H1–H5 (1,200/1,200 cases)
+  and zero violations at H6 (239/240 optimal, sole error loss 0.001120). Systematic upward Q-value bias
+  on door openings was largely eliminated (+0.71 -> +0.06). All 12 concurrency bounds passed
+  (monotonic elapsed sum 8,563.19s, worker sum 16,554.17s; external GNU wall time 8,055.05s). Total
+  worker overhead for exact history reward integration was +2.84%. Monitored peak RSS was invariant
+  at 139.67 MiB. Results constitute development evidence on the observed grid; fresh validation
+  requires an unseen design.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on
