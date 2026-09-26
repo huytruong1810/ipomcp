@@ -267,3 +267,12 @@ Additional cross-check: with an exact depth2 opponent, the new full-model
 reference matches the existing scalar reference on nine H1-H3 configurations
 to within 8.9e-16 in every action value. This checks the outer recursion beyond
 the independent H2 hand/enumeration tests.
+
+
+Post-outage audit of bf1c225/123701b: confirmed saved225-test result; verified
+all900 finite-policy cases and recomputed450 oracle configurations. Zero policy
+loss and9/225 action-set changes confirmed. Monotonic concurrency checks pass,
+but external timers differ by1.32–3.06s per panel. Corrected repeated terminal-
+opening language and separated54-case smoke from9-case reference cross-check.
+A six-case depth20 pilot completed with zero loss; fixed360-case development
+extension prepared. No solver source change or default promotion.

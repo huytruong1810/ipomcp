@@ -23,12 +23,14 @@
 - Level-2 finite-budget modeled-opponent development comparison COMPLETED: The 900-case
   development suite (modeled budgets 25 and 100, b_j in {.085, .5, .915}, H1-H3, budgets 1k/10k,
   seeds 400-404, own beliefs .05/.2/.5/.8/.95) completed with 900/900 strictly optimal decisions
-  (100.0% strict pass rate) and zero gate violations across all 6 panels. Concurrency bounds passed
+  (100.0% strict agreement) and zero loss across all 6 development panels. Concurrency bounds passed
   on all panels (parent monotonic elapsed ~53-57s matching external GNU time within seconds).
   Opponent budget comparison confirmed 9 oracle action flips and 21 Q-value shifts between 25 and 100
   simulations, demonstrating that modeled computation alters the policy law and induced decision task.
-  Results are development evidence awaiting Codex independent review; production depth 20 qualification
-  remains pending.
+  Codex verified all900 cases and recomputed450 oracle configurations. Monotonic
+  timing passes concurrency checks but differs from external timers by1.32–3.06s.
+  A six-case depth20 pilot completed; run the360-case development extension in
+  HANDOFF.md. Full production configuration and long-horizon qualification remain pending.
 - Canonical MCTS belief sampling fixes a reproduced cache/model identity bug:
   equal beliefs in different insertion orders could return different policies.
   Preserve old source-bound evidence; qualify the corrected finite policy on

@@ -895,8 +895,9 @@ Parent monotonic elapsed, worker wall sums, external GNU `/usr/bin/time`, and co
 | $B_{\text{opp}}=100, b_j=0.915$ | 54.50 | 57.38 | 98.26 | **PASS** ($49.13 \le 57.38$) | 75.03 |
 | **Total / Summary** | **314.48 s** | **329.10 s** | **567.72 s** | **PASS (6/6)** | **75.03 MB** |
 
-The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed time closely matched
-parent monotonic elapsed time on these short panels (total elapsed ~5.2–5.5 min).
+The monotonic concurrency bound was satisfied across all six panels. External GNU elapsed totals314.48s, while parent monotonic elapsed totals329.10s.
+Individual differences are1.32–3.06s; these are distinct measurements, not resolved
+clock agreement. Monotonic worker consistency passes, but older timing concerns remain.
 
 ### Accuracy and policy loss performance
 
@@ -934,9 +935,47 @@ Evaluating across the 225 matched configurations $(b_j, H, b_i, \text{seed})$:
 
 ### Signed Q-error analysis
 
-Terminal door-opening actions (`OL`, `OR`) had zero Q error ($\pm 0.0000$) across all cases for $b_j \in \{0.085, 0.915\}$ and for $B_{\text{opp}}=100$ at $b_j=0.5$. Mean signed Q error on action `L` was $+0.0146$ to $+0.0284$ ($B_{\text{opp}}=25$) and $-0.0048$ to $+0.0361$ ($B_{\text{opp}}=100$).
+Nonterminal door-opening actions (`OL`, `OR`) had negligible Q error ($\pm 0.0000$) across all cases for $b_j \in \{0.085, 0.915\}$ and for $B_{\text{opp}}=100$ at $b_j=0.5$. Mean signed Q error on action `L` was $+0.0146$ to $+0.0284$ ($B_{\text{opp}}=25$) and $-0.0048$ to $+0.0361$ ($B_{\text{opp}}=100$).
 
 ### Development conclusions
 
-These results validate that protagonist MCTS with empirical Bellman backups accurately solves against finite-computation modeled opponents at fixed depth 3. This is development evidence; production depth 20, mixed levels, and empirical priors remain pending.
+These results show correct first-action choices on the tested finite-computation depth3 development grid; they do not establish exact values or accuracy at every belief. This is development evidence; production depth 20, mixed levels, and empirical priors remain pending.
 
+
+
+### Independent review after the outage (bf1c225 / 123701b)
+
+WSL access was restored and the clean checkout verified at123701b. The saved
+pre-outage full-suite log confirms225 tests passed in310.22s. bf1c225 contains
+the finite-policy reference, canonical sampling fix, tests and contract;123701b
+contains the subsequent experiment documentation.
+
+Independently verified all900 raw cases: requested coverage/uniqueness, status,
+source hashes againstbf1c225, complete modeled/root settings, seed identity,
+policy distributions, first-action losses and max Q errors. Recomputed all450
+distinct oracle configurations with the declared finite opponent and compared
+both root-budget copies. Confirmed zero strict action errors and zero loss,
+nine optimal-action-set changes out of225 modeled-budget pairs, and21 Q/value
+changes above1e-4 (maximum Q change7.733). The audit uses the existing exhaustive
+reference independently of the report; it is not a separate proof of that code.
+
+Worker interval durations and maximum concurrency of two passed for all panels.
+Monotonic elapsed and GNU elapsed remain distinct:329.10s versus314.48s summed.
+The largest per-panel difference is3.06s. Do not call the timing discrepancy solved.
+
+Opening is nonterminal. In the25-simulation, b_j=.5 panel its maximum absolute
+Q error is .766343, while selected actions still match. This directly cautions
+against inferring accurate action values from zero first-action loss.
+The previously drafted54-case smoke had zero policy errors; the separate9-case
+reference cross-check had max Q difference8.88e-16. Those are different checks.
+
+A six-case depth20 resource pilot used modeled budget25, b_j=.5, own beliefs
+.05/.5/.95, H1-H2, root budget1000, seed400, and the same root/ modeled estimators.
+All cases completed with zero loss; max Q error .402376, max case time .486818s,
+peak monitored RSS74.094MiB. Parent monotonic elapsed1.630009s and worker
+sum2.792059s satisfy the two-worker bound. This is a small feasibility check,
+not long-horizon production qualification.
+
+Audit: results/oracle/l2_finite_review_20260925.json.
+Pilot: results/oracle/l2_finite_depth20_pilot_20260925/ and sibling log.
+No solver changes; HANDOFF.md defines a360-case depth20 development extension.
