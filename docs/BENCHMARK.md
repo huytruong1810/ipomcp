@@ -1953,3 +1953,53 @@ Antigravity's original report was read from its local brain artifact named
 l2_rewards_100k_deep_horizon_report.md. The verified results and narrower
 interpretations above supersede its claims of resolved variance, isolated
 execution, invariant RSS and retention of an old H8 violation.
+
+## Six-case diagnostic audit (2026-09-26)
+
+Reviewed results/oracle/l2_rewards_100k_diagnosis_20260926/ against source
+475e66e. Verified source and diagnostic-script hashes, all six full result-row
+equalities against the original 100k study, action/observation counts,
+probability normalization, action and margin decomposition arithmetic, and
+nonoverlapping one-worker intervals. This audit reads saved evidence; it does
+not claim a new independent oracle enumeration or planner replay.
+
+Continuation-value margin error exceeds root chance-frequency margin error
+in all six selected error cases. Both competing root actions receive roughly
+50k visits. This rules out gross root allocation starvation in these cases,
+not finite-sample uncertainty, descendant starvation, or exploration problems.
+The decomposition localizes error to child values but does not distinguish
+deeper chance error, frontier rollout error, action selection, and noisy
+maximization. It is not a convergence or estimator-bias proof.
+
+Root immediate rewards are integrated exactly even without
+exact_history_rewards (src/solvers/i_pomcp.py). Zero root immediate error
+therefore does not validate that option at descendants. In the report's
+equations the continuation value belongs to the full private-history joint
+belief, not an observed hidden physical state or opponent model.
+
+A further post-search diagnostic replaces empirical root observation
+frequencies by exact probabilities while holding saved child estimates fixed:
+R_exact + gamma * sum_o p(o) * V_hat(child_o).
+All root branches in these saved cases have child estimates. This corrects
+cases 0 and 3 (losses .031063 and .048062); case 2 (H8, loss .020122) still
+violates tolerance. The three other errors remain. This counterfactual uses
+reference probabilities solely after search: it is neither a tested planner
+nor proof that an exact-chance planner follows the same search trajectory.
+A small chance error can flip a narrow estimated action margin despite a
+larger continuation-error component.
+
+Audit artifact: results/oracle/l2_rewards_100k_diagnosis_review_20260926.json.
+Worker sum 184.138865s <= parent 187.459888s; competing host workloads still
+preclude isolated runtime claims.
+
+Next implementation plan: Codex should add post-search descendant diagnostics
+for these same six cases. At each competing root action's observation child,
+record full history identity, visits, all estimated/reference action values,
+local selected-versus-optimal action loss, and the next Bellman decomposition.
+Rank contributions by root observation weight; distinguish local maximization
+error from errors in downstream estimates. No oracle data may enter planning,
+and diagnostic capture must preserve the original full result row. Review
+those results before changing exploration, chance backups, or resource rules.
+Antigravity should retain evidence and wait for the concrete runner checkpoint;
+no additional budget sweep or fresh gate is prescribed. Defaults and tolerance
+remain unchanged.

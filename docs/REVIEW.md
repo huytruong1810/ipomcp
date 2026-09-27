@@ -372,3 +372,11 @@ four new strict regressions, including all three tolerance violations; all old
 H8 violations were corrected. Removed unsupported resolved-variance, isolated-
 execution and invariant-memory interpretations from the authoritative summary.
 Kept defaults unchanged; no solver edits or new validation launch.
+
+Six-case 100k diagnostic artifact audit completed: source/script hashes, full
+replay equality, branch probabilities/counts, Bellman reconstruction and worker
+intervals checked. No new solver execution in this audit. Corrected attribution
+of already-exact root rewards; continuation error dominance does not establish
+its cause. Post-hoc exact root chance weights correct two violations, leaving
+one, with child estimates fixed. Descendant diagnostics are the next checkpoint;
+no production-default changes or additional experiment authorization.

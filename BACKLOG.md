@@ -139,6 +139,7 @@ Strict errors improve 15 to 6 and tolerance violations 9 to 3. All 15 old errors
 meet tolerance, but four previously optimal cases regress; all three current
 violations are new. H6 mean/max loss increases. Neither 100k nor the proposed
 tiered budget is qualified. Keep defaults unchanged and preserve failed gates.
-Next: reproduce/decompose the three new violations listed in HANDOFF.md before
-prescribing another large study. Concurrent workloads preclude isolated timing
+Six-case root decomposition audit is complete; all replays match. Next: add
+post-search descendant decomposition to distinguish local action-ranking loss
+from downstream value errors before prescribing another large study. Concurrent workloads preclude isolated timing
 claims. Continue on main.

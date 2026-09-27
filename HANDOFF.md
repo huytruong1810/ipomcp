@@ -65,13 +65,20 @@ Keep exact_history_rewards opt-in and retain current defaults.
 criterion. The 50k-shallow/100k-deep rule therefore is not qualified either.
 This development study cannot repair the historical ac3df1c or f4d2aef gates.
 
-Next Codex analysis should reproduce and decompose the three new violations,
-checking root chance terms and continuation-value errors before proposing
-another estimator, exploration setting or resource rule. Do not adapt depth
-to change the benchmark objective, select only successful reruns, or raise
-the tolerance. No new large experiment or fresh gate is prescribed by this
-documentation update. Antigravity should preserve evidence pending the next
-concrete development protocol.
+The six-case 100k diagnostic replay has now been audited: all full rows match
+the original study, and the saved Bellman decompositions reconstruct correctly.
+Continuation-value margin error is larger in all six cases, but this does not
+identify its deeper cause. Root rewards were already exact without the
+history-reward option. Exact root probability weighting of saved child values
+would correct two of the three violations; H8 remains a violation. This is a
+post-search diagnostic only, not a tested solver change.
+
+Next Codex work: prepare descendant-level post-search diagnostics on the same
+six cases, separating local action-ranking loss from downstream value errors
+and recording weighted contributions and visits. Preserve exact replay equality
+and keep oracle information out of planning. Antigravity should retain evidence
+and await that runner checkpoint. No new budget sweep or fresh gate is prescribed.
+See the six-case diagnostic audit in docs/BENCHMARK.md for scope and limitations.
 
 Raw runs: results/oracle/l2_rewards_100k_n{25,100}_b{0.085,0.5,0.915}_20260926/.
 Audit: results/oracle/l2_rewards_100k_review_20260926.json.
