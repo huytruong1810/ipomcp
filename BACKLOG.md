@@ -134,11 +134,11 @@ resource-supervised budget sweep. Historical results remain source-bound evidenc
 Worker startup now uses spawn to avoid inheriting numerical-library thread locks. Fault-injection, resume, and domain integration checks cover the change.
 
 
-Current next step: the full observed H5/H6/H8 grid at 100k, as declared in
-HANDOFF.md. The new fresh candidate gate also failed (9 violations/3,360 cases);
-all 15 strict errors reproduce exactly at 50k despite concurrent host workloads.
-Child-value error dominates root chance error in 14/15 ranking errors. All eight
-selected H8 errors become optimal at 100k; the seven selected H5/H6 errors
-also meet tolerance, with two small strict losses remaining. Full-grid
-regressions remain untested. Do not change depth/objective or promote defaults on this subset.
-Work directly on main; the merged fix branch was deleted locally and remotely.
+Current checkpoint: the 1,440-case 100k H5/H6/H8 development study is audited.
+Strict errors improve 15 to 6 and tolerance violations 9 to 3. All 15 old errors
+meet tolerance, but four previously optimal cases regress; all three current
+violations are new. H6 mean/max loss increases. Neither 100k nor the proposed
+tiered budget is qualified. Keep defaults unchanged and preserve failed gates.
+Next: reproduce/decompose the three new violations listed in HANDOFF.md before
+prescribing another large study. Concurrent workloads preclude isolated timing
+claims. Continue on main.

@@ -363,3 +363,12 @@ Completed all 30 diagnostic jobs: 15 exact 50k replays and 15 selected 100k solv
 All 15 selected 100k cases meet tolerance; 13 are strictly optimal. Verified
 unchanged reference values/model identity, source hashes and concurrency
 checks. No inference of full-grid qualification follows from selected errors.
+
+
+Review of the 100k report at aa8963b: audited all 1,440 cases, manifests/source
+hashes, paired modeled-policy/Q identity, probability/loss arithmetic and
+worker intervals. Independently recomputed all six error references. Confirmed
+four new strict regressions, including all three tolerance violations; all old
+H8 violations were corrected. Removed unsupported resolved-variance, isolated-
+execution and invariant-memory interpretations from the authoritative summary.
+Kept defaults unchanged; no solver edits or new validation launch.

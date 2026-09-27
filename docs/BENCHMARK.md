@@ -1786,7 +1786,7 @@ were corrected in the table above. Both gates remain failed.
 
 All3,360 case identities, source hashes against f4d2aef, full configurations,
 policy/loss/Q-error arithmetic and timing intervals were checked. Confirmed
-9 primary violations, 15 strict errors and mean loss .000307266. All15 strict
+9 primary violations, 15 strict errors and mean loss .000307266. All 15 strict
 errors were rerun at 50k and reproduced exactly, including their Q estimates.
 Their reference values were independently recomputed. No reference values
 were provided to the planner; decomposition runs after search.
@@ -1844,3 +1844,112 @@ rows reproduce exactly, and opponent metadata/reference Q vectors remain
 unchanged across budgets. All diagnostic jobs completed and their worker
 interval/concurrency checks pass. Aggregate:
 results/oracle/l2_rewards_budget_probe_review_20260926.json.
+
+
+## Independently audited 100k H5/H6/H8 development study (September 26)
+
+Source aa8963b; same solver implementation as 4c17278. Six panels cross modeled
+budgets 25/100, opponent beliefs .085/.5/.915, protagonist H5/H6/H8, ten observed
+physical beliefs and seeds 7000–7007. Root 100k, empirical Bellman, exact final step
+and history rewards, bounded c=1, gamma=.95. Modeled policies and all other
+settings remain those in the source-matched 50k baseline. Two workers,
+240 seconds per case, 2,048 MiB per worker. All 1,440 cases completed.
+
+Codex verified all manifests and source hashes, exact case coverage, full
+root/modeled configuration matching, probabilities, loss and Q-error arithmetic,
+and interval/concurrency checks. All 1,440 paired oracle Q vectors and modeled
+policy records match the 50k rows exactly. Independently recomputed all six
+100k error references within 1e-8; other references were checked for paired
+equality and arithmetic, not independently solved again in this audit.
+
+| Metric on matched 1,440 cases | 50k | 100k |
+| --- | ---: | ---: |
+| Strict errors (loss >1e-8) | 15 | 6 |
+| Loss >.020 +1e-8 | 9 | 3 |
+| Mean first-action loss | .000716953 | .000083521 |
+| Maximum loss | .205046 | .048062 |
+| Mean maximum Q error | .821262 | .771836 |
+| Maximum Q error | 5.821070 | 4.447722 |
+
+All 15 old strict errors meet tolerance at 100k; 13 become strictly optimal and
+two retain losses .005156 and .006699. Four previously optimal cases regress:
+three exceed tolerance and one has loss .009167. Thus 100k improves aggregate
+results but does not meet the all-case .020 criterion on this development grid.
+
+### Panel and horizon results
+
+Every panel contains 240 cases.
+
+| Modeled budget | b_j | Strict errors | Tolerance violations | Maximum loss | Mean maximum Q error |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 25 | 0.085 | 1 | 1 | 0.031063 | 0.742312 |
+| 25 | 0.5 | 0 | 0 | 0.000000 | 0.745173 |
+| 25 | 0.915 | 0 | 0 | 0.000000 | 0.715698 |
+| 100 | 0.085 | 0 | 0 | 0.000000 | 0.783945 |
+| 100 | 0.5 | 2 | 1 | 0.020122 | 0.851801 |
+| 100 | 0.915 | 3 | 1 | 0.048062 | 0.792086 |
+
+| Horizon (480 cases each) | 50k violations | 100k violations | 50k mean loss | 100k mean loss |
+| --- | ---: | ---: | ---: | ---: |
+| H5 | 1 | 1 | .000121107 | .000064715 |
+| H6 | 1 | 1 | .000120203 | .000124827 |
+| H8 | 7 | 1 | .001909549 | .000061019 |
+
+All seven old H8 violations were corrected. The remaining H8 violation is
+a new regression, not one of the old failures retained. H6 mean loss and
+maximum loss increase, so improvement is not monotone by horizon or case.
+
+### New regressions from strictly optimal 50k actions
+
+| Modeled budget | b_j | H | Seed | b_i | 100k loss | Status |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 25 | .085 | 5 | 7001 | .0375 | .031063194 | Violation |
+| 100 | .5 | 8 | 7003 | .0275 | .020122447 | Violation |
+| 100 | .915 | 6 | 7004 | .9625 | .048061971 | Violation |
+| 100 | .915 | 8 | 7005 | .0275 | .009166912 | Within tolerance |
+
+The .020122447 loss exceeds the frozen bound even after numerical slack;
+it must not be rounded into a pass or used to increase the tolerance.
+Changing budget changes the deterministic root seed and adaptive visit counts.
+This is not a nested-prefix or common-random-number comparison, and it does
+not prove that additional samples invariably improve every individual solve.
+
+### Signed Q errors and resources
+
+Across the 100k grid:
+
+| Action | Mean signed error | Population SD | Mean absolute error |
+| --- | ---: | ---: | ---: |
+| L | .002161 | .039277 | .028437 |
+| OL | .153483 | .762788 | .394194 |
+| OR | .171773 | .755156 | .396390 |
+
+These describe the observed case distribution. Lower first-action loss does
+not establish that continuation variance is resolved or that bias is eliminated.
+The .048062 regression also precludes a universal boundary-margin cutoff of
+about .04. Full-grid behavior matters more than selected-error replays.
+
+External elapsed totals 11,227.72s, parent monotonic 11,224.411573s and worker
+sum 22,031.377033s. All six internal two-worker bounds pass; the external-parent
+total difference is 3.308427s. Close clocks do not establish isolated execution.
+The user reports competing CPU/GPU workloads, so do not interpret cross-run
+time ratios as isolated solver scaling. Worker times include reference work.
+Per-case peak RSS varies from 77.93 to 156.41 MiB; it is not invariant.
+No external timing for only the old H5/H6/H8 subset can be reconstructed
+exactly from timers enclosing the full seven-horizon baseline panels.
+
+### Status and provenance
+
+This is development evidence on an observed grid. The historical ac3df1c and
+f4d2aef fresh gates remain failed. Neither uniform 100k nor the proposed
+50k-shallow/100k-deep rule meets the stated accuracy criterion on known cases.
+Keep defaults unchanged; do not announce a fresh-gate pass or launch a new
+qualification claim from this result. Next analysis should target the three
+new violations before changing depth, exploration, budget or the evaluator.
+
+Raw evidence: results/oracle/l2_rewards_100k_n{25,100}_b{0.085,0.5,0.915}_20260926/.
+Independent audit: results/oracle/l2_rewards_100k_review_20260926.json.
+Antigravity's original report was read from its local brain artifact named
+l2_rewards_100k_deep_horizon_report.md. The verified results and narrower
+interpretations above supersede its claims of resolved variance, isolated
+execution, invariant RSS and retention of an old H8 violation.
