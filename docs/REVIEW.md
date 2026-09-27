@@ -380,3 +380,10 @@ of already-exact root rewards; continuation error dominance does not establish
 its cause. Post-hoc exact root chance weights correct two violations, leaving
 one, with child estimates fixed. Descendant diagnostics are the next checkpoint;
 no production-default changes or additional experiment authorization.
+
+Implemented the reusable post-search tree_diagnostics runner and completed all
+six exact 100k replays with immediate-child decomposition. Independent algebra
+tests cover unobserved branches, explicit rollout frontiers and uniform ties;
+12 focused tests and Ruff pass. All competing-root-action children choose
+optimal local actions, while grandchild value estimates dominate their error.
+No production solver change or global correctness conclusion follows.

@@ -57,6 +57,10 @@ uv run python -m examples.experiments.deep_hierarchy_prior_experiment --trials 3
 # Matched oracle budget/error/cost sweep; failures remain recorded.
 uv run python -m examples.experiments.planner_oracle_experiment --out results/oracle-study --budgets 1000 10000 50000 --horizons 1 2 3 --seeds 10
 
+# Post-search L2 diagnostics from an audited JSON containing full error rows.
+# Output must be new; this is development evidence, never a validation gate.
+uv run python -m examples.experiments.tree_diagnostics --input results/oracle/l2_rewards_100k_review_20260926.json --output results/oracle/descendant-diagnostics
+
 # Full-suite entry point; qualification blockers remain (see BACKLOG.md).
 uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite all
 

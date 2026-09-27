@@ -2003,3 +2003,59 @@ those results before changing exploration, chance backups, or resource rules.
 Antigravity should retain evidence and wait for the concrete runner checkpoint;
 no additional budget sweep or fresh gate is prescribed. Defaults and tolerance
 remain unchanged.
+
+## Descendant diagnostic implementation and results (2026-09-26)
+
+Added examples.experiments.tree_diagnostics: a resource-supervised post-search
+diagnostic runner that requires exact equality with each supplied evaluator row.
+It records reference and estimated action values, counts, canonical full-belief
+digests, observation histories, and one descendant layer of Bellman
+decompositions. Missing histories and rollout frontiers remain explicit.
+Exact-tail nodes are distinguished from sampled action nodes. The reference is
+queried after search, never injected into planning.
+
+For a node's uniform greedy policy pi_hat, the identity is
+V_hat - V_star = [V_hat - E_pi_hat Q_star] - [V_star - E_pi_hat Q_star].
+The first bracket is selected-action estimation error; the second is local
+action loss. An optimal local action can still have an inaccurate value.
+For each competing root action we propagate both terms with gamma times the
+empirical root branch probability, then subtract oracle-best-root-action terms
+from selected-root-action terms. Each child's selected-action estimation error
+is itself decomposed into immediate, chance and grandchild-value components.
+
+All six 100k cases completed and reproduced their full original result rows.
+All visited immediate children under both competing root actions select
+reference-optimal actions: their local action losses are zero. Their immediate
+reward errors are also zero. The remaining child margin decomposition is:
+
+| Case | Loss | Child chance contribution | Grandchild value contribution |
+| --- | ---: | ---: | ---: |
+| case-0 | 0.031063194 | +0.000846003 | +0.021525395 |
+| case-1 | 0.005155991 | -0.003813492 | +0.038406859 |
+| case-2 | 0.020122447 | -0.001156265 | +0.084761663 |
+| case-3 | 0.048061971 | +0.009121041 | +0.038047356 |
+| case-4 | 0.006699016 | -0.000934521 | +0.012659232 |
+| case-5 | 0.009166912 | -0.003164784 | +0.036092312 |
+
+Grandchild value error exceeds child chance error in magnitude in all six
+cases. This localizes the error another layer down; it does not establish bias,
+variance, asymptotic failure, or correctness of unexplored deeper decisions.
+Changing root or immediate-child action selection is not supported as a fix by
+these observations alone. A deeper diagnostic should follow the largest
+weighted value-error paths and separate chance, local action loss, and frontier
+effects before any production estimator modification. No increased budget or
+new validation launch is prescribed by these selected-case results.
+
+Artifacts: results/oracle/l2_descendant_diagnosis_20260926/ (manifest, case rows,
+summary and descendant_margin_summary.json); external timing in the sibling
+.time file. Base commit 0308059 plus the added diagnostic module; the execution
+manifest hashes the actual source, including the then-uncommitted module.
+Only formatting of that module followed execution. Parent elapsed 198.341162s;
+one worker, 600s timeout and 2048 MiB cap. Timing includes reference diagnostics
+and is not a planning-only cost comparison. Raw results remain Git-ignored.
+
+Validation: all six exact seeded replay assertions and action decomposition
+reconstruction assertions passed. Twelve focused tests passed, including
+independent algebraic cases for unobserved branches, rollout frontiers and
+uniform greedy ties. Ruff check and formatting of the new files passed.
+Solver behavior and defaults are unchanged.

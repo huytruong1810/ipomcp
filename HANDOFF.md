@@ -73,12 +73,20 @@ history-reward option. Exact root probability weighting of saved child values
 would correct two of the three violations; H8 remains a violation. This is a
 post-search diagnostic only, not a tested solver change.
 
-Next Codex work: prepare descendant-level post-search diagnostics on the same
-six cases, separating local action-ranking loss from downstream value errors
-and recording weighted contributions and visits. Preserve exact replay equality
-and keep oracle information out of planning. Antigravity should retain evidence
-and await that runner checkpoint. No new budget sweep or fresh gate is prescribed.
-See the six-case diagnostic audit in docs/BENCHMARK.md for scope and limitations.
+Descendant diagnostics are now implemented in
+src/examples/experiments/tree_diagnostics.py and all six cases completed with
+full replay equality. Under both competing root actions, every visited
+immediate child selects an oracle-optimal action; child immediate reward errors
+are zero. The value error comes from estimates farther downstream, with
+grandchild-value terms larger than child chance terms in all six cases.
+See docs/BENCHMARK.md for the complete contribution table and limitations.
+
+Artifacts: results/oracle/l2_descendant_diagnosis_20260926/.
+Twelve focused tests and Ruff passed; production solver behavior is unchanged.
+Next Codex analysis should follow the largest weighted deeper error paths to
+separate chance errors, local action-ranking loss and frontier estimates.
+Antigravity should preserve these completed results; no rerun, large sweep or
+fresh validation gate is needed at this checkpoint.
 
 Raw runs: results/oracle/l2_rewards_100k_n{25,100}_b{0.085,0.5,0.915}_20260926/.
 Audit: results/oracle/l2_rewards_100k_review_20260926.json.
