@@ -16,11 +16,12 @@ from solvers.solver_types import SolverKey
 
 
 class SolverBank:
-    def __init__(self, seed=None):
+    def __init__(self, seed=None, max_support=None):
         self._solvers = {}
         self._physical_priors = {}
         self.seed = random.getrandbits(64) if seed is None else seed
-        self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096)
+        # None keeps exact enumeration; an integer bounds every posterior's support.
+        self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
         self._belief_digest = lru_cache(maxsize=16384)(self._encode_belief)
         self.ordered_mass = lru_cache(maxsize=16384)(self._ordered_mass)

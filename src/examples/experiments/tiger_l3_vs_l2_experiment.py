@@ -80,12 +80,16 @@ def _config(profile, n_sims, depth, gamma, modeled_sims):
     )
 
 
-def build_agent(agent_id, level, profile, n_sims, depth, gamma, modeled_sims):
-    """One isolated bank per real agent with an exact balanced physical prior."""
+def build_agent(agent_id, level, profile, n_sims, depth, gamma, modeled_sims, max_support=None):
+    """One isolated bank per real agent with an exact balanced physical prior.
+
+    ``max_support`` bounds every interactive posterior in this bank (all nesting
+    levels) by deterministic systematic resampling; None keeps exact filtering.
+    """
     if profile not in PROFILES:
         raise ValueError(f"Unknown planner profile {profile!r}")
     physics = tiger()
-    bank = SolverBank()
+    bank = SolverBank(max_support=max_support)
     bank.set_physical_prior(physics, (TIGER_LEFT, TIGER_RIGHT))
     other = "j" if agent_id == "i" else "i"
     nested = NESTED_I if agent_id == "i" else NESTED_J
@@ -149,8 +153,10 @@ class TigerL3vsL2Runner(GenericBatchRunner):
         modeled_sims=25,
         depth=5,
         gamma=0.95,
+        max_support=None,
     ):
         super().__init__(config, log_dir)
+        self.max_support = max_support
         self.profile = profile
         self.sims_i, self.sims_j, self.modeled_sims = sims_i, sims_j, modeled_sims
         self.depth, self.gamma = depth, gamma
@@ -165,10 +171,24 @@ class TigerL3vsL2Runner(GenericBatchRunner):
     def _setup_domain(self):
         env = tiger()
         planner_i = build_agent(
-            "i", 3, self.profile, self.sims_i, self.depth, self.gamma, self.modeled_sims
+            "i",
+            3,
+            self.profile,
+            self.sims_i,
+            self.depth,
+            self.gamma,
+            self.modeled_sims,
+            self.max_support,
         )
         planner_j = build_agent(
-            "j", 2, self.profile, self.sims_j, self.depth, self.gamma, self.modeled_sims
+            "j",
+            2,
+            self.profile,
+            self.sims_j,
+            self.depth,
+            self.gamma,
+            self.modeled_sims,
+            self.max_support,
         )
         # The generic loop times only i; record j's decision time on the instance.
         original = planner_j.get_action
@@ -206,11 +226,12 @@ def main():
     parser.add_argument("--trials", type=int, default=100)
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--workers", type=int, default=21)
-    parser.add_argument("--profile", choices=PROFILES, default="default")
+    parser.add_argument("--profile", choices=PROFILES, default="validated")
     parser.add_argument("--modeled-sims", type=int, default=25)
     parser.add_argument("--sims-i", type=int, default=DEFAULT_SIM_SCHEDULE[3])
     parser.add_argument("--sims-j", type=int, default=DEFAULT_SIM_SCHEDULE[2])
     parser.add_argument("--depth", type=int, default=5)
+    parser.add_argument("--max-support", type=int)
     parser.add_argument("--timeout", type=int, default=7200)
     parser.add_argument("--max-rss-mb", type=int, default=3072)
     parser.add_argument("--output", type=Path)
@@ -235,6 +256,7 @@ def main():
         sims_j=args.sims_j,
         modeled_sims=args.modeled_sims,
         depth=args.depth,
+        max_support=args.max_support,
     )
     start = time.monotonic()
     df = runner.run_batch()

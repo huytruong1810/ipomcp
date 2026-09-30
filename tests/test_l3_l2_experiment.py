@@ -175,3 +175,79 @@ def test_general_reference_handles_mixed_levels_and_conserves_probability():
         assert {a.opponent.frame.level for _, _, m in branches for a, _ in m.belief.mass} == {0, 1}
     values = reference.q_values(model, 2)
     assert max(values, key=values.get) == "L"
+
+
+def test_systematic_resampling_bounds_each_mass_error_by_one_over_k():
+    from ipomdp.finite_filter import resample
+
+    physics = tiger()
+    l0 = MentalModel(AgentFrame("i", 0, physics))  # j/L1 models uniform i/L0
+    rng = random.Random(5)
+    atoms = []
+    for index in range(300):
+        private = FiniteBelief(
+            (
+                (InteractiveState(TIGER_LEFT, l0), 1 + index),
+                (InteractiveState(TIGER_RIGHT, l0), 1 + 300 - index),
+            )
+        )
+        opponent = MentalModel(AgentFrame("j", 1, physics), private)
+        atoms.append((InteractiveState(STATES[index % 2], opponent), rng.random()))
+    belief = FiniteBelief(tuple(atoms))
+
+    def marginals(b):
+        out = {}
+        for atom, weight in b.mass:
+            key = (atom.opponent.frame.level, atom.state)
+            out[key] = out.get(key, 0.0) + weight
+        return out
+
+    for k in (8, 32, 128):
+        compressed = resample(belief, k)
+        assert len(compressed.mass) <= k
+        assert resample(belief, k) == compressed  # deterministic
+        kept = dict(compressed.mass)
+        for atom, weight in belief.mass:
+            assert abs(kept.get(atom, 0.0) - weight) < 2 / k + 1e-12
+        exact, approx = marginals(belief), marginals(compressed)
+        assert approx.keys() == exact.keys()
+        for key, mass in exact.items():
+            assert approx[key] == pytest.approx(mass, abs=1e-12)
+
+
+def test_resampling_never_drops_a_level_stratum():
+    from ipomdp.finite_filter import resample
+
+    physics = tiger()
+    l0_i = MentalModel(AgentFrame("i", 0, physics))
+    l0_j = MentalModel(AgentFrame("j", 0, physics))
+    atoms = [(InteractiveState(TIGER_LEFT, l0_j), 1e-6)]
+    for index in range(200):
+        private = FiniteBelief(
+            (
+                (InteractiveState(TIGER_LEFT, l0_i), 1 + index),
+                (InteractiveState(TIGER_RIGHT, l0_i), 1 + 200 - index),
+            )
+        )
+        opponent = MentalModel(AgentFrame("j", 1, physics), private)
+        atoms.append((InteractiveState(STATES[index % 2], opponent), 1.0))
+    compressed = resample(FiniteBelief(tuple(atoms)), 8)
+    assert any(atom.opponent.frame.level == 0 for atom, _ in compressed.mass)
+
+
+def test_bounded_filter_caps_support_at_every_nesting_level():
+    planner = build_agent("i", 3, "default", 200, 2, 0.95, 5, max_support=8)
+    exact = build_agent("i", 3, "default", 200, 2, 0.95, 5)
+    for action, observation in [("L", ("GL", "S")), ("L", ("GR", "S")), ("L", ("GL", "S"))]:
+        planner.update_root(action, observation)
+        exact.update_root(action, observation)
+
+    def supports(model):
+        if model.belief is None:
+            return []
+        return [len(model.belief.mass)] + [
+            n for atom, _ in model.belief.mass for n in supports(atom.opponent)
+        ]
+
+    assert max(supports(planner.model())) <= 8
+    assert max(supports(exact.model())) > 8

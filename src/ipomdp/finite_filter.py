@@ -16,9 +16,18 @@ The sensors are conditionally independent given post-state and joint action, as
 in the three current domains. Correlated sensors require a different joint kernel.
 Policy and dynamics providers must remain fixed and pure for this object's lifetime.
 An externally mutable MCTS node cannot be a policy or belief cache key.
+
+Optional bounded support (``max_support``) makes the kernel an approximation:
+any posterior with more distinct joint hypotheses than the bound is replaced by
+a systematic resample of that many equally weighted draws, duplicates merged.
+It applies at every nesting level, because nested posteriors come from this same
+update. Resampling is seeded from the exact posterior itself, so the update stays
+a deterministic, cacheable function. The default (None) keeps exact enumeration.
 """
 
+import hashlib
 import math
+import random
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -72,12 +81,21 @@ class FiniteInteractiveFilter:
     random draws makes small-case results independent of query order and seeds.
     """
 
-    def __init__(self, policy: Policy, cache_size: int = 4096, max_branches: int = 100000):
+    def __init__(
+        self,
+        policy: Policy,
+        cache_size: int = 4096,
+        max_branches: int = 100000,
+        max_support: int | None = None,
+    ):
         if type(cache_size) is not int or cache_size < 0:
             raise ValueError("cache_size must be a nonnegative integer")
         if type(max_branches) is not int or max_branches <= 0:
             raise ValueError("max_branches must be a positive integer")
+        if max_support is not None and (type(max_support) is not int or max_support < 1):
+            raise ValueError("max_support must be None or a positive integer")
         self.max_branches = max_branches
+        self.max_support = max_support
         self._policy = policy
         self.update = lru_cache(maxsize=cache_size)(self._update)
         self._intentional_distribution = lru_cache(maxsize=cache_size)(self._validate_policy)
@@ -191,4 +209,60 @@ class FiniteInteractiveFilter:
                 f"{frame!r}: zero finite-support evidence for "
                 f"action={action!r}, observation={observation!r}"
             )
-        return Posterior(FiniteBelief(tuple(rows)), evidence)
+        belief = FiniteBelief(tuple(rows))
+        if self.max_support is not None and len(belief.mass) > self.max_support:
+            belief = resample(belief, self.max_support)
+        return Posterior(belief, evidence)
+
+
+def resample(belief: FiniteBelief, count: int) -> FiniteBelief:
+    """Stratified systematic resampling to at most ``count`` atoms, deterministic.
+
+    Strata are (opponent level, physical state). Each stratum keeps its exact
+    total mass. So the opponent-level posterior and the physical belief stay
+    exact, and no level (in particular the uniform L0 hypothesis that supports
+    every observation) can be dropped by sampling. Only the nested private models
+    within a stratum are sampled. Draws are allocated by largest remainder with at
+    least one per stratum, which gives an error below 2 / ``count`` per atom mass.
+    The seed hashes the exact posterior masses in canonical order, so equal
+    inputs give equal outputs across processes.
+    """
+    strata = {}
+    for atom, weight in belief.mass:
+        strata.setdefault((atom.opponent.frame.level, repr(atom.state)), []).append((atom, weight))
+    if count < len(strata):
+        raise ValueError("Support bound must be at least the number of level/state strata")
+    if len(belief.mass) <= count:
+        return belief
+    keys = sorted(strata)
+    totals = {k: math.fsum(w for _, w in strata[k]) for k in keys}
+    quota = {k: 1 + (count - len(keys)) * totals[k] for k in keys}
+    draws = {k: int(quota[k]) for k in keys}
+    for k in sorted(keys, key=lambda k: quota[k] - int(quota[k]), reverse=True)[
+        : count - sum(draws.values())
+    ]:
+        draws[k] += 1
+    seed = hashlib.sha256(
+        b"".join(weight.hex().encode() for _, weight in belief.mass) + str(count).encode()
+    ).digest()
+    rng = random.Random(seed)
+    kept = []
+    for k in keys:
+        rows, n = strata[k], draws[k]
+        if len(rows) <= n:
+            kept.extend(rows)
+            continue
+        offset = rng.random() / n
+        cumulative, index = 0.0, 0
+        for atom, weight in rows:
+            cumulative += weight / totals[k]
+            hits = 0
+            while index < n and offset + index / n < cumulative:
+                hits += 1
+                index += 1
+            if hits:
+                kept.append((atom, totals[k] * hits / n))
+        if index < n:
+            # Cumulative rounding can leave final draws; FiniteBelief merges duplicates.
+            kept.append((rows[-1][0], totals[k] * (n - index) / n))
+    return FiniteBelief(tuple(kept))
