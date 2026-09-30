@@ -35,7 +35,9 @@ def _metric_columns(df, agent):
     names += sorted(
         c
         for c in df.columns
-        if c.startswith(("tv_depth", "phys_err_depth")) and c.endswith(f"_{agent}")
+        if c.startswith(("tv_depth", "phys_err_depth"))
+        and c.endswith(f"_{agent}")
+        and c != f"tv_depth0_{agent}"  # the root always has mass one
     )
     return [c for c in names if c in df.columns]
 
@@ -45,12 +47,10 @@ def on_history(df, rung):
     rows = []
     trials = df.trial.nunique()
     for agent in AGENTS:
-        audited = (
-            df[df[f"audited_{agent}"].astype(str) == "True"]
-            if f"audited_{agent}" in df
-            else df.iloc[0:0]
-        )
         for column in _metric_columns(df, agent):
+            # Regrets come from the decision audit; belief metrics from the belief audit.
+            flag = f"{'decision' if 'regret' in column else 'belief'}_audited_{agent}"
+            audited = df[df[flag].astype(str) == "True"]
             for step, group in [("pooled", audited[audited.step > 0])] + list(
                 audited.groupby("step")
             ):
@@ -197,14 +197,20 @@ def main():
     coverage = {
         rung: {
             agent: {
-                "audited_steps": int(
-                    (df[df.step > 0][f"audited_{agent}"].astype(str) == "True").sum()
-                ),
                 "decision_steps": int((df.step > 0).sum()),
-                "stop_reasons": df.groupby("trial")[f"audit_stop_{agent}"]
-                .last()
-                .value_counts()
-                .to_dict(),
+                **{
+                    f"{kind}_audited": int(
+                        (df[df.step > 0][f"{kind}_audited_{agent}"].astype(str) == "True").sum()
+                    )
+                    for kind in ("decision", "belief")
+                },
+                **{
+                    f"{kind}_stops": df.groupby("trial")[f"{kind}_stop_{agent}"]
+                    .last()
+                    .value_counts()
+                    .to_dict()
+                    for kind in ("decision", "belief")
+                },
             }
             for agent in AGENTS
         }

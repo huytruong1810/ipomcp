@@ -30,6 +30,7 @@ computed by the analysis script.
 import argparse
 import json
 import math
+import os
 import time
 from pathlib import Path
 
@@ -47,6 +48,15 @@ RUNGS = {
     "r3": (10000, 7500, 50, 128),
     "r4": (20000, 15000, 100, 256),
 }
+
+
+SHADOW_CACHE = 20000
+
+
+def current_rss_mb():
+    """Current (not peak) resident memory of this process, from /proc."""
+    pages = int(Path("/proc/self/statm").read_text().split()[1])
+    return pages * os.sysconf("SC_PAGE_SIZE") / 2**20
 
 
 def p_tl(belief):
@@ -134,6 +144,7 @@ class ConvergenceRunner(TigerL3vsL2Runner):
         gamma=0.95,
         audit_seconds=120.0,
         audit_support=400,
+        audit_rss_mb=1200,
     ):
         sims_i, sims_j, modeled, support = RUNGS[rung]
         super().__init__(
@@ -149,26 +160,37 @@ class ConvergenceRunner(TigerL3vsL2Runner):
         )
         self.rung = rung
         self.audit_seconds, self.audit_support = audit_seconds, audit_support
+        self.audit_rss_mb = audit_rss_mb
 
     def _instrument(self, planner, agent):
-        """Decision-time regrets and shadow advancement while the audit is active."""
+        """Two audits on the exact shadow, each with its own declared caps.
+
+        The decision audit (exact and search regret) stops once one audited
+        decision exceeds ``audit_seconds``. The cheaper belief audit (nested TV,
+        physical error, policy TV) continues on the exact filter until the shadow
+        support exceeds ``audit_support`` or one belief step exceeds ``audit_seconds``.
+        """
         state = self.audits[agent] = {
             "shadow": build_exact_agent(
-                agent, planner.key.level, self.depth, self.gamma, physics=planner.pomdp_model
+                agent,
+                planner.key.level,
+                self.depth,
+                self.gamma,
+                cache=SHADOW_CACHE,
+                physics=planner.pomdp_model,
             ),
             "search": FinitePolicyReference(planner.pomdp_model, planner.solver_bank, self.gamma),
-            "active": True,
-            "stopped_reason": None,
+            "decision_active": True,
+            "belief_active": True,
+            "decision_stop": "",
+            "belief_stop": "",
             "decision": {},
         }
         original_policy_for, original_update = planner.policy_for, planner.update_root
 
-        def stop(reason):
-            state.update(active=False, stopped_reason=reason, shadow=None, search=None)
-
         def policy_for(model, modeled=False):
             policy = original_policy_for(model, modeled)
-            if modeled or not state["active"]:
+            if modeled or not state["decision_active"]:
                 return policy
             start = time.perf_counter()
             own_q = state["search"].q_values(model, self.depth)
@@ -187,19 +209,36 @@ class ConvergenceRunner(TigerL3vsL2Runner):
                 f"audit_seconds_{agent}": elapsed,
             }
             if elapsed > self.audit_seconds:
-                state["stop_after_step"] = "decision time cap"
+                state.update(decision_active=False, decision_stop="decision time cap", search=None)
             return policy
 
         def update_root(action, observation):
             original_update(action, observation)
-            if not state["active"]:
+            if not state["belief_active"]:
                 return
-            if state.get("stop_after_step"):
-                stop(state.pop("stop_after_step"))
-                return
+            start = time.perf_counter()
             state["shadow"].update_root(action, observation)
+            state["belief_update_seconds"] = time.perf_counter() - start
+            if not state["decision_active"]:
+                # Only exact policies are still needed; release decision-solve caches.
+                state["shadow"].reference._q.cache_clear()
+                state["shadow"].reference.branches.cache_clear()
             if len(state["shadow"].belief.mass) > self.audit_support:
-                stop("support cap")
+                reason = "support cap"
+            elif current_rss_mb() > self.audit_rss_mb:
+                reason = "memory cap"
+            elif state["belief_update_seconds"] > self.audit_seconds:
+                reason = "belief time cap"
+            else:
+                return
+            state.update(
+                belief_active=False,
+                belief_stop=reason,
+                decision_active=False,
+                decision_stop=state["decision_stop"] or reason,
+                shadow=None,
+                search=None,
+            )
 
         planner.policy_for, planner.update_root = policy_for, update_root
 
@@ -217,18 +256,25 @@ class ConvergenceRunner(TigerL3vsL2Runner):
             summary = nested_summary(planner, agent)
             metrics[f"nested_{agent}"] = json.dumps(summary)
             metrics.update(state["decision"])
+            metrics[f"decision_audited_{agent}"] = bool(state["decision"])
             state["decision"] = {}
-            metrics[f"audited_{agent}"] = state["active"]
-            metrics[f"audit_stop_{agent}"] = state["stopped_reason"] or ""
-            if not state["active"]:
+            metrics[f"belief_audited_{agent}"] = state["belief_active"]
+            metrics[f"decision_stop_{agent}"] = state["decision_stop"]
+            metrics[f"belief_stop_{agent}"] = state["belief_stop"]
+            if not state["belief_active"]:
                 continue
+            start = time.perf_counter()
             shadow = state["shadow"]
             exact_summary = nested_summary(shadow, agent)
             metrics[f"nested_exact_{agent}"] = json.dumps(exact_summary)
             metrics[f"exact_support_{agent}"] = len(shadow.belief.mass)
             for name, value in summary_errors(summary, exact_summary).items():
-                metrics[f"{name}_{agent}"] = value
+                if name != "tv_depth0":  # the root always has mass one
+                    metrics[f"{name}_{agent}"] = value
             metrics[f"policy_tv_{agent}"] = policy_tv(planner, shadow)
+            metrics[f"belief_audit_seconds_{agent}"] = (
+                state.get("belief_update_seconds", 0.0) + time.perf_counter() - start
+            )
         return metrics
 
 
@@ -242,6 +288,7 @@ def main():
     parser.add_argument("--max-rss-mb", type=int, default=4096)
     parser.add_argument("--audit-seconds", type=float, default=120.0)
     parser.add_argument("--audit-support", type=int, default=400)
+    parser.add_argument("--audit-rss-mb", type=float, default=1200)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     runner = ConvergenceRunner(
@@ -258,6 +305,7 @@ def main():
         rung=args.rung,
         audit_seconds=args.audit_seconds,
         audit_support=args.audit_support,
+        audit_rss_mb=args.audit_rss_mb,
     )
     start = time.monotonic()
     df = runner.run_batch()
