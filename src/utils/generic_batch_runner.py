@@ -20,6 +20,7 @@ from core.pomdp_model import POMDPModel, State
 from core.telemetry import SystemMonitor
 from solvers.planner import Planner
 from utils.process_supervisor import supervise_jobs
+from utils.source_lock import source_hashes
 
 logger = get_logger("BatchRunner")
 
@@ -401,6 +402,8 @@ class GenericBatchRunner(ABC):
         supervision. Limits and defaults are recorded in the experiment manifest.
         """
         source_root = Path(__file__).resolve().parents[1]
+        # Workers re-import src per trial; bind every trial to these exact bytes.
+        source_lock = source_hashes(source_root.parent)
         digest = hashlib.sha256()
         for source in sorted(source_root.rglob("*.py")):
             digest.update(str(source.relative_to(source_root)).encode())
@@ -465,6 +468,7 @@ class GenericBatchRunner(ABC):
             timeout_seconds=self.config.trial_timeout_seconds,
             max_rss_mb=self.config.max_trial_rss_mb,
             log_directory=attempt,
+            source_lock=(source_root.parent, source_lock),
         ):
             rows = outcome.pop("rows", None)
             if outcome["status"] == "complete":

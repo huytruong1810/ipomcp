@@ -37,9 +37,7 @@ class SolverBank:
         the outer true state. Different banks still use independent prior samples.
         Changing its size after constructing models would invalidate those models.
         """
-        key = digest(
-            [type(physics).__module__, type(physics).__qualname__, stable_value(vars(physics))]
-        )
+        key = self._prior_key(physics)
         if key not in self._physical_priors:
             self._physical_priors[key] = tuple(physics.get_initial_state() for _ in range(count))
         states = self._physical_priors[key]
@@ -48,6 +46,28 @@ class SolverBank:
                 "All models in one bank must share the same initial physical sample count"
             )
         return states
+
+    @staticmethod
+    def _prior_key(physics):
+        return digest(
+            [type(physics).__module__, type(physics).__qualname__, stable_value(vars(physics))]
+        )
+
+    def set_physical_prior(self, physics, states):
+        """Declare an explicit equally weighted physical prior before any model exists.
+
+        Sampling a large empirical prior only approximates a declared distribution
+        such as an exact 50/50 tiger. Equal-weight atoms are merged exactly, so a
+        balanced tuple represents that distribution without sampling error. Models
+        built later must request the same count; replacing a prior is refused.
+        """
+        states = tuple(states)
+        if not states:
+            raise ValueError("A physical prior needs at least one state")
+        key = self._prior_key(physics)
+        if key in self._physical_priors:
+            raise ValueError("This bank already fixed a physical prior for these physics")
+        self._physical_priors[key] = states
 
     def register_solver(self, key, solver):
         if key in self._solvers:
