@@ -7,8 +7,9 @@ depending on unrelated earlier queries. Finite search and an empirical initial
 prior remain approximations; finite conditioning is exact relative to that prior.
 """
 
+import math
 import random
-from dataclasses import asdict
+from functools import lru_cache
 
 from core.config import IPOMCPConfig
 from ipomdp.finite_belief import MentalModel
@@ -38,9 +39,13 @@ class IPOMCPPlanner(Planner):
         )
         self.gen_model = InteractiveGenerativeModel(solver_bank)
         self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
+        self.recommendation_values = {}
+        self.root_chance_details = {}
         self.belief = None
         self.initial_belief = None
         self.initial_sample_count = 0
+        if self.config.mcts.exact_tail_depth == 2:
+            self._tail_action_values = lru_cache(maxsize=1024)(self._tail_action_values)
 
     def set_initial_belief(self, belief, sample_count):
         MentalModel(AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model), belief)
@@ -59,7 +64,7 @@ class IPOMCPPlanner(Planner):
         n_sims = self.config.opponent.n_sims if modeled else self.config.mcts.n_sims
         settings = {
             "planner": "MCTS",
-            "config": asdict(self.config),
+            "config": self.config.to_search_dict(),
             "n_sims": n_sims,
             "exploration": vars(self.exploration_strategy),
         }
@@ -101,10 +106,65 @@ class IPOMCPPlanner(Planner):
                     if self.config.mcts.exact_final_step or self.config.mcts.exact_history_rewards
                     else None,
                 )
-            policy = greedy_policy(node.action_values)
+            values, details = (
+                self._recursive_recommendation(model, node)
+                if self.config.mcts.recursive_chance
+                else self._root_recommendation(model, node)
+                if self.config.mcts.exact_root_chance
+                else (dict(node.action_values), {})
+            )
+            policy = greedy_policy(values)
         if not modeled:
             self.root = node
+            self.recommendation_values = values
+            self.root_chance_details = details
         return policy
+
+    def _recursive_recommendation(self, model, node):
+        from solvers.recursive_chance import recursive_recommendation
+
+        return recursive_recommendation(self, model, node)
+
+    def _root_recommendation(self, model, node):
+        """Integrate root chance with fixed child estimates and complete support.
+
+        This does not modify search statistics. Adaptive child estimates need not
+        be unbiased; only the direct root frequency discrepancy is removed.
+        Missing positive mass causes a whole-action empirical fallback.
+        Enumeration/inference failures deliberately propagate.
+        """
+        cfg = self.config.mcts
+        values, details = dict(node.action_values), {}
+        if cfg.exact_final_step and cfg.max_depth <= cfg.exact_tail_depth:
+            return values, {a: {"status": "exact_tail", "missing_probability": 0.0} for a in values}
+        rewards = dict(self.solver_bank.expected_rewards(model))
+        for action in values:
+            if cfg.max_depth == 1 or cfg.gamma == 0:
+                values[action] = rewards[action]
+                details[action] = {"status": "no_continuation", "missing_probability": 0.0}
+                continue
+            terms, missing = [], []
+            law = self.solver_bank.continuation_law(model, action)
+            for observation, probability in law:
+                if probability <= 0:
+                    continue
+                child = node.get_child(action, observation)
+                if child is None or (not child.action_values and child.rollout_value is None):
+                    missing.append({"observation": repr(observation), "probability": probability})
+                    continue
+                estimate = child.value_estimate()
+                if not math.isfinite(estimate):
+                    raise ValueError("Nonfinite root continuation estimate")
+                terms.append(probability * estimate)
+            details[action] = {
+                "status": "empirical_fallback" if missing else "exact_probabilities",
+                "missing_probability": math.fsum(item["probability"] for item in missing),
+                "missing_branches": missing,
+                "continuation_probability": math.fsum(p for _, p in law),
+            }
+            if not missing:
+                values[action] = rewards[action] + cfg.gamma * math.fsum(terms)
+        return values, details
 
     def get_action(self, belief=None):
         return sample_policy(self.policy_for(self.model(belief)))
@@ -140,15 +200,46 @@ class IPOMCPPlanner(Planner):
         legal = next(iter(legal_sets))
         return {a: q for a, q in self.solver_bank.expected_rewards(model) if a in legal}
 
+    def _tail_action_values(self, model, remaining):
+        """Exact bounded Bellman boundary using production kernels, never an oracle.
+
+        Integrate before maximizing; each observation gets its own successor
+        decision. The finite modeled opponent remains fixed at its declared
+        policy/depth. No hidden-state or opponent-action-conditioned maximization.
+        """
+        rewards = self._final_action_values(model)
+        if remaining == 1:
+            return tuple(rewards.items())
+        if remaining != 2:
+            raise ValueError("Exact tail supports one or two remaining decisions")
+        values = []
+        for action, reward in rewards.items():
+            continuation = math.fsum(
+                probability
+                * max(
+                    self._final_action_values(
+                        self._history_successor(model, action, observation)
+                    ).values()
+                )
+                for observation, probability in self.solver_bank.continuation_law(model, action)
+            )
+            values.append((action, reward + self.config.mcts.gamma * continuation))
+        return tuple(values)
+
     def _simulate(self, particle, node, depth, bounds, belief=None, history_model=None):
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
             return 0.0
-        if self.config.mcts.exact_final_step and depth + 1 == self.config.mcts.max_depth:
+        if (
+            self.config.mcts.exact_final_step
+            and self.config.mcts.max_depth - depth <= self.config.mcts.exact_tail_depth
+        ):
             # This boundary node is solved by integration, not by sampled action
             # visits. Keep action_counts empty rather than invent simulation counts.
             if not node.action_values:
-                node.action_values.update(self._final_action_values(history_model))
+                node.action_values.update(
+                    self._tail_action_values(history_model, self.config.mcts.max_depth - depth)
+                )
             node.visit_count += 1
             return max(node.action_values.values())
         # Search explores every legal action. A rollout confidence threshold
@@ -205,6 +296,17 @@ class IPOMCPPlanner(Planner):
                     )
                 )
             )
+            if (
+                new
+                and not terminal
+                and self.config.mcts.exact_tail_depth == 2
+                and self.config.mcts.max_depth - depth - 1 <= 2
+            ):
+                # Store the solved boundary even on first expansion. No sampled
+                # action counts are invented, and no rollout frontier is claimed.
+                child.action_values.update(
+                    self._tail_action_values(next_model, self.config.mcts.max_depth - depth - 1)
+                )
             if self.config.mcts.backup == "empirical_bellman" and not terminal:
                 if new:
                     child.rollout_value = continuation
@@ -248,8 +350,16 @@ class IPOMCPPlanner(Planner):
         """
         if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
             return 0.0
-        if self.config.mcts.exact_final_step and depth + 1 == self.config.mcts.max_depth:
-            return max(self._final_action_values(history_model).values())
+        if (
+            self.config.mcts.exact_final_step
+            and self.config.mcts.max_depth - depth <= self.config.mcts.exact_tail_depth
+        ):
+            return max(
+                q
+                for _, q in self._tail_action_values(
+                    history_model, self.config.mcts.max_depth - depth
+                )
+            )
         action = self.pomdp_model.get_rollout_action(
             particle.state, self.key.agent_id, belief=belief
         )
@@ -286,6 +396,10 @@ class IPOMCPPlanner(Planner):
             self.model(), action, observation, terminal=False
         ).belief
         self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
+        self.recommendation_values = {}
+        self.root_chance_details = {}
+        if self.config.mcts.exact_tail_depth == 2:
+            self._tail_action_values.cache_clear()
         self.solver_bank.clear_caches()
 
     def get_detailed_stats(self):
@@ -294,6 +408,7 @@ class IPOMCPPlanner(Planner):
             "n_sims": self.config.mcts.n_sims,
             "modeled_n_sims": self.config.opponent.n_sims,
             "exact_final_step": self.config.mcts.exact_final_step,
+            "exact_tail_depth": self.config.mcts.exact_tail_depth,
             "exact_history_rewards": self.config.mcts.exact_history_rewards,
             "backup": self.config.mcts.backup,
             "initial_sample_count": self.initial_sample_count,

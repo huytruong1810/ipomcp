@@ -2059,3 +2059,690 @@ reconstruction assertions passed. Twelve focused tests passed, including
 independent algebraic cases for unobserved branches, rollout frontiers and
 uniform greedy ties. Ruff check and formatting of the new files passed.
 Solver behavior and defaults are unchanged.
+
+
+## Deeper trace and two-step boundary implementation (September 26)
+
+Read-only ranking of the six saved descendant artifacts confirms the earlier
+signed contribution sums. The largest paths, including case 2's +.072410186 and
++.068716516 terms with opposing cancellations, are documented in
+[CONTINUATION_PROTOCOL.md](CONTINUATION_PROTOCOL.md). Saved grandchildren do not
+include their own decompositions, so the deepest cause is not established.
+
+Implemented a bounded post-search trace that expands weighted residuals and
+separates chance, local action loss, rollout frontier, exact boundary and explicitly
+unresolved error. Implemented an opt-in exact two-step boundary as a development
+candidate, using production finite kernels with full history posteriors. Default
+seed/config identities are preserved. Exactness within two remaining decisions
+does not imply monotone finite-budget improvement at H5/H6/H8.
+
+Antigravity owns the six-control/six-candidate experiment; none of those solves
+has been run at this checkpoint. The linked protocol specifies exact commands,
+input hash, resource limits, row-equality/task-identity assertions and reporting.
+No new gate result, empirical accuracy claim or default promotion follows from
+implementation tests. Historical failures and the frozen .020 +1e-8 bound stand.
+
+
+## Independent deeper-trace and tail-two development audit (September 27)
+
+This section supersedes the preceding pending-experiment status. Antigravity
+completed six control traces, six tail-two traces, and all 1,440 observed
+H5/H6/H8 candidate cases. Codex independently checked source hashes, exact
+coverage, full modeled/root settings, normalized greedy policies, loss and Q-error
+arithmetic, paired oracle Q identity, summary consistency and worker intervals.
+All six controls equal their historical full rows; all diagnostic candidate rows
+match their corresponding full-panel rows. Independently recomputed the three
+remaining error references with exact equality. Other references were checked
+for paired equality and arithmetic, not all independently solved again.
+
+### Deeper error attribution
+
+For the original selected root policy minus uniform oracle-best root actions,
+reconstruct the estimated-minus-reference margin error by expanding weighted
+successor residuals, subtracting each local action loss. This yields:
+
+| Control case | Total margin error | Chance | Signed local-loss term | Rollout frontier |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | +.032783559 | +.032783559 | .000000000 | .000000000 |
+| 1 | +.031610308 | +.031610308 | .000000000 | .000000000 |
+| 2 | +.073523580 | +.073962722 | -.003276606 | +.002837464 |
+| 3 | +.048933217 | +.043062428 | +.005870789 | .000000000 |
+| 4 | +.021697895 | +.021765995 | -.000068100 | .000000000 |
+| 5 | +.038344254 | -.001329675 | +.046764265 | -.007090337 |
+
+Immediate and exact-boundary residuals are numerical zero. Chance dominates
+cases 0–4 in this partition; local action loss dominates case 5. Signed terms
+can offset, and local-loss contributions can be positive when the error lies
+under the oracle-best root action. These terms are not statistical variance or
+causal effects of independently switchable components.
+
+In case 5, under L/(GL,S), L/(GL,S), L/(GL,S), L/(GR,S), L/(GL,S), an H3
+history has visits=2, action counts L=1/OL=1, and OR unevaluated. Its oracle Q
+is L=1.967999728, OL=-46.260569305, OR=-47.444430695; estimated L=-96.9025
+and OL=-46.260569305 cause it to choose OL. Local action loss 48.228569034
+weighted by -.000766169 contributes +.036951232 to the root error. L's sole
+observed H2 continuation estimates -100.95 versus reference .948881079.
+Holding the saved chance frequency fixed and substituting the exact H2 value
+would yield L=-.098562975, reversing this local ranking. This post-hoc calculation
+shows a concrete mechanism addressed by the boundary; it is not a claim that
+the candidate follows the same trajectory.
+
+Chance effects are distributed over depths. In case 1 the H2 chance term is
++.038528718, dominating its final +.031610308 margin error after other depths
+partially cancel. In case 2, H4/H3 chance terms contribute +.024330455/+.025587031;
+H2 chance contributes only +.004457008. A two-step boundary does not directly
+remove chance error at H3/H4 or prove all deeper errors resolved.
+
+All saved trace arithmetic was reconstructed independently, including pending
+weights and full histories. The control H8 traces stop at 256 expansions with
+133/165 pending histories; their signed and absolute *value-error residuals*
+are zero. They can still contain internally cancelling components; no claim of
+complete per-history attribution is made there. Candidate traces exhaust their
+pending histories. Their 311 inspected exact H2 nodes match reference values
+within 1.77636e-15, rather than being symbolically zero or totaling 301 as the
+walkthrough states. Candidate case 5 retains a -.000381818 frontier term above
+the exact boundary; other candidate margin residuals are chance terms up to
+roundoff. The candidate is not a general elimination of rollout noise.
+
+### Observed development grid
+
+| Metric /1,440 | Tail one | Tail two |
+| --- | ---: | ---: |
+| Strict errors (loss >1e-8) | 6 | 3 |
+| Violations (loss >.020 +1e-8) | 3 | 0 |
+| Mean first-action loss | .000083521 | .000011368 |
+| Maximum loss | .048061971 | .006057959 |
+| Mean maximum Q error | .771836 | .491868 |
+| Maximum Q error | 4.447722 | 6.225103 |
+
+H5 and H8 each have 480/480 strictly optimal choices. H6 has 477/480; its
+mean loss is .000034104 and maximum loss .006057959. Five old errors become
+optimal; two previously optimal H6 cases regress and one old near tie persists.
+No extrapolation from these horizons to all possible horizons is warranted.
+
+| Modeled budget | b_j | H | Seed | b_i | Loss | Transition |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 100 | .085 | 6 | 7000 | .9625 | .006057959 | New strict error |
+| 100 | .5 | 6 | 7003 | .9725 | .005155991 | Persistent strict error |
+| 100 | .5 | 6 | 7004 | .9725 | .005155991 | New strict error |
+
+All three select L instead of oracle-best OR. Their estimated L-minus-OR
+margins are .002018629, .000291453 and .020159332, respectively. The walkthrough
+conflates the final estimated margin with the small oracle action loss.
+
+### Resource and provenance corrections
+
+Candidate external / parent monotonic / worker-sum totals are
+9,711.66 / 9,708.448361 / 19,059.712159 seconds. All six interval overlap checks
+pass with at most two active workers, and each worker-sum <=2*parent elapsed.
+Worker-sum >=parent elapsed is not the relevant upper concurrency bound.
+External-parent difference totals 3.211639 seconds. Peak monitored worker RSS
+ranges 76.550781–127.296875 MiB across cases; neither the walkthrough's 126.8
+nor its separate 129.8 MiB peak is the raw maximum. These are recorded costs,
+including reference work, under potentially competing workloads. The lower
+elapsed total does not establish an isolated 13.5% planner speedup.
+
+Every candidate source hash and both diagnostic source manifests match the
+current source. The base commit is 62d6cd8, but the implementation is in the
+modified working tree; describing it as unmodified source at that commit is
+incorrect. Raw artifacts retain hashes of the actual candidate and are not
+rewritten to match a later commit.
+
+Audit files: results/oracle/l2_tail2_review_20260927/ (audit.py, audit.json,
+diagnostic_audit.json, reference_checks.json, novelty.json). Raw candidate
+panels: results/oracle/l2_rewards_100k_tail2_n{25,100}_b{0.085,0.5,0.915}_20260926/.
+Deep artifacts: results/oracle/l2_deeper_{control,tail2}_20260926/.
+Antigravity's walkthrough/audit script were read from its local brain artifact
+ac76b7a0-e9f9-4c9c-b128-b733e1364128; narrower claims here supersede that report.
+
+### Next qualification
+
+The observed grid now meets the unchanged loss tolerance, as development
+evidence only. Historical ac3df1c/f4d2aef gates remain failed. Defaults remain
+unchanged. The source-frozen 3,360-case protocol in
+[TAIL2_VALIDATION.md](TAIL2_VALIDATION.md) uses locally unseen own beliefs and
+seeds 8000–8007. Novelty was checked against 28,300 JSON files, 91 settings
+manifests and 28,221 case-row records including copies. No validation solve or
+unseen reference calculation has been performed. Antigravity runs that protocol;
+a future pass has only its declared finite scope.
+
+
+## Independently audited fresh tail-two validation (September 28)
+
+The frozen 3,360-case gate **FAILED**: one first-action loss
+.062316559843681674 exceeds the unchanged .020 +1e-8 threshold; zero violations
+were allowed. All cases completed and all other declared cases selected an
+oracle-optimal action. This result does not amend earlier failed gates or
+promote defaults. The historical source-frozen protocol and machine contract
+remain intact; only their documented completion status is updated.
+
+Codex checked the original contract SHA256
+f47c2375cfb6787c2b629291c83f44a6a4dfa33f82c41b8cbeea16c1dd050e85,
+launcher/current-source hashes, all six sidecar contract/hash identities, full
+manifest/row configurations, exact Cartesian coverage, normalized uniform-greedy
+policies, all first-action losses and Q-error arithmetic, summaries, worker
+intervals and sequential panels. The lone error's finite-policy reference was
+independently recomputed with zero discrepancy. Other references were checked
+for arithmetic and configuration consistency, not independently enumerated again.
+The source is a hashed modified working tree based on 62d6cd8, not unmodified
+source from that commit as Antigravity's walkthrough states.
+
+| Metric | Result |
+| --- | ---: |
+| Completed cases | 3,360/3,360 |
+| Loss >.020 +1e-8 | 1 |
+| Strict errors (loss >1e-8) | 1 |
+| Optimal first actions | 3,359/3,360 (99.9702%) |
+| Mean first-action loss | .000018546595 |
+| Maximum loss | .062316559844 |
+| Mean maximum Q error | .222224762120 |
+| Maximum Q error | 5.418270410017 |
+
+Each horizon has 480 cases. H1–H6 total 2,880/2,880 optimal actions; H8 has
+479/480. H2 value differences are at floating-point scale, maximum 2.66e-15;
+this is numerical agreement, not symbolic equality.
+
+| H | Strict errors | Violations | Mean maximum Q error | Maximum Q error |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 0 | 0 | .000000 | .000000 |
+| 2 | 0 | 0 | <1e-14 | <1e-14 |
+| 3 | 0 | 0 | .005110 | .024945 |
+| 4 | 0 | 0 | .087570 | 1.472781 |
+| 5 | 0 | 0 | .281342 | 1.510677 |
+| 6 | 0 | 0 | .320712 | 1.527915 |
+| 8 | 1 | 1 | .860840 | 5.418270 |
+
+Each opponent panel has 560 cases. Only (budget25,b_j=.085) has an error;
+the other five panels have none. Different own beliefs and bank seeds define
+new problems and new finite modeled policies. Do not call this a causal
+reduction of the old failure set. In particular aa8963b was the 1,440-case
+100k development checkpoint with six errors/three violations, not the earlier
+1,680-case fresh gate with 26 errors/23 violations cited in the walkthrough.
+
+### Single violation and diagnostic limit
+
+Panel0/case486: modeled budget25, b_j=.085, H8, seed8000, b_i=.966.
+The protagonist's b_i is P(Tiger Left), so this is strong belief in Tiger Left.
+The planner selects OR; the reference selects L.
+
+| Action | Reference Q | Estimated Q | Signed error |
+| --- | ---: | ---: | ---: |
+| L | 10.206540834891 | 10.160125847805 | -.046414987087 |
+| OL | -92.375775724952 | -94.897378234692 | -2.521602509740 |
+| OR | 10.144224275048 | 10.163081977455 | +.018857702407 |
+
+Estimated OR-minus-L is +.002956129650 while reference OR-minus-L is
+-.062316559844. The ranking distortion is therefore +.065272689494.
+The largest absolute Q error belongs to the noncompeting OL action and does
+not explain the OR/L decision. Root Q values alone do not distinguish chance,
+local action loss and remaining rollout-frontier effects. No claim of resolved
+continuation noise follows from a two-step boundary or from H1–H6 agreement.
+The next step is the exact-row diagnostic protocol in TAIL2_FAILURE_DIAGNOSIS.md;
+no new solver or resource choice has been selected from this failure.
+
+### Signed Q errors and resources
+
+| Action | Mean signed error | Population SD | Mean absolute error |
+| --- | ---: | ---: | ---: |
+| L | -.000118669 | .016724548 | .009552890 |
+| OL | +.026580895 | .315283897 | .110060702 |
+| OR | +.019777093 | .355871095 | .117284954 |
+
+These describe the observed finite grid, not unbiasedness or universal error
+bounds. All six worker-sum <=2*parent-elapsed checks and actual overlap checks
+pass; active intervals never exceed two and panel worker intervals are sequential.
+Maximum recorded case duration is 47.12 monotonic seconds. Worker durations
+include reference work and resource limits follow the recorded clock domain.
+
+| Panel (budget,b_j) | Parent monotonic s | External elapsed s | Worker sum s | Peak worker RSS MiB |
+| --- | ---: | ---: | ---: | ---: |
+| 25,.085 | 1984.685250 | 2123.26 | 3869.212442 | 125.890625 |
+| 25,.5 | 1638.566358 | 1761.26 | 3194.021226 | 124.269531 |
+| 25,.915 | 2176.585888 | 5393.00 | 4260.248997 | 128.191406 |
+| 100,.085 | 2372.880527 | 2380.21 | 4647.854791 | 121.960938 |
+| 100,.5 | 2383.716951 | 2384.27 | 4669.193642 | 123.175781 |
+| 100,.915 | 3474.946534 | 32702.00 | 6823.769832 | 122.546875 |
+| Total | 14031.381507 | 46744.00 | 27464.300930 | 128.191406 |
+
+Unix endpoint differences sum to 46,741.252978s, close to external timers and
+very different from the monotonic total. The panel2/5 external-minus-monotonic
+gaps are 3,216.414112 / 29,227.053466 seconds. Antigravity reports concurrent
+CPU load and overnight host suspend/sleep; this audit does not independently
+verify those causes. Do not equate CPU contention with an explanation of a clock
+gap, erase external time, or claim isolated speed. Worker RSS across all cases
+ranges 73.792969–128.191406 MiB; the report's roughly 122–128 range describes
+panel maxima, not the range of case peaks.
+
+Raw runs and sidecars: results/oracle/l2_tail2_fresh_n{25,100}_b{0.085,0.5,0.915}_20260927/.
+External timers/logs: results/oracle/l2_tail2_fresh_20260927_panel{0..5}.{time,log}.
+Independent audit: results/oracle/l2_tail2_fresh_review_20260928/ (audit.py,
+audit.json, reference_checks.json). Antigravity's report and audit script were
+read from its local brain artifact ac76b7a0-e9f9-4c9c-b128-b733e1364128; this
+section gives the verified result and corrects the narrower issues above.
+No protagonist replay, code/default change or new experiment was run by Codex
+in this audit. Historical gates and the frozen loss tolerance remain unchanged.
+
+
+## Independent failure-trace audit and root-chance counterfactual (September 28)
+
+Antigravity completed l2_tail2_fresh_failure_diagnosis_20260928. Codex verified
+exact equality of the entire replay row with validation panel0/case486, baseline
+row and policy identity, input hash, frozen source hashes, declared 512-history
+cap/resource settings, summary and worker interval arithmetic. Reconstructed all
+selected-policy chance/local-loss/frontier terms independently from saved branch
+counts, probabilities, Q values, path identities and weights. No new planner
+execution or reference enumeration was needed for this artifact audit.
+
+The trace exhausted 243 histories with zero pending histories and zero signed or
+absolute unresolved value error. Its 121 exact H2 boundaries agree with reference
+within 1.77636e-15. Root counts are L=49,752, OL=467, OR=49,781. This rules out
+gross root allocation starvation in this case, not uncertainty at descendants.
+
+| Signed contribution to OR-minus-L margin error | Value |
+| --- | ---: |
+| Chance | +.064423122423 |
+| Local action loss | +.001444464425 |
+| Rollout frontier | -.000594897354 |
+| Immediate and exact boundary | numerical roundoff |
+| Total | +.065272689494 |
+
+Chance is approximately 98.7% of this signed total; signed cancellation means
+this is not a variance share or probability of causation. Local action loss is
+nonzero, so the walkthrough's categorical exclusion of local effects is too
+strong. This single trace cannot establish the sole remaining vulnerability of
+the algorithm at H8 or elsewhere.
+
+The additive chance contribution by remaining horizon is H8 +.011548169,
+H7 +.006858510, H6 +.022947233, H5 +.022218160, H4 +.004118483 and H3
+-.003267432. These are incremental components. The walkthrough's per-depth
+sums of full node value errors and its top-path errors contain recursively
+propagated error and must not be added across depths. For example the identical
++.033769768 error under L/(GL,S) and then OR/(S,S) is the same propagated
+error, not two independent contributions.
+
+The largest individual incremental chance term is +.017058764 at H5 after
+L/(GL,S), OR/(S,S), L/(GR,S), for action L (8,434 visits). Another +.012338533
+arises at H6 after OR/(S,S), L/(GR,S), for L (17,014 visits). Thus the dominant
+chance terms are not restricted to scarcely visited histories or the exact tail.
+
+One H3 history, L/(GR,S) repeated three times then L/(GL,S) twice, has action
+counts L=OL=OR=2. It chooses OR=4.4075 instead of oracle-best L=5.130349218;
+estimated L is .387062611. Its local loss .722849218, weighted by -.001998293,
+contributes +.001444464. One separate H3 frontier contributes -.000594897.
+Its opposing sign does not prove the rollout mechanism harmless elsewhere.
+
+### Post-search root probability substitution
+
+Every root observation branch in the seven available tail-two diagnostic trees
+has an explicit saved child estimate. With search and child values held fixed,
+compute Qcf(a)=Qhat(a)+gamma*sum_o[p(o)-frequency(o)]*Vhat(child_o), using the
+post-search reference probabilities. For the fresh-gate failure this gives:
+
+| Action | Saved estimate | Exact-root-probability counterfactual |
+| --- | ---: | ---: |
+| L | 10.160125847805 | 10.171595005726 |
+| OL | -94.897378234692 | -94.897378234692 |
+| OR | 10.163081977455 | 10.163081977455 |
+
+The resulting L-minus-OR margin is +.008513028271 and the first-action loss
+would be zero. This differs from simply subtracting the root chance term because
+the latter weights *oracle* child values, whereas this counterfactual reweights
+the saved child estimates. It is a diagnostic use of reference data after search,
+not a tested production estimator and not a repair of the failed gate.
+
+On the six earlier tail-two diagnostic trees, the same calculation corrects the
+one residual .005155991 near tie and preserves five optimal choices. Including
+the present case, two selected errors become optimal and five choices remain
+optimal. The two other regressions from the full tail-two development grid are
+not in this seven-tree set; it is neither complete regression coverage nor a
+fresh gate. Defaults and tolerance remain unchanged.
+
+Next design: docs/ROOT_CHANCE_PLAN.md proposes a production-kernel, opt-in final
+root recommendation ablation with explicit missing-branch handling. It is not
+implemented or empirically qualified at this checkpoint; do not issue a new
+sweep until the candidate and paired protocol exist.
+
+External30.31s / parent30.066638823s / worker29.405550388s; monitored worker peak
+RSS130.636719 MiB. GNU time's maximum RSS is separately 133084 KiB (~129.965 MiB);
+these are distinct telemetry fields. Timing includes reference diagnostics.
+Audit artifact: results/oracle/l2_tail2_fresh_failure_review_20260928.json.
+Seven-tree counterfactuals: results/oracle/l2_tail2_root_chance_counterfactual_20260928.json.
+Raw artifacts and the failed validation gate are preserved.
+
+
+## September 28: opt-in final root chance scoring
+
+Implemented exact_root_chance=False by default; True requires empirical Bellman.
+After identical seeded search, fully covered root actions use production expected
+reward plus gamma times the unconditional observation/survival law weighted by
+saved child estimates. Terminal probability is not renormalized. Missing positive
+support causes whole-action empirical fallback with missing-mass telemetry;
+enumeration failures propagate. Exact tail roots bypass scoring. The tree keeps
+empirical Q; candidate evaluator rows separately record recommendation Q/policy,
+search Q and coverage. The option is absent from search seeds, present in enabled
+metadata, and omitted from default metadata. No modeled-opponent settings change.
+
+For fixed child estimates this removes the direct root frequency discrepancy.
+Adaptive child estimates still contain deeper chance, local action and frontier
+errors; unbiasedness or universal variance reduction does not follow. The selected
+post-hoc corrections motivated this ablation but are not candidate run outcomes.
+The source-locked 14-pair pilot is docs/ROOT_CHANCE_PROTOCOL.md. Antigravity runs it;
+Codex has not run the benchmark panel. All failed gates and .020 +1e-8 remain fixed.
+No global-default promotion is justified.
+
+Engineering validation for the root-chance implementation: 268 tests passed in
+397.70s, including ten new coverage, terminal-mass, tie, inference-failure,
+configuration, unchanged-tree/RNG and paired-L2 replay checks. Ruff lint/format
+and git diff whitespace checks pass. All 14 saved pilot input hashes and rows,
+and its 76-file Python source lock, were verified without running the panel.
+The original failed tail-two contract SHA256 remains
+f47c2375cfb6787c2b629291c83f44a6a4dfa33f82c41b8cbeea16c1dd050e85.
+These are engineering checks, not a candidate accuracy qualification.
+
+## September 28: independent root chance pilot audit
+
+The locked 14-pair pilot completed. Independent source/contract/input/full-control
+row, metadata, greedy-policy, loss/Q-error, coverage and timing-interval checks
+pass. Violations (.020 +1e-8) fall 1 to 0; strict errors (>1e-8) fall 4 to 2.
+Cases 0 and 6 correct to L and OR, with recommendation margins .008513028270675
+and .011785735004079 respectively. Cases 3 and 9 retain losses
+.00605795924416519 and .005155991132857807; their incorrect L-over-OR estimated
+margins are .001785041113493 and .018846882683915. All eight neighboring controls
+and H1/H2 boundary controls stay optimal, with no ties or regressions. All 36
+non-boundary action scores have complete support, zero missing mass and no
+fallback; six exact-tail scores bypass integration as intended.
+
+Mean loss falls .005620464382397 to .000800996455502. Mean maximum Q error changes
+only .692502900563 to .692290427176, and maximum Q error stays 3.849293549167.
+This is a targeted ranking improvement, not uniformly accurate Q estimation.
+Both corrected scores agree with previously saved-tree counterfactuals within
+floating-point rounding. Residual error cannot be attributed to a missing root
+branch; deeper child-value errors remain, without a new decomposition here.
+
+Reporting corrections: actual contract SHA256 and recorded manifest hash both are
+4ff704ee69aa369aeafb6ac3704ba4df0e26551be5b8195755115ffb7b11bc9b,
+not the a93f4124... hash quoted in Antigravity's message. Full embedded contract
+and all 76 source hashes match current files. No hash was refreshed by this audit.
+External elapsed 439.81s agrees approximately with Unix elapsed 439.237792s but
+not parent monotonic 468.416864s or serial worker sum 465.007998s. Monotonic
+interval span 468.334885s and serial nonoverlap are internally consistent.
+Preserve this unresolved clock discrepancy; do not infer its cause or repair logs.
+GNU-time peak RSS is 138.816406 MiB; monitored case peaks range
+77.398438–139.003906 MiB (different measurements). Mean pair-relative policy
+runtime delta is +3.896339%, pooled delta +2.299937%, and mean across the 12
+non-boundary pairs +2.419590%. Control-first ordering, varying load and clock
+issues prevent interpreting these descriptive ratios as isolated scoring cost.
+
+The saved runner records a common tree digest only after asserting equality of
+two separately computed digests. This audit verified that locked implementation
+and all recorded flags, not independently reconstructed both full trees. Oracle
+vectors match preserved rows; no new reference solve or planner replay was run.
+Audit script and JSON: results/oracle/l2_root_chance_review_20260928/.
+Raw pilot: results/oracle/l2_root_chance_pilot_20260928/ and sibling .time.
+
+Next scientific step: freeze a broader paired comparison across the already
+observed 1,440 development and 3,360 formerly fresh cases before another solver
+change or fresh qualification. Assess new regressions, fallback and costs, not
+just these selected corrections. This audit does not launch or prescribe that
+large run yet; its contract and resource plan remain to be prepared. Preserve
+the original tail-two FAILED gate, all historical failures and frozen tolerance.
+Global defaults remain unchanged. No source edits or test rerun were needed for
+this artifact audit; the last implementation suite remains 268 passing tests.
+
+
+September 28 broader development handoff: docs/ROOT_CHANCE_DEVELOPMENT.md now
+prescribes the frozen 4,800-pair observed union in twelve sequential panels, one
+worker, 600s/2048 MiB per pair. Master contract is
+benchmarks/root_chance_development_20260928.json (SHA256
+600caaae9425d12c225f3b96bcd79ed842ee39f201eaf616d1ca04b22e4a9927).
+All saved rows/hashes and exact coverage pass preflight; 18 focused tests pass.
+Source solver and paired runner remain identical to the audited pilot. Antigravity
+runs this protocol; no experiments were launched by Codex. Report every regression
+and fallback, cohort/stratum metrics and clock disagreements. Defaults, historical
+failed gates and frozen tolerance remain unchanged; this cannot qualify defaults.
+
+## September 29: broad root chance comparison independently audited
+
+All 4,800 pairs and twelve source/contract/sidecar/input locks check out, including
+exact full historical control-row equality, recorded tree equality invariants,
+raw-search Q equality and unchanged task semantics. Greedy policies, losses,
+Q errors, action coverage and complete Cartesian coverage were recomputed from
+raw rows. All fourteen pilot rows and common tree digests reproduce exactly.
+The saved digests attest the locked runner's comparison, not two independently
+reconstructed full trees. No protagonist search was run by Codex in this audit.
+
+The candidate does not improve the primary criterion: violations remain 1 -> 1;
+strict errors worsen 4 -> 5, mean loss .0000163930211153 -> .0000225832314195,
+and maximum loss .062316559843681674 -> .08501670289316543. Corrections are
+P04/C117 and P06/C486; regressions P00/C103, P04/C122 and P11/C556. Unchanged
+errors are P03/C86 and P04/C127. No ties or fallbacks: 11,520 action scores have
+complete exact probability support and 2,880 bypass at an exact-tail boundary.
+The candidate remains experimental; do not advance it to fresh qualification.
+
+The new violation P11/C556 has reference L=10.36282005743891,
+OR=10.277803354545744. Control L=10.32790908947335 versus OR=10.318029328458437
+chooses L. Root weighting lowers L to10.31727558730152, leaves OR unchanged,
+and selects OR by .000753741156917. The L adjustment is -.010633502171830.
+The reference vector and loss were independently recomputed from a fresh bank
+with the same finite modeled opponent and match exactly; no protagonist search
+was used. The direct root frequency correction can remove an offsetting error
+while deeper child estimation error remains. Its precise deeper decomposition
+is pending, not established merely by this score change.
+
+Corrections to the supplied report: maximum candidate loss is .08501670289316543,
+not .085017255. Mean maximum Q error improves slightly from .303117595307246
+ to .302387987996859, rather than both being .303387. Maximum Q error remains
+6.225102823541306. P04/C122 loss is .009034698760331, so H6 errors are not all
+<=.009 (all remain below .020). Improvements in mean Q error do not imply better
+root decisions on near ties.
+
+Timing: parent monotonic109932.542284s, worker sum109040.599543s,
+parent Unix105472.017365s, external105477.0s. Within-panel worker intervals are
+serial and fit parent monotonic elapsed. Cross-panel worker monotonic intervals
+also support serial execution (all gaps positive); Unix endpoints show one
+-.781879s apparent overlap between panels4/5. External/Unix and monotonic clocks
+disagree substantially, especially earlier panels; do not infer the cause or
+repair evidence. User/system CPU totals123847.21/1290.45s. GNU-time RSS147.496094
+MiB differs from monitored case maximum147.769531 MiB. Search-only pooled policy
+ratio1.017589 and mean-pair ratio1.019453 are descriptive, not causal overhead
+estimates under control-first ordering and load/clock uncertainty.
+
+Audit script/report: results/oracle/l2_root_chance_development_review_20260929/.
+Reference-only script/result: reference_check.py and reference_check.json there.
+The audit's reference limitation concerns its bulk row checks; the new violation
+has the separate exact recomputation above. Solver/evaluator sources and all
+historical contracts are unchanged; no full test rerun was needed for this audit.
+
+Next Antigravity instructions: docs/ROOT_CHANCE_DIAGNOSIS.md, seven cases covering
+all corrections, regressions and residuals, new H8 violation first. It explicitly
+separates empirical trace attribution from the final root-scoring increment and
+requires full replay equality and unresolved-term reporting. No tuned threshold,
+blend, new solver candidate or fresh qualification is prescribed yet. Preserve
+all historical failed gates and the .020 +1e-8 tolerance. Defaults stay unchanged.
+
+## September 29: seven-case diagnostic audit
+
+Verified unchanged source/input locks, all seven full row replays, independent
+reconstruction of saved trace contributions and empirical-to-recommendation
+margin identities. The recomputed identity residual is zero in floating-point
+arithmetic for these rows; trace reconstruction residuals are at roundoff scale.
+This is an algebraic audit, not an asymptotic sampling-rate certification.
+
+All five nonzero traces resolve completely: 244/59/35/35/35 expanded histories,
+408 total, no pending or unresolved terms. Their signed empirical margin errors
+come from chance contributions; local action loss and rollout-frontier totals
+are zero on the traced paths. Exact-boundary Q discrepancies are at most
+1.4210854715202004e-14. The two corrected cases have zero candidate-versus-optimal
+weights and no expanded paths; zero traces do not certify their deeper estimates.
+
+For new violation P11/C556: empirical target .07513694187825237 plus scoring
+increment .01063350217182979 equals recommendation margin error
+.08577044405008216. Policy loss remains .08501670289316543; margin error is a
+different quantity. Empirical signed chance contributions by remaining horizon:
+H8 -.010538404257424, H7 +.013466187355586, H6 +.024069130820679,
+H5 -.004161209683513, H4 +.005990855076252, H3 +.046310382566674.
+These incremental terms may be summed; propagated child errors across depths
+must not be summed again. Root chance uses exact child values in its diagnostic
+term, whereas the actual score substitution weights estimated child values.
+Consequently the scoring increment is not exactly minus that root chance term:
+a .000095097914406 interaction remains under the changed weights.
+
+The empirical OR continuation error is +.040225973912692 while L's is
+-.045449372222988. Their mismatch survives root integration. These fixed traces
+support deeper chance-estimation error as the mechanism in these five cases, not
+a universal campaign-wide causal claim. No O(1/sqrt(N)) or O(1/sqrt(N_child)) rate
+has been established for adaptive search values, maxima, correlated histories
+and finite frontiers. Likewise OL/OR have one private-observation branch here,
+not deterministic hidden transitions: opening resets Tiger Left/Right with
+probability .5 each under this physics.
+
+Diagnostic external123.57s, parent monotonic122.940329s, worker sum121.320996s;
+serial intervals fit parent elapsed. Monitored RSS83.703125–131.703125 MiB,
+GNU-time peak131.042969 MiB. Historical timing discrepancies are not erased.
+Audit: results/oracle/l2_root_chance_diagnosis_review_20260929/audit.py and audit.json.
+No new search/reference solve or solver source change in this audit.
+
+Next implementation design: docs/RECURSIVE_CHANCE_PLAN.md. It proposes recursive
+post-search integration on the same observed tree, with full-history production
+kernels, explicit missing-support/frontier/action-coverage reporting and unchanged
+search trajectories. It has only a conditional full-coverage Bellman guarantee;
+it is not implemented or qualified yet. No new Antigravity experiment is ready
+until engineering tests and a paired protocol are supplied. Preserve defaults,
+all historical failed gates and the frozen loss tolerance.
+
+
+September 29 implementation follow-up: recursive_chance is now an opt-in final
+post-search evaluator; defaults and modeled opponents remain unchanged. It
+integrates production chance laws recursively over supported observed histories,
+propagates frontier/unevaluated-action/subtree uncertainty, and uses whole-action
+empirical fallback for missing positive support. Search Q and all tree statistics
+are preserved, and both final scoring flags are excluded from search seeds.
+
+The source-frozen 23-case three-arm pilot is docs/RECURSIVE_CHANCE_PROTOCOL.md,
+contract benchmarks/recursive_chance_pilot_20260929.json, SHA256
+ a843f1aaca898e9652eb7302248c8aad473e23ece97864e57121de8f468b26a4.
+It includes all seven diagnosed cases plus fourteen previously correct neighbors
+and H1/H2 controls, with exact historical empirical and root-only row replay.
+Codex has not run benchmark cases. Antigravity runs the declared pilot only;
+source locks for prior completed experiments remain preserved and are not updated.
+The root-only broad result still has one violation/five errors, and the original
+fresh tail-two gate and all historical failures remain unchanged.
+
+Engineering validation, September 29: full suite 292 passed in 391.76s, including
+16 new recursive integration/coverage/fallback/configuration/tree-invariance
+and three-arm L2 checks. Ruff lint/format and git diff whitespace checks pass.
+The 23-case pilot input rows, source lock and four preserved historical contract
+hashes were verified without running the pilot. Both CLI help and no-experiment
+preflight were checked. Benchmark accuracy and resource costs remain pending
+Antigravity's declared run; passing unit/integration tests is not qualification.
+
+## September 29: recursive chance pilot review
+
+All 23 three-arm cases completed. Source lock (78 Python files), contract/input
+hashes, full empirical and root-only historical row replays, candidate task/config
+semantics, separate three-arm tree digests and raw-search Q identity check out.
+Greedy policies, losses and Q errors were recomputed from preserved rows. All
+three arms have no greedy ties. This review also reconstructed every node/action
+coverage counter, legal-action gap and subtree-flag dependency from the telemetry.
+No new protagonist search or reference solve was run.
+
+Recursive recommendations are optimal on 23/23: zero strict errors and zero
+.020 +1e-8 violations, with no control regressions. Empirical baseline has four
+errors/one violation; root-only has five errors/one violation. All seven diagnosed
+cases and sixteen previously correct/boundary controls are optimal. This is
+selected development evidence; it does not replace the root-only broad failure
+or the original fresh tail-two FAILED gate.
+
+Value accuracy is not uniformly improved: mean maximum Q error is
+.569969262380566 (empirical), .569839930753683 (root-only), .662375580144034
+(recursive). Maximum Q error increases from3.849293549166731 to4.322188276076147.
+For P11/C556 the recursive L-over-OR margin is .094363867026054; L's value error
+is +.011733109753155. The decision is corrected, but its subtree is approximate.
+
+Coverage totals: 36,221 evaluated histories, 26,976 integrated action scores,
+75,888 exact-tail scores, 2,830 whole-action empirical fallbacks, 515 rollout
+frontiers, 1,433 histories with unevaluated legal actions, and 4,965 approximate
+histories. Fallbacks occur at remaining horizons H5:37, H4:318, H3:2475; frontiers
+at H4:41 and H3:474. These are local counts, not root probabilities. At the roots
+there are 63 complete-support integrated action scores and six exact-tail scores,
+with zero root-local fallbacks. Descendant approximation still propagates.
+
+Only the H1/H2 cases (indices21/22) have fully exact root subtrees, and their
+Q vectors agree with the finite reference to roundoff. Sixteen selected root
+ACTIONS are marked exact and agree with their reference action Q to roundoff,
+but only two complete roots are certified: exactness of the chosen action alone
+does not bound approximate alternative actions. The other seven chosen actions
+remain approximate, even where observed Q error happens to be zero. This supports
+the conditional Bellman argument, not an unconditional exact-planning theorem.
+
+Timing: external1237.60s, parent monotonic1236.994208s, parent Unix1236.994208s,
+worker sum1228.132554s; serial intervals fit parent elapsed. Monitored RSS range
+77.289063–139.234375 MiB; GNU-time peak147.117188 MiB is a different measure.
+Policy-time sums empirical332.566311s, root-only335.841107s, recursive333.550568s;
+recursive/empirical pooled ratio1.002960 and mean-pair ratio1.018294 are descriptive,
+not isolated overhead estimates under fixed arm order and system load. Earlier
+clock discrepancies remain preserved; these clocks are consistent for this run.
+
+Review artifacts: results/oracle/l2_recursive_chance_codex_review_20260929/.
+The audit extends the preserved supplied audit with full metadata and recursive
+coverage checks; Antigravity's original audit remains unchanged at
+results/oracle/l2_recursive_chance_review_20260929/. Both record that saved digests
+are compared, not independently reconstructed full trees, and reference vectors
+are historical rather than newly solved in this review.
+
+Next: prepare the broader observed comparison over all 4,800 cases with the
+recursive candidate frozen, including explicit coverage/regression/resource
+reporting. Do not tune this candidate on the successful selected panel, start a
+fresh qualification, or promote defaults. A new broad protocol and resource plan
+must be prepared before Antigravity runs again. No solver edits or test reruns
+were needed for this artifact review; the last full suite remains 292 passed.
+All historical failed gates and the frozen tolerance remain unchanged.
+
+## September 30: inferred recursive broad contract and panel0 reviewed
+
+Antigravity completed the draft protocol by creating the exhaustive master and
+running panel0 before Codex returned. Codex reviewed and accepts the preserved
+master without regeneration: benchmarks/recursive_chance_development_20260929.json,
+SHA256 7a1bb7bdf8e53a1d6c74664e66d94a572fa6132cced770c53e4ca7d9a1059c63.
+All twelve contracts and 4,800 distinct inputs match the previously declared
+observed union in order, with complete saved empirical/root-only rows. Source
+hashes match the 78-file recursive pilot lock, launcher hash matches, and all five
+historical contracts are unchanged. This is adoption of observed development
+provenance after review, not a retrospectively declared held-out study.
+
+Panel0 completed240/240 triples: recursive choices all optimal, zero regressions,
+root-only case103 corrected. Empirical baseline0 errors; root-only1 error; no
+violations in any arm. Full historical replays, candidate metadata, separate
+three-arm digests, arithmetic and coverage pass audit. The three overlapping
+pilot cases reproduce all rows/coverage and digests exactly. Reference vectors
+were compared to historical rows, not newly recomputed in this review.
+
+Mean max Q error: empirical.481425277942250, root-only.481380370176491,
+recursive.394729824760483. Maximum worsens4.403166522319879 ->4.979874317778965.
+The correct decisions do not certify all values. Recursive telemetry contains
+434,061 histories;316,381 integrated actions;900,072 exact-tail actions;
+42,239 fallback actions;7,530 frontiers;20,872 histories with unevaluated actions;
+70,141 approximate histories. Seventy roots have fully exact subtrees and agree
+with the reference to roundoff; remaining roots are not certified. All counters,
+legal-action gaps and subtree dependencies were reconstructed from saved records.
+
+External11639.0s / parent monotonic11584.556110s / Unix11638.194195s /
+worker sum11492.706677s. Serial worker intervals fit monotonic parent elapsed;
+Unix minus monotonic is53.638084s, unresolved. Monitored RSS80.078125–144.179688
+MiB; GNU-time167.132813 MiB. Policy-time sums empirical2972.205404s,
+root-only3050.953125s, recursive3056.657329s; ratios are descriptive under fixed
+arm order and clock/load uncertainty. Disk usage813 MiB for panel0; WSL available
+space926 GiB at review, not reserved capacity.
+
+Codex review scripts/results: results/oracle/l2_recursive_chance_development_p00_codex_review_20260930/.
+Antigravity's original audit and raw artifacts are preserved. No solver/source
+change or benchmark launch by Codex. Launcher and recursive-focused tests24 passed
+in .92s, lint and whitespace checks pass; previous full implementation suite292
+passed, and the eight launcher tests are additional focused checks.
+
+Next Antigravity instructions: docs/RECURSIVE_CHANCE_DEVELOPMENT.md now continues
+from panel1 through11 only (4,560 triples). Do not rerun panel0, refresh contracts,
+overwrite telemetry, or tune after seeing outcomes. Complete fixed coverage unless
+an operational/provenance failure requires stopping. Preserve all regression and
+coverage evidence; no default promotion or fresh qualification follows. All
+historical failed gates and .020 +1e-8 remain unchanged.

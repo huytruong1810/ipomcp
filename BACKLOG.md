@@ -134,14 +134,125 @@ resource-supervised budget sweep. Historical results remain source-bound evidenc
 Worker startup now uses spawn to avoid inheriting numerical-library thread locks. Fault-injection, resume, and domain integration checks cover the change.
 
 
-Current checkpoint: the 1,440-case 100k H5/H6/H8 development study is audited.
-Strict errors improve 15 to 6 and tolerance violations 9 to 3. All 15 old errors
-meet tolerance, but four previously optimal cases regress; all three current
-violations are new. H6 mean/max loss increases. Neither 100k nor the proposed
-tiered budget is qualified. Keep defaults unchanged and preserve failed gates.
-Six-case root and immediate-child diagnostics are complete; all replays match.
-All visited children under competing root actions select optimal local actions,
-but downstream estimates remain inaccurate. Next: trace dominant weighted
-deeper paths to separate chance, local action loss and rollout-frontier effects
-before prescribing another large study. Concurrent workloads preclude isolated timing
-claims. Continue on main.
+Current checkpoint: fresh tail-two validation independently audited; gate FAILED.
+All 3,360 cases completed, with one strict error and one .020-tolerance violation:
+modeled budget25, b_j=.085, H8, seed8000, b_i=.966, OR instead of L, loss
+.062316559843681674. H1–H6 have zero observed errors. All source/freeze/configuration,
+coverage, arithmetic and concurrency checks pass; the failure reference was
+independently recomputed exactly. Defaults and all historical failed gates remain
+unchanged. Raw clock gaps prevent isolated runtime claims.
+
+Single-case diagnostic now independently audited: exact replay, 243 expanded
+histories, no unresolved terms, chance contribution +.064423122 dominating total
+ranking error +.065272689. Nonzero local loss and frontier terms remain. A saved-
+tree exact-root-probability counterfactual corrects the action; six older selected
+tail-two traces show one correction and no regression under the same calculation.
+Opt-in root scoring and its paired runner are implemented. The completed
+docs/ROOT_CHANCE_PROTOCOL.md pilot is independently audited below; no fresh gate
+is prescribed. Preserve all failed gates,
+defaults and tolerance. Continue on main.
+
+Root chance pilot now independently audited: 14 completed pairs, 1 -> 0
+violations, 4 -> 2 strict errors, zero control regressions/fallbacks. See latest
+docs/REVIEW.md for contract-hash correction, clock discrepancy and audit limits.
+Next prepare broader observed paired development coverage before any new solver
+change or fresh gate. No defaults promotion; pilot must not be rerun.
+
+
+September 28 broader development handoff: docs/ROOT_CHANCE_DEVELOPMENT.md now
+prescribes the frozen 4,800-pair observed union in twelve sequential panels, one
+worker, 600s/2048 MiB per pair. Master contract is
+benchmarks/root_chance_development_20260928.json (SHA256
+600caaae9425d12c225f3b96bcd79ed842ee39f201eaf616d1ca04b22e4a9927).
+All saved rows/hashes and exact coverage pass preflight; 18 focused tests pass.
+Source solver and paired runner remain identical to the audited pilot. Antigravity
+runs this protocol; no experiments were launched by Codex. Report every regression
+and fallback, cohort/stratum metrics and clock disagreements. Defaults, historical
+failed gates and frozen tolerance remain unchanged; this cannot qualify defaults.
+
+September 29: full 4,800-pair root-chance development audit complete; violations
+1 -> 1, strict errors4 -> 5, three regressions and two corrections. Candidate is
+not ready for fresh qualification. Next Antigravity protocol is
+docs/ROOT_CHANCE_DIAGNOSIS.md (seven error/transition cases). Independent audit
+and new-H8 reference recomputation live in
+results/oracle/l2_root_chance_development_review_20260929/. Preserve defaults and
+failed gates; see latest REVIEW/BENCHMARK for report and clock corrections.
+
+September 29 diagnostic follow-up: seven exact replays audited; five nonzero
+traces resolve 408 histories and attribute signed errors to chance estimation.
+Rate claims are unproved and corrections have zero-weight traces. Next Codex
+design is docs/RECURSIVE_CHANCE_PLAN.md; no new Antigravity run yet. Solver sources
+and defaults unchanged. See latest REVIEW for scope and audit artifact paths.
+
+
+September 29 implementation follow-up: recursive_chance is now an opt-in final
+post-search evaluator; defaults and modeled opponents remain unchanged. It
+integrates production chance laws recursively over supported observed histories,
+propagates frontier/unevaluated-action/subtree uncertainty, and uses whole-action
+empirical fallback for missing positive support. Search Q and all tree statistics
+are preserved, and both final scoring flags are excluded from search seeds.
+
+The source-frozen 23-case three-arm pilot is docs/RECURSIVE_CHANCE_PROTOCOL.md,
+contract benchmarks/recursive_chance_pilot_20260929.json, SHA256
+ a843f1aaca898e9652eb7302248c8aad473e23ece97864e57121de8f468b26a4.
+It includes all seven diagnosed cases plus fourteen previously correct neighbors
+and H1/H2 controls, with exact historical empirical and root-only row replay.
+Codex has not run benchmark cases. Antigravity runs the declared pilot only;
+source locks for prior completed experiments remain preserved and are not updated.
+The root-only broad result still has one violation/five errors, and the original
+fresh tail-two gate and all historical failures remain unchanged.
+
+September 29 recursive pilot review complete: 23/23 optimal, zero regressions;
+only two fully exact root subtrees, with 2,830 descendant fallbacks and 515
+frontiers. Mean/max Q errors worsen. Next prepare the frozen full observed
+comparison before any fresh qualification; no new run yet. Details and audit
+limits are in latest docs/REVIEW.md. Defaults and failed gates unchanged.
+
+## September 30: inferred recursive broad contract and panel0 reviewed
+
+Antigravity completed the draft protocol by creating the exhaustive master and
+running panel0 before Codex returned. Codex reviewed and accepts the preserved
+master without regeneration: benchmarks/recursive_chance_development_20260929.json,
+SHA256 7a1bb7bdf8e53a1d6c74664e66d94a572fa6132cced770c53e4ca7d9a1059c63.
+All twelve contracts and 4,800 distinct inputs match the previously declared
+observed union in order, with complete saved empirical/root-only rows. Source
+hashes match the 78-file recursive pilot lock, launcher hash matches, and all five
+historical contracts are unchanged. This is adoption of observed development
+provenance after review, not a retrospectively declared held-out study.
+
+Panel0 completed240/240 triples: recursive choices all optimal, zero regressions,
+root-only case103 corrected. Empirical baseline0 errors; root-only1 error; no
+violations in any arm. Full historical replays, candidate metadata, separate
+three-arm digests, arithmetic and coverage pass audit. The three overlapping
+pilot cases reproduce all rows/coverage and digests exactly. Reference vectors
+were compared to historical rows, not newly recomputed in this review.
+
+Mean max Q error: empirical.481425277942250, root-only.481380370176491,
+recursive.394729824760483. Maximum worsens4.403166522319879 ->4.979874317778965.
+The correct decisions do not certify all values. Recursive telemetry contains
+434,061 histories;316,381 integrated actions;900,072 exact-tail actions;
+42,239 fallback actions;7,530 frontiers;20,872 histories with unevaluated actions;
+70,141 approximate histories. Seventy roots have fully exact subtrees and agree
+with the reference to roundoff; remaining roots are not certified. All counters,
+legal-action gaps and subtree dependencies were reconstructed from saved records.
+
+External11639.0s / parent monotonic11584.556110s / Unix11638.194195s /
+worker sum11492.706677s. Serial worker intervals fit monotonic parent elapsed;
+Unix minus monotonic is53.638084s, unresolved. Monitored RSS80.078125–144.179688
+MiB; GNU-time167.132813 MiB. Policy-time sums empirical2972.205404s,
+root-only3050.953125s, recursive3056.657329s; ratios are descriptive under fixed
+arm order and clock/load uncertainty. Disk usage813 MiB for panel0; WSL available
+space926 GiB at review, not reserved capacity.
+
+Codex review scripts/results: results/oracle/l2_recursive_chance_development_p00_codex_review_20260930/.
+Antigravity's original audit and raw artifacts are preserved. No solver/source
+change or benchmark launch by Codex. Launcher and recursive-focused tests24 passed
+in .92s, lint and whitespace checks pass; previous full implementation suite292
+passed, and the eight launcher tests are additional focused checks.
+
+Next Antigravity instructions: docs/RECURSIVE_CHANCE_DEVELOPMENT.md now continues
+from panel1 through11 only (4,560 triples). Do not rerun panel0, refresh contracts,
+overwrite telemetry, or tune after seeing outcomes. Complete fixed coverage unless
+an operational/provenance failure requires stopping. Preserve all regression and
+coverage evidence; no default promotion or fresh qualification follows. All
+historical failed gates and .020 +1e-8 remain unchanged.

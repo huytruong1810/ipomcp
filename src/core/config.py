@@ -43,7 +43,7 @@ class MCTSConfig:
     node_capacity: int = 500
     exploration_const: float = 1.0
     # Experimental finite-model tail evaluation. Full private-history beliefs
-    # are propagated during search; only the last decision is integrated exactly.
+    # are propagated during search; the default boundary integrates the last decision.
     # This can cost substantially more than generative-only search at high levels.
     exact_final_step: bool = False
     # Integrate immediate rewards at visited tree histories from the full joint
@@ -53,8 +53,23 @@ class MCTSConfig:
     # Experimental empirical Bellman estimates are distinct from mean trajectory
     # returns. Keep the estimator explicit in policy seeds and run manifests.
     backup: str = "sampled"
+    # Opt-in two-decision Bellman boundary; one preserves the historical option.
+    exact_tail_depth: int = 1
+    # Final recommendation only; excluded from search randomness.
+    exact_root_chance: bool = False
+    recursive_chance: bool = False
 
     def __post_init__(self):
+        if type(self.recursive_chance) is not bool:
+            raise ValueError("recursive_chance must be a boolean")
+        if self.recursive_chance and self.exact_root_chance:
+            raise ValueError("Choose one final chance scoring mode")
+        if self.recursive_chance and self.backup != "empirical_bellman":
+            raise ValueError("recursive_chance requires empirical_bellman")
+        if type(self.exact_root_chance) is not bool:
+            raise ValueError("exact_root_chance must be a boolean")
+        if self.exact_root_chance and self.backup != "empirical_bellman":
+            raise ValueError("exact_root_chance requires empirical_bellman")
         _unit(self.gamma, "gamma")
         _integer(self.max_depth, "max_depth")
         _integer(self.n_sims, "n_sims")
@@ -64,6 +79,10 @@ class MCTSConfig:
             raise ValueError("backup must be sampled or empirical_bellman")
         if type(self.exact_final_step) is not bool:
             raise ValueError("exact_final_step must be a boolean")
+        if type(self.exact_tail_depth) is not int or self.exact_tail_depth not in (1, 2):
+            raise ValueError("exact_tail_depth must be 1 or 2")
+        if self.exact_tail_depth != 1 and not self.exact_final_step:
+            raise ValueError("exact_tail_depth=2 requires exact_final_step")
         if type(self.exact_history_rewards) is not bool:
             raise ValueError("exact_history_rewards must be a boolean")
 
@@ -97,6 +116,28 @@ class IPOMCPConfig:
 
     mcts: MCTSConfig = field(default_factory=MCTSConfig)
     opponent: OpponentPolicyConfig = field(default_factory=OpponentPolicyConfig)
+
+    def to_dict(self):
+        """Keep historical default policy seed/metadata identities unchanged.
+
+        The nondefault tail depth is explicit. Omitting its default prevents a
+        protagonist-only ablation from silently changing finite modeled policies.
+        """
+        result = asdict(self)
+        if self.mcts.exact_tail_depth == 1:
+            result["mcts"].pop("exact_tail_depth")
+        if not self.mcts.exact_root_chance:
+            result["mcts"].pop("exact_root_chance")
+        if not self.mcts.recursive_chance:
+            result["mcts"].pop("recursive_chance")
+        return result
+
+    def to_search_dict(self):
+        """Final scoring does not change the seeded search trajectory."""
+        result = self.to_dict()
+        result["mcts"].pop("exact_root_chance", None)
+        result["mcts"].pop("recursive_chance", None)
+        return result
 
 
 @dataclass(frozen=True)
