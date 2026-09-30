@@ -10,7 +10,9 @@ Workers use spawn so numerical-library threads and locks are not inherited.
 Jobs must be importable, picklable functions or bound methods; callers use a
 standard __main__ guard. Startup/import costs count toward the wall/RSS limits.
 Call from the main thread. Each trial starts with independent interpreter and
-planner state, which also bounds cross-trial allocator growth.
+planner state, which also bounds cross-trial allocator growth. Because every
+trial re-imports source from disk, an optional source lock is verified inside
+the worker before and after its job; a launch-time hash alone binds nothing.
 """
 
 import contextlib
@@ -25,13 +27,22 @@ import traceback
 from pathlib import Path
 
 
-def _worker(job, result_path, log_path):
+def _worker(job, result_path, log_path, source_lock=None):
     os.setsid()
     with open(log_path, "w") as log:
         os.dup2(log.fileno(), 1)
         os.dup2(log.fileno(), 2)
         try:
-            result = {"status": "complete", "rows": job()}
+            if source_lock is not None:
+                from utils.source_lock import verify_source_lock
+
+                # Before: the imports of this trial. After: lazy imports and
+                # edits during the job. Either mismatch fails the whole trial.
+                verify_source_lock(*source_lock)
+            rows = job()
+            if source_lock is not None:
+                verify_source_lock(*source_lock)
+            result = {"status": "complete", "rows": rows}
         except BaseException as error:
             result = {
                 "status": "failed",
@@ -81,13 +92,17 @@ def _stop(process):
     process.join()
 
 
-def supervise_jobs(jobs, *, workers, timeout_seconds, max_rss_mb, log_directory=None):
+def supervise_jobs(
+    jobs, *, workers, timeout_seconds, max_rss_mb, log_directory=None, source_lock=None
+):
     """Yield (job_id, outcome) for every callable in a mapping of independent jobs.
 
     The caller validates successful scientific panels and owns checkpointing.
     Errors include process exit, Python traceback, resource reason and measured
     wall/RSS telemetry. Closing this iterator cancels and reaps all active jobs.
-    Persistent logs are retained when log_directory is supplied.
+    Persistent logs are retained when log_directory is supplied. source_lock is
+    an optional (repository root, {path: sha256}) pair from utils.source_lock;
+    a trial whose source differs before or after its job fails.
     """
     if threading.current_thread() is not threading.main_thread():
         raise RuntimeError("Linux trial supervision must start on the main thread")
@@ -101,6 +116,14 @@ def supervise_jobs(jobs, *, workers, timeout_seconds, max_rss_mb, log_directory=
         raise ValueError("Resource limits must be finite and positive")
     if any(type(identifier) is not int or identifier < 0 for identifier in jobs):
         raise ValueError("Job identifiers must be nonnegative integers")
+    if source_lock is not None:
+        from utils.source_lock import verify_source_lock
+
+        root, expected = source_lock
+        if not expected:
+            raise ValueError("A source lock must name at least one file")
+        source_lock = (str(root), dict(expected))
+        verify_source_lock(*source_lock)
     # Numerical libraries can own native threads even when Python calls us
     # from its main thread. Fork would inherit their locks with no owner in the
     # child. Spawn starts a clean interpreter; job callables must be picklable
@@ -125,7 +148,9 @@ def supervise_jobs(jobs, *, workers, timeout_seconds, max_rss_mb, log_directory=
                     next_index += 1
                     result_path = Path(scratch, f"{index}.pickle")
                     log_path = logs / f"job-{identifier}.log"
-                    process = context.Process(target=_worker, args=(job, result_path, log_path))
+                    process = context.Process(
+                        target=_worker, args=(job, result_path, log_path, source_lock)
+                    )
                     started = time.monotonic()
                     process.start()
                     active[identifier] = [process, started, 0.0, result_path, log_path]

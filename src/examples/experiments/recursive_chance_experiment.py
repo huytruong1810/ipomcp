@@ -9,6 +9,7 @@ from pathlib import Path
 
 from examples.experiments.root_chance_experiment import replay, sha
 from utils.process_supervisor import supervise_jobs
+from utils.source_lock import source_hashes
 
 
 def triple(original, root_only_original):
@@ -54,9 +55,7 @@ def main():
         saved = json.loads(data)["rows"][0]
         assert saved["control"] == entry["row"]
         assert saved["candidate"] == entry["root_only_row"]
-    source = {
-        str(p.relative_to(root)): sha(p.read_bytes()) for p in sorted((root / "src").rglob("*.py"))
-    }
+    source = source_hashes(root)
     assert source == contract["source_sha256"], (
         "Recursive pilot source changed; review before rerunning"
     )
@@ -90,6 +89,7 @@ def main():
             timeout_seconds=600,
             max_rss_mb=2048,
             log_directory=args.output / "logs",
+            source_lock=(root, contract["source_sha256"]),
         ):
             (args.output / f"case-{i}.json").write_text(
                 json.dumps(result, indent=2, allow_nan=False)

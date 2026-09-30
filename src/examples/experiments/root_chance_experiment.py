@@ -13,6 +13,7 @@ from examples.experiments.planner_oracle_experiment import evaluate_case
 from solvers.i_pomcp import IPOMCPPlanner
 from solvers.policy import stable_value
 from utils.process_supervisor import supervise_jobs
+from utils.source_lock import source_hashes
 
 
 def sha(raw):
@@ -119,9 +120,7 @@ def main():
         data = (root / entry["file"]).read_bytes()
         assert sha(data) == entry["sha256"], "Preserved input changed"
         assert json.loads(data)["rows"][0] == entry["row"]
-    source = {
-        str(p.relative_to(root)): sha(p.read_bytes()) for p in sorted((root / "src").rglob("*.py"))
-    }
+    source = source_hashes(root)
     assert source == contract["source_sha256"], "Pilot source changed; review before rerunning"
     args.output.mkdir(parents=True, exist_ok=False)
     manifest = dict(
@@ -147,6 +146,7 @@ def main():
             timeout_seconds=600,
             max_rss_mb=2048,
             log_directory=args.output / "logs",
+            source_lock=(root, contract["source_sha256"]),
         ):
             (args.output / f"case-{i}.json").write_text(
                 json.dumps(result, indent=2, allow_nan=False)

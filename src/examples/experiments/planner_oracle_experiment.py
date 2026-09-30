@@ -41,6 +41,7 @@ from solvers.solver_bank import SolverBank
 from solvers.solver_types import SolverKey
 from utils.bootstrapper import I_POMDP_Bootstrapper
 from utils.process_supervisor import supervise_jobs
+from utils.source_lock import source_hashes
 
 
 def evaluate_case(
@@ -476,6 +477,7 @@ def run_oracle_comparison(
             timeout_seconds=timeout,
             max_rss_mb=max_rss_mb,
             log_directory=directory / "logs",
+            source_lock=(source.parent, source_hashes(source.parent)),
         ):
             outcome["case"] = cases[identifier]
             (directory / f"case-{identifier}.json").write_text(
