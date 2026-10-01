@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 
 from core.config import IPOMCPConfig, MCTSConfig
+from ipomdp.canonical import atom_row
 from solvers.node import POMCPNode
 from solvers.policy import greedy_policy
 from tests.test_exact_final_step import make_planner
@@ -56,8 +57,8 @@ def test_real_search_identical_including_particles_and_rng(depth):
 
     def compare(a, b):
         assert a.to_dict(max_depth=depth + 1) == b.to_dict(max_depth=depth + 1)
-        assert [control.solver_bank._belief_row(p, 1.0) for p in a.belief_particles] == [
-            candidate.solver_bank._belief_row(p, 1.0) for p in b.belief_particles
+        assert [atom_row(p, 1.0) for p in a.belief_particles] == [
+            atom_row(p, 1.0) for p in b.belief_particles
         ]
         for action, children in a.children.items():
             for obs, child in children.items():

@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from examples.experiments.planner_oracle_experiment import evaluate_case
+from ipomdp.canonical import atom_row, stable_value
 from solvers.i_pomcp import IPOMCPPlanner
-from solvers.policy import stable_value
 from utils.process_supervisor import supervise_jobs
 from utils.source_lock import source_hashes
 
@@ -31,9 +31,7 @@ def tree_digest(planner):
             for k, v in vars(node).items()
             if k not in ("children", "belief_particles", "_parent_ref")
         }
-        state["particles"] = [
-            planner.solver_bank._belief_row(p, 1.0) for p in node.belief_particles
-        ]
+        state["particles"] = [atom_row(p, 1.0) for p in node.belief_particles]
         digest.update(json.dumps(stable_value(state), sort_keys=True, allow_nan=False).encode())
         for action, children in sorted(node.children.items()):
             for obs, child in sorted(children.items()):

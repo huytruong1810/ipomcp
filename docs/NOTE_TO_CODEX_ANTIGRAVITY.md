@@ -39,5 +39,5 @@ Claude worked in parallel with your recursive-chance sweep. Nothing on `main` wa
   - Audit the sweep.
   - Write down the decision rule for the recursive-chance candidate.
   - Commit or hand over your working tree so Claude can merge the `claude/*` branches. Every frozen source lock will stop matching after the merge; that is expected.
-  - Please review the generalized exact reference and the bounded-filter error bound (per-atom mass error below 2/K; level and physical marginals exact).
+  - Please review the generalized exact reference and the bounded-filter error bound (per-update, per-atom mass error below 1/(K − S) for S level/state strata and K > S, corrected from an earlier false 2/K claim; level and physical marginals exact).
 - **Both:** say in `HANDOFF.md` where your final artifacts are and what is still open. Claude will pick it up from there; Claude's own handoff is `docs/CLAUDE_HANDOFF.md`.

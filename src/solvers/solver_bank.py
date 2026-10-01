@@ -6,12 +6,11 @@ make cache eviction harmless to the modeled policy. Private beliefs are never
 stored in a registered planner's live root on behalf of another agent.
 """
 
-import json
 import random
 from functools import lru_cache
 
+from ipomdp import canonical
 from ipomdp.finite_filter import FiniteInteractiveFilter
-from solvers.policy import digest, stable_value
 from solvers.solver_types import SolverKey
 
 
@@ -23,9 +22,9 @@ class SolverBank:
         # None keeps exact enumeration; an integer bounds every posterior's support.
         self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
-        self._belief_digest = lru_cache(maxsize=16384)(self._encode_belief)
-        self.ordered_mass = lru_cache(maxsize=16384)(self._ordered_mass)
-        self._state_value = lru_cache(maxsize=65536)(stable_value)
+        # Canonical order makes random.choices intervals independent of how an
+        # equal belief was built; see ipomdp.canonical for the encoding.
+        self.ordered_mass = lru_cache(maxsize=16384)(canonical.canonical_mass)
         self.continuation_law = lru_cache(maxsize=1024)(self._continuation_law)
         self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
 
@@ -50,9 +49,7 @@ class SolverBank:
 
     @staticmethod
     def _prior_key(physics):
-        return digest(
-            [type(physics).__module__, type(physics).__qualname__, stable_value(vars(physics))]
-        )
+        return canonical.digest(canonical.physics_identity(physics))
 
     def set_physical_prior(self, physics, states):
         """Declare an explicit equally weighted physical prior before any model exists.
@@ -89,36 +86,6 @@ class SolverBank:
         if frame.level and solver.pomdp_model is not frame.pomdp_model:
             raise ValueError("Frame physics differs from the registered solver")
         return solver
-
-    def _belief_row(self, atom, mass):
-        opponent = atom.opponent
-        physics = opponent.frame.pomdp_model
-        return [
-            self._state_value(atom.state),
-            mass.hex(),
-            stable_value(opponent.frame.agent_id),
-            opponent.frame.level,
-            type(physics).__module__,
-            type(physics).__qualname__,
-            stable_value(vars(physics)),
-            self._belief_digest(opponent.belief) if opponent.belief else None,
-        ]
-
-    def _encode_belief(self, belief):
-        return digest(
-            sorted([self._belief_row(atom, mass) for atom, mass in belief.mass], key=json.dumps)
-        )
-
-    def _ordered_mass(self, belief):
-        """Sampling order must respect the belief's order-independent equality.
-
-        Equal probability measures already have the same deterministic search
-        seed. random.choices also needs the same cumulative interval ordering;
-        otherwise cache eviction or insertion order changes the modeled policy.
-        Preserve exact masses and nested model objects; no scalar reconstruction
-        or rounding is performed.
-        """
-        return tuple(sorted(belief.mass, key=lambda row: json.dumps(self._belief_row(*row))))
 
     def _expected_rewards(self, model):
         """Integrate immediate reward over the full joint prior and finite dynamics.
@@ -198,13 +165,13 @@ class SolverBank:
         return tuple((obs, math.fsum(weights)) for obs, weights in terms.items())
 
     def search_seed(self, model, settings):
-        return digest(
+        return canonical.digest(
             [
                 self.seed,
-                stable_value(model.frame.agent_id),
+                canonical.stable_value(model.frame.agent_id),
                 model.frame.level,
-                self._belief_digest(model.belief),
-                stable_value(settings),
+                canonical.belief_digest(model.belief),
+                canonical.stable_value(settings),
             ]
         )
 
@@ -218,9 +185,8 @@ class SolverBank:
     def clear_caches(self):
         self._cached_policy.cache_clear()
         self.filter.clear_caches()
-        self._belief_digest.cache_clear()
         self.ordered_mass.cache_clear()
-        self._state_value.cache_clear()
+        canonical.belief_digest.cache_clear()
         self.expected_rewards.cache_clear()
         self.continuation_law.cache_clear()
         import gc

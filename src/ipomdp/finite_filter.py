@@ -19,10 +19,11 @@ An externally mutable MCTS node cannot be a policy or belief cache key.
 
 Optional bounded support (``max_support``) makes the kernel an approximation:
 any posterior with more distinct joint hypotheses than the bound is replaced by
-a systematic resample of that many equally weighted draws, duplicates merged.
+a stratified systematic resample (see ``resample`` for strata and error bound).
 It applies at every nesting level, because nested posteriors come from this same
-update. Resampling is seeded from the exact posterior itself, so the update stays
-a deterministic, cacheable function. The default (None) keeps exact enumeration.
+update. Resampling is seeded from the canonical digest of the exact posterior,
+so the update stays a deterministic, order-independent, cacheable function.
+The default (None) keeps exact enumeration.
 """
 
 import hashlib
@@ -33,6 +34,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from core.pomdp_model import Action, Observation
+from ipomdp import canonical
 from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
 
 Policy = Callable[[MentalModel], Mapping[Action, float]]
@@ -218,33 +220,51 @@ class FiniteInteractiveFilter:
 def resample(belief: FiniteBelief, count: int) -> FiniteBelief:
     """Stratified systematic resampling to at most ``count`` atoms, deterministic.
 
-    Strata are (opponent level, physical state). Each stratum keeps its exact
-    total mass. So the opponent-level posterior and the physical belief stay
-    exact, and no level (in particular the uniform L0 hypothesis that supports
-    every observation) can be dropped by sampling. Only the nested private models
-    within a stratum are sampled. Draws are allocated by largest remainder with at
-    least one per stratum, which gives an error below 2 / ``count`` per atom mass.
-    The seed hashes the exact posterior masses in canonical order, so equal
-    inputs give equal outputs across processes.
+    Why stratify. Strata are (opponent level, physical state), and each stratum
+    keeps its exact total mass. The opponent-level posterior and the physical
+    belief therefore stay exact. No level can be dropped by sampling, in
+    particular the uniform L0 hypothesis, which supports every observation:
+    plain resampling at small ``count`` dropped L0 and later produced
+    zero-evidence failures. Only nested private models within a stratum are
+    sampled.
+
+    Allocation. With S strata and K = ``count`` >= S, stratum k with total mass
+    t_k receives floor(1 + (K - S) t_k) >= 1 draws, plus one more by largest
+    remainder (ties broken by stratum key) until the draws sum to K.
+
+    Error bound. Systematic resampling gives each atom floor or ceil of
+    n_k w / t_k hits, so its retained mass t_k hits / n_k differs from its exact
+    mass w by less than t_k / n_k. Since n_k > (K - S) t_k, the per-atom mass
+    error is below 1 / (K - S) whenever K > S. When K == S every stratum keeps
+    one atom and the bound is only t_k. This is a per-update, per-atom bound.
+    It does not bound error accumulated over time or across nesting levels,
+    because every nested posterior is resampled as well.
+
+    Determinism. Equal beliefs must give equal outputs regardless of the order
+    in which their atoms were inserted. The update cache is keyed by belief
+    equality, so an order-dependent result would make posteriors depend on
+    query order. So strata, the atom order within each stratum and the seed
+    all come from the canonical encoding in ``ipomdp.canonical``.
     """
     strata = {}
     for atom, weight in belief.mass:
-        strata.setdefault((atom.opponent.frame.level, repr(atom.state)), []).append((atom, weight))
+        key = (atom.opponent.frame.level, canonical.state_key(atom.state))
+        strata.setdefault(key, []).append((atom, weight))
     if count < len(strata):
         raise ValueError("Support bound must be at least the number of level/state strata")
     if len(belief.mass) <= count:
         return belief
     keys = sorted(strata)
+    for k in keys:
+        strata[k].sort(key=canonical.atom_sort_key)
     totals = {k: math.fsum(w for _, w in strata[k]) for k in keys}
     quota = {k: 1 + (count - len(keys)) * totals[k] for k in keys}
     draws = {k: int(quota[k]) for k in keys}
-    for k in sorted(keys, key=lambda k: quota[k] - int(quota[k]), reverse=True)[
+    for k in sorted(keys, key=lambda k: (int(quota[k]) - quota[k], k))[
         : count - sum(draws.values())
     ]:
         draws[k] += 1
-    seed = hashlib.sha256(
-        b"".join(weight.hex().encode() for _, weight in belief.mass) + str(count).encode()
-    ).digest()
+    seed = hashlib.sha256((canonical.belief_digest(belief) + str(count)).encode()).digest()
     rng = random.Random(seed)
     kept = []
     for k in keys:

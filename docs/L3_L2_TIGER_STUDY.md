@@ -55,7 +55,7 @@ All runs set `PYTHONPATH=$PWD/src`: the shared `.venv` otherwise imports `main`'
 2. **Particle deprivation under plain resampling.**
    - At K = 32, resampling dropped every L0 atom. The next unexpected door opening then had zero evidence (`UnsupportedObservation`), which ended the trial.
    - **Handled** by stratified resampling within (opponent level, physical state) strata.
-   - Level and physical marginals stay exact, and L0 is never dropped. The per-atom mass error is below 2/K. Covered by tests.
+   - Level and physical marginals stay exact, and L0 is never dropped. With S level/state strata and K > S, the per-atom mass error of one update is below 1/(K − S); this does not bound error accumulated over steps or nesting levels. Resampling is independent of atom insertion order. Covered by tests. (An earlier claim of 2/K was wrong when S > K/2.)
 3. **No false creaks at .90.** A single creak rules out every hypothesis that predicted listening, so level posteriors jump. This is kept by design and reported.
 4. **Level is confounded with computation.** Modeled opponents are finite MCTS, and the posterior measures how well those finite models predict. The ladder quantifies this against exact models.
 5. **Misspecification.** j's support excludes the real L3 i.

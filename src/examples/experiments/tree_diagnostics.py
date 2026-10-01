@@ -20,6 +20,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from examples.experiments.planner_oracle_experiment import evaluate_case
+from ipomdp.canonical import belief_digest
 from solvers.exact.finite_policy_l2 import FinitePolicyL2Reference
 from solvers.i_pomcp import IPOMCPPlanner
 from utils.process_supervisor import supervise_jobs
@@ -273,14 +274,14 @@ def diagnose(original, trace_nodes=256, tail_depth=1):
         model,
         original["horizon"],
         reference,
-        lambda m: planner.solver_bank._belief_digest(m.belief),
+        lambda m: belief_digest(m.belief),
     )
     trace = trace_margin(
         planner.root,
         model,
         original["horizon"],
         reference,
-        lambda m: planner.solver_bank._belief_digest(m.belief),
+        lambda m: belief_digest(m.belief),
         original["policy"],
         max_nodes=trace_nodes,
     )

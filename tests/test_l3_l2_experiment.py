@@ -177,42 +177,80 @@ def test_general_reference_handles_mixed_levels_and_conserves_probability():
     assert max(values, key=values.get) == "L"
 
 
-def test_systematic_resampling_bounds_each_mass_error_by_one_over_k():
-    from ipomdp.finite_filter import resample
-
+def _mixed_level_rows(rng, n_atoms, with_l0):
+    """Unnormalized i/L2 rows over j/L1 models (distinct private beliefs) and optional j/L0."""
     physics = tiger()
-    l0 = MentalModel(AgentFrame("i", 0, physics))  # j/L1 models uniform i/L0
-    rng = random.Random(5)
+    l0_i = MentalModel(AgentFrame("i", 0, physics))
     atoms = []
-    for index in range(300):
+    for _ in range(n_atoms):
+        p = rng.uniform(0.01, 0.99)
         private = FiniteBelief(
-            (
-                (InteractiveState(TIGER_LEFT, l0), 1 + index),
-                (InteractiveState(TIGER_RIGHT, l0), 1 + 300 - index),
-            )
+            ((InteractiveState(TIGER_LEFT, l0_i), p), (InteractiveState(TIGER_RIGHT, l0_i), 1 - p))
         )
         opponent = MentalModel(AgentFrame("j", 1, physics), private)
-        atoms.append((InteractiveState(STATES[index % 2], opponent), rng.random()))
-    belief = FiniteBelief(tuple(atoms))
+        atoms.append((InteractiveState(rng.choice(STATES), opponent), rng.random() ** 3))
+    if with_l0:
+        l0_j = MentalModel(AgentFrame("j", 0, physics))
+        atoms += [(InteractiveState(state, l0_j), rng.random()) for state in STATES]
+    return atoms
 
-    def marginals(b):
-        out = {}
-        for atom, weight in b.mass:
-            key = (atom.opponent.frame.level, atom.state)
-            out[key] = out.get(key, 0.0) + weight
-        return out
 
-    for k in (8, 32, 128):
-        compressed = resample(belief, k)
-        assert len(compressed.mass) <= k
-        assert resample(belief, k) == compressed  # deterministic
-        kept = dict(compressed.mass)
-        for atom, weight in belief.mass:
-            assert abs(kept.get(atom, 0.0) - weight) < 2 / k + 1e-12
-        exact, approx = marginals(belief), marginals(compressed)
-        assert approx.keys() == exact.keys()
-        for key, mass in exact.items():
-            assert approx[key] == pytest.approx(mass, abs=1e-12)
+def _mixed_level_belief(rng, n_atoms, with_l0):
+    return FiniteBelief(tuple(_mixed_level_rows(rng, n_atoms, with_l0)))
+
+
+def _strata(belief):
+    return {(atom.opponent.frame.level, atom.state) for atom, _ in belief.mass}
+
+
+def test_systematic_resampling_keeps_marginals_and_per_atom_error_below_one_over_k_minus_s():
+    """Per-atom error < 1/(K - S) for K > S strata; level/state marginals stay exact.
+
+    Small K relative to S is the regime where the former "2/K" claim failed.
+    """
+    from ipomdp.finite_filter import resample
+
+    rng = random.Random(5)
+    checked = 0
+    for _ in range(400):
+        belief = _mixed_level_belief(rng, rng.randint(5, 60), rng.random() < 0.5)
+        strata = len(_strata(belief))
+        for k in (strata + 1, strata + 2, strata + 5, 32):
+            if len(belief.mass) <= k:
+                continue
+            compressed = resample(belief, k)
+            assert len(compressed.mass) <= k
+            kept = dict(compressed.mass)
+            error = max(abs(kept.get(atom, 0.0) - weight) for atom, weight in belief.mass)
+            assert error < 1 / (k - strata) + 1e-12
+            exact, approx = {}, {}
+            for source, target in ((belief, exact), (compressed, approx)):
+                for atom, weight in source.mass:
+                    key = (atom.opponent.frame.level, atom.state)
+                    target[key] = target.get(key, 0.0) + weight
+            assert approx.keys() == exact.keys()
+            for key, mass in exact.items():
+                assert approx[key] == pytest.approx(mass, abs=1e-12)
+            checked += 1
+    assert checked > 500
+
+
+def test_resampling_is_independent_of_atom_insertion_order():
+    """Equal beliefs must compress identically, or cached posteriors depend on query order."""
+    from ipomdp.finite_filter import resample
+
+    rng = random.Random(11)
+    for _ in range(50):
+        # Build both from the same raw rows: normalization is exact (fsum), so the
+        # two beliefs are equal and differ only in insertion order.
+        rows = _mixed_level_rows(rng, 40, rng.random() < 0.5)
+        belief = FiniteBelief(tuple(rows))
+        rng.shuffle(rows)
+        reordered = FiniteBelief(tuple(rows))
+        assert reordered == belief
+        assert [a for a, _ in reordered.mass] != [a for a, _ in belief.mass]
+        for k in (8, 16):
+            assert resample(reordered, k) == resample(belief, k)
 
 
 def test_resampling_never_drops_a_level_stratum():
