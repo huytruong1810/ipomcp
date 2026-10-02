@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import random
 import time
@@ -14,15 +15,14 @@ import numpy as np
 import pandas as pd
 
 from ipomdp.experiments.config import ExperimentConfig
-from ipomdp.infra.logging import get_logger
 from ipomdp.infra.paths import REPOSITORY_ROOT, SOURCE_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
-from ipomdp.infra.resources import SystemMonitor
+from ipomdp.infra.resources import process_rss_mb
 from ipomdp.infra.source_lock import source_hashes
 from ipomdp.model.pomdp import POMDPModel, State
 from ipomdp.planning.planner import Planner
 
-logger = get_logger("BatchRunner")
+logger = logging.getLogger(__name__)
 
 
 def is_batch_complete(csv_path: str, expected_trials: int, expected_steps: int) -> bool:
@@ -239,10 +239,6 @@ class GenericBatchRunner(ABC):
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
 
-            # Attach file logger to record execution traces alongside artifacts
-            global logger
-            logger = get_logger("BatchRunner", log_file=os.path.join(self.log_dir, "execution.log"))
-
     @abstractmethod
     def _setup_domain(self, seed: int) -> Tuple[POMDPModel, Planner, Planner]:
         """Return (environment physics, agent i's planner, agent j's planner).
@@ -359,9 +355,7 @@ class GenericBatchRunner(ABC):
                     "status": "Terminal" if is_terminal else "Active",
                     "action_values_i": stats_i.get("action_values"),
                     "action_values_j": stats_j.get("action_values"),
-                    "process_rss_mb": round(
-                        SystemMonitor.get_process_memory()[0] / (1024.0 * 1024.0), 2
-                    ),
+                    "process_rss_mb": round(process_rss_mb(), 2),
                 }
 
                 if not is_terminal:
