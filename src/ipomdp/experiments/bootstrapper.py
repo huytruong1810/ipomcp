@@ -27,6 +27,7 @@ action stream.
 import math
 import random
 
+from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.planning.config import PlannerConfig
@@ -54,9 +55,11 @@ class HierarchyBuilder:
         """Build (or return the registered) solver for ``agent_id`` at ``level``.
 
         Args:
-            config: PlannerConfig of this agent. Required for level > 0.
-            modeled_config: PlannerConfig for every lower intentional model;
-                defaults to ``config``.
+            config: PlannerConfig (I-POMCP) or RTSConfig (IPF + RTS baseline) of
+                this agent. Required for level > 0.
+            modeled_config: Configuration of every lower intentional model;
+                defaults to ``config``, so a hierarchy is homogeneous unless a
+                study states otherwise.
             level_weights: Prior over the opponent's levels for this agent.
             nested_level_weights: {level: weights} for nested models.
         """
@@ -72,8 +75,8 @@ class HierarchyBuilder:
             return solver
         if opponent_id == agent_id:
             raise ValueError("Exactly one distinct opponent is supported")
-        if not isinstance(config, PlannerConfig):
-            raise TypeError("An intentional agent needs a PlannerConfig")
+        if not isinstance(config, (PlannerConfig, RTSConfig)):
+            raise TypeError("An intentional agent needs a PlannerConfig or RTSConfig")
         modeled_config = modeled_config or config
         nested = nested_level_weights or {}
         for who, other in ((agent_id, opponent_id), (opponent_id, agent_id)):
@@ -104,7 +107,8 @@ class HierarchyBuilder:
             for lower, mass in weights.items()
             if mass > 0
         )
-        solver = IPOMCPPlanner(key, model, self.bank, config)
+        planner_class = RTSPlanner if isinstance(config, RTSConfig) else IPOMCPPlanner
+        solver = planner_class(key, model, self.bank, config)
         solver.set_initial_belief(belief)
         self.bank.register_solver(key, solver)
         return solver

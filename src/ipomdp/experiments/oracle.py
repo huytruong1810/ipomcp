@@ -20,7 +20,9 @@ Problems
 In both level-2 cases the reference is the exact best response to the declared
 opponent (``reference.best_response``).
 
-Cost is reported as the planner's process CPU time for the root decision.
+Planners: ``mcts`` (I-POMCP; budget = root simulations) and ``rts`` (the
+IPF + RTS baseline; budget = sampled observations per node). The units differ,
+so cost is compared as the planner's process CPU time for the root decision.
 """
 
 import argparse
@@ -32,6 +34,7 @@ from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 
+from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
@@ -76,14 +79,18 @@ def evaluate_case(
     model = TigerModel()
     bank = SolverBank(seed)
     key = SolverKey("i", level)
-    config = PlannerConfig(
-        simulations=budget,
-        depth=horizon,
-        modeled_simulations=budget,
-        gamma=gamma,
-        exploration=exploration,
-    )
-    planner = IPOMCPPlanner(key, model, bank, config)
+    if planner_kind == "mcts":
+        config = PlannerConfig(
+            simulations=budget,
+            depth=horizon,
+            modeled_simulations=budget,
+            gamma=gamma,
+            exploration=exploration,
+        )
+        planner = IPOMCPPlanner(key, model, bank, config)
+    else:
+        config = RTSConfig(depth=horizon, observation_samples=budget, gamma=gamma)
+        planner = RTSPlanner(key, model, bank, config)
     bank.register_solver(key, planner)
     # L0 action streams are never drawn in a single root decision; seed them anyway.
     for agent in ("i", "j"):
@@ -192,7 +199,7 @@ def _opponent_description(level, depth, belief, budget):
 
 
 def _validate_problem(planner_kind, level, opponent_depth, opponent_belief, opponent_budget):
-    if planner_kind != "mcts":
+    if planner_kind not in ("mcts", "rts"):
         raise ValueError("Unknown planner")
     if level not in (1, 2):
         raise ValueError("Reference level must be 1 or 2")
@@ -310,7 +317,7 @@ def main():
     parser.add_argument("--seeds", type=int, required=True)
     parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--beliefs", type=float, nargs="+", required=True)
-    parser.add_argument("--planners", choices=["mcts"], nargs="+", default=["mcts"])
+    parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts"])
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--exploration", type=float, default=1.0)
     parser.add_argument("--level", type=int, choices=[1, 2], default=1)

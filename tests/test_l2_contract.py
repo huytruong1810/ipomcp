@@ -34,5 +34,5 @@ def test_l2_requires_explicit_contract_before_creating_output(tmp_path):
     with pytest.raises(ValueError, match="explicit positive"):
         run_oracle_comparison(tmp_path / "missing", **panel)
     with pytest.raises(ValueError, match="Unknown planner"):
-        run_oracle_comparison(tmp_path / "rts", planners=("rts",), opponent_depth=2, **panel)
+        run_oracle_comparison(tmp_path / "other", planners=("other",), opponent_depth=2, **panel)
     assert not list(tmp_path.iterdir())
