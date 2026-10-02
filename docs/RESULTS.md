@@ -225,7 +225,7 @@ RTS (K = 4) on the same problems was 97–100% optimal. With exact beliefs it to
 - The IPF planners still run there, but they cannot be scored.
 
 **Interpretation:**
-- **Where the exact reference is tractable, exact beliefs dominate.** Up to k = 4, exact-belief I-POMCP is at least as fast as the IPF at N = 256 and N = 1,024, and 10–25 times more accurate in Q. Only the IPF at N = 64 is cheaper (8 s against 26 s at k = 4), at 35 times the Q error and one miss with a loss of 4.8 at k = 2.
+- **Where the exact reference is tractable, exact beliefs dominate.** Up to k = 4, exact-belief I-POMCP is faster than the IPF at N = 1,024 and about as fast as at N = 256 (26 s against 23 s at k = 4). It is 8–25 times more accurate in Q than either. Only the IPF at N = 64 is clearly cheaper (8 s against 26 s at k = 4), at about 36 times the Q error, and it has one miss with a loss of 4.8 at k = 2.
 - **Particle error accumulates with history.** At k = 0 the IPF matches exact beliefs (the prior has two atoms). By k = 2–4 its Q error is 1.2–7.7, because each in-tree update samples the opponent's private observations and actions afresh.
 - **The IPF pays off only where exactness becomes intractable:** k ≥ 6 at L2 H3 here, or the 94,500-state Wumpus prior.
   - There, its accuracy can be checked only indirectly: by belief error against exact filtering along single histories (Section 3, up to 18,152 atoms), or against references that drop the nested enumeration.
