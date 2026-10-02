@@ -17,13 +17,21 @@ For own action a_i and observation o_i:
 Here U_j is j's own update. It receives only j's action and observation and marginalises everything j cannot see with j's own models.
 
 - **Exact update** (`belief.finite_filter`): enumerates every term. Supports grow geometrically with time and nesting. For example, L2 Tiger reaches 18,152 atoms after 8 steps.
-- **Interactive particle filter** (`belief.particle_filter`; Doshi & Gmytrasiewicz, 2009):
+- **Compressed filter** (`belief.compressed_filter`; the planner's default bounded belief): the exact update of a belief with at most N atoms, followed, only when the posterior has more than N distinct atoms, by N systematic draws. Nested opponents are updated by the same filter, so supports are at most N at every level.
+  - Small beliefs (fewer than N atoms) stay exact. The only approximation is compression, with per-atom mass error below 1/N.
+  - The evidence P(o_i | b, a_i) is exact under the compressed prior.
+  - Cost per update: at most N × |A_j| × |S'| × |O_j| branches per level.
+- **Interactive particle filter** (`belief.particle_filter`; Doshi & Gmytrasiewicz, 2009; the IPF + RTS baseline's belief):
   1. draws N particles;
   2. samples a_j, s' and o_j for each;
   3. advances m_j by the same particle update, recursively;
   4. weights each particle by O_i.
 
-  Supports are at most N at every level. The mean weight is an unbiased estimate of P(o_i | b, a_i). Measured error against the exact update is in [RESULTS.md](RESULTS.md).
+  Supports are at most N at every level, and the mean weight is an unbiased estimate of P(o_i | b, a_i).
+
+  It holds every belief, however small, as N equal-weight samples, so nested probabilities move in steps of 1/N. Because modeled opponents act greedily, a step across a decision threshold flips their predicted action. It also redraws every term of every update.
+
+  Measured errors of both filters against the exact update are in [RESULTS.md](RESULTS.md).
 
 ## The planner's estimator
 

@@ -19,7 +19,7 @@ Read this first. Then read [ARCHITECTURE.md](ARCHITECTURE.md), [THEORY.md](THEOR
 | R2: the validated estimator is the only planner | done (L1 gate passes) |
 | R3: one domain-agnostic exact reference | done (equal to the old exact L2 solver to 1e-15) |
 | R4: kernel-only domain contract; published Tiger; revised UAV; exact Wumpus prior; explicit RNG | done |
-| R5: interactive particle filter | done; systematic resampling; L2 gate in RESULTS.md Section 3 (mean shrinks with N; a worst-case floor of about 0.05 level TV remains at N = 4,096) |
+| R5: bounded beliefs | done: sampled IPF (published; baseline) and compressed filter (planner default); gates in RESULTS.md Sections 3 and 8 |
 | R6: compute balance | done: cross-step reuse; allocation rule in RESULTS.md Section 5 (modeled budget first) |
 | R7: RTS baseline | done: `baselines.rts`; `experiments.l2_panel` compares I-POMCP and IPF + RTS against the exact I-POMDP (RESULTS.md Section 6) |
 | R8: analysis layer | done: `analysis.hierarchy`, `metrics`, `figures` (sunbursts with content and error) |
@@ -28,10 +28,10 @@ Read this first. Then read [ARCHITECTURE.md](ARCHITECTURE.md), [THEORY.md](THEOR
 
 ## Next steps, in order
 
-1. **Contribution 2: where the IPF pays off.** Mid-episode results are in RESULTS.md Section 7. Wherever the exact I-POMDP is tractable (L2 H3, k ≤ 4), exact beliefs are faster or more accurate than the IPF; the IPF only wins where exact planning and the reference become intractable (k ≥ 6). Open questions:
-   - lower the IPF's in-tree error (it resamples the opponent afresh at every in-tree update);
-   - find a reference that scales past k = 4, so accuracy can be measured where the IPF is needed: for example exact filtering of i's belief, plus exact best response with a bounded nested enumeration;
-   - L3, and H4 with 4,000 modeled simulations on IPF beliefs at N ≥ 1,024.
+1. **Contribution 2, next rungs.** The compressed filter (RESULTS.md Section 8) is now the planner's bounded belief. It is about as accurate as exact beliefs at N = 64, and 14 times faster than exact at k = 4. Next:
+   - L3 decisions against the exact L3 I-POMDP where tractable;
+   - histories beyond k = 4 with a reference that scales (exact filtering of i plus a bounded nested enumeration), so the regime where only bounded beliefs run can be scored;
+   - the IPF + RTS baseline keeps the sampled IPF (as published); report RTS with compressed beliefs as an ablation.
 2. **Per-level modeled budgets.** The allocation rule says modeled agents must
    be accurate at the beliefs they are modeled at; lower levels are cheaper and
    more numerous, so a per-level budget may buy that accuracy more cheaply.

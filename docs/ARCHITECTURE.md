@@ -39,7 +39,9 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 - `canonical` gives every belief an order-independent, process-independent digest. Search seeding, sampling order and resampling depend only on *what* a belief is, never on how it was built.
 - **Belief updates** are subclasses of `InteractiveFilter`; both are pure and memoized:
   - `FiniteInteractiveFilter`: the exact I-POMDP update, enumerated.
-  - `ParticleInteractiveFilter`: the interactive particle filter, at most N particles at every level, seeded per update and resampled systematically.
+  - `CompressedInteractiveFilter`: the exact update, with posteriors compressed to N atoms by systematic resampling only when they exceed N. This is the planner's default bounded belief; small beliefs stay exact.
+  - `ParticleInteractiveFilter`: the published interactive particle filter, which samples every term of the update; it is the belief of the IPF + RTS baseline.
+  - `SolverBank(seed, particles=N, particle_filter="compressed" | "sampled")` selects one; without `particles`, beliefs are exact.
 
 ### `planning`: the I-POMCP planner
 
@@ -102,7 +104,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 ## Design decisions worth knowing
 
 - **Determinism by content, not by call order.** All randomness flows from explicit `random.Random` streams. No code uses the global `random` module. Per-solve and per-update streams are seeded from canonical digests.
-- **Exactness where it buys convergence, sampling where it buys scale.** The planner integrates immediate rewards and the last step exactly. The IPF replaces exact enumeration of beliefs at every level. Both are measured against exact references (see [RESULTS.md](RESULTS.md)).
+- **Exactness where it buys convergence, bounds where they buy scale.** The planner integrates immediate rewards and the last step exactly. Bounded beliefs cap supports at N atoms at every level, keeping updates exact until a posterior exceeds N. Both are measured against exact references (see [RESULTS.md](RESULTS.md)).
 - **Failures are explicit.**
   - Zero evidence raises `UnsupportedObservation`.
   - Enumeration budgets raise `InferenceBudgetExceeded`.
