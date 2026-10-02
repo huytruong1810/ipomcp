@@ -5,7 +5,7 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 2, 2026 (chance scoring re-qualified). `main` now holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+Last updated October 2, 2026 (chance scoring re-qualified; Tiger assessment and report rewrite). `main` now holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
 
 ## 1. Goals
 
@@ -98,23 +98,81 @@ studies/        tiger_l3_vs_l2.toml
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
-## 4. Next steps, in order
+## 4. Where Tiger stands, and next steps
+
+### Assessment (October 2, after the user asked whether the results are optimal)
+
+**Decisions are near-optimal wherever they can be checked exactly; action values are not, and only small problems are checked.**
+
+- **Near-optimal:**
+  - L1, every decision optimal from 1,000 simulations at H1–H5 (n = 33 per cell);
+  - L2 H3, 93–100% up to k = 6 steps into an episode;
+  - L2 H4, 100% only with 4,000 modeled simulations (33 s per decision).
+- **Gap 1: Q values plateau at long horizons; budget barely moves them.**
+  - L1 H5: Q error 1.57 at 1,000 simulations, 1.50 at 5,000.
+  - L2 H4: Q error stays about 1.0 even in 100%-optimal cells.
+  - The error sits on rarely tried actions whose branches saw one or two simulations (RESULTS.md Section 11, per-action breakdown). Decisions survive it, but contribution 2's error bounds do not.
+- **Gap 2: a possible unchecked regression.** At 5,000 simulations, L1 H5 mean max Q error was 0.88 before per-step belief sampling (`f793712`; RESULTS.md Section 1) and 1.46 after (`results/l1_qualification_chance_scoring_20261002`). Section 9 only re-checked 1,000 simulations, where error improved. It may be noise (n = 33); it needs a paired run.
+- **Gap 3: small samples.**
+  - 30/30 optimal only rules out rates below about 88% (95% Clopper–Pearson); 33/33, below about 89%.
+  - L2 problems are 15 starting beliefs and one fixed history (`oracle.HISTORY_ACTIONS`).
+- **Gap 4: no L3 accuracy and no episode-level results** on the current code.
+
+**Decision: do not scale resources to get better-looking results.**
+- 16× more root simulations never fixed a wrong decision (Section 5), and Q error does not fall with budget at long horizons.
+- The 100-trial L3 study would cost many hours and is unscoreable before an L3 gate, which breaks the progressive-scaling rule.
+- Scale the *evidence* (more problems) and fix known causes instead.
+
+### Next steps, in order
 
 0. **Done (October 2): recursive post-search chance scoring** (`planning.chance_scoring`, commit `192ea90`; RESULTS.md Section 11).
    - Decisions are neutral within n: 1 corrected and 2 regressed of 747 paired decisions.
    - Q error falls at H2–H3 and is flat at H4–H5.
    - It is kept as the default. Rows record both `search_q` and the scored `estimated_q`.
-   - Open question: the fallback (keeping search Q for actions with unsampled branches) mixes search and scored values in one max. The renormalized variant was worse. A better treatment of under-sampled actions is the remaining lever for H4–H5.
-1. **Wumpus qualification** (RESULTS.md Section 10).
+   - Open question: the fallback (keeping search Q for actions with unsampled branches) mixes search and scored values in one max. The renormalized variant was worse.
+1. **Widen n on Tiger (cheap; do first).**
+   - **More problems:** re-run the L2 H3 and H4 panels over many more starting beliefs and several sampled histories, not just `HISTORY_ACTIONS`. Report Clopper–Pearson intervals beside optimal rates. `l2_panel.BELIEFS`/`OPPONENT_BELIEFS` and `oracle.sample_history` are the knobs; a seed-varied history needs a small driver change.
+   - **Gap 2 check:** run L1 H5 at 5,000 simulations paired by seed and belief, before vs after `f793712`. The tag `archive/pre-restructure-20260930` predates the restructure, so check out `f793712^` in a temporary worktree. Use more seeds than 3.
+2. **Per-level modeled budgets.**
+   - Section 9: H4 decisions at 100 modeled simulations depend on luck in the opponent models.
+   - Choose each level's modeled budget from that level's own qualification, *at the beliefs it is modeled at* (not L1 qualification at i's beliefs).
+   - This is what removes the H4 misses.
+3. **Diagnose the long-horizon Q plateau (Gap 1).**
+   - Use `analysis.error_attribution.trace_margin` on L1 H5 and L2 H4 trees to locate where the error enters.
+   - Candidate levers, each needing its own gate:
+     - exploration of rarely tried actions;
+     - a better treatment of chance-scoring fallbacks;
+     - a deeper exact tail.
+4. **L3 decisions against the exact L3 I-POMDP**, where tractable: Tiger, H2–H3, compressed vs exact beliefs.
+   - The oracle supports levels 1–2 only; extend it with an exact j-L2 provider (`ExactIPOMDPPlanner` handles any level).
+   - Exact L3 *filtering* reaches 4,368 atoms and 72 s per update by step 5; step 6 did not finish in 10 minutes. Keep exact L3 checks to k ≤ 5.
+5. **Wumpus qualification** (RESULTS.md Section 10).
    - Run a grid over `search_particles` (64 → 4,096) × simulations (1k → 10k), at L1 H3, against the exact best response. The pilot script is `results/wumpus_split_pilot_20261002/wumpus_split.py`.
    - Separate the two candidate causes: compressing a 25k–94k-atom root to N atoms, and too few simulations for 5 actions × 32 observations.
-   - Consider putting this in a package driver (like `l2_panel`, but domain-generic) once the design settles.
-2. **L3 decisions against the exact L3 I-POMDP**, where tractable: Tiger, H2–H3, with compressed vs exact beliefs. The oracle supports levels 1–2 only; extend it with an exact j-L2 provider (`ExactIPOMDPPlanner` handles any level).
-3. **Per-level modeled budgets.** Section 9 shows that H4 decisions at 100 modeled simulations depend on luck in the opponent models. Choose each level's modeled budget from that level's own qualification.
-4. **Contribution 2 at scale.**
+   - Consider a package driver (like `l2_panel`, but domain-generic) once the design settles.
+6. **Contribution 2 at scale.**
    - I-POMCP (compressed) vs IPF + RTS (sampled, as published) on longer histories and L3.
    - Report RTS with compressed beliefs as an ablation; it shows that RTS's misses are search error.
-5. **R9 scale-up ladder:** Tiger L1 → L4, then UAV, then Wumpus. Each rung passes its gate first. Then rerun the L3-vs-L2 study (`studies/tiger_l3_vs_l2.toml`, now on compressed beliefs by default) for sunbursts (contribution 3).
+7. **R9 scale-up ladder:** Tiger L1 → L4, then UAV, then Wumpus. Each rung passes its gate first.
+   - Then run the L3-vs-L2 episode study (`studies/tiger_l3_vs_l2.toml`, compressed beliefs) for the metrics the report lists as pending: episode rewards with bootstrap CIs, per-step costs, level posteriors over time, and sunbursts over time.
+   - Its purpose is those metrics, not better accuracy numbers.
+8. **Equilibria** (contribution 3): no code yet; needs a design.
+
+### Reviewer report
+
+The Tiger report for reviewers is a Claude Docs document, rewritten October 2 around the current package: "I-POMCP vs Exact I-POMDP: Tiger Performance and Interpretability", https://claude.ai/code/artifact/96fa514f-dc7c-477c-8f97-b31eb1b8fca7.
+
+- **Update it in place;** never create a new one. Edit it with the Claude Docs connector (load the docs skill first).
+- **Sections:**
+  - Setup with a metric-definitions table;
+  - L1; L2; root vs modeled budget;
+  - bounded beliefs; benchmark vs IPF + RTS;
+  - cost; interpretability sunbursts with per-depth error;
+  - a "Not yet measured" table.
+- **When results land,** update the matching section and remove the row from "Not yet measured".
+- **Charts** are hand-drawn widgets with inline rows.
+- **Sunburst and belief-growth data** come from `results/report_hierarchies_20261002/hierarchies.py` (one history, n = 1).
+- **Allocation, belief and baseline sections** predate the last two estimator revisions. The doc says so; their key cells reproduced in Sections 9 and 11.
 
 ## 5. Files touched this session (since `archive/pre-restructure-20260930`)
 
@@ -151,6 +209,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 - L2 panels: `l2_baseline_20261002`, `l2_baseline_h4_modeled4000_20261002`, `l2_ipf_miss_20261002`, `l2_mid_episode_20261002`, `l2_compressed_20261002`, `l2_compressed_k6_20261002`, `l2_revalidate_belief_sampling_20261002`;
 - gates and references: `l1_qualification_belief_sampling_20261002`, `reference_scaling_20261002`;
 - chance scoring: `l1_qualification_chance_scoring_20261002`, `l2_chance_scoring_20261002`;
+- report figures: `report_hierarchies_20261002` (nested hierarchies, exact vs compressed 64, L2 to step 8 and L3 to step 5);
 - Wumpus: `wumpus_exact_filtering_20261002`, `wumpus_split_pilot_20261002`.
 
 ## 6. Tried and did not work (do not repeat)
@@ -168,7 +227,10 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Raising root simulations to fix H4 L2 misses | No effect; the misses are opponent-model error | Raise the modeled budget (4,000 at depth 4) |
 | L1 qualification as evidence for the modeled budget | It scores decisions at i's beliefs, not at the beliefs j is modeled at | Qualify modeled agents at their modeled beliefs |
 | Launcher scripts without `if __name__ == "__main__":` | The supervisor uses spawn; workers re-run the launcher and crash on the existing output directory | Always guard launchers |
-| `pkill -f <pattern>` | Killed our own shell | Kill by PID |
+| `pkill -f <pattern>`, or `for p in $(pgrep -f <pattern>); do kill $p; done` | Killed our own shell, because the pattern also matches the command that runs it (happened again October 2) | Look up the PID with `ps`, then `kill <pid>` |
+| Judging a slow panel by elapsed time | The k = 6 cells looked hung; the cost is the exact reference (about 146 s per problem), not the planner | Time the planner alone with the reference stubbed out, and compare with the previous run's wall time |
+| Scaling simulations to improve long-horizon Q error | L1 H5 Q error is 1.57 at 1,000 simulations and 1.50 at 5,000 | Diagnose the plateau (next step 3) |
+| Renormalizing exact chance weights over sampled branches | Same decisions, more upward bias (listen at L1 H4: +0.04 → +0.13) | Keep the whole-action fallback |
 | Editing `src/` (including formatting) while supervised jobs run | The source lock fails, or workers import mixed code | Wait for runs to finish |
 | `sleep N` chained in foreground tool calls | Blocked by the harness | Background job plus an `until …; do sleep 30; done` waiter |
 
