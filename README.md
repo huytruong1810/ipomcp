@@ -1,155 +1,73 @@
-# Interactive POMCP research framework
+# ipomdp: online planning for finitely nested interactive POMDPs
 
-This project studies finite hierarchies of agent models with Monte Carlo planning
-in Tiger, UAV pursuit, and Wumpus domains. It contains an I-POMCP-style planner and
-a sampled reachability-tree comparator. Both use immutable joint beliefs and a
-recursive finite Bayesian filter. Finite priors and finite search remain explicit
-approximations; passing tests does not prove optimality or convergence.
+An I-POMDP agent plans while reasoning about another agent who reasons about it,
+down to a finite nesting level. This package implements:
 
-**The long full suite is not yet scientifically qualified.** The current review
-corrects a hidden-state leak in the L2 reference solver and restores intentional
-belief updates during MCTS rollouts. Matched oracle sweeps expose finite-budget
-planning error. Read [the theory contract](docs/THEORY.md), [open gates](BACKLOG.md),
-[review phases](docs/REVIEW.md), and [handoff](HANDOFF.md) before a large study.
+1. **An online sampling-based I-POMDP planner (I-POMCP).** It combines nested
+   Monte Carlo tree search, where opponents are simulated by their own modeled
+   planners, with either exact interactive belief updates or the interactive
+   particle filter (IPF). The cost of searching futures and the cost of
+   modeling minds are separate, measured budgets.
+2. **Exact references** for measuring planning error: the exact best response
+   to declared opponent models (any level, any finite domain), exact I-POMDP
+   agents built from it, and alpha-vector value iteration for level 1.
+3. **Interpretability data:** nested belief hierarchies (who believes what about
+   whom, at what level), recorded every step for sunburst views.
 
-## Setup and validation
+Domains: two-agent Tiger (Gmytrasiewicz & Doshi, 2005), UAV pursuit, and a
+two-agent Wumpus world. Their specifications are in [docs/DOMAINS.md](docs/DOMAINS.md).
 
-The supported execution environment is Linux, including WSL, with Python 3.12+.
-Resource measurements use Linux `/proc`; unavailable measurements raise errors.
-Install `uv`, then run from the repository root:
+## Setup
+
+Linux (including WSL) with Python 3.12+ and [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync --frozen --group dev
-uv run pytest -q -rxX
-uv run ruff check src tests benchmarks
-uv run ruff format --check src tests benchmarks
-uv build --wheel
-
-# Full planning budgets, one twenty-step trial for every actual condition.
-uv run python benchmarks/qualify_suite.py --out results/qualification --steps 20
+uv run pytest -q          # about 45 s; includes the L1 convergence gate
+uv run ruff check src tests && uv run ruff format --check src tests
 ```
 
-Graphviz tree rendering also requires the system `dot` executable. Python's
-`graphviz` package is required; a failed rendering is reported rather than silently
-omitted. Rendering is optional when tree export is disabled.
+## Qualification first, scale second
 
-Independent finite Tiger references check filtering and action values. They do
-not prove convergence or all-domain optimality. Exact planning is implemented for
-bounded L1/L2 Tiger problems with stated information and horizon conventions.
-Matched comparisons cover L1 versus uniform L0 and bounded L2 best responses
-to declared exact or finite-computation L1 policies. The L2 studies use a point
-prior on the opponent's private belief; they do not qualify empirical mixed
-hierarchies or long episode performance.
-
-## Experiments
-
-Level zero means **uniform-random behavior** in this codebase. It is not the
-optimizing level-zero POMDP used in some I-POMDP literature. Higher levels model
-mixtures over lower levels. Separate solver banks isolate the two real agents.
-Tiger uses 85% growl accuracy and 100% creak accuracy in the principal experiments;
-an opening resets the physical tiger before observations unless persistent mode
-is explicitly selected. Its leaf rollout uses a declared physical-memory heuristic; every legal tree action remains available.
+No study runs at scale before its small-scale behaviour is verified against an
+exact reference. The gates, in order:
 
 ```bash
-# One condition: L3 versus L2, with 80% prior mass on L2.
-uv run python -m examples.experiments.deep_hierarchy_prior_experiment --trials 30 --steps 20 --condition 1
-
-# Matched oracle budget/error/cost sweep; failures remain recorded.
-uv run python -m examples.experiments.planner_oracle_experiment --out results/oracle-study --budgets 1000 10000 50000 --horizons 1 2 3 --seeds 10
-
-# Post-search L2 diagnostics from an audited JSON containing full error rows.
-# Output must be new; this is development evidence, never a validation gate.
-uv run python -m examples.experiments.tree_diagnostics --input results/oracle/l2_rewards_100k_review_20260926.json --output results/oracle/descendant-diagnostics
-
-# Full-suite entry point; qualification blockers remain (see BACKLOG.md).
-uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite all
-
-# Resume exactly one suite, using its actual output directory.
-uv run python -m examples.experiments.run_benchmarks --trials 100 --steps 20 --suite prior --resume-dir /absolute/run/directory
-
-# Audit driver, explicitly binding the source checkout and output directory.
-uv run python benchmarks/tiger_pre_post_benchmark.py --repo "$PWD" --out results/tiger-audit --trials 30 --steps 20 --workers 4
+# Planner vs exact value iteration (L1 Tiger, horizons 1-5)
+uv run python -m ipomdp.experiments.l1_qualification --output results/l1_qualification
+# IPF beliefs vs exact beliefs along the same histories (L2/L3 Tiger)
+uv run python -m ipomdp.experiments.ipf_qualification --output results/ipf_qualification
+# Planner vs exact best response or exact I-POMDP on matched problems (L1/L2 Tiger)
+uv run python -m ipomdp.experiments.oracle --out results/oracle --budgets 1000 --horizons 3 --seeds 5 --beliefs 0.2 0.5
+# Root search vs opponent modeling at matched cost, vs the exact I-POMDP (L2 Tiger)
+uv run python -m ipomdp.experiments.allocation_study --output results/allocation_study
 ```
 
-`run_benchmarks` supports `prior`, `comparison`, `matrix`, `optimal`, or `all`. Resuming `all`
-with a single suite directory is rejected. Batch manifests bind source and
-configuration; per-trial CSV checkpoints must contain every step, including step
-zero and absorbing terminal padding. Completion markers bind final CSV bytes.
-All batch and snapshot trials use process isolation and time/RSS limits from
-ExperimentConfig. Failed attempts retain logs and diagnostics alongside successful
-checkpoints. Incompatible old results require a fresh output directory; there is no schema
-migration or compatibility reader.
+Current results, each with its sample size, are in [docs/RESULTS.md](docs/RESULTS.md).
 
-Interaction horizon and planning depth are different quantities. The audit uses
-20 environment decisions and depth-five search, with 20,000 L3 and 15,000 L2 root
-simulations per decision. Initial physical sample counts are 2,000 and 1,500. Nested models share their own
-bank's empirical physical prior; level weights are exact and search-node capacity
-does not clip the live belief. Modeled MCTS policies use 25 simulations by default,
-which differs from the real-agent budgets and must be reported.
+## Layout
 
-## Layout and result interpretation
+```
+src/ipomdp/
+  model/        the domain contract: exact kernels, rewards with bounds; sampling derived
+  domains/      tiger, uav, wumpus
+  belief/       interactive states, canonical identity, exact filter, particle filter
+  planning/     I-POMCP planner, exploration, history nodes, solver bank
+  reference/    exact best response, exact I-POMDP agents, L1 alpha-vector iteration
+  experiments/  hierarchy builder, episode runner, qualification and study drivers
+  analysis/     statistics, error attribution, figures
+  infra/        process supervision, source locks, resource measurement, paths
+tests/          contract, unit, reference and qualification tests
+docs/           architecture, theory, domains, results, handoff; review/ records the
+                review that preceded the current design
+```
 
-`core/` defines probability, model, configuration, logging, and telemetry contracts.
-`ipomdp/` holds particle/frame representations. `solvers/` implements search and
-model propagation. `utils/` assembles hierarchies, executes batches, and renders
-recorded data. `examples/` contains domains and experiment designs. `tests/`
-contains regressions and bounded exact references. `benchmarks/` contains the
-matched-run audit driver.
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the parts fit and why;
+[docs/THEORY.md](docs/THEORY.md) states what is computed exactly, what is
+estimated, and what "exact" means in each error measure.
 
-Results live under `results/`, or the `IPOMCP_RESULTS_DIR` override. Source control
-ignores runtime results, caches, environments, and builds. Retain raw trial data,
-configuration, source hashes, and execution logs when archiving a study; regenerate
-figures from those records. The removed synthetic reward/sunburst generators are
-not valid solver evidence. Their original source remains in Git history.
+## Results directory
 
-Reported cumulative rewards are undiscounted observed returns; planners optimize
-a discounted, truncated objective. Compare independent trial totals with paired
-seed analyses where designs share seeds. A confidence interval crossing zero is
-not evidence of equivalence. Payoff matrices describe a finite policy set and do
-not prove convergence as reasoning depth increases or an equilibrium of the
-underlying partially observed game.
-
-
-The matched oracle runner now exposes `--exploration normalized|standard|bounded`
-and `--exploration-const` for explicit MCTS exploration experiments. Defaults are
-unchanged. Every setting in the September 24 calibration still made some
-suboptimal choices; this is diagnostic tooling, not full-suite qualification.
-See `docs/BENCHMARK.md` for results and `HANDOFF.md` for runner instructions.
-
-The bounded-c1 and exact-tail candidates failed their respective fixed validation
-gates; the 200k exact-tail run failed 80/720 decisions. Those inspected cases are
-now development data. The oracle CLI's `--seed-start` records seed ranges in each
-manifest; fresh validation requires an untouched set and a predeclared loss bound.
-
-Two opt-in MCTS options are available: exact final-step posterior integration
-and empirical chance-weighted Bellman backups. With bounded UCB c=1 and 1M
-traversals, their combination passed the frozen .020 first-action-loss gate on
-2000 fresh L1 Tiger cases (H1-H5): all tested actions matched the exact reference.
-This is a finite-panel result, not a general optimality guarantee. Production
-defaults remain unchanged because their budgets, horizons and opponent models
-differ. Deeper agents and the full suite remain unqualified. Recorded elapsed
-timing is inconsistent with worker durations and is under investigation.
-See docs/THEORY.md for estimator semantics, docs/BENCHMARK.md for the audited
-evidence, and HANDOFF.md for the current L2 development protocol.
-
-The oracle CLI now supports --level 2 with an explicit --opponent-depth and
---opponent-belief. Both planners then model the same exact L1 opponent, replanning
-at a fixed depth; this differs from finite-budget production opponents.
-See docs/L2_CONTRACT.md for the mathematical contract. Oracle panels record
-parent monotonic timing and enforce the worker concurrency bound; older external
-timing discrepancies remain unresolved.
-
-
-For finite modeled opponents, add --opponent-budget to the L2 oracle command.
-The reference then computes an exhaustive response to that declared MCTS L1
-policy; it does not assume the opponent is optimal. Separate opponent backup,
-tail and exploration options are recorded with the full configuration.
-Canonical belief sampling now enforces order-independent private-policy identity.
-Historical runs remain tied to their source checkpoints.
-
-
-The matched MCTS runner also offers --exact-history-rewards to integrate
-immediate rewards at visited tree histories from the full joint posterior.
-It is independent of --exact-final-step; other rollout rewards remain sampled.
-This is an opt-in development estimator, not a promoted production default.
-The fresh L2 gate failed; consult HANDOFF.md for current control/candidate work.
+Experiment outputs go to `results/` (git-ignored). Each run directory holds a
+manifest with the source hashes it ran under; a run never overwrites an
+existing directory. Back up `results/` outside the working machine.
