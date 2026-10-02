@@ -28,18 +28,15 @@ Read this first. Then read [ARCHITECTURE.md](ARCHITECTURE.md), [THEORY.md](THEOR
 
 ## Next steps, in order
 
-1. **Contribution 2, next rungs.** The compressed filter (RESULTS.md Section 8) is now the planner's bounded belief. It is about as accurate as exact beliefs at N = 64, and 14 times faster than exact at k = 4. Next:
-   - L3 decisions against the exact L3 I-POMDP where tractable;
-   - histories beyond k = 4 with a reference that scales (exact filtering of i plus a bounded nested enumeration), so the regime where only bounded beliefs run can be scored;
-   - the IPF + RTS baseline keeps the sampled IPF (as published); report RTS with compressed beliefs as an ablation.
-2. **Per-level modeled budgets.** The allocation rule says modeled agents must
-   be accurate at the beliefs they are modeled at; lower levels are cheaper and
-   more numerous, so a per-level budget may buy that accuracy more cheaply.
-3. **Wumpus.** Add IPF reinvigoration from the exact prior conditioned on the
-   agent's own history (deterministic sensors make particle beliefs lose the
-   true world).
-4. **R9.** Every rung passes its gate before the next starts. Report IPF
-   hierarchy errors with N ≥ 1,024, mean and maximum.
+1. **Contribution 2, next rungs.**
+   - The compressed filter (RESULTS.md Section 8) is the planner's bounded belief.
+   - The exact I-POMDP reference scores to k = 6 with `oracle.REFERENCE_BRANCHES`.
+   - Next: L3 decisions against the exact L3 I-POMDP where tractable. The IPF + RTS baseline keeps the sampled IPF; RTS with compressed beliefs is an ablation.
+2. **Wumpus qualification** (RESULTS.md Section 10).
+   - Exact real beliefs with a compressed search (`search_particles`) removes the zero-evidence failure, and the exact L1 reference is tractable at H3.
+   - Accuracy is not qualified yet: run a grid over search N (64 to 4,096) × simulations (1k to 10k) against the exact reference.
+3. **Per-level modeled budgets.** Section 9 shows H4 decisions at 100 modeled simulations depend on luck in the opponent models, so set modeled budgets by each level's own qualification.
+4. **R9.** Every rung passes its gate before the next starts.
 
 ## Merging into main
 
