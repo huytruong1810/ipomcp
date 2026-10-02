@@ -32,10 +32,9 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 - Run code with `.venv/bin/python` from the repository root. The editable install points at `src/`, so no `PYTHONPATH` is needed.
 - **Do not push to `origin`** unless the user asks.
 - Back up before deleting evidence. Kill processes by PID only.
-- **Housekeeping the user still has to do:** the permission classifier blocked deleting files and folders. These are left over:
-  - the worktree `/home/andyj1810/projects/ipomcp-claude` (branch `claude/restructure`, fully merged; its `results/` were copied into `results/`): `git worktree remove ../ipomcp-claude`;
-  - ignored legacy leftovers `src/core`, `src/examples`, `src/solvers`, `src/utils` (only `__pycache__`), `src/i_pomcp_py.egg-info` and `benchmarks/`;
-  - about 12 GB of legacy raw outputs in `results/` (`oracle/`, `archive/`, the `*-202609*` folders, `deep_prior/`, `payoff_matrix/`, `review-20260923/`). They are evidence for the legacy code only. The audit of the last legacy run is in `results/oracle/l2_recursive_chance_development_claude_audit_20261002/`. Archive them off the machine or delete them, as the user decides.
+- **Housekeeping.** The worktree and the legacy caches were removed on October 2. Two optional items remain; the permission classifier blocks Claude from deleting them, so the user decides:
+  - **Legacy raw outputs, about 12 GB in `results/`:** `oracle/`, `archive/`, `deep_prior/`, `payoff_matrix/`, `review-20260923/`, `tiger/`, and the `*-202609*` folders (`bellman-backup`, `exact-tail`, `exploration`, `history-rewards`, `l2-contract`, `l2-finite`). They are evidence for the retired code only. Material up to September 30 is backed up on `C:\`. The recursive-chance panels of September 30–October 1 and Claude's audit (`results/oracle/l2_recursive_chance_development_claude_audit_20261002/`) are not backed up yet. Every other folder in `results/` belongs to the current package.
+  - **Stale branches:** `claude/restructure`, `claude/l3-l2-tiger-experiment`, `claude/snapshot-and-hardening`, `refactor/bigtech-hardening`, `review/rigor-20260916`, `backup/antigravity-before-supervision-20260919` and `archive/*`. `codex/final-20261002` is also covered by its tag. All are merged into `main` or preserved by tags, so `git branch -D` loses nothing that `main` and the tags do not hold.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Report results with chosen methods only, label interim n, and define jargon (the user's report style).
 
@@ -121,7 +120,6 @@ studies/        tiger_l3_vs_l2.toml
    - I-POMCP (compressed) vs IPF + RTS (sampled, as published) on longer histories and L3.
    - Report RTS with compressed beliefs as an ablation; it shows that RTS's misses are search error.
 5. **R9 scale-up ladder:** Tiger L1 → L4, then UAV, then Wumpus. Each rung passes its gate first. Then rerun the L3-vs-L2 study (`studies/tiger_l3_vs_l2.toml`, now on compressed beliefs by default) for sunbursts (contribution 3).
-6. Clear the housekeeping items in Section 1 once the user has done or approved them.
 
 ## 5. Files touched this session (since `archive/pre-restructure-20260930`)
 
