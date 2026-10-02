@@ -9,7 +9,7 @@ from ipomdp.belief.finite_filter import InferenceBudgetExceeded
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.experiments.oracle import evaluate_case, run_oracle_comparison
-from ipomdp.planning.config import IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.solver_bank import SolverBank
@@ -24,12 +24,8 @@ def setup(seed=4, p=0.5, p_j=0.085):
     provider = IPOMCPPlanner(
         SolverKey("j", 1),
         physics,
-        list(ACTIONS),
         bank,
-        config=IPOMCPConfig(
-            mcts=MCTSConfig(max_depth=3, n_sims=1000),
-            opponent=OpponentPolicyConfig(n_sims=25),
-        ),
+        PlannerConfig(simulations=1000, depth=3, modeled_simulations=25),
     )
     bank.register_solver(SolverKey("j", 1), provider)
     l0 = MentalModel(AgentFrame("i", 0, physics))
@@ -214,40 +210,24 @@ def test_reference_budget_failure_is_explicit():
 
 
 def test_runner_records_distinct_real_and_modeled_configuration():
-    row = evaluate_case(
-        "mcts",
-        2,
-        100,
-        11,
-        0.5,
-        0.95,
-        "bounded",
-        1,
-        True,
-        "empirical_bellman",
-        level=2,
-        opponent_depth=2,
-        opponent_budget=25,
-    )[0]
-    assert row["opponent_model"]["policy"] == "finite_mcts_l1"
-    assert row["opponent_model"]["bank_seed"] == row["bank_seed"] == 11
-    assert row["opponent_model"]["config"]["opponent"]["n_sims"] == 25
-    assert row["opponent_model"]["config"]["mcts"]["max_depth"] == 2
-    assert row["opponent_model"]["config"]["mcts"]["backup"] == "sampled"
-    assert row["planner_config"]["mcts"]["n_sims"] == 100
-    assert row["planner_config"]["mcts"]["backup"] == "empirical_bellman"
+    row = evaluate_case("mcts", 2, 100, 11, 0.5, level=2, opponent_depth=2, opponent_budget=25)[0]
+    assert row["opponent"] == {
+        "policy": "ipomcp_l1",
+        "depth": 2,
+        "budget": 25,
+        "initial_belief_p": 0.5,
+    }
+    assert row["planner_config"]["simulations"] == 100
     assert row["oracle_q"]["L"] == pytest.approx(-1.95)
 
 
-def test_ambiguous_modeled_options_rejected_before_output(tmp_path):
-    with pytest.raises(ValueError, match="explicit opponent budget"):
+def test_invalid_problems_rejected_before_output(tmp_path):
+    with pytest.raises(ValueError, match="explicit positive opponent depth"):
         run_oracle_comparison(
-            tmp_path / "invalid",
-            planners=("mcts",),
-            level=2,
-            opponent_depth=2,
-            opponent_backup="empirical_bellman",
+            tmp_path / "invalid", budgets=[10], horizons=[1], seeds=1, beliefs=[0.5], level=2
         )
-    with pytest.raises(ValueError, match="requires L2"):
-        run_oracle_comparison(tmp_path / "l1", opponent_budget=25)
+    with pytest.raises(ValueError, match="no opponent depth or budget"):
+        run_oracle_comparison(
+            tmp_path / "l1", budgets=[10], horizons=[1], seeds=1, beliefs=[0.5], opponent_budget=25
+        )
     assert not list(tmp_path.iterdir())

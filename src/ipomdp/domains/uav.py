@@ -152,5 +152,9 @@ class UAVModel(POMDPModel):
         # Target Perspective
         return -1.0 if is_caught else 0.1
 
+    def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
+        """UAV: -0.1 per step, +1 on capture. Target: +0.1 per step, -1 when caught."""
+        return (-0.1, 1.0) if str(agent_id).lower() == "i" else (-1.0, 0.1)
+
     def is_terminal(self, state: UAVState) -> bool:
         return state.uav_pos == state.target_pos

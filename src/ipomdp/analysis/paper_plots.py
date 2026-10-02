@@ -60,7 +60,7 @@ def generate_paper_plots(
     prefix = _resolve_title_prefix(output_dir, title_prefix)
 
     df = df.sort_values(["trial", "step"]).copy()
-    df["cum_time"] = df.groupby("trial")["planning_time_i"].cumsum()
+    df["cum_time"] = df.groupby("trial")["planning_cpu_i"].cumsum()
     df["time_bucket"] = df["cum_time"].round(1)
     _plot_cumulative_reward(df, labels, prefix, output_dir)
     _plot_compute_normalized_reward(df, labels, prefix, output_dir)

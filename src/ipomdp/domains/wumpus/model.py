@@ -12,7 +12,7 @@ define a different sensor model and is not used.
 """
 
 import random
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from ipomdp.domains.wumpus.constants import (
     ACTION_FORWARD,
@@ -293,6 +293,10 @@ class WumpusModel(POMDPModel):
         if set(observation) == true_obs:
             return 1.0
         return 0.0
+
+    def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
+        """Both agents' rewards lie in [-1000, 1000] (death, gold, kill, step costs)."""
+        return (-1000.0, 1000.0)
 
     def is_terminal(self, state: WumpusState) -> bool:
         return (not state.human_alive) or state.has_gold

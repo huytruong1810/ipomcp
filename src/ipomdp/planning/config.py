@@ -1,190 +1,60 @@
-"""
-config.py — Immutable configuration schemas for the I-POMDP infrastructure.
+"""Planner configuration: the only tunable quantities of the I-POMCP planner.
 
-Centralizes all algorithmic hyperparameters (MCTS constraints, modeled-policy budgets, and batch experiment configurations) into strictly
-typed, frozen dataclasses. Supports serialization for experimental reproducibility.
+Why so few fields
+-----------------
+The planner implements one estimator, chosen because it is the only one shown
+to converge to the exact finite-horizon solution (L1 against alpha-vector value
+iteration at horizons 1-5; L2 against exhaustive references). Its components are
+fixed, not configurable:
+
+- empirical chance-weighted Bellman backups (``node.POMCPNode.bellman_backup``);
+- exact one-step leaf values at the planning horizon, integrated over the full
+  private-history belief before maximizing;
+- exact expected immediate rewards at every tree history (a control variate);
+- horizon-bounded UCB exploration scaled by the domain's declared reward bounds.
+
+Earlier alternatives (sampled-return backups, empirical-range UCB, root or
+recursive chance rescoring, a two-step exact tail) were removed because they
+either did not converge or did not generalise beyond Tiger. A switch that
+selects a non-convergent estimator is a way to produce wrong results, not a
+feature.
+
+What remains are computational budgets and two scalars of the decision problem.
 """
 
-import json
 import math
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Dict
-
-# Centralized, memory-safe simulation and particle schedules across reasoning levels (L0-L4)
-DEFAULT_SIM_SCHEDULE: Dict[int, int] = {0: 0, 1: 10000, 2: 15000, 3: 20000, 4: 25000}
-
-# Balanced particle budget across reasoning levels (L0-L4)
-DEFAULT_PARTICLE_SCHEDULE: Dict[int, int] = {0: 0, 1: 1000, 2: 1500, 3: 2000, 4: 2000}
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class OpponentPolicyConfig:
-    """Fixed simulation budget for reproducible modeled MCTS policies.
-
-    Real and modeled decisions use the same maximizing-Q rule. Their different
-    finite budgets are explicit approximations, never an entropy-dependent change
-    to an already queried model policy.
-    """
-
-    n_sims: int = 25
-
-    def __post_init__(self):
-        _integer(self.n_sims, "modeled n_sims")
-
-
-@dataclass(frozen=True)
-class MCTSConfig:
-    """Core bounds and capacity constraints for Monte Carlo Tree Search."""
-
-    gamma: float = 0.95
-    max_depth: int = 20
-    n_sims: int = 1000
-    node_capacity: int = 500
-    exploration_const: float = 1.0
-    # Experimental finite-model tail evaluation. Full private-history beliefs
-    # are propagated during search; the default boundary integrates the last decision.
-    # This can cost substantially more than generative-only search at high levels.
-    exact_final_step: bool = False
-    # Integrate immediate rewards at visited tree histories from the full joint
-    # posterior. Continuations and rollout rewards remain sampled. This is
-    # independent of the exact final-step boundary and is not an exact Q solver.
-    exact_history_rewards: bool = False
-    # Experimental empirical Bellman estimates are distinct from mean trajectory
-    # returns. Keep the estimator explicit in policy seeds and run manifests.
-    backup: str = "sampled"
-    # Opt-in two-decision Bellman boundary; one preserves the historical option.
-    exact_tail_depth: int = 1
-    # Final recommendation only; excluded from search randomness.
-    exact_root_chance: bool = False
-    recursive_chance: bool = False
-
-    def __post_init__(self):
-        if type(self.recursive_chance) is not bool:
-            raise ValueError("recursive_chance must be a boolean")
-        if self.recursive_chance and self.exact_root_chance:
-            raise ValueError("Choose one final chance scoring mode")
-        if self.recursive_chance and self.backup != "empirical_bellman":
-            raise ValueError("recursive_chance requires empirical_bellman")
-        if type(self.exact_root_chance) is not bool:
-            raise ValueError("exact_root_chance must be a boolean")
-        if self.exact_root_chance and self.backup != "empirical_bellman":
-            raise ValueError("exact_root_chance requires empirical_bellman")
-        _unit(self.gamma, "gamma")
-        _integer(self.max_depth, "max_depth")
-        _integer(self.n_sims, "n_sims")
-        _integer(self.node_capacity, "node_capacity")
-        _positive(self.exploration_const, "exploration_const")
-        if self.backup not in ("sampled", "empirical_bellman"):
-            raise ValueError("backup must be sampled or empirical_bellman")
-        if type(self.exact_final_step) is not bool:
-            raise ValueError("exact_final_step must be a boolean")
-        if type(self.exact_tail_depth) is not int or self.exact_tail_depth not in (1, 2):
-            raise ValueError("exact_tail_depth must be 1 or 2")
-        if self.exact_tail_depth != 1 and not self.exact_final_step:
-            raise ValueError("exact_tail_depth=2 requires exact_final_step")
-        if type(self.exact_history_rewards) is not bool:
-            raise ValueError("exact_history_rewards must be a boolean")
-
-
-@dataclass(frozen=True)
-class RTSConfig:
-    """Hyperparameters governing Reachability Tree Sampling (RTS) sampled lookahead baseline.
+class PlannerConfig:
+    """Budgets and decision-problem constants for one I-POMCP planner.
 
     Attributes:
-        gamma: Discount factor applied to future time-horizon rewards.
-        max_depth: Maximum tree depth for reachability tree expansion.
-        obs_branching: Maximum top-k highest likelihood observations to branch across.
-        num_particles: Particle population size maintained for belief resampling.
+        simulations: Root simulations for a real decision of this agent.
+        depth: Planning horizon in decisions (fixed receding lookahead). The
+            planner is never told the episode length.
+        modeled_simulations: Root simulations used when this planner is queried
+            as a *modeled* opponent inside another agent's belief. It is the
+            budget of "simulating other minds", and is reported separately
+            because it dominates opponent-model error.
+        gamma: Discount factor of the planning objective.
+        exploration: Dimensionless UCB constant multiplying the horizon-scaled
+            reward width (see ``exploration.HorizonBoundUCB``).
     """
 
+    simulations: int
+    depth: int
+    modeled_simulations: int
     gamma: float = 0.95
-    max_depth: int = 3
-    obs_branching: int = 3
-    num_particles: int = 100
+    exploration: float = 1.0
 
     def __post_init__(self):
-        _unit(self.gamma, "gamma")
-        _integer(self.max_depth, "max_depth")
-        _integer(self.obs_branching, "obs_branching")
-        _integer(self.num_particles, "num_particles")
-
-
-@dataclass(frozen=True)
-class IPOMCPConfig:
-    """Real MCTS and explicit modeled-policy computation budgets."""
-
-    mcts: MCTSConfig = field(default_factory=MCTSConfig)
-    opponent: OpponentPolicyConfig = field(default_factory=OpponentPolicyConfig)
-
-    def to_dict(self):
-        """Keep historical default policy seed/metadata identities unchanged.
-
-        The nondefault tail depth is explicit. Omitting its default prevents a
-        protagonist-only ablation from silently changing finite modeled policies.
-        """
-        result = asdict(self)
-        if self.mcts.exact_tail_depth == 1:
-            result["mcts"].pop("exact_tail_depth")
-        if not self.mcts.exact_root_chance:
-            result["mcts"].pop("exact_root_chance")
-        if not self.mcts.recursive_chance:
-            result["mcts"].pop("recursive_chance")
-        return result
-
-    def to_search_dict(self):
-        """Final scoring does not change the seeded search trajectory."""
-        result = self.to_dict()
-        result["mcts"].pop("exact_root_chance", None)
-        result["mcts"].pop("recursive_chance", None)
-        return result
-
-
-@dataclass(frozen=True)
-class ExperimentConfig:
-    """Execution parameters for the GenericBatchRunner pipeline.
-
-    Attributes:
-        n_trials: Number of independent experimental Monte Carlo trials to execute.
-        max_steps: Maximum step horizon per trial before forced termination.
-        export_trees: Whether to serialize and render Graphviz search trees.
-        verbose: Whether to output per-step JSON metric files to disk.
-    """
-
-    n_trials: int = 1000
-    max_steps: int = 10
-    export_trees: bool = False
-    verbose: bool = False
-    # Limits apply even to a single-worker run. Explicit per-run settings enter
-    # the manifest so resuming cannot silently change the execution contract.
-    max_workers: int = 2
-    trial_timeout_seconds: float = 2400.0
-    max_trial_rss_mb: float = 4096.0
-
-    def save(self, filepath: str) -> None:
-        """Persists the experiment configuration to disk for scientific reproducibility."""
-        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-        with open(filepath, "w") as f:
-            json.dump(asdict(self), f, indent=2)
-
-    def __post_init__(self):
-        _integer(self.n_trials, "n_trials")
-        _integer(self.max_steps, "max_steps", minimum=0)
-        _integer(self.max_workers, "max_workers")
-        _positive(self.trial_timeout_seconds, "trial_timeout_seconds")
-        _positive(self.max_trial_rss_mb, "max_trial_rss_mb")
-
-
-def _integer(value, name, minimum=1):
-    if type(value) is not int or value < minimum:
-        raise ValueError(f"{name} must be an integer >= {minimum}")
-
-
-def _positive(value, name):
-    if not math.isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be finite and positive")
-
-
-def _unit(value, name):
-    if not math.isfinite(value) or not 0 <= value <= 1:
-        raise ValueError(f"{name} must be between zero and one")
+        for name in ("simulations", "depth", "modeled_simulations"):
+            value = getattr(self, name)
+            if type(value) is not int or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        if not math.isfinite(self.gamma) or not 0 <= self.gamma <= 1:
+            raise ValueError("gamma must lie in [0, 1]")
+        if not math.isfinite(self.exploration) or self.exploration <= 0:
+            raise ValueError("exploration must be finite and positive")

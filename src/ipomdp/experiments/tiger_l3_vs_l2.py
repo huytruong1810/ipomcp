@@ -1,10 +1,7 @@
 """Level-3 i versus level-2 j in two-agent Tiger, with both agents' opponent models.
 
-Declared design (September 30):
-- Physics: growl accuracy .85 for both agents, creak accuracy .90 under this
-  repository's sensor law (a listening opponent never creaks; an opening one
-  creaks correctly .90, wrongly .05, silently .05). A heard creak therefore rules
-  out every hypothesis that predicted listening.
+Declared design:
+- Physics: growl accuracy .85 for both agents, creak accuracy .90.
 - i is L3 with prior over j's level {L1: .8, L2: .1, L0: .1}. Its modeled j/L2
   holds {L1: .5, L0: .5} over i, matching the real j's prior (an assumption that
   i knows j's level prior). Every modeled L1 holds uniform L0 opponents.
@@ -29,18 +26,12 @@ from pathlib import Path
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.experiments.batch_runner import (
     GenericBatchRunner,
-    _get_opponent_level_distribution,
     extract_nested_belief_hierarchy,
+    opponent_level_distribution,
 )
-from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
-from ipomdp.planning.config import (
-    DEFAULT_SIM_SCHEDULE,
-    ExperimentConfig,
-    IPOMCPConfig,
-    MCTSConfig,
-    OpponentPolicyConfig,
-)
-from ipomdp.planning.exploration import HorizonBoundUCB, NormalizedUCB
+from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.experiments.config import ExperimentConfig
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
 
 GROWL = {"i": 0.85, "j": 0.85}
@@ -49,62 +40,35 @@ PRIOR_I = {1: 0.8, 2: 0.1, 0: 0.1}
 PRIOR_J = {1: 0.5, 0: 0.5}
 NESTED_I = {3: PRIOR_I, 2: PRIOR_J, 1: {0: 1.0}}
 NESTED_J = {2: PRIOR_J, 1: {0: 1.0}}
-PROFILES = ("default", "validated")
 
 
 def tiger():
     return TigerModel(growl_accuracy=GROWL, creak_accuracy=CREAK)
 
 
-def _exploration(profile):
-    if profile == "default":
-        # The repository's episode runners: sampled backups, normalized UCB.
-        return NormalizedUCB(exploration_const=2**0.5)
-    # Tiger rewards lie in [-100, 10] for every joint action.
-    return HorizonBoundUCB(-100.0, 10.0, 1.0)
-
-
-def _config(profile, n_sims, depth, gamma, modeled_sims):
-    extra = (
-        {}
-        if profile == "default"
-        else dict(
-            backup="empirical_bellman",
-            exact_final_step=True,
-            exact_history_rewards=True,
-        )
-    )
-    return IPOMCPConfig(
-        mcts=MCTSConfig(n_sims=n_sims, max_depth=depth, gamma=gamma, **extra),
-        opponent=OpponentPolicyConfig(n_sims=modeled_sims),
-    )
-
-
-def build_agent(agent_id, level, profile, n_sims, depth, gamma, modeled_sims, max_support=None):
+def build_agent(agent_id, level, n_sims, depth, gamma, modeled_sims, max_support=None):
     """One isolated bank per real agent with an exact balanced physical prior.
 
     ``max_support`` bounds every interactive posterior in this bank (all nesting
-    levels) by deterministic systematic resampling; None keeps exact filtering.
+    levels) by deterministic stratified resampling; None keeps exact filtering.
     """
-    if profile not in PROFILES:
-        raise ValueError(f"Unknown planner profile {profile!r}")
     physics = tiger()
     bank = SolverBank(max_support=max_support)
     bank.set_physical_prior(physics, (TIGER_LEFT, TIGER_RIGHT))
     other = "j" if agent_id == "i" else "i"
     nested = NESTED_I if agent_id == "i" else NESTED_J
-    planner = I_POMDP_Bootstrapper(bank).create_solver(
-        agent_id=agent_id,
-        level=level,
-        model=physics,
-        other_agent_ids=[other],
+    config = PlannerConfig(
+        simulations=n_sims, depth=depth, modeled_simulations=modeled_sims, gamma=gamma
+    )
+    return HierarchyBuilder(bank).build(
+        agent_id,
+        level,
+        physics,
+        other,
+        config=config,
         level_weights=nested[level],
         nested_level_weights=nested,
-        n_particles=2,
-        config=_config(profile, n_sims, depth, gamma, modeled_sims),
-        exploration_strategy=_exploration(profile),
     )
-    return planner
 
 
 def predicted_opponent_actions(planner):
@@ -112,7 +76,6 @@ def predicted_opponent_actions(planner):
 
     Uses the bank's own policy law (the one the filter conditions on) at the
     current belief; mixtures within a level are weighted by their belief mass.
-    Cached policies make this reuse the next search's queries.
     """
     by_level = {}
     for atom, weight in planner.belief.mass:
@@ -147,19 +110,17 @@ class TigerL3vsL2Runner(GenericBatchRunner):
         self,
         config,
         log_dir=None,
-        profile="default",
-        sims_i=DEFAULT_SIM_SCHEDULE[3],
-        sims_j=DEFAULT_SIM_SCHEDULE[2],
-        modeled_sims=25,
+        *,
+        sims_i,
+        sims_j,
+        modeled_sims,
         depth=5,
         gamma=0.95,
         max_support=None,
     ):
         super().__init__(config, log_dir)
-        self.max_support = max_support
-        self.profile = profile
         self.sims_i, self.sims_j, self.modeled_sims = sims_i, sims_j, modeled_sims
-        self.depth, self.gamma = depth, gamma
+        self.depth, self.gamma, self.max_support = depth, gamma, max_support
         self.design = dict(
             growl=GROWL,
             creak=CREAK,
@@ -171,44 +132,17 @@ class TigerL3vsL2Runner(GenericBatchRunner):
     def _setup_domain(self):
         env = tiger()
         planner_i = build_agent(
-            "i",
-            3,
-            self.profile,
-            self.sims_i,
-            self.depth,
-            self.gamma,
-            self.modeled_sims,
-            self.max_support,
+            "i", 3, self.sims_i, self.depth, self.gamma, self.modeled_sims, self.max_support
         )
         planner_j = build_agent(
-            "j",
-            2,
-            self.profile,
-            self.sims_j,
-            self.depth,
-            self.gamma,
-            self.modeled_sims,
-            self.max_support,
+            "j", 2, self.sims_j, self.depth, self.gamma, self.modeled_sims, self.max_support
         )
-        # The generic loop times only i; record j's decision time on the instance.
-        original = planner_j.get_action
-
-        def timed_get_action(*args, **kwargs):
-            start = time.perf_counter()
-            try:
-                return original(*args, **kwargs)
-            finally:
-                planner_j.last_plan_seconds = time.perf_counter() - start
-
-        planner_j.last_plan_seconds = 0.0
-        planner_j.get_action = timed_get_action
-        return env, planner_i, planner_j, env.get_initial_state()
+        return env, planner_i, planner_j
 
     def _get_custom_metrics(self, true_state, next_state, env, planner_i, planner_j):
         """Post-update beliefs of both agents; predictions are for the next step."""
         metrics = dict(
             tiger_state=next_state,
-            planning_time_j=planner_j.last_plan_seconds,
             p_tl_i=physical_belief(planner_i),
             p_tl_j=physical_belief(planner_j),
             hierarchy_i=json.dumps(hierarchy_values(planner_i, "i")),
@@ -216,20 +150,18 @@ class TigerL3vsL2Runner(GenericBatchRunner):
             predicted_j_by_level=json.dumps(predicted_opponent_actions(planner_i)),
             predicted_i_by_level=json.dumps(predicted_opponent_actions(planner_j)),
         )
-        # i's posterior over j's level is added by the generic loop; add j's over i.
-        metrics.update(_get_opponent_level_distribution(planner_j, "i"))
+        metrics.update(opponent_level_distribution(planner_j, "i"))
         return metrics
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--trials", type=int, default=100)
-    parser.add_argument("--steps", type=int, default=20)
-    parser.add_argument("--workers", type=int, default=21)
-    parser.add_argument("--profile", choices=PROFILES, default="validated")
-    parser.add_argument("--modeled-sims", type=int, default=25)
-    parser.add_argument("--sims-i", type=int, default=DEFAULT_SIM_SCHEDULE[3])
-    parser.add_argument("--sims-j", type=int, default=DEFAULT_SIM_SCHEDULE[2])
+    parser.add_argument("--trials", type=int, required=True)
+    parser.add_argument("--steps", type=int, required=True)
+    parser.add_argument("--workers", type=int, default=2)
+    parser.add_argument("--sims-i", type=int, required=True)
+    parser.add_argument("--sims-j", type=int, required=True)
+    parser.add_argument("--modeled-sims", type=int, required=True)
     parser.add_argument("--depth", type=int, default=5)
     parser.add_argument("--max-support", type=int)
     parser.add_argument("--timeout", type=int, default=7200)
@@ -247,11 +179,8 @@ def main():
             max_workers=args.workers,
             trial_timeout_seconds=args.timeout,
             max_trial_rss_mb=args.max_rss_mb,
-            export_trees=False,
-            verbose=False,
         ),
         log_dir=str(output),
-        profile=args.profile,
         sims_i=args.sims_i,
         sims_j=args.sims_j,
         modeled_sims=args.modeled_sims,

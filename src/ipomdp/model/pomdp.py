@@ -130,6 +130,16 @@ class POMDPModel(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def reward_bounds(self, agent_id: AgentID) -> tuple[float, float]:
+        """Inclusive (min, max) of ``get_reward`` over every reachable transition.
+
+        The planner's exploration scale is derived from these bounds, so they
+        must hold for all states and joint actions, not only the likely ones.
+        A bound estimated from sampled returns would leak information about the
+        current particle and would understate rare penalties.
+        """
+
+    @abc.abstractmethod
     def is_terminal(self, state: State) -> bool:
         """
         Evaluates whether the given state represents the end of an episode.

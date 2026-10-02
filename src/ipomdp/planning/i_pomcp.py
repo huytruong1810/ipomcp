@@ -1,20 +1,52 @@
-"""Root-sampling MCTS over immutable joint interactive states.
+"""I-POMCP: root-sampling Monte Carlo tree search over interactive beliefs.
 
-The authoritative belief is a weighted FiniteBelief, independent of search visits
-and child reservoirs. Real observations use the shared recursive Bayesian kernel.
-Search trees are rebuilt for a solve, preventing cached policy predictions from
-depending on unrelated earlier queries. Finite search and an empirical initial
-prior remain approximations; finite conditioning is exact relative to that prior.
+Algorithm (one decision)
+------------------------
+The agent's belief b is a finite joint distribution over physical states and
+complete opponent models (``belief.finite_belief``). For each of N simulations:
+
+1. Draw a root particle (s, m_j) from b.
+2. Descend the tree of the agent's private histories. At history h with
+   remaining horizon H, choose an action by horizon-bounded UCB
+   (``exploration.HorizonBoundUCB``), then simulate one joint step: the
+   opponent acts by its own modeled policy at m_j, the state transitions, both
+   agents observe, and the opponent's private model advances by its own
+   subjective update (``generative_model``).
+3. At a new child, estimate its value by one rollout with the domain's
+   information-respecting rollout policy.
+4. Back up with the empirical chance-weighted Bellman operator
+   (``node.POMCPNode.bellman_backup``).
+
+Two quantities are integrated exactly instead of sampled, because doing so was
+what made the estimator converge against exact references:
+
+- Immediate reward at every tree history: E[R | b_h, a], where b_h is the
+  agent's exact posterior at private history h. The planner carries b_h down
+  the tree with the same belief update used for real observations. b_h never
+  receives the sampled hidden state or the opponent's actual action, so the
+  integration adds no information the agent does not have.
+- The last decision (H = 1): Q_1(b_h, a) = E[R | b_h, a], maximized after
+  integrating, which is the exact finite-horizon boundary condition.
+
+Continuations below the root are still sampled. Search is therefore an
+estimator of the exact finite-horizon I-POMDP value relative to the supplied
+belief and the opponents' modeled policies; it is not an exact solver.
+
+Reproducibility
+---------------
+Each solve seeds its randomness from (bank seed, agent, level, canonical belief
+digest, configuration), and restores the caller's random state afterwards.
+Equal problems therefore receive equal searches regardless of query order,
+which makes modeled opponent policies pure functions of their beliefs.
 """
 
-import math
 import random
-from functools import lru_cache
+from dataclasses import asdict
 
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.planning.config import IPOMCPConfig
-from ipomdp.planning.exploration import NormalizedUCB
+from ipomdp.planning.config import PlannerConfig
+from ipomdp.planning.exploration import HorizonBoundUCB
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.planner import Planner
@@ -22,403 +54,193 @@ from ipomdp.planning.policy import greedy_policy, sample_policy, search_randomne
 
 
 class IPOMCPPlanner(Planner):
-    def __init__(
-        self,
-        solver_key,
-        pomdp_model,
-        action_space,
-        solver_bank,
-        config=None,
-        exploration_strategy=None,
-    ):
-        self.key, self.pomdp_model = solver_key, pomdp_model
-        self.actions, self.solver_bank = list(action_space), solver_bank
-        self.config = config or IPOMCPConfig()
-        self.exploration_strategy = exploration_strategy or NormalizedUCB(
-            self.config.mcts.exploration_const
+    def __init__(self, solver_key, pomdp_model, solver_bank, config: PlannerConfig):
+        self.key, self.pomdp_model, self.solver_bank = solver_key, pomdp_model, solver_bank
+        self.config = config
+        self.actions = list(pomdp_model.get_all_actions(solver_key.agent_id))
+        self.exploration = HorizonBoundUCB.for_agent(
+            pomdp_model, solver_key.agent_id, config.exploration
         )
         self.gen_model = InteractiveGenerativeModel(solver_bank)
-        self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
+        self.root = POMCPNode()
         self.recommendation_values = {}
-        self.root_chance_details = {}
         self.belief = None
         self.initial_belief = None
-        self.initial_sample_count = 0
-        if self.config.mcts.exact_tail_depth == 2:
-            self._tail_action_values = lru_cache(maxsize=1024)(self._tail_action_values)
 
-    def set_initial_belief(self, belief, sample_count):
-        MentalModel(AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model), belief)
+    # ------------------------------------------------------------------ #
+    # Beliefs
+    # ------------------------------------------------------------------ #
+
+    def set_initial_belief(self, belief):
+        self.model(belief)  # validates nesting
         self.belief = self.initial_belief = belief
-        self.initial_sample_count = sample_count
 
     def model(self, belief=None):
-        return MentalModel(
-            AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model),
-            self.belief if belief is None else belief,
-        )
+        frame = AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model)
+        return MentalModel(frame, self.belief if belief is None else belief)
 
-    def policy_for(self, model, modeled=False):
-        if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
-            raise ValueError("Condition on public continuation before requesting a policy")
-        n_sims = self.config.opponent.n_sims if modeled else self.config.mcts.n_sims
-        settings = {
-            "planner": "MCTS",
-            "config": self.config.to_search_dict(),
-            "n_sims": n_sims,
-            "exploration": vars(self.exploration_strategy),
-        }
-        with search_randomness(self.solver_bank.search_seed(model, settings)):
-            node = POMCPNode(capacity=self.config.mcts.node_capacity)
-            legal_sets = {
-                frozenset(self.pomdp_model.get_legal_actions(p.state, self.key.agent_id))
-                for p, _ in model.belief.mass
-                if not self.pomdp_model.is_terminal(p.state)
-            }
-            if len(legal_sets) != 1:
-                raise ValueError("Planning requires one nonterminal observable action set")
-            if n_sims < len(next(iter(legal_sets))):
-                raise ValueError("Search budget must evaluate every available action")
-            particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
-            bounds = {
-                "q_min": float("inf"),
-                "q_max": -float("inf"),
-                "root_rewards": dict(self.solver_bank.expected_rewards(model)),
-            }
-            root_belief = None
-            if model.belief.mass:
-                p_counts = {}
-                for p, mass in self.solver_bank.ordered_mass(model.belief):
-                    p_counts[p.state] = p_counts.get(p.state, 0.0) + mass
-                total_mass = sum(p_counts.values())
-                if total_mass > 0:
-                    root_belief = {s: m / total_mass for s, m in p_counts.items()}
+    def update_root(self, action, observation):
+        """Condition a continuing episode on the agent's own action and observation.
 
-            # Draw in one batch; random.choices constructs its cumulative weights once.
-            for particle in random.choices(particles, weights=weights, k=n_sims):
-                self._simulate(
-                    particle,
-                    node,
-                    0,
-                    bounds,
-                    belief=root_belief,
-                    history_model=model
-                    if self.config.mcts.exact_final_step or self.config.mcts.exact_history_rewards
-                    else None,
-                )
-            values, details = (
-                self._recursive_recommendation(model, node)
-                if self.config.mcts.recursive_chance
-                else self._root_recommendation(model, node)
-                if self.config.mcts.exact_root_chance
-                else (dict(node.action_values), {})
-            )
-            policy = greedy_policy(values)
-        if not modeled:
-            self.root = node
-            self.recommendation_values = values
-            self.root_chance_details = details
-        return policy
-
-    def _recursive_recommendation(self, model, node):
-        from ipomdp.planning.recursive_chance import recursive_recommendation
-
-        return recursive_recommendation(self, model, node)
-
-    def _root_recommendation(self, model, node):
-        """Integrate root chance with fixed child estimates and complete support.
-
-        This does not modify search statistics. Adaptive child estimates need not
-        be unbiased; only the direct root frequency discrepancy is removed.
-        Missing positive mass causes a whole-action empirical fallback.
-        Enumeration/inference failures deliberately propagate.
+        Bank caches are cleared because nested beliefs reachable from the new
+        root are mostly new; cross-step reuse is part of the planned persistent
+        nested-tree design rather than an unbounded cache.
         """
-        cfg = self.config.mcts
-        values, details = dict(node.action_values), {}
-        if cfg.exact_final_step and cfg.max_depth <= cfg.exact_tail_depth:
-            return values, {a: {"status": "exact_tail", "missing_probability": 0.0} for a in values}
-        rewards = dict(self.solver_bank.expected_rewards(model))
-        for action in values:
-            if cfg.max_depth == 1 or cfg.gamma == 0:
-                values[action] = rewards[action]
-                details[action] = {"status": "no_continuation", "missing_probability": 0.0}
-                continue
-            terms, missing = [], []
-            law = self.solver_bank.continuation_law(model, action)
-            for observation, probability in law:
-                if probability <= 0:
-                    continue
-                child = node.get_child(action, observation)
-                if child is None or (not child.action_values and child.rollout_value is None):
-                    missing.append({"observation": repr(observation), "probability": probability})
-                    continue
-                estimate = child.value_estimate()
-                if not math.isfinite(estimate):
-                    raise ValueError("Nonfinite root continuation estimate")
-                terms.append(probability * estimate)
-            details[action] = {
-                "status": "empirical_fallback" if missing else "exact_probabilities",
-                "missing_probability": math.fsum(item["probability"] for item in missing),
-                "missing_branches": missing,
-                "continuation_probability": math.fsum(p for _, p in law),
-            }
-            if not missing:
-                values[action] = rewards[action] + cfg.gamma * math.fsum(terms)
-        return values, details
+        self.belief = self.solver_bank.filter.update(
+            self.model(), action, observation, terminal=False
+        ).belief
+        self.root = POMCPNode()
+        self.recommendation_values = {}
+        self.solver_bank.clear_caches()
+
+    # ------------------------------------------------------------------ #
+    # Decisions
+    # ------------------------------------------------------------------ #
 
     def get_action(self, belief=None):
         return sample_policy(self.policy_for(self.model(belief)))
 
-    def _history_successor(self, model, action, observation):
-        """Condition only on own action, private observation and public survival.
+    def policy_for(self, model, modeled=False):
+        """Greedy policy at ``model``'s belief; ``modeled`` selects the opponent budget."""
+        if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
+            raise ValueError("Condition on public continuation before requesting a policy")
+        simulations = self.config.modeled_simulations if modeled else self.config.simulations
+        legal = self._observable_actions(model)
+        if simulations < len(legal):
+            raise ValueError("Search budget must evaluate every available action")
+        settings = {"planner": "I-POMCP", "config": asdict(self.config), "simulations": simulations}
+        with search_randomness(self.solver_bank.search_seed(model, settings)):
+            node = POMCPNode()
+            particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
+            memory = self._physical_marginal(model)
+            # One batch draw: random.choices builds its cumulative weights once.
+            for particle in random.choices(particles, weights=weights, k=simulations):
+                self._simulate(particle, node, 0, memory, model)
+            values = dict(node.action_values)
+            policy = greedy_policy(values)
+        if not modeled:
+            self.root = node
+            self.recommendation_values = values
+        return policy
 
-        The optional reward integrator and exact tail use the full joint finite posterior, not the
-        Tiger rollout memory or a particle reservoir. No sampled hidden state,
-        actual opponent action, or sampled opponent belief enters this update.
-        Unsupported evidence and enumeration limits propagate as explicit errors.
-        """
-        posterior = self.solver_bank.filter.update(model, action, observation, terminal=False)
-        return MentalModel(model.frame, posterior.belief)
+    # ------------------------------------------------------------------ #
+    # Search
+    # ------------------------------------------------------------------ #
 
-    def _final_action_values(self, model):
-        """One-step Bellman values: integrate uncertainty before maximizing.
-
-        Q_1(b,a) = E[R | b,a]; V_1(b) = max_a Q_1(b,a). There is no future
-        observation or hidden-state maximization in this finite-horizon boundary
-        condition. Exactness is relative to the supplied finite joint belief and
-        the bank's fixed modeled policies, up to floating-point arithmetic.
-        This calls the shared reward integrator, never an external benchmark.
-        """
-        if model is None:
-            raise ValueError("Exact final-step evaluation requires a private-history belief")
-        legal_sets = {
-            frozenset(self.pomdp_model.get_legal_actions(atom.state, self.key.agent_id))
-            for atom, _ in model.belief.mass
-        }
-        if len(legal_sets) != 1 or not next(iter(legal_sets)):
-            raise ValueError("Exact final step requires one observable nonempty action set")
-        legal = next(iter(legal_sets))
-        return {a: q for a, q in self.solver_bank.expected_rewards(model) if a in legal}
-
-    def _tail_action_values(self, model, remaining):
-        """Exact bounded Bellman boundary using production kernels, never an oracle.
-
-        Integrate before maximizing; each observation gets its own successor
-        decision. The finite modeled opponent remains fixed at its declared
-        policy/depth. No hidden-state or opponent-action-conditioned maximization.
-        """
-        rewards = self._final_action_values(model)
-        if remaining == 1:
-            return tuple(rewards.items())
-        if remaining != 2:
-            raise ValueError("Exact tail supports one or two remaining decisions")
-        values = []
-        for action, reward in rewards.items():
-            continuation = math.fsum(
-                probability
-                * max(
-                    self._final_action_values(
-                        self._history_successor(model, action, observation)
-                    ).values()
-                )
-                for observation, probability in self.solver_bank.continuation_law(model, action)
-            )
-            values.append((action, reward + self.config.mcts.gamma * continuation))
-        return tuple(values)
-
-    def _simulate(self, particle, node, depth, bounds, belief=None, history_model=None):
-        if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
+    def _simulate(self, particle, node, depth, memory, history_model):
+        """One descent; returns the sampled-continuation Q estimate at ``node``."""
+        if self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
             return 0.0
-        if (
-            self.config.mcts.exact_final_step
-            and self.config.mcts.max_depth - depth <= self.config.mcts.exact_tail_depth
-        ):
-            # This boundary node is solved by integration, not by sampled action
-            # visits. Keep action_counts empty rather than invent simulation counts.
+        remaining = self.config.depth - depth
+        if remaining == 1:
+            # Boundary history: solved by integration, not by sampled visits, so
+            # it stores values without inventing per-action simulation counts.
             if not node.action_values:
-                node.action_values.update(
-                    self._tail_action_values(history_model, self.config.mcts.max_depth - depth)
-                )
+                node.action_values.update(self._leaf_values(history_model))
             node.visit_count += 1
             return max(node.action_values.values())
-        # Search explores every legal action. A rollout confidence threshold
-        # is not a dominance proof and must never remove tree actions.
         legal = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
-        action = self.exploration_strategy.select_action(
-            node,
-            legal,
-            q_min=bounds["q_min"],
-            q_max=bounds["q_max"],
-            remaining_horizon=self.config.mcts.max_depth - depth,
-            gamma=self.config.mcts.gamma,
+        action = self.exploration.select_action(node, legal, remaining, self.config.gamma)
+        following, joint, _, terminal = self.gen_model.tree_step(
+            particle, action, self.key.agent_id, self.pomdp_model
         )
-        if depth + 1 == self.config.mcts.max_depth:
-            _, _, reward, _ = self.gen_model.sample_event(
-                particle, action, self.key.agent_id, self.pomdp_model
-            )
-            q = reward
+        if terminal:
+            continuation = 0.0
         else:
-            following, joint, reward, terminal = self.gen_model.tree_step(
-                particle, action, self.key.agent_id, self.pomdp_model
-            )
             observation = self.pomdp_model.sample_observation(
                 following.state, joint, self.key.agent_id
             )
+            next_memory = self.pomdp_model.update_rollout_belief(
+                memory, action, observation, self.key.agent_id
+            )
+            next_model = self._history_successor(history_model, action, observation)
             child = node.get_child(action, observation)
-            new = child is None
-            child = node.create_child(action, observation) if new else child
-            child.add_particle(following)
-            next_belief = self.pomdp_model.update_rollout_belief(
-                belief, action, observation, self.key.agent_id
-            )
-            next_model = (
-                self._history_successor(history_model, action, observation)
-                if (self.config.mcts.exact_final_step or self.config.mcts.exact_history_rewards)
-                and not terminal
-                else None
-            )
-            continuation = (
-                0.0
-                if terminal
-                else (
-                    self._rollout(
-                        following, depth + 1, belief=next_belief, history_model=next_model
-                    )
-                    if new
-                    else self._simulate(
-                        following,
-                        child,
-                        depth + 1,
-                        bounds,
-                        belief=next_belief,
-                        history_model=next_model,
-                    )
-                )
-            )
-            if (
-                new
-                and not terminal
-                and self.config.mcts.exact_tail_depth == 2
-                and self.config.mcts.max_depth - depth - 1 <= 2
-            ):
-                # Store the solved boundary even on first expansion. No sampled
-                # action counts are invented, and no rollout frontier is claimed.
-                child.action_values.update(
-                    self._tail_action_values(next_model, self.config.mcts.max_depth - depth - 1)
-                )
-            if self.config.mcts.backup == "empirical_bellman" and not terminal:
-                if new:
-                    child.rollout_value = continuation
-                # Count observed nonterminal outcomes, not visits to a descendant
-                # action or particle-reservoir occupancy. The full action count
-                # below also includes terminal outcomes with zero continuation.
-                counts = node.continuation_counts.setdefault(action, {})
-                counts[observation] = counts.get(observation, 0) + 1
-            q = reward + self.config.mcts.gamma * continuation
-        # Q(h,a) = E[R | h,a] + gamma E[continuation | h,a]. Integrate
-        # against the private-history joint belief, never the sampled state or
-        # its observed opponent action. Reward/continuation correlation does not
-        # change this expectation identity, but total estimator variance need
-        # not decrease: only the immediate term's sampling noise is removed.
-        immediate = reward
-        if depth == 0:
-            immediate = bounds["root_rewards"][action]
-        elif self.config.mcts.exact_history_rewards:
-            if history_model is None:
-                raise ValueError("Exact history rewards require a private-history belief")
-            immediate = dict(self.solver_bank.expected_rewards(history_model))[action]
-        q += immediate - reward
+            if child is None:
+                child = node.create_child(action, observation)
+                continuation = self._rollout(following, depth + 1, next_memory, next_model)
+                child.rollout_value = continuation
+            else:
+                continuation = self._simulate(following, child, depth + 1, next_memory, next_model)
+            counts = node.continuation_counts.setdefault(action, {})
+            counts[observation] = counts.get(observation, 0) + 1
+        immediate = dict(self.solver_bank.expected_rewards(history_model))[action]
         node.action_counts[action] = node.action_counts.get(action, 0) + 1
-        if self.config.mcts.backup == "empirical_bellman":
-            q = node.empirical_bellman_backup(action, immediate, self.config.mcts.gamma)
-        else:
-            node.action_values[action] = (
-                node.action_values.get(action, 0)
-                + (q - node.action_values.get(action, 0)) / node.action_counts[action]
-            )
+        q = node.bellman_backup(action, immediate, self.config.gamma)
         node.visit_count += 1
-        bounds["q_min"], bounds["q_max"] = min(bounds["q_min"], q), max(bounds["q_max"], q)
         return q
 
-    def _rollout(self, particle, depth, belief=None, history_model=None):
-        """Sample the frontier policy; history-reward integration is tree-only.
+    def _rollout(self, particle, depth, memory, history_model):
+        """Sampled return of the domain rollout policy, with the exact last step.
 
-        The separate exact-final-step option still integrates its boundary here.
-        Keeping other rollout rewards sampled isolates the internal-tree reward
-        estimator and avoids changing the declared domain rollout policy.
+        Rollout rewards stay sampled: integrating them would require the exact
+        posterior at every rollout history, which is the cost the tree already
+        pays. Opponent private models still advance at every rollout step,
+        because freezing them would change the opponent's dynamics.
         """
-        if depth >= self.config.mcts.max_depth or self.pomdp_model.is_terminal(particle.state):
+        if self.pomdp_model.is_terminal(particle.state):
             return 0.0
-        if (
-            self.config.mcts.exact_final_step
-            and self.config.mcts.max_depth - depth <= self.config.mcts.exact_tail_depth
-        ):
-            return max(
-                q
-                for _, q in self._tail_action_values(
-                    history_model, self.config.mcts.max_depth - depth
-                )
-            )
+        if self.config.depth - depth == 1:
+            return max(self._leaf_values(history_model).values())
         action = self.pomdp_model.get_rollout_action(
-            particle.state, self.key.agent_id, belief=belief
+            particle.state, self.key.agent_id, belief=memory
         )
         if action not in self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id):
             raise ValueError("Domain rollout policy returned an illegal action")
-        # Only the final reward can omit private model propagation: no later
-        # action depends on it. Earlier rollout steps use the same generative
-        # process as tree steps, including the opponent's private observation
-        # and subjective Bayesian update. Freezing that belief changes dynamics.
-        if depth + 1 >= self.config.mcts.max_depth:
-            return self.gen_model.sample_event(
-                particle, action, self.key.agent_id, self.pomdp_model
-            )[2]
         following, joint, reward, terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model
         )
         if terminal:
             return reward
-        obs = self.pomdp_model.sample_observation(following.state, joint, self.key.agent_id)
-        next_belief = self.pomdp_model.update_rollout_belief(belief, action, obs, self.key.agent_id)
-        next_model = (
-            self._history_successor(history_model, action, obs)
-            if self.config.mcts.exact_final_step
-            else None
+        observation = self.pomdp_model.sample_observation(following.state, joint, self.key.agent_id)
+        next_memory = self.pomdp_model.update_rollout_belief(
+            memory, action, observation, self.key.agent_id
         )
-        return reward + self.config.mcts.gamma * self._rollout(
-            following, depth + 1, belief=next_belief, history_model=next_model
+        next_model = self._history_successor(history_model, action, observation)
+        return reward + self.config.gamma * self._rollout(
+            following, depth + 1, next_memory, next_model
         )
 
-    def update_root(self, action, observation):
-        """Condition a continuing episode on the private sensor and public survival."""
-        # Weighted support is retained in full; child reservoirs do not estimate it.
-        self.belief = self.solver_bank.filter.update(
-            self.model(), action, observation, terminal=False
-        ).belief
-        self.root = POMCPNode(capacity=self.config.mcts.node_capacity)
-        self.recommendation_values = {}
-        self.root_chance_details = {}
-        if self.config.mcts.exact_tail_depth == 2:
-            self._tail_action_values.cache_clear()
-        self.solver_bank.clear_caches()
+    # ------------------------------------------------------------------ #
+    # Exact pieces
+    # ------------------------------------------------------------------ #
+
+    def _history_successor(self, model, action, observation):
+        """The agent's exact posterior after its own action and observation."""
+        posterior = self.solver_bank.filter.update(model, action, observation, terminal=False)
+        return MentalModel(model.frame, posterior.belief)
+
+    def _leaf_values(self, model):
+        """Q_1(b, a) = E[R | b, a] over the full joint belief; maximize afterwards."""
+        legal = self._observable_actions(model)
+        return {a: q for a, q in self.solver_bank.expected_rewards(model) if a in legal}
+
+    def _observable_actions(self, model):
+        """Legal actions must be identical across the belief, or they leak hidden state."""
+        legal_sets = {
+            frozenset(self.pomdp_model.get_legal_actions(atom.state, self.key.agent_id))
+            for atom, _ in model.belief.mass
+            if not self.pomdp_model.is_terminal(atom.state)
+        }
+        if len(legal_sets) != 1 or not next(iter(legal_sets)):
+            raise ValueError("Planning requires one nonempty observable action set")
+        return next(iter(legal_sets))
+
+    @staticmethod
+    def _physical_marginal(model):
+        """Physical marginal of the belief: the initial memory of the rollout policy."""
+        marginal = {}
+        for atom, mass in model.belief.mass:
+            marginal[atom.state] = marginal.get(atom.state, 0.0) + mass
+        return marginal
 
     def get_detailed_stats(self):
         return {
             "key": str(self.key),
-            "n_sims": self.config.mcts.n_sims,
-            "modeled_n_sims": self.config.opponent.n_sims,
-            "exact_final_step": self.config.mcts.exact_final_step,
-            "exact_tail_depth": self.config.mcts.exact_tail_depth,
-            "exact_history_rewards": self.config.mcts.exact_history_rewards,
-            "backup": self.config.mcts.backup,
-            "initial_sample_count": self.initial_sample_count,
+            "simulations": self.config.simulations,
+            "modeled_simulations": self.config.modeled_simulations,
             "belief_size": len(self.belief.mass),
             "root_visit_count": self.root.visit_count,
             "action_values": {str(a): q for a, q in self.root.action_values.items()},
             "action_counts": {str(a): c for a, c in self.root.action_counts.items()},
         }
-
-    def visualize(self, filename, step):
-        from ipomdp.analysis.tree_render import ForestVisualizer
-
-        return ForestVisualizer(self.solver_bank).export_forest(self, filename, step)

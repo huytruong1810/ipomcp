@@ -1,4 +1,8 @@
-"""Analytic internal-history reward checks, independent of oracle action values."""
+"""Immediate rewards at tree histories are integrated over the agent's posterior.
+
+The sampled hidden state of a simulation must never set the reward used in a
+backup: that would let the tree condition on information the agent lacks.
+"""
 
 from types import SimpleNamespace
 
@@ -7,15 +11,14 @@ import pytest
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.experiments.oracle import evaluate_case, run_oracle_comparison
-from ipomdp.planning.config import IPOMCPConfig, MCTSConfig
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 
 
-def setup(backup):
+def setup(depth=2):
     physics = TigerModel()
     bank = SolverBank(seed=1)
     opponent = MentalModel(AgentFrame("j", 0, physics))
@@ -29,47 +32,36 @@ def setup(backup):
     planner = IPOMCPPlanner(
         SolverKey("i", 1),
         physics,
-        physics.get_all_actions("i"),
         bank,
-        config=IPOMCPConfig(
-            mcts=MCTSConfig(max_depth=2, backup=backup, exact_history_rewards=True)
-        ),
-        exploration_strategy=SimpleNamespace(select_action=lambda *args, **kwargs: "OL"),
+        PlannerConfig(simulations=10, depth=depth, modeled_simulations=10),
     )
+    planner.exploration = SimpleNamespace(select_action=lambda *args: "OL")
     return planner, model
 
 
-@pytest.mark.parametrize("backup", ["sampled", "empirical_bellman"])
 @pytest.mark.parametrize("state", [TIGER_LEFT, TIGER_RIGHT])
 @pytest.mark.parametrize("conditioned", [False, True])
-def test_internal_reward_uses_posterior_not_sampled_hidden_state(backup, state, conditioned):
-    planner, model = setup(backup)
+def test_internal_reward_uses_posterior_not_sampled_hidden_state(state, conditioned):
+    planner, model = setup()
     p = 0.07
     if conditioned:
-        # Silence in creak means j listened, so growl Bayes updating is analytic.
+        # Silence in creak means j listened, so the growl update is analytic.
         model = planner._history_successor(model, "L", ("GL", "S"))
         p = 0.07 * 0.85 / (0.07 * 0.85 + 0.93 * 0.15)
     opponent = model.belief.mass[0][0].opponent
     node = POMCPNode()
-    bounds = {"q_min": float("inf"), "q_max": -float("inf"), "root_rewards": {"OL": 999}}
-    value = planner._simulate(
-        InteractiveState(state, opponent), node, 1, bounds, history_model=model
-    )
-    assert value == pytest.approx(10 - 110 * p)
-    assert node.action_values["OL"] == pytest.approx(10 - 110 * p)
-    # Exact rewards do not turn a sampled final tree node into a solved boundary.
+    memory = planner._physical_marginal(model)
+    value = planner._simulate(InteractiveState(state, opponent), node, 0, memory, model)
+    # Opening resets the tiger, so the next (last) decision is at a uniform
+    # belief, where listening (-1) is optimal.
+    expected = (10 - 110 * p) + 0.95 * -1
+    assert value == pytest.approx(expected)
+    assert node.action_values["OL"] == pytest.approx(expected)
     assert node.action_counts == {"OL": 1}
 
 
-@pytest.mark.parametrize("backup", ["sampled", "empirical_bellman"])
-def test_terminal_reward_is_integrated_without_invented_continuation(backup, monkeypatch):
-    planner, model = setup(backup)
-    # Exercise a non-final tree event which publicly terminates. The reward
-    # integrator is independently stubbed as the specified expectation; a large
-    # sampled reward must not leak into either backup or trigger posterior work.
-    planner.config = IPOMCPConfig(
-        mcts=MCTSConfig(max_depth=3, backup=backup, exact_history_rewards=True)
-    )
+def test_terminal_outcome_has_reward_and_no_continuation(monkeypatch):
+    planner, model = setup(depth=3)
     atom = model.belief.mass[0][0]
     monkeypatch.setattr(
         planner.gen_model, "tree_step", lambda *args: (atom, {"i": "OL", "j": "L"}, -100, True)
@@ -81,74 +73,5 @@ def test_terminal_reward_is_integrated_without_invented_continuation(backup, mon
 
     monkeypatch.setattr(planner, "_history_successor", unexpected)
     node = POMCPNode()
-    bounds = {"q_min": float("inf"), "q_max": -float("inf")}
-    assert (
-        planner._simulate(
-            atom,
-            node,
-            1,
-            bounds,
-            belief={TIGER_LEFT: 0.07, TIGER_RIGHT: 0.93},
-            history_model=model,
-        )
-        == 3.0
-    )
+    assert planner._simulate(atom, node, 0, {}, model) == 3.0
     assert node.continuation_counts == {}
-
-
-@pytest.mark.parametrize("tail", [False, True])
-@pytest.mark.parametrize("rewards", [False, True])
-def test_options_independently_control_history_and_tail(tail, rewards, monkeypatch):
-    counts = {"history": 0, "tail": 0}
-    history = IPOMCPPlanner._history_successor
-    final = IPOMCPPlanner._final_action_values
-
-    def track_history(self, *args):
-        counts["history"] += 1
-        return history(self, *args)
-
-    def track_tail(self, *args):
-        counts["tail"] += 1
-        return final(self, *args)
-
-    monkeypatch.setattr(IPOMCPPlanner, "_history_successor", track_history)
-    monkeypatch.setattr(IPOMCPPlanner, "_final_action_values", track_tail)
-    row = evaluate_case(
-        "mcts",
-        3,
-        30,
-        8,
-        0.5,
-        0.95,
-        exact_final_step=tail,
-        exact_history_rewards=rewards,
-        backup="empirical_bellman",
-    )[0]
-    assert bool(counts["history"]) == (tail or rewards)
-    assert bool(counts["tail"]) == tail
-    assert row["exact_history_rewards"] == rewards
-    assert row["planner_config"]["mcts"]["exact_history_rewards"] == rewards
-
-
-def test_option_does_not_change_modeled_policy_or_reference():
-    common = dict(
-        level=2,
-        opponent_depth=3,
-        opponent_budget=25,
-        opponent_belief=0.085,
-        exact_final_step=True,
-        backup="empirical_bellman",
-    )
-    control = evaluate_case("mcts", 2, 30, 4, 0.2, 0.95, **common)[0]
-    candidate = evaluate_case("mcts", 2, 30, 4, 0.2, 0.95, exact_history_rewards=True, **common)[0]
-    assert control["opponent_model"] == candidate["opponent_model"]
-    assert not candidate["opponent_model"]["config"]["mcts"]["exact_history_rewards"]
-    assert control["oracle_q"] == candidate["oracle_q"]
-
-
-def test_invalid_option_rejected_before_artifacts(tmp_path):
-    with pytest.raises(ValueError, match="exact_history_rewards"):
-        MCTSConfig(exact_history_rewards=1)
-    with pytest.raises(ValueError, match="MCTS-only"):
-        run_oracle_comparison(tmp_path / "invalid", planners=("rts",), exact_history_rewards=True)
-    assert not (tmp_path / "invalid").exists()

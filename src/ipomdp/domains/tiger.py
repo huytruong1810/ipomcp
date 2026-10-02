@@ -265,6 +265,10 @@ class TigerModel(POMDPModel):
 
         return 0.0
 
+    def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
+        """Opening onto the tiger costs 100; the treasure pays 10; listening costs 1."""
+        return (-100.0, 10.0)
+
     def is_terminal(self, state: TigerState) -> bool:
         """Tiger is an infinite-horizon task. The state resets, it never terminates."""
         return False

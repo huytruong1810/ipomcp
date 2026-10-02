@@ -9,7 +9,7 @@ import pytest
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.experiments.batch_runner import _get_opponent_level_distribution
+from ipomdp.experiments.batch_runner import opponent_level_distribution
 from ipomdp.experiments.tiger_l3_vs_l2 import (
     PRIOR_I,
     PRIOR_J,
@@ -32,19 +32,19 @@ STATES = (TIGER_LEFT, TIGER_RIGHT)
 def test_explicit_physical_prior_is_exact_and_not_replaceable():
     physics, bank = tiger(), SolverBank(seed=1)
     bank.set_physical_prior(physics, STATES)
-    assert bank.initial_states(physics, 2) == STATES
+    assert bank.physical_prior(physics) == STATES
     with pytest.raises(ValueError, match="already fixed"):
         bank.set_physical_prior(physics, STATES)
-    with pytest.raises(ValueError, match="sample count"):
-        bank.initial_states(physics, 2000)
+    with pytest.raises(ValueError, match="one physical prior"):
+        bank.physical_prior(physics, 2000)
 
 
 @pytest.mark.parametrize("agent_id,level", [("i", 3), ("j", 2)])
 def test_declared_priors_and_hierarchies(agent_id, level):
-    planner = build_agent(agent_id, level, "default", 100, 2, 0.95, 5)
+    planner = build_agent(agent_id, level, 100, 2, 0.95, 5)
     other = "j" if agent_id == "i" else "i"
     expected = PRIOR_I if agent_id == "i" else PRIOR_J
-    levels = _get_opponent_level_distribution(planner, other)
+    levels = opponent_level_distribution(planner, other)
     for k, mass in expected.items():
         assert levels[f"prob_l{k}_{other}"] == pytest.approx(mass, abs=1e-15)
     assert physical_belief(planner) == 0.5
@@ -140,7 +140,7 @@ def independent_level_posterior(planner, action, observation):
 
 @pytest.mark.parametrize("agent_id,level", [("i", 3), ("j", 2)])
 def test_filter_level_posterior_matches_independent_bayes(agent_id, level):
-    planner = build_agent(agent_id, level, "default", 200, 3, 0.95, 10)
+    planner = build_agent(agent_id, level, 200, 3, 0.95, 10)
     other = "j" if agent_id == "i" else "i"
     physics = planner.pomdp_model
     checked = 0
@@ -163,7 +163,7 @@ def test_filter_level_posterior_matches_independent_bayes(agent_id, level):
 
 
 def test_general_reference_handles_mixed_levels_and_conserves_probability():
-    planner = build_agent("j", 2, "default", 200, 2, 0.95, 10)
+    planner = build_agent("j", 2, 200, 2, 0.95, 10)
     reference = FinitePolicyReference(planner.pomdp_model, planner.solver_bank)
     model = planner.model()
     assert reference.q_values(model, 1) == pytest.approx(
@@ -274,8 +274,8 @@ def test_resampling_never_drops_a_level_stratum():
 
 
 def test_bounded_filter_caps_support_at_every_nesting_level():
-    planner = build_agent("i", 3, "default", 200, 2, 0.95, 5, max_support=8)
-    exact = build_agent("i", 3, "default", 200, 2, 0.95, 5)
+    planner = build_agent("i", 3, 200, 2, 0.95, 5, max_support=8)
+    exact = build_agent("i", 3, 200, 2, 0.95, 5)
     for action, observation in [("L", ("GL", "S")), ("L", ("GR", "S")), ("L", ("GL", "S"))]:
         planner.update_root(action, observation)
         exact.update_root(action, observation)

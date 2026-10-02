@@ -389,11 +389,11 @@ def _plot_comparative_reward(df, labels, prefix, save_dir):
 
 
 def _plot_reward_vs_time(df, labels, prefix, save_dir):
-    if "planning_time_i" not in df.columns:
+    if "planning_cpu_i" not in df.columns:
         return
 
     df_active = df[df["status"] == "Active"].copy()
-    time_col = "planning_time_i"
+    time_col = "planning_cpu_i"
 
     df_active["cum_time"] = df_active.groupby("trial")[time_col].cumsum()
     df_active["time_bucket"] = df_active["cum_time"].round(1)

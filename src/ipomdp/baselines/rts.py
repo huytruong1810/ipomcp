@@ -5,37 +5,61 @@ explicit approximation. Online observations use the common recursive finite filt
 never the sampled lookahead reservoir or a preserved old belief on zero weight.
 """
 
+import math
 import random
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 from ipomdp.baselines.particles import ParticleDistribution
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.planning.config import RTSConfig
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.planner import Planner
 from ipomdp.planning.policy import greedy_policy, sample_policy, search_randomness
 
 
+@dataclass(frozen=True)
+class RTSConfig:
+    """Sampled reachability-tree lookahead budgets.
+
+    Attributes:
+        max_depth: Lookahead depth in decisions.
+        obs_branching: Observation branches expanded per action (most likely first).
+        num_particles: Weighted particles propagated per branch.
+        gamma: Discount factor of the lookahead objective.
+    """
+
+    max_depth: int
+    obs_branching: int
+    num_particles: int
+    gamma: float = 0.95
+
+    def __post_init__(self):
+        for name in ("max_depth", "obs_branching", "num_particles"):
+            value = getattr(self, name)
+            if type(value) is not int or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        if not math.isfinite(self.gamma) or not 0 <= self.gamma <= 1:
+            raise ValueError("gamma must lie in [0, 1]")
+
+
 class RTSPlanner(Planner):
-    def __init__(self, solver_key, pomdp_model, action_space, solver_bank, config=None):
+    def __init__(self, solver_key, pomdp_model, solver_bank, config: RTSConfig):
         self.key, self.pomdp_model = solver_key, pomdp_model
-        self.actions, self.solver_bank = list(action_space), solver_bank
-        self.config = config or RTSConfig()
+        self.actions = list(pomdp_model.get_all_actions(solver_key.agent_id))
+        self.solver_bank = solver_bank
+        self.config = config
         self.gamma, self.max_depth = self.config.gamma, self.config.max_depth
         self.obs_branching, self.num_particles = (
             self.config.obs_branching,
             self.config.num_particles,
         )
         self.belief = self.initial_belief = None
-        self.initial_sample_count = 0
         self.last_action_values = {}
         self.gen_model = InteractiveGenerativeModel(solver_bank)
 
-    def set_initial_belief(self, belief, sample_count):
-        MentalModel(AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model), belief)
+    def set_initial_belief(self, belief):
+        self.model(belief)  # validates nesting
         self.belief = self.initial_belief = belief
-        self.initial_sample_count = sample_count
 
     def model(self, belief=None):
         return MentalModel(
@@ -140,7 +164,6 @@ class RTSPlanner(Planner):
         return {
             "solver_key": str(self.key),
             "belief_size": len(self.belief.mass),
-            "initial_sample_count": self.initial_sample_count,
             "action_values": {str(a): float(q) for a, q in self.last_action_values.items()},
             "max_depth": self.max_depth,
             "obs_branching": self.obs_branching,

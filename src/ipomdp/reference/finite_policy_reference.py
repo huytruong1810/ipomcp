@@ -28,7 +28,7 @@ class FinitePolicyReference:
     lifetime. Budget exhaustion raises rather than approximating.
     """
 
-    def __init__(self, physics, bank, gamma=0.95, max_branches=200000):
+    def __init__(self, physics, bank, gamma=0.95, max_branches=200000, cache_size=4096):
         if not isinstance(physics, TigerModel):
             raise TypeError("Finite-policy reference supports Tiger only")
         if not math.isfinite(gamma) or not 0 <= gamma <= 1:
@@ -37,8 +37,10 @@ class FinitePolicyReference:
             raise ValueError("Branch budget must be a positive integer")
         self.physics, self.bank, self.gamma = physics, bank, gamma
         self.max_branches = max_branches
-        self._q = lru_cache(maxsize=4096)(self._q)
-        self.branches = lru_cache(maxsize=4096)(self.branches)
+        # Recursive exact solves revisit many models; deep hierarchies need
+        # larger caches. Eviction changes cost only.
+        self._q = lru_cache(maxsize=cache_size)(self._q)
+        self.branches = lru_cache(maxsize=cache_size)(self.branches)
 
     def _check_model(self, model):
         frame = model.frame

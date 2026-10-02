@@ -19,32 +19,28 @@ from ipomdp.domains.wumpus.constants import (
 )
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.domains.wumpus.state import AgentPose
-from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
-from ipomdp.planning.config import ExperimentConfig, IPOMCPConfig, MCTSConfig
+from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.experiments.config import ExperimentConfig
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
 
 
-def test_search_does_not_resample_its_own_root_belief():
+def test_search_does_not_modify_its_own_root_belief():
     random.seed(3401)
-    planner = I_POMDP_Bootstrapper(SolverBank()).create_solver(
+    planner = HierarchyBuilder(SolverBank()).build(
         "i",
         1,
         TigerModel(),
-        ["j"],
-        n_particles=50,
-        config=IPOMCPConfig(mcts=MCTSConfig(n_sims=200, max_depth=3, node_capacity=50)),
+        "j",
+        config=PlannerConfig(simulations=200, depth=3, modeled_simulations=10),
+        prior_samples=50,
     )
     before = planner.belief
     planner.get_action()
     assert planner.belief is before
-    assert not planner.root.belief_particles
-    assert planner.root._total_particles_routed == 0
-    # Every root traversal reaches exactly one first-level observation child.
+    # Every root traversal reaches exactly one first-level child or terminates.
     for action, count in planner.root.action_counts.items():
-        assert (
-            sum(child._total_particles_routed for child in planner.root.children[action].values())
-            == count
-        )
+        assert sum(planner.root.continuation_counts[action].values()) == count
 
 
 def test_bump_is_blocked_motion_not_arrival_at_boundary():
@@ -85,10 +81,10 @@ def test_scream_is_a_new_kill_and_terminal_reward_is_not_repeated():
 @pytest.mark.parametrize(
     "factory",
     [
-        lambda: MCTSConfig(n_sims=0),
-        lambda: MCTSConfig(node_capacity=-1),
-        lambda: MCTSConfig(gamma=float("nan")),
-        lambda: ExperimentConfig(n_trials=0),
+        lambda: PlannerConfig(simulations=0, depth=1, modeled_simulations=1),
+        lambda: PlannerConfig(simulations=1, depth=0, modeled_simulations=1),
+        lambda: PlannerConfig(simulations=1, depth=1, modeled_simulations=1, gamma=float("nan")),
+        lambda: ExperimentConfig(n_trials=0, max_steps=1),
     ],
 )
 def test_invalid_configuration_fails_before_work(factory):
@@ -142,41 +138,38 @@ def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
     from ipomdp.belief.finite_belief import InteractiveState, MentalModel
     from ipomdp.belief.frame import AgentFrame
 
-    planner = I_POMDP_Bootstrapper(SolverBank()).create_solver(
+    planner = HierarchyBuilder(SolverBank()).build(
         "i",
         2,
         TigerModel(),
-        ["j"],
-        n_particles=20,
-        config=IPOMCPConfig(mcts=MCTSConfig(n_sims=20, max_depth=3)),
+        "j",
+        config=PlannerConfig(simulations=20, depth=4, modeled_simulations=5),
+        prior_samples=20,
     )
     atom = planner.belief.mass[0][0]
     sentinel = MentalModel(AgentFrame("j", 0, planner.pomdp_model))
     updated = InteractiveState(atom.state, sentinel)
-    calls = []
+    received = []
 
     def tree_step(particle, *args):
-        calls.append(particle.opponent)
+        received.append(particle.opponent)
         return updated, {"i": "L", "j": "L"}, -1, False
 
-    def final_event(particle, *args):
-        assert particle.opponent is sentinel
-        return atom.state, {"i": "L", "j": "L"}, -1, False
-
     monkeypatch.setattr(planner.gen_model, "tree_step", tree_step)
-    monkeypatch.setattr(planner.gen_model, "sample_event", final_event)
-    planner._rollout(atom, 1, belief={"TL": 0.5, "TR": 0.5})
-    assert calls == [atom.opponent]
+    monkeypatch.setattr(planner, "_history_successor", lambda model, *args: model)
+    planner._rollout(atom, 1, {"TL": 0.5, "TR": 0.5}, planner.model())
+    # Depth 1 and 2 are sampled steps; depth 3 is the exact last decision.
+    assert received == [atom.opponent, sentinel]
 
 
 def test_search_keeps_all_legal_actions_below_root():
-    planner = I_POMDP_Bootstrapper(SolverBank(seed=17)).create_solver(
+    planner = HierarchyBuilder(SolverBank(seed=17)).build(
         "i",
         1,
         TigerModel(),
-        ["j"],
-        n_particles=100,
-        config=IPOMCPConfig(mcts=MCTSConfig(n_sims=2000, max_depth=2)),
+        "j",
+        config=PlannerConfig(simulations=2000, depth=3, modeled_simulations=10),
+        prior_samples=100,
     )
     planner.get_action()
     child = planner.root.children["OL"][("S", "S")]

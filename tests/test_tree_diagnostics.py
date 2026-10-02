@@ -1,6 +1,6 @@
 """Algebraic tests for post-search diagnostics, independent of Tiger search."""
 
-from ipomdp.analysis.error_attribution import describe_node
+from ipomdp.analysis.error_attribution import describe_node, trace_margin
 from ipomdp.planning.node import POMCPNode
 
 
@@ -83,7 +83,6 @@ def deep_tree():
 
 
 def test_trace_reconstructs_frontier_boundary_and_unresolved_mass():
-    from ipomdp.analysis.error_attribution import trace_margin
 
     root = deep_tree()
     partial = trace_margin(root, "root", 3, DeepReference(), str, {"b": 1.0}, max_nodes=1)
@@ -98,7 +97,6 @@ def test_trace_reconstructs_frontier_boundary_and_unresolved_mass():
 
 
 def test_trace_subtracts_local_loss_and_handles_uniform_greedy_ties():
-    from ipomdp.analysis.error_attribution import trace_margin
 
     class ReferenceWithLeaf(DeepReference):
         def q_values(self, model, horizon):
@@ -119,7 +117,6 @@ def test_trace_subtracts_local_loss_and_handles_uniform_greedy_ties():
 
 
 def test_trace_keeps_zero_count_branches_in_chance_error():
-    from ipomdp.analysis.error_attribution import trace_margin
 
     class ChanceReference:
         gamma = 1.0
@@ -147,31 +144,46 @@ def test_trace_keeps_zero_count_branches_in_chance_error():
     assert result["reconstruction_residual"] == 0
 
 
-def test_diagnostic_control_equality_and_explicit_candidate_contract():
-    from ipomdp.analysis.error_attribution import diagnose
-    from ipomdp.experiments.oracle import evaluate_case
+def test_attribution_reconstructs_a_real_l2_search_tree_exactly():
+    from ipomdp.belief.canonical import belief_digest
+    from ipomdp.domains.tiger import TigerModel
+    from ipomdp.experiments.oracle import _two_state_belief
+    from ipomdp.planning.config import PlannerConfig
+    from ipomdp.planning.i_pomcp import IPOMCPPlanner
+    from ipomdp.planning.random_planner import RandomPlanner
+    from ipomdp.planning.solver_bank import SolverBank
+    from ipomdp.planning.solver_types import SolverKey
+    from ipomdp.reference.finite_policy_l2 import FinitePolicyL2Reference
 
-    original = evaluate_case(
-        "mcts",
-        3,
-        30,
-        4,
-        0.2,
-        0.95,
-        level=2,
-        opponent_depth=3,
-        opponent_budget=25,
-        opponent_belief=0.085,
-        exact_final_step=True,
-        exact_history_rewards=True,
-        backup="empirical_bellman",
-    )[0]
-    control = diagnose(original, trace_nodes=16)[0]
-    assert control["exact_replay"] is True
-    assert control["row"] == original
-    candidate = diagnose(original, trace_nodes=16, tail_depth=2)[0]
-    assert candidate["exact_replay"] is False
-    assert candidate["row"]["opponent_model"] == original["opponent_model"]
-    assert candidate["row"]["oracle_q"] == original["oracle_q"]
-    assert candidate["trace_policy"] == original["policy"]
-    assert abs(candidate["margin_trace"]["reconstruction_residual"]) < 1e-8
+    physics, bank = TigerModel(), SolverBank(seed=4)
+    planner = IPOMCPPlanner(
+        SolverKey("i", 2),
+        physics,
+        bank,
+        PlannerConfig(simulations=60, depth=3, modeled_simulations=60),
+    )
+    opponent = IPOMCPPlanner(
+        SolverKey("j", 1),
+        physics,
+        bank,
+        PlannerConfig(simulations=25, depth=3, modeled_simulations=25),
+    )
+    for key, solver in [
+        (SolverKey("i", 2), planner),
+        (SolverKey("j", 1), opponent),
+        (SolverKey("i", 0), RandomPlanner(physics.get_all_actions("i"))),
+    ]:
+        bank.register_solver(key, solver)
+    planner.set_initial_belief(_two_state_belief(physics, 2, 0.2, 0.085))
+    policy = planner.policy_for(planner.model())
+    reference = FinitePolicyL2Reference(physics, bank, 0.95)
+    tree = describe_node(
+        planner.root, planner.model(), 3, reference, lambda m: belief_digest(m.belief)
+    )
+    assert tree["kind"] == "action_node"
+    for action in tree["actions"].values():
+        assert abs(action["reconstruction_residual"]) < 1e-8
+    trace = trace_margin(
+        planner.root, planner.model(), 3, reference, lambda m: belief_digest(m.belief), policy
+    )
+    assert abs(trace["reconstruction_residual"]) < 1e-8

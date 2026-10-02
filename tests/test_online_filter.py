@@ -9,7 +9,7 @@ import random
 
 import pytest
 
-from ipomdp.baselines.rts import RTSPlanner
+from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.finite_filter import (
     FiniteInteractiveFilter,
@@ -26,7 +26,7 @@ from ipomdp.domains.tiger import (
     TIGER_RIGHT,
     TigerModel,
 )
-from ipomdp.planning.config import IPOMCPConfig, MCTSConfig, RTSConfig
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
@@ -40,12 +40,12 @@ def planner(request):
     bank.filter = FiniteInteractiveFilter(greedy_one_step)
     cls = request.param
     config = (
-        IPOMCPConfig(mcts=MCTSConfig(n_sims=12, max_depth=2))
+        PlannerConfig(simulations=12, depth=2, modeled_simulations=12)
         if cls is IPOMCPPlanner
-        else RTSConfig(max_depth=2, num_particles=12)
+        else RTSConfig(max_depth=2, obs_branching=3, num_particles=12)
     )
-    solver = cls(SolverKey("i", 2), physics, physics.get_all_actions("i"), bank, config=config)
-    solver.set_initial_belief(fixture(physics).belief, 200)
+    solver = cls(SolverKey("i", 2), physics, bank, config)
+    solver.set_initial_belief(fixture(physics).belief)
     return solver
 
 
@@ -62,7 +62,6 @@ def test_online_update_matches_full_joint_reference_and_ignores_search_counts(pl
     if isinstance(planner, IPOMCPPlanner):
         child = planner.root.create_child(LISTEN, (GROWL_LEFT, SILENCE))
         child.visit_count = 10000
-        child.add_particle(planner.belief.mass[0][0])
     planner.update_root(LISTEN, (GROWL_LEFT, SILENCE))
     assert planner.belief == expected
     for physical, expected_private in [(TIGER_LEFT, 0.85), (TIGER_RIGHT, 0.15)]:
@@ -93,7 +92,12 @@ def test_nested_private_model_advances_with_a_simulated_step():
         AgentFrame("j", 2, physics),
         FiniteBelief(tuple((InteractiveState(s, inner), 0.5) for s in (TIGER_LEFT, TIGER_RIGHT))),
     )
-    solver = IPOMCPPlanner(SolverKey("i", 3), physics, physics.get_all_actions("i"), bank)
+    solver = IPOMCPPlanner(
+        SolverKey("i", 3),
+        physics,
+        bank,
+        PlannerConfig(simulations=1, depth=1, modeled_simulations=1),
+    )
     random.seed(182)
     following, _, _, _ = solver.gen_model.tree_step(
         InteractiveState(TIGER_LEFT, middle), LISTEN, "i", physics

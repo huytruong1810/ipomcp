@@ -4,27 +4,19 @@ from ipomdp.analysis.paper_plots import generate_nested_sunburst_pdf
 from ipomdp.analysis.plotting import plot_episode_sunburst_slider, plot_nested_belief_sunburst
 from ipomdp.domains.tiger import TigerModel
 from ipomdp.experiments.batch_runner import extract_nested_belief_hierarchy
-from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
-from ipomdp.planning.config import IPOMCPConfig, MCTSConfig
+from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
 
 
 def test_extract_nested_belief_hierarchy_level3(tmp_path):
     bank = SolverBank()
     env = TigerModel()
-    boot = I_POMDP_Bootstrapper(bank)
-
-    cfg = IPOMCPConfig(mcts=MCTSConfig(n_sims=50, max_depth=3, node_capacity=1000))
+    cfg = PlannerConfig(simulations=50, depth=3, modeled_simulations=10)
     nested_weights = {3: {0: 1 / 3, 1: 1 / 3, 2: 1 / 3}, 2: {0: 0.5, 1: 0.5}, 1: {0: 1.0}}
 
-    l3_planner = boot.create_solver(
-        agent_id="i",
-        level=3,
-        model=env,
-        other_agent_ids=["j"],
-        nested_level_weights=nested_weights,
-        n_particles=600,
-        config=cfg,
+    l3_planner = HierarchyBuilder(bank).build(
+        "i", 3, env, "j", config=cfg, nested_level_weights=nested_weights, prior_samples=600
     )
 
     data = extract_nested_belief_hierarchy(l3_planner, agent_id="i", agent_level=3)

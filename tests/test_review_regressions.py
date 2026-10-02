@@ -16,12 +16,12 @@ import pandas as pd
 import pytest
 
 from ipomdp.baselines.particles import DictDistribution, ParticleDistribution
-from ipomdp.baselines.rts import RTSPlanner
+from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import LISTEN, TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.experiments.batch_runner import extract_nested_belief_hierarchy, is_batch_complete
-from ipomdp.planning.config import ExperimentConfig, RTSConfig
+from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
@@ -137,9 +137,8 @@ def test_rts_absorbing_terminal_and_mixed_survival_mass():
     planner = RTSPlanner(
         SolverKey("i", 1),
         TerminalToy(),
-        ["a"],
         SolverBank(),
-        config=RTSConfig(gamma=0.5, max_depth=2, num_particles=10),
+        RTSConfig(gamma=0.5, max_depth=2, obs_branching=3, num_particles=10),
     )
     # Half of the mass terminates after the first reward; only half gets step 2.
     opponent = MentalModel(AgentFrame("j", 0, planner.pomdp_model))

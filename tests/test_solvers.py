@@ -4,21 +4,33 @@ import random
 
 import pytest
 
+from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import MentalModel
+from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, OPEN_RIGHT, TigerModel
-from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
-from ipomdp.planning.config import IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
+from ipomdp.domains.wumpus.model import WumpusModel
+from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.planning.config import PlannerConfig
+from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.policy import greedy_policy
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
+from tests.reference_tiger import finite_horizon_values
+from tests.test_finite_filter import l1
 
 
-def config(depth=1):
-    return IPOMCPConfig(
-        mcts=MCTSConfig(n_sims=30, max_depth=depth, node_capacity=20),
-        opponent=OpponentPolicyConfig(n_sims=10),
+def config(depth=1, simulations=30, modeled=10):
+    return PlannerConfig(simulations=simulations, depth=depth, modeled_simulations=modeled)
+
+
+def build(level, model=None, seed=12, samples=40, **options):
+    bank = SolverBank(seed=seed)
+    options.setdefault("config", config())
+    solver = HierarchyBuilder(bank).build(
+        "i", level, model or TigerModel(), "j", prior_samples=samples, **options
     )
+    return bank, solver
 
 
 def test_random_planner_and_shared_greedy_tie_rule():
@@ -33,16 +45,12 @@ def test_random_planner_and_shared_greedy_tie_rule():
 
 
 @pytest.mark.parametrize("level", [1, 2, 3, 4, 5])
-def test_bootstrap_all_levels_and_bounded_policy(level):
-    bank = SolverBank(seed=12)
-    solver = I_POMDP_Bootstrapper(bank).create_solver(
-        "i", level, TigerModel(), ["j"], n_particles=40, config=config()
-    )
-    assert solver.initial_sample_count == 40
+def test_build_all_levels_with_uniform_level_prior(level):
+    bank, solver = build(level)
     for lower in range(level):
         assert bank.has_solver(SolverKey("i", lower))
         assert bank.has_solver(SolverKey("j", lower))
-    masses = {lower: 0 for lower in range(level)}
+    masses = dict.fromkeys(range(level), 0.0)
     for atom, mass in solver.belief.mass:
         masses[atom.opponent.frame.level] += mass
         assert isinstance(atom.opponent, MentalModel)
@@ -51,31 +59,19 @@ def test_bootstrap_all_levels_and_bounded_policy(level):
     assert solver.get_action() in solver.actions
 
 
-def test_nested_priors_are_exact_and_not_clipped_by_node_capacity():
-    bank = SolverBank(seed=2)
-    solver = I_POMDP_Bootstrapper(bank).create_solver(
-        "i",
-        3,
-        TigerModel(),
-        ["j"],
-        n_particles=600,
-        nested_level_weights={3: {2: 1}, 2: {1: 0.8, 0: 0.2}, 1: {0: 1}},
-        config=config(),
+def test_nested_priors_are_exact():
+    _, solver = build(
+        3, samples=600, nested_level_weights={3: {2: 1}, 2: {1: 0.8, 0: 0.2}, 1: {0: 1}}
     )
-    assert solver.initial_sample_count == 600
     for atom, _ in solver.belief.mass:
         assert atom.opponent.frame.level == 2
         assert sum(
             w for a, w in atom.opponent.belief.mass if a.opponent.frame.level == 1
         ) == pytest.approx(0.8)
-    assert solver.root.capacity == 20  # Search reservoir has no authority over belief mass.
 
 
 def test_private_policy_cache_is_query_order_invariant_and_does_not_mutate_roots():
-    bank = SolverBank(seed=12)
-    solver = I_POMDP_Bootstrapper(bank).create_solver(
-        "i", 2, TigerModel(), ["j"], n_particles=40, config=config(2)
-    )
+    bank, solver = build(2, config=config(depth=2))
     mental = next(atom.opponent for atom, _ in solver.belief.mass if atom.opponent.frame.level == 1)
     original_rng = random.getstate()
     first = bank.policy(mental)
@@ -88,77 +84,43 @@ def test_private_policy_cache_is_query_order_invariant_and_does_not_mutate_roots
 
 
 def test_equal_budgets_use_identical_real_and_modeled_policy():
-    bank = SolverBank(seed=20)
-    cfg = IPOMCPConfig(
-        mcts=MCTSConfig(n_sims=20, max_depth=2), opponent=OpponentPolicyConfig(n_sims=20)
-    )
-    solver = I_POMDP_Bootstrapper(bank).create_solver(
-        "i", 1, TigerModel(), ["j"], n_particles=40, config=cfg
-    )
+    bank, solver = build(1, seed=20, config=config(depth=2, simulations=20, modeled=20))
     assert solver.policy_for(solver.model()) == bank.policy(solver.model())
 
 
-def test_nested_initial_models_share_the_unconditional_empirical_physical_prior():
-    from ipomdp.domains.wumpus.model import WumpusModel
-
-    bank = SolverBank(seed=4)
-    solver = I_POMDP_Bootstrapper(bank).create_solver(
-        "i", 2, WumpusModel(), ["j"], n_particles=20, config=config()
-    )
+def test_nested_initial_models_share_the_unconditional_physical_prior():
+    bank, solver = build(2, model=WumpusModel(), seed=4, samples=20)
     outer_states = {atom.state for atom, _ in solver.belief.mass}
     for atom, _ in solver.belief.mass:
         if atom.opponent.belief:
             assert {inner.state for inner, _ in atom.opponent.belief.mass} == outer_states
-    with pytest.raises(ValueError, match="same initial physical sample count"):
-        bank.initial_states(solver.pomdp_model, 30)
+    with pytest.raises(ValueError, match="one physical prior"):
+        bank.physical_prior(solver.pomdp_model, 30)
 
 
 @pytest.mark.parametrize("budget", [3, 10, 100])
-def test_one_step_mcts_values_equal_exact_expected_rewards(budget):
-    from tests.reference_tiger import finite_horizon_values
-    from tests.test_finite_filter import l1
-
-    bank = SolverBank(seed=7)
+def test_one_step_values_equal_exact_expected_rewards(budget):
     model = TigerModel()
-    cfg = IPOMCPConfig(
-        mcts=MCTSConfig(n_sims=budget, max_depth=1), opponent=OpponentPolicyConfig(n_sims=budget)
-    )
-    solver = I_POMDP_Bootstrapper(bank).create_solver(
-        "i", 1, model, ["j"], n_particles=20, config=cfg
+    _, solver = build(
+        1, model=model, seed=7, samples=20, config=config(simulations=budget, modeled=budget)
     )
     for probability in [0.5, 0.85, 0.99]:
-        subjective = l1(model, "i", probability)
-        actual = solver.policy_for(subjective)
+        actual = solver.policy_for(l1(model, "i", probability))
         reference = finite_horizon_values(probability, 1)
         assert solver.root.action_values == pytest.approx(reference)
         assert actual == greedy_policy(reference)
 
 
 @pytest.mark.parametrize("root_family", ["rts", "mcts"])
-def test_explicit_modeled_family_is_independent_of_root(root_family):
-    from ipomdp.baselines.rts import RTSPlanner
-    from ipomdp.planning.config import RTSConfig
-    from ipomdp.planning.i_pomcp import IPOMCPPlanner
-
-    bank = SolverBank(seed=19)
-    boot = I_POMDP_Bootstrapper(bank)
-    physics = TigerModel()
+def test_modeled_family_is_independent_of_root(root_family):
     modeled = config(1)
-    if root_family == "rts":
-        solver = boot.create_rts_solver(
-            "i",
-            3,
-            physics,
-            ["j"],
-            n_particles=20,
-            config=RTSConfig(max_depth=1, num_particles=20),
-            modeled_config=modeled,
-        )
-        assert isinstance(solver, RTSPlanner)
-    else:
-        solver = boot.create_solver(
-            "i", 3, physics, ["j"], n_particles=20, config=config(2), modeled_config=modeled
-        )
+    root_config = (
+        RTSConfig(max_depth=1, obs_branching=3, num_particles=20)
+        if root_family == "rts"
+        else config(2)
+    )
+    bank, solver = build(3, seed=19, samples=20, config=root_config, modeled_config=modeled)
+    assert isinstance(solver, RTSPlanner if root_family == "rts" else IPOMCPPlanner)
     for who in ["i", "j"]:
         for level in [1, 2]:
             nested = bank.get_solver(SolverKey(who, level))
@@ -169,26 +131,25 @@ def test_explicit_modeled_family_is_independent_of_root(root_family):
     assert solver.belief is original
 
 
-def test_frame_lookup_rejects_different_physics_even_at_same_level():
-    from ipomdp.belief.frame import AgentFrame
+def test_rts_root_must_declare_its_opponent_models():
+    with pytest.raises(ValueError, match="opponents are modeled"):
+        build(2, config=RTSConfig(max_depth=1, obs_branching=3, num_particles=20))
 
-    bank = SolverBank(seed=2)
-    physics = TigerModel()
-    solver = I_POMDP_Bootstrapper(bank).create_solver(
-        "i", 1, physics, ["j"], n_particles=20, config=config()
-    )
+
+def test_frame_lookup_rejects_different_physics_even_at_same_level():
+    bank, solver = build(1, seed=2, samples=20)
     assert bank.get_solver_for_frame(solver.model().frame) is solver
     with pytest.raises(ValueError, match="Frame physics"):
         bank.get_solver_for_frame(AgentFrame("i", 1, TigerModel()))
 
 
-def test_bootstrap_preserves_reused_solver_physics_identity():
+def test_builder_preserves_reused_solver_physics_identity():
     bank = SolverBank(seed=11)
-    boot = I_POMDP_Bootstrapper(bank)
+    builder = HierarchyBuilder(bank)
     private_physics = TigerModel()
-    nested = boot.create_solver("j", 1, private_physics, ["i"], n_particles=20, config=config())
-    outer = boot.create_solver(
-        "i", 2, TigerModel(), ["j"], level_weights={1: 1}, n_particles=20, config=config()
+    nested = builder.build("j", 1, private_physics, "i", config=config(), prior_samples=20)
+    outer = builder.build(
+        "i", 2, TigerModel(), "j", config=config(), level_weights={1: 1}, prior_samples=20
     )
     for atom, _ in outer.belief.mass:
         assert atom.opponent.frame.pomdp_model is private_physics

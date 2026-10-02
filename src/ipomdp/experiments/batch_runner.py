@@ -1,4 +1,3 @@
-import gc
 import hashlib
 import json
 import os
@@ -14,13 +13,13 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
+from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.infra.logging import get_logger
 from ipomdp.infra.paths import REPOSITORY_ROOT, SOURCE_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.resources import SystemMonitor
 from ipomdp.infra.source_lock import source_hashes
 from ipomdp.model.pomdp import POMDPModel, State
-from ipomdp.planning.config import ExperimentConfig
 from ipomdp.planning.planner import Planner
 
 logger = get_logger("BatchRunner")
@@ -77,12 +76,35 @@ def _write_csv_atomic(df, path):
     temporary.replace(path)
 
 
+ZERO_TIMINGS = {
+    f"{kind}_{clock}_{agent}": 0.0
+    for kind in ("planning", "update")
+    for clock in ("wall", "cpu")
+    for agent in ("i", "j")
+}
+
+
+def _timed(call, timings, kind, agent):
+    """Run ``call`` and record its wall and process-CPU seconds.
+
+    CPU time is the primary cost measure: wall time on a shared machine is
+    inflated by contention, and it is reported only beside CPU time. Each trial
+    runs in its own single-threaded process, so process CPU time is this
+    agent's computation.
+    """
+    wall, cpu = time.perf_counter(), time.process_time()
+    result = call()
+    timings[f"{kind}_wall_{agent}"] = time.perf_counter() - wall
+    timings[f"{kind}_cpu_{agent}"] = time.process_time() - cpu
+    return result
+
+
 def _get_belief_support(planner: Planner) -> int:
     """Number of distinct weighted interactive hypotheses, not search trajectories."""
     return len(planner.belief.mass) if getattr(planner, "belief", None) is not None else 0
 
 
-def _get_opponent_level_distribution(planner: Any, opponent_id: str) -> Dict[str, float]:
+def opponent_level_distribution(planner: Any, opponent_id: str) -> Dict[str, float]:
     belief = getattr(planner, "belief", None)
     if belief is None:
         return {}
@@ -217,8 +239,8 @@ class GenericBatchRunner(ABC):
             logger = get_logger("BatchRunner", log_file=os.path.join(self.log_dir, "execution.log"))
 
     @abstractmethod
-    def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner, State]:
-        pass
+    def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner]:
+        """Return (environment physics, agent i's planner, agent j's planner)."""
 
     def _get_custom_metrics(
         self,
@@ -244,8 +266,7 @@ class GenericBatchRunner(ABC):
         random.seed(planner_seed)
         np.random.seed(planner_seed)
 
-        env, planner_i, planner_j, true_state = self._setup_domain()
-
+        env, planner_i, planner_j = self._setup_domain()
         true_state = env.get_initial_state(rng=env_rng_trans)
 
         trial_records = []
@@ -272,7 +293,7 @@ class GenericBatchRunner(ABC):
             "obs_j": None,
             "reward_i": 0.0,
             "cum_reward_i": 0.0,
-            "planning_time_i": 0.0,
+            **ZERO_TIMINGS,
             "reward_j": 0.0,
             "cum_reward_j": 0.0,
             "belief_support_i": n_i,
@@ -283,7 +304,7 @@ class GenericBatchRunner(ABC):
         }
         init_custom = self._get_custom_metrics(true_state, true_state, env, planner_i, planner_j)
         init_record.update(init_custom)
-        init_record.update(_get_opponent_level_distribution(planner_i, "j"))
+        init_record.update(opponent_level_distribution(planner_i, "j"))
         trial_records.append(init_record)
         last_custom_metrics = init_custom
         if snapshots is not None:
@@ -292,11 +313,9 @@ class GenericBatchRunner(ABC):
         # Decision steps: t = 1 ... max_steps
         for t in range(1, self.config.max_steps + 1):
             if not is_terminal:
-                start_time_i = time.perf_counter()
-                a_i = planner_i.get_action()
-                plan_time_i = time.perf_counter() - start_time_i
-
-                a_j = planner_j.get_action()
+                timings = {}
+                a_i = _timed(planner_i.get_action, timings, "planning", "i")
+                a_j = _timed(planner_j.get_action, timings, "planning", "j")
                 joint_action = {"i": a_i, "j": a_j}
 
                 next_state = env.sample_transition(true_state, joint_action, rng=env_rng_trans)
@@ -325,7 +344,6 @@ class GenericBatchRunner(ABC):
                     "obs_j": str(o_j),
                     "reward_i": r_i,
                     "cum_reward_i": cum_reward_i,
-                    "planning_time_i": plan_time_i,
                     "reward_j": r_j,
                     "cum_reward_j": cum_reward_j,
                     "belief_support_i": n_i,
@@ -338,27 +356,18 @@ class GenericBatchRunner(ABC):
                     ),
                 }
 
-                if self.log_dir and self.config.verbose:
-                    step_dir = os.path.join(self.log_dir, f"trial_{trial_id}", f"step_{t}")
-                    os.makedirs(step_dir, exist_ok=True)
-
-                    with open(os.path.join(step_dir, "stats_i.json"), "w") as f:
-                        json.dump(stats_i, f, indent=2)
-                    with open(os.path.join(step_dir, "stats_j.json"), "w") as f:
-                        json.dump(stats_j, f, indent=2)
-
-                    if self.config.export_trees:
-                        planner_i.visualize(os.path.join(step_dir, "tree_i"), t)
-                        planner_j.visualize(os.path.join(step_dir, "tree_j"), t)
-
                 if not is_terminal:
-                    planner_i.update_root(a_i, o_i)
-                    planner_j.update_root(a_j, o_j)
+                    _timed(partial(planner_i.update_root, a_i, o_i), timings, "update", "i")
+                    _timed(partial(planner_j.update_root, a_j, o_j), timings, "update", "j")
+                else:
+                    timings.update(update_wall_i=0.0, update_cpu_i=0.0)
+                    timings.update(update_wall_j=0.0, update_cpu_j=0.0)
+                record.update(timings)
                 last_custom_metrics = self._get_custom_metrics(
                     true_state, next_state, env, planner_i, planner_j
                 )
                 record.update(last_custom_metrics)
-                record.update(_get_opponent_level_distribution(planner_i, "j"))
+                record.update(opponent_level_distribution(planner_i, "j"))
                 record["belief_support_i"] = _get_belief_support(planner_i)
                 record["belief_support_j"] = _get_belief_support(planner_j)
                 trial_records.append(record)
@@ -371,7 +380,7 @@ class GenericBatchRunner(ABC):
                     "step": t,
                     "reward_i": 0.0,
                     "cum_reward_i": cum_reward_i,
-                    "planning_time_i": 0.0,
+                    **ZERO_TIMINGS,
                     "reward_j": 0.0,
                     "cum_reward_j": cum_reward_j,
                     "belief_support_i": None,
@@ -389,8 +398,6 @@ class GenericBatchRunner(ABC):
         for record in trial_records:
             for key in ("action_values_i", "action_values_j"):
                 record[key] = json.dumps(record[key], allow_nan=False)
-        del planner_i, planner_j, env
-        gc.collect()
         return trial_records
 
     def run_batch(self, max_workers: Optional[int] = None) -> pd.DataFrame:

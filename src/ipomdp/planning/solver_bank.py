@@ -1,63 +1,81 @@
-"""Per-experiment solvers, immutable policy results and recursive inference.
+"""The solver bank: one agent's registry of nested models and their policies.
 
-One bank fixes physics/configuration per (agent, level), and owns its random seed.
-Cached policy results are values, not evolving trees. Deterministic private solves
-make cache eviction harmless to the modeled policy. Private beliefs are never
-stored in a registered planner's live root on behalf of another agent.
+Responsibilities
+----------------
+A real agent and every model nested in its belief share one bank:
+
+- **Registry.** One solver per (agent, level), so a modeled opponent's policy is
+  computed by the solver declared for that level.
+- **Physical prior.** One prior per domain, shared by every nesting level.
+- **Policy cache.** A modeled policy is a pure function of the modeled agent's
+  belief, because search randomness is seeded from the bank seed and the
+  belief's canonical digest. Cached results are immutable values, so cache
+  eviction changes cost only, never behaviour.
+- **Interactive filter.** The belief update, parameterised by ``policy`` so that
+  nested opponents act by their own modeled policies.
+- **Expected rewards.** E[R | b, a] over the full joint belief, used by the
+  planner at every tree history and at its exact last step.
+
+Separate real agents use separate banks, so one agent's private models never
+leak into the other's.
 """
 
+import gc
+import math
 import random
 from functools import lru_cache
 
 from ipomdp.belief import canonical
-from ipomdp.belief.finite_filter import FiniteInteractiveFilter
+from ipomdp.belief.finite_filter import FiniteInteractiveFilter, checked_distribution
 from ipomdp.planning.solver_types import SolverKey
 
 
 class SolverBank:
     def __init__(self, seed=None, max_support=None):
+        """``max_support`` = None keeps exact enumeration; an integer K bounds
+        every posterior at every nesting level by stratified resampling."""
         self._solvers = {}
         self._physical_priors = {}
         self.seed = random.getrandbits(64) if seed is None else seed
-        # None keeps exact enumeration; an integer bounds every posterior's support.
         self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
         # Canonical order makes random.choices intervals independent of how an
-        # equal belief was built; see ipomdp.belief.canonical for the encoding.
+        # equal belief was built; see ipomdp.belief.canonical.
         self.ordered_mass = lru_cache(maxsize=16384)(canonical.canonical_mass)
-        self.continuation_law = lru_cache(maxsize=1024)(self._continuation_law)
         self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
 
-    def initial_states(self, physics, count):
-        """One shared empirical physical prior per domain within this bank.
+    # ------------------------------------------------------------------ #
+    # Physical prior
+    # ------------------------------------------------------------------ #
 
-        Independent finite priors can make a simulated observation unsupported by
-        the opponent solely through sampling. Sharing the same unconditional prior
-        measure avoids that incoherence; it never conditions a private belief on
-        the outer true state. Different banks still use independent prior samples.
-        Changing its size after constructing models would invalidate those models.
+    def physical_prior(self, physics, samples=None):
+        """The one physical prior shared by every model of this domain in the bank.
+
+        It is either declared with ``set_physical_prior`` or, on first request,
+        drawn as ``samples`` states from ``get_initial_state``. Sharing one
+        unconditional prior across nesting levels prevents a nested model from
+        ruling out an observation only because its own sample missed a state;
+        it never conditions a private belief on the true state. A request whose
+        sample size disagrees with the established prior is an error, because
+        models built from different priors would not be comparable.
         """
         key = self._prior_key(physics)
         if key not in self._physical_priors:
-            self._physical_priors[key] = tuple(physics.get_initial_state() for _ in range(count))
+            if samples is None:
+                raise ValueError("No declared physical prior; state the number of prior samples")
+            self._physical_priors[key] = tuple(physics.get_initial_state() for _ in range(samples))
         states = self._physical_priors[key]
-        if len(states) != count:
-            raise ValueError(
-                "All models in one bank must share the same initial physical sample count"
-            )
+        if samples is not None and len(states) != samples:
+            raise ValueError("All models in one bank must share one physical prior")
         return states
 
-    @staticmethod
-    def _prior_key(physics):
-        return canonical.digest(canonical.physics_identity(physics))
-
     def set_physical_prior(self, physics, states):
-        """Declare an explicit equally weighted physical prior before any model exists.
+        """Declare an exact, equally weighted physical prior before any model exists.
 
-        Sampling a large empirical prior only approximates a declared distribution
-        such as an exact 50/50 tiger. Equal-weight atoms are merged exactly, so a
-        balanced tuple represents that distribution without sampling error. Models
-        built later must request the same count; replacing a prior is refused.
+        A sampled prior only approximates a declared distribution such as a
+        50/50 tiger. Equal-weight atoms are merged exactly, so a balanced tuple
+        represents that distribution without sampling error. Replacing an
+        established prior is refused.
         """
         states = tuple(states)
         if not states:
@@ -67,15 +85,20 @@ class SolverBank:
             raise ValueError("This bank already fixed a physical prior for these physics")
         self._physical_priors[key] = states
 
+    @staticmethod
+    def _prior_key(physics):
+        return canonical.digest(canonical.physics_identity(physics))
+
+    # ------------------------------------------------------------------ #
+    # Registry
+    # ------------------------------------------------------------------ #
+
     def register_solver(self, key, solver):
         if key in self._solvers:
             raise ValueError(f"Solver already registered: {key}")
         self._solvers[key] = solver
 
     def has_solver(self, key):
-        return key in self._solvers
-
-    def __contains__(self, key):
         return key in self._solvers
 
     def get_solver(self, key):
@@ -87,24 +110,40 @@ class SolverBank:
             raise ValueError("Frame physics differs from the registered solver")
         return solver
 
+    # ------------------------------------------------------------------ #
+    # Policies and integrals
+    # ------------------------------------------------------------------ #
+
+    def search_seed(self, model, settings):
+        """Search randomness for one solve: equal problems get equal seeds."""
+        return canonical.digest(
+            [
+                self.seed,
+                canonical.stable_value(model.frame.agent_id),
+                model.frame.level,
+                canonical.belief_digest(model.belief),
+                canonical.stable_value(settings),
+            ]
+        )
+
+    def policy(self, model):
+        """The modeled policy of an intentional mental model (cached, immutable)."""
+        return dict(self._cached_policy(model))
+
+    def _evaluate_policy(self, model):
+        solver = self.get_solver_for_frame(model.frame)
+        return tuple(solver.policy_for(model, modeled=True).items())
+
     def _expected_rewards(self, model):
-        """Integrate immediate reward over the full joint prior and finite dynamics.
+        """E[R | b, a] for every action, integrated over the full joint belief.
 
-        Used as the root control variate, by the optional internal-history
-        reward estimator, and by the optional exact final-step evaluator. With one decision left these are the complete action
-        values, so maximization happens after integrating the full joint belief.
-        For root-sampling MCTS, Q(b,a) equals this
-        expectation plus the discounted expected continuation. UCB's root action
-        selection does not inspect the newly sampled hidden state, so replacing
-        the sampled immediate reward by its exact expectation preserves the value
-        target. Successor states and continuations are still sampled jointly.
-        It removes a major source of variance from rare Tiger penalties, without
-        changing reward, observation or policy semantics.
+        Sums over physical states, opponent models, the opponents' modeled
+        action distributions and finite transitions. The planner uses it at
+        every tree history in place of the sampled immediate reward: action
+        selection never inspects the sampled hidden state, so the expected
+        backup target is unchanged while the variance of rare penalties
+        disappears. At the last decision these are the complete action values.
         """
-        import math
-
-        from ipomdp.belief.finite_filter import checked_distribution
-
         frame, physics = model.frame, model.frame.pomdp_model
         all_actions = physics.get_all_actions(frame.agent_id)
         terms = {a: [] for a in all_actions}
@@ -128,67 +167,11 @@ class SolverBank:
                         )
         return tuple((action, math.fsum(terms[action])) for action in all_actions)
 
-    def _continuation_law(self, model, action):
-        """Unconditional P(own observation, survival | full belief, own action).
-
-        Marginalize hidden states/actions. Terminal probability is deliberately
-        absent, not renormalized away. Private opponent observations affect the
-        successor posterior via filter.update, not this marginal evidence law.
-        """
-        import math
-        from collections import defaultdict
-
-        from ipomdp.belief.finite_filter import InferenceBudgetExceeded, checked_distribution
-
-        frame, physics = model.frame, model.frame.pomdp_model
-        terms = defaultdict(list)
-        count = 0
-        for atom, prior in model.belief.mass:
-            if action not in physics.get_legal_actions(atom.state, frame.agent_id):
-                raise ValueError("Tail action must be legal throughout the belief")
-            other = atom.opponent.frame.agent_id
-            for other_action, mass in self.filter.action_distribution(atom.opponent, atom.state):
-                joint = {frame.agent_id: action, other: other_action}
-                for following, transition in checked_distribution(
-                    physics.transition_distribution(atom.state, joint), "Transition"
-                ):
-                    if physics.is_terminal(following):
-                        continue
-                    for observation, likelihood in checked_distribution(
-                        physics.observation_distribution(following, joint, frame.agent_id),
-                        "Observation",
-                    ):
-                        count += 1
-                        if count > self.filter.max_branches:
-                            raise InferenceBudgetExceeded("Tail chance enumeration budget exceeded")
-                        terms[observation].append(prior * mass * transition * likelihood)
-        return tuple((obs, math.fsum(weights)) for obs, weights in terms.items())
-
-    def search_seed(self, model, settings):
-        return canonical.digest(
-            [
-                self.seed,
-                canonical.stable_value(model.frame.agent_id),
-                model.frame.level,
-                canonical.belief_digest(model.belief),
-                canonical.stable_value(settings),
-            ]
-        )
-
-    def _evaluate_policy(self, model):
-        solver = self.get_solver_for_frame(model.frame)
-        return tuple(solver.policy_for(model, modeled=True).items())
-
-    def policy(self, model):
-        return dict(self._cached_policy(model))
-
     def clear_caches(self):
+        """Drop cached policies, posteriors and integrals (memory only, never results)."""
         self._cached_policy.cache_clear()
         self.filter.clear_caches()
         self.ordered_mass.cache_clear()
         canonical.belief_digest.cache_clear()
         self.expected_rewards.cache_clear()
-        self.continuation_law.cache_clear()
-        import gc
-
         gc.collect()

@@ -1,20 +1,18 @@
-"""Exact finite-horizon I-POMDP agents for the L3-vs-L2 Tiger study.
+"""Exact finite-horizon I-POMDP agents, recursively exact down to uniform L0.
 
 Every intentional agent, real or modeled, chooses uniformly among the exact
-maximizers of its H-step receding decision problem, solved by exhaustive
-enumeration (FinitePolicyReference) against its own exactly solved lower-level
-models. L0 is uniform random. This is the I-POMCP design's exact counterpart:
-same frames, priors, physics, fixed receding lookahead and exact filter; only
-the finite MCTS policy providers are replaced by exact solutions.
-"""
+maximizers of its H-step receding decision problem. The problem is solved by
+exhaustive enumeration (``FinitePolicyReference``) against its own exactly
+solved lower-level models. This is the exact counterpart of an I-POMCP
+hierarchy with the same frames, priors, physics, fixed receding lookahead and
+belief update: only the finite search policies are replaced by exact ones.
 
-import random
-from functools import lru_cache
+Cost grows exponentially with horizon and nesting depth. Use it as a reference
+at small horizons and levels, never as a planner.
+"""
 
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT
-from ipomdp.experiments.tiger_l3_vs_l2 import NESTED_I, NESTED_J, tiger
 from ipomdp.planning.planner import Planner
 from ipomdp.planning.policy import sample_policy
 from ipomdp.planning.random_planner import RandomPlanner
@@ -22,6 +20,8 @@ from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.finite_policy_reference import FinitePolicyReference
 
+# Relative tolerance for treating exact Q values as tied. Exact enumeration in
+# floating point can differ in the last bits between algebraically equal paths.
 TIE_TOLERANCE = 1e-9
 
 
@@ -32,14 +32,12 @@ class ExactIPOMDPPlanner(Planner):
         self.belief = self.initial_belief = None
         self.last_q = {}
 
-    def set_initial_belief(self, belief, count):
+    def set_initial_belief(self, belief):
         self.belief = self.initial_belief = belief
 
     def model(self, belief=None):
-        return MentalModel(
-            AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model),
-            self.belief if belief is None else belief,
-        )
+        frame = AgentFrame(self.key.agent_id, self.key.level, self.pomdp_model)
+        return MentalModel(frame, self.belief if belief is None else belief)
 
     def q_values(self, model):
         return self.reference.q_values(model, self.horizon)
@@ -56,8 +54,8 @@ class ExactIPOMDPPlanner(Planner):
         return sample_policy(self.policy_for(self.model(belief)))
 
     def update_root(self, action, observation):
-        # Exact policies are deterministic functions of immutable models, so
-        # caches stay valid across steps; only the real belief advances.
+        # Exact policies are pure functions of immutable models, so caches stay
+        # valid across steps; only the real belief advances.
         self.belief = self.solver_bank.filter.update(
             self.model(), action, observation, terminal=False
         ).belief
@@ -66,20 +64,20 @@ class ExactIPOMDPPlanner(Planner):
         return {"action_values": {str(a): q for a, q in self.last_q.items()}}
 
 
-def build_exact_agent(agent_id, level, horizon, gamma=0.95, cache=200000, physics=None):
-    """Mirror I_POMDP_Bootstrapper._create with exact policy providers.
+def build_exact_agent(agent_id, opponent_id, level, physics, prior_states, nested, horizon, gamma):
+    """Build an exact agent and its exact nested models in a fresh bank.
 
-    Pass the I-POMCP agent's physics object to make models comparable: frames
-    compare physics by identity, so a shadow sharing it holds equal models.
+    Args:
+        prior_states: Equally weighted physical prior, shared by every level.
+        nested: {level: {opponent level: weight}} for every intentional level.
+        horizon: Receding lookahead of every exact agent in the hierarchy.
     """
-    physics = physics or tiger()
     bank = SolverBank(seed=0)  # exact policies consume no search randomness
-    bank.set_physical_prior(physics, (TIGER_LEFT, TIGER_RIGHT))
-    reference = FinitePolicyReference(physics, bank, gamma, max_branches=10_000_000)
-    # Nested exact solves revisit many models; enlarge the default caches.
-    reference._q = lru_cache(maxsize=cache)(reference._q.__wrapped__)
-    reference.branches = lru_cache(maxsize=cache)(reference.branches.__wrapped__)
-    nested = NESTED_I if agent_id == "i" else NESTED_J
+    bank.set_physical_prior(physics, prior_states)
+    reference = FinitePolicyReference(
+        physics, bank, gamma, max_branches=10_000_000, cache_size=200_000
+    )
+    states = bank.physical_prior(physics)
 
     def create(who, lvl):
         key = SolverKey(who, lvl)
@@ -89,7 +87,7 @@ def build_exact_agent(agent_id, level, horizon, gamma=0.95, cache=200000, physic
             solver = RandomPlanner(physics.get_all_actions(who))
             bank.register_solver(key, solver)
             return solver
-        other = "j" if who == "i" else "i"
+        other = opponent_id if who == agent_id else agent_id
         for lower in range(lvl):
             create(who, lower)
             create(other, lower)
@@ -103,24 +101,12 @@ def build_exact_agent(agent_id, level, horizon, gamma=0.95, cache=200000, physic
             opponent = MentalModel(
                 AgentFrame(other, lower, physics), solver.initial_belief if lower else None
             )
-            for state in bank.initial_states(physics, 2):
-                rows.append((InteractiveState(state, opponent), mass / total / 2))
+            rows += [
+                (InteractiveState(state, opponent), mass / total / len(states)) for state in states
+            ]
         solver = ExactIPOMDPPlanner(key, physics, bank, reference, horizon)
-        solver.set_initial_belief(FiniteBelief(tuple(rows)), 2)
+        solver.set_initial_belief(FiniteBelief(tuple(rows)))
         bank.register_solver(key, solver)
         return solver
 
     return create(agent_id, level)
-
-
-if __name__ == "__main__":
-    import sys
-    import time
-
-    horizon = int(sys.argv[1]) if len(sys.argv) > 1 else 5
-    random.seed(0)
-    for agent, level in (("j", 2), ("i", 3)):
-        start = time.perf_counter()
-        planner = build_exact_agent(agent, level, horizon)
-        policy = planner.policy_for(planner.model())
-        print(agent, level, horizon, policy, planner.last_q, f"{time.perf_counter() - start:.1f}s")

@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from ipomdp.experiments.batch_runner import is_batch_complete
+from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.infra.process_supervisor import supervise_jobs
-from ipomdp.planning.config import ExperimentConfig
 from tests.runners import RandomTigerRunner
 
 

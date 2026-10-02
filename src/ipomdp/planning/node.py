@@ -1,121 +1,65 @@
-"""History nodes with bounded trajectory reservoirs and non-owning parent links.
+"""Search-tree history nodes and the empirical chance-weighted Bellman backup.
 
-Algorithm R gives each routed item equal inclusion probability. That property is
-about the input stream; it does not prove that a biased stream is a Bayesian
-posterior. Memory is O(capacity) per node, plus children and referenced nested
-models. The number of nodes and referenced beliefs is not globally bounded by
-capacity. Weak parent pointers let obsolete siblings be collected after rerooting.
+A node is one private action-observation history h of the planning agent.
+Children are indexed by (action, observation), forming an AND-OR tree. Nodes
+hold search statistics only. The authoritative belief at a history is computed
+by the belief update (``belief.finite_filter``), never estimated from the
+states that simulations happened to route through a node. Earlier versions kept
+a particle reservoir per node; no estimator used it, so it was removed.
+
+Parent links are weak so that rerooting after a real step frees discarded
+subtrees.
 """
 
 import math
-import random
 import weakref
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from ipomdp.model.pomdp import Action, Observation
 
-# Safely import InteractiveState for strict typing
-if TYPE_CHECKING:
-    from ipomdp.belief.finite_belief import InteractiveState
-
 
 class POMCPNode:
-    """
-    A single node in the POMCP / I-POMCP search tree.
-
-    Corresponds to a *history* h = (a_1, o_1, ..., a_t, o_t). Children are
-    indexed by `(action, observation)` pairs, forming an AND-OR tree.
-    """
-
-    def __init__(self, parent: Optional["POMCPNode"] = None, capacity: int = 500) -> None:
-        """
-        Initializes the MCTS node.
-
-        Args:
-            parent: Back-pointer to the parent node (`None` for the root).
-            capacity: Maximum number of particles to hold before Reservoir Sampling kicks in.
-        """
-        if not isinstance(capacity, int) or capacity <= 0:
-            raise ValueError("Node capacity must be a positive integer.")
+    def __init__(self, parent: Optional["POMCPNode"] = None) -> None:
         self.visit_count: int = 0
+        # N(h, a): every sampled outcome of a, terminal ones included.
         self.action_counts: Dict[Action, int] = {}
+        # Q(h, a): current estimates. Exact boundary nodes store integrated values
+        # here without inventing action counts.
         self.action_values: Dict[Action, float] = {}
-        # Used only by empirical Bellman backups. Counts describe nonterminal
-        # outcomes, while action_counts includes all outcomes (including terminal).
+        # Mean exact expected immediate reward per action (see bellman_backup).
         self.immediate_reward_means: Dict[Action, float] = {}
+        # C(h, a, o): nonterminal outcomes with observation o.
         self.continuation_counts: Dict[Action, Dict[Observation, int]] = {}
-        # A freshly expanded frontier has one declared rollout estimate until
-        # actions are evaluated. None means no estimate, never an implicit zero.
+        # A frontier created by one rollout carries that rollout's estimate until
+        # its own actions are evaluated. None means "no estimate", never zero.
         self.rollout_value: Optional[float] = None
-
-        # AND-OR Tree: children[action][observation] -> POMCPNode
         self.children: Dict[Action, Dict[Observation, "POMCPNode"]] = {}
         self._parent_ref = weakref.ref(parent) if parent is not None else None
 
-        # Bounded local belief, strictly typed
-        self.belief_particles: List["InteractiveState"] = []
-        self.capacity: int = capacity
-
-        # Tracks how many particles have EVER passed through here (Used for Algorithm R math)
-        self._total_particles_routed: int = 0
-
     @property
     def parent(self):
-        """Non-owning navigation link; descendants never own discarded siblings."""
         return self._parent_ref() if self._parent_ref is not None else None
-
-    @parent.setter
-    def parent(self, parent):
-        self._parent_ref = weakref.ref(parent) if parent is not None else None
 
     def __getstate__(self):
         state = self.__dict__.copy()
         state["_parent_ref"] = None
         return state
 
-    def add_particle(self, particle: "InteractiveState") -> None:
-        """
-        Appends a particle to this node's local belief.
-        Implements Algorithm R (Reservoir Sampling) to guarantee bounded memory footprints
-        while maintaining an unbiased statistical sample of historical trajectories.
-        """
-        self._total_particles_routed += 1
-
-        if len(self.belief_particles) < self.capacity:
-            # Reservoir is not full yet; append directly.
-            self.belief_particles.append(particle)
-        else:
-            # Reservoir is full. The new particle replaces an existing one with decreasing probability.
-            replace_idx = random.randint(0, self._total_particles_routed - 1)
-            if replace_idx < self.capacity:
-                self.belief_particles[replace_idx] = particle
-
     def get_child(self, action: Action, observation: Observation) -> Optional["POMCPNode"]:
-        """Safely fetches a child node if it exists, otherwise returns None."""
         return self.children.get(action, {}).get(observation)
 
     def create_child(self, action: Action, observation: Observation) -> "POMCPNode":
-        """
-        Instantiates and links a new child node in the AND-OR tree.
-        Crucially passes down the `capacity` limit from the parent to ensure
-        the entire tree respects the memory constraints.
-        """
-        if action not in self.children:
-            self.children[action] = {}
-
-        if observation not in self.children[action]:
-            # Inherit the reservoir capacity configuration from the parent node
-            self.children[action][observation] = POMCPNode(parent=self, capacity=self.capacity)
-
-        return self.children[action][observation]
+        siblings = self.children.setdefault(action, {})
+        if observation not in siblings:
+            siblings[observation] = POMCPNode(parent=self)
+        return siblings[observation]
 
     def value_estimate(self) -> float:
-        """Maximize action estimates at this history, never across observations.
+        """V(h) = max over evaluated actions; a fresh frontier uses its rollout.
 
-        Until this frontier has evaluated any actions, use its explicit rollout
-        initialization. It is an estimator, not a bound or a repaired posterior.
-        Unvisited actions do not acquire fictitious zero rewards; UCB schedules
-        them on subsequent visits. Exact one-step nodes store integrated Q values.
+        Unevaluated actions are not given fictitious zero values; UCB schedules
+        them on later visits. Maximization is per history, never across
+        observations.
         """
         if self.action_values:
             return max(self.action_values.values())
@@ -123,26 +67,31 @@ class POMCPNode:
             raise ValueError("History node has neither action nor rollout estimates")
         return self.rollout_value
 
-    def empirical_bellman_backup(self, action: Action, reward: float, gamma: float) -> float:
-        """Recompute Q from the empirical chance law and current child values.
+    def bellman_backup(self, action: Action, immediate: float, gamma: float) -> float:
+        """Recompute Q(h, a) from the empirical chance law and current child values.
 
-        The caller has counted this action and, for a nonterminal outcome, its
-        observation. Q = mean immediate reward + gamma * sum_o count(o,alive)
-        * V(child(o)) / count(action). Terminal samples stay in the denominator
-        and have zero continuation; conditioning the denominator on survival
-        would incorrectly inflate future values. Child values are reread on every
-        backup, so earlier exploratory action costs are not frozen in this mean.
+            Q(h, a) = Rbar(h, a) + gamma * sum_o C(h, a, o) / N(h, a) * V(h a o)
 
-        Chance frequencies are estimated, not exact model probabilities. Taking
-        maxima of noisy action estimates can introduce optimism. This estimate is
-        neither a confidence bound nor an assertion that a node is solved.
+        The caller has already incremented N(h, a) and, for a nonterminal
+        outcome, C(h, a, o). Terminal outcomes stay in the denominator with zero
+        continuation; dividing by survivors only would inflate future value.
+        Child values are re-read on every backup, so the cost of early
+        exploratory actions deep in the tree is not frozen into ancestors, which
+        is the defect of averaging sampled returns.
+
+        ``immediate`` is the exact expected immediate reward at this history,
+        so Rbar is an average of equal values; keeping the running mean makes
+        the operator valid for any unbiased immediate-reward estimate.
+
+        Chance frequencies are empirical, and the max over noisy children is
+        optimistic at small counts. This is an estimator, not a bound.
         """
         n = self.action_counts[action]
         if n <= 0:
             raise ValueError("Bellman backup requires a counted action")
         previous = self.immediate_reward_means.get(action, 0.0)
-        immediate = previous + (reward - previous) / n
-        self.immediate_reward_means[action] = immediate
+        mean_reward = previous + (immediate - previous) / n
+        self.immediate_reward_means[action] = mean_reward
         outcomes = self.continuation_counts.get(action, {})
         if sum(outcomes.values()) > n:
             raise ValueError("Continuation counts exceed action count")
@@ -153,21 +102,16 @@ class POMCPNode:
             )
             / n
         )
-        q = immediate + gamma * continuation
+        q = mean_reward + gamma * continuation
         self.action_values[action] = q
         return q
 
     def to_dict(self, max_depth: int = 3, current_depth: int = 0) -> Dict[str, Any]:
-        """
-        Recursively serializes the sub-tree rooted at this node for Artifact Logging.
-        Primarily used for debugging and exporting to Graphviz.
-        """
-        node_dict: Dict[str, Any] = {
+        """Serialize statistics of this subtree for diagnostics and rendering."""
+        result: Dict[str, Any] = {
             "visit_count": self.visit_count,
             "action_values": {str(a): v for a, v in self.action_values.items()},
             "action_counts": {str(a): c for a, c in self.action_counts.items()},
-            "n_particles": len(self.belief_particles),
-            "total_routed": self._total_particles_routed,
             "rollout_value": self.rollout_value,
             "immediate_reward_means": {str(a): v for a, v in self.immediate_reward_means.items()},
             "continuation_counts": {
@@ -175,18 +119,12 @@ class POMCPNode:
                 for a, counts in self.continuation_counts.items()
             },
         }
-
         if current_depth < max_depth:
-            children_dict: Dict[str, Dict[str, Any]] = {}
-            for action, obs_map in self.children.items():
-                action_str = str(action)
-                children_dict[action_str] = {}
-                for obs, child_node in obs_map.items():
-                    obs_str = str(obs)
-                    children_dict[action_str][obs_str] = child_node.to_dict(
-                        max_depth, current_depth + 1
-                    )
-
-            node_dict["children"] = children_dict
-
-        return node_dict
+            result["children"] = {
+                str(action): {
+                    str(obs): child.to_dict(max_depth, current_depth + 1)
+                    for obs, child in obs_map.items()
+                }
+                for action, obs_map in self.children.items()
+            }
+        return result

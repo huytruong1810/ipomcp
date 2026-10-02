@@ -16,4 +16,4 @@ class RandomTigerRunner(GenericBatchRunner):
         env = TigerModel(creak_accuracy=1.0)
         planner_i = RandomPlanner(env.get_all_actions("i"))
         planner_j = RandomPlanner(env.get_all_actions("j"))
-        return env, planner_i, planner_j, env.get_initial_state()
+        return env, planner_i, planner_j

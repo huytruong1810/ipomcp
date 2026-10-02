@@ -1,90 +1,55 @@
+"""Horizon-bounded UCB: scale from declared reward bounds, untried first, unbiased ties."""
+
+import random
+
 import pytest
 
-from ipomdp.planning.exploration import HorizonBoundUCB, NormalizedUCB, StandardUCB
+from ipomdp.domains.tiger import TigerModel
+from ipomdp.planning.exploration import HorizonBoundUCB
 from ipomdp.planning.node import POMCPNode
 
 
-def test_standard_ucb_untried_actions():
-    strategy = StandardUCB(exploration_const=1.0)
+def node_with(counts, values):
     node = POMCPNode()
-    actions = ["A1", "A2", "A3"]
-
-    # Untried actions should be prioritized first
-    chosen = strategy.select_action(node, actions)
-    assert chosen in actions
-
-
-def test_normalized_ucb_scale_invariance():
-    strategy = NormalizedUCB(exploration_const=1.414)
-    node = POMCPNode()
-    node.visit_count = 100
-
-    # Action 1 visited 90 times with value 1000
-    node.action_counts["A1"] = 90
-    node.action_values["A1"] = 1000.0
-
-    # Action 2 visited 10 times with value 900
-    node.action_counts["A2"] = 10
-    node.action_values["A2"] = 900.0
-
-    # Normalized UCB uses local bounds
-    chosen = strategy.select_action(node, ["A1", "A2"], q_min=900.0, q_max=1000.0)
-    assert chosen in ["A1", "A2"]
-
-
-def test_normalized_ucb_degenerate_and_uninitialized_bounds():
-    strategy = NormalizedUCB(exploration_const=1.414)
-    node = POMCPNode()
-    node.visit_count = 10
-    node.action_counts["A1"] = 5
-    node.action_values["A1"] = 10.0
-    node.action_counts["A2"] = 5
-    node.action_values["A2"] = 10.0
-
-    # 1. Equal bounds (q_min == q_max)
-    chosen_equal = strategy.select_action(node, ["A1", "A2"], q_min=10.0, q_max=10.0)
-    assert chosen_equal in ["A1", "A2"]
-
-    # 2. Inverted / uninitialized bounds (q_min > q_max, e.g. inf / -inf)
-    chosen_inv = strategy.select_action(node, ["A1", "A2"], q_min=float("inf"), q_max=float("-inf"))
-    assert chosen_inv in ["A1", "A2"]
+    node.visit_count = sum(counts.values())
+    node.action_counts = dict(counts)
+    node.action_values = dict(values)
+    return node
 
 
 @pytest.mark.parametrize("gamma,expected", [(0, 110), (0.5, 192.5), (1, 330)])
 def test_horizon_reward_width(gamma, expected):
-    assert HorizonBoundUCB(-100, 10).return_width(3, gamma) == pytest.approx(expected)
+    assert HorizonBoundUCB(-100, 10, 1).return_width(3, gamma) == pytest.approx(expected)
 
 
 def test_early_termination_is_included_in_reward_interval():
-    assert HorizonBoundUCB(2, 5).return_width(2, 1) == 10
-    assert HorizonBoundUCB(-5, -2).return_width(2, 1) == 10
+    assert HorizonBoundUCB(2, 5, 1).return_width(2, 1) == 10
+    assert HorizonBoundUCB(-5, -2, 1).return_width(2, 1) == 10
 
 
-def test_horizon_bound_changes_exploration_without_sample_extrema():
-    node = POMCPNode()
-    node.visit_count = 100
-    node.action_counts = {"good": 90, "uncertain": 10}
-    node.action_values = {"good": 10, "uncertain": 0}
-    strategy = HorizonBoundUCB(-10, 10)
-    assert (
-        strategy.select_action(node, ["good", "uncertain"], remaining_horizon=1, gamma=1) == "good"
-    )
-    assert (
-        strategy.select_action(node, ["good", "uncertain"], remaining_horizon=3, gamma=1)
-        == "uncertain"
-    )
-    assert (
-        strategy.select_action(
-            node,
-            ["good", "uncertain"],
-            remaining_horizon=1,
-            gamma=1,
-            q_min=-1e20,
-            q_max=1e20,
-        )
-        == "good"
-    )
-    assert strategy.select_action(node, ["good", "new"], remaining_horizon=1, gamma=1) == "new"
+def test_bounds_come_from_the_domain_contract():
+    strategy = HorizonBoundUCB.for_agent(TigerModel(), "i", 2.0)
+    assert (strategy.reward_min, strategy.reward_max, strategy.exploration) == (-100, 10, 2.0)
+
+
+def test_exploration_grows_with_remaining_horizon():
+    node = node_with({"good": 90, "uncertain": 10}, {"good": 10, "uncertain": 0})
+    strategy = HorizonBoundUCB(-10, 10, 1)
+    assert strategy.select_action(node, ["good", "uncertain"], 1, 1) == "good"
+    assert strategy.select_action(node, ["good", "uncertain"], 3, 1) == "uncertain"
+
+
+def test_untried_actions_are_selected_first():
+    node = node_with({"good": 90}, {"good": 10})
+    assert HorizonBoundUCB(-10, 10, 1).select_action(node, ["good", "new"], 1, 1) == "new"
+
+
+def test_exact_ties_are_broken_uniformly_not_by_action_order():
+    node = node_with({"a": 10, "b": 10}, {"a": 1.0, "b": 1.0})
+    strategy = HorizonBoundUCB(-1, 1, 1)
+    random.seed(0)
+    chosen = {strategy.select_action(node, ["a", "b"], 2, 0.9) for _ in range(50)}
+    assert chosen == {"a", "b"}
 
 
 @pytest.mark.parametrize("lo,hi,c", [(1, -1, 1), (0, float("inf"), 1), (-1, 1, 0)])
@@ -96,4 +61,4 @@ def test_invalid_reward_bound_contract(lo, hi, c):
 @pytest.mark.parametrize("horizon,gamma", [(0, 0.95), (2.5, 1), (1, float("nan")), (1, 1.1)])
 def test_invalid_bound_horizon_or_discount(horizon, gamma):
     with pytest.raises(ValueError):
-        HorizonBoundUCB(-1, 1).return_width(horizon, gamma)
+        HorizonBoundUCB(-1, 1, 1).return_width(horizon, gamma)
