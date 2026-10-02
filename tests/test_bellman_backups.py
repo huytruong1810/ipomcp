@@ -1,5 +1,6 @@
 """Independent counterexamples for the empirical chance-weighted Bellman backup."""
 
+import random
 from types import SimpleNamespace
 
 import pytest
@@ -57,12 +58,11 @@ def test_simulator_counts_same_observation_with_terminal_and_continuing_outcomes
     model = SimpleNamespace(
         is_terminal=lambda state: state == "dead",
         get_all_actions=lambda agent: ["a"],
-        get_legal_actions=lambda *args: ["a"],
         reward_bounds=lambda agent: (0.0, 1.0),
         sample_observation=lambda *args: "same",
-        update_rollout_belief=lambda *args: None,
+        update_rollout_memory=lambda *args: None,
     )
-    bank = SimpleNamespace(expected_rewards=lambda history: (("a", 0.0),))
+    bank = SimpleNamespace(expected_rewards=lambda history: (("a", 0.0),), stream_seed=lambda *a: 0)
     planner = IPOMCPPlanner(
         SolverKey("i", 1),
         model,
@@ -80,9 +80,9 @@ def test_simulator_counts_same_observation_with_terminal_and_continuing_outcomes
     monkeypatch.setattr(planner, "_history_successor", lambda *args: "history")
     root = POMCPNode()
     atom = SimpleNamespace(state="alive")
-    assert planner._simulate(atom, root, 0, None, "history") == 10
+    assert planner._simulate(atom, root, 0, None, "history", random.Random(0)) == 10
     # Second sample terminates: Q = (10 + 0) / 2, terminal mass kept in the denominator.
-    assert planner._simulate(atom, root, 0, None, "history") == 5
+    assert planner._simulate(atom, root, 0, None, "history", random.Random(0)) == 5
     assert root.continuation_counts == {"a": {"same": 1}}
     assert root.action_counts == {"a": 2}
 

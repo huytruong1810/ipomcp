@@ -9,7 +9,6 @@ import random
 
 import pytest
 
-from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.finite_filter import (
     FiniteInteractiveFilter,
@@ -33,18 +32,14 @@ from ipomdp.planning.solver_types import SolverKey
 from tests.test_finite_filter import fixture, greedy_one_step, l1, left_probability
 
 
-@pytest.fixture(params=[IPOMCPPlanner, RTSPlanner])
-def planner(request):
-    physics = TigerModel()
+@pytest.fixture
+def planner():
+    # Perfect creaks: a creak proves the opponent opened a door.
+    physics = TigerModel(creak_accuracy=1.0)
     bank = SolverBank(seed=10)
     bank.filter = FiniteInteractiveFilter(greedy_one_step)
-    cls = request.param
-    config = (
-        PlannerConfig(simulations=12, depth=2, modeled_simulations=12)
-        if cls is IPOMCPPlanner
-        else RTSConfig(max_depth=2, obs_branching=3, num_particles=12)
-    )
-    solver = cls(SolverKey("i", 2), physics, bank, config)
+    config = PlannerConfig(simulations=12, depth=2, modeled_simulations=12)
+    solver = IPOMCPPlanner(SolverKey("i", 2), physics, bank, config)
     solver.set_initial_belief(fixture(physics).belief)
     return solver
 
@@ -59,9 +54,8 @@ def test_online_update_matches_full_joint_reference_and_ignores_search_counts(pl
     expected = planner.solver_bank.filter.update(
         planner.model(), LISTEN, (GROWL_LEFT, SILENCE)
     ).belief
-    if isinstance(planner, IPOMCPPlanner):
-        child = planner.root.create_child(LISTEN, (GROWL_LEFT, SILENCE))
-        child.visit_count = 10000
+    child = planner.root.create_child(LISTEN, (GROWL_LEFT, SILENCE))
+    child.visit_count = 10000
     planner.update_root(LISTEN, (GROWL_LEFT, SILENCE))
     assert planner.belief == expected
     for physical, expected_private in [(TIGER_LEFT, 0.85), (TIGER_RIGHT, 0.15)]:
@@ -98,9 +92,8 @@ def test_nested_private_model_advances_with_a_simulated_step():
         bank,
         PlannerConfig(simulations=1, depth=1, modeled_simulations=1),
     )
-    random.seed(182)
     following, _, _, _ = solver.gen_model.tree_step(
-        InteractiveState(TIGER_LEFT, middle), LISTEN, "i", physics
+        InteractiveState(TIGER_LEFT, middle), LISTEN, "i", physics, random.Random(182)
     )
     for atom, _ in following.opponent.belief.mass:
         p = left_probability(atom.opponent.belief)

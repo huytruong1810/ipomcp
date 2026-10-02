@@ -83,7 +83,7 @@ def test_l2_requires_explicit_contract_before_creating_output(tmp_path):
     panel = dict(budgets=[10], horizons=[1], seeds=1, beliefs=[0.5], level=2)
     with pytest.raises(ValueError, match="explicit positive"):
         run_oracle_comparison(tmp_path / "missing", **panel)
-    with pytest.raises(ValueError, match="MCTS only"):
+    with pytest.raises(ValueError, match="Unknown planner"):
         run_oracle_comparison(tmp_path / "rts", planners=("rts",), opponent_depth=2, **panel)
     assert not list(tmp_path.iterdir())
 

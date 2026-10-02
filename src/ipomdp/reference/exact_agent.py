@@ -11,6 +11,8 @@ Cost grows exponentially with horizon and nesting depth. Use it as a reference
 at small horizons and levels, never as a planner.
 """
 
+import random
+
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.planning.planner import Planner
@@ -64,27 +66,25 @@ class ExactIPOMDPPlanner(Planner):
         return {"action_values": {str(a): q for a, q in self.last_q.items()}}
 
 
-def build_exact_agent(agent_id, opponent_id, level, physics, prior_states, nested, horizon, gamma):
+def build_exact_agent(agent_id, opponent_id, level, physics, nested, horizon, gamma):
     """Build an exact agent and its exact nested models in a fresh bank.
 
     Args:
-        prior_states: Equally weighted physical prior, shared by every level.
         nested: {level: {opponent level: weight}} for every intentional level.
         horizon: Receding lookahead of every exact agent in the hierarchy.
     """
     bank = SolverBank(seed=0)  # exact policies consume no search randomness
-    bank.set_physical_prior(physics, prior_states)
     reference = FinitePolicyReference(
         physics, bank, gamma, max_branches=10_000_000, cache_size=200_000
     )
-    states = bank.physical_prior(physics)
+    prior = bank.physical_prior(physics)
 
     def create(who, lvl):
         key = SolverKey(who, lvl)
         if bank.has_solver(key):
             return bank.get_solver(key)
         if lvl == 0:
-            solver = RandomPlanner(physics.get_all_actions(who))
+            solver = RandomPlanner(physics.get_all_actions(who), random.Random(0))
             bank.register_solver(key, solver)
             return solver
         other = opponent_id if who == agent_id else agent_id
@@ -101,9 +101,7 @@ def build_exact_agent(agent_id, opponent_id, level, physics, prior_states, neste
             opponent = MentalModel(
                 AgentFrame(other, lower, physics), solver.initial_belief if lower else None
             )
-            rows += [
-                (InteractiveState(state, opponent), mass / total / len(states)) for state in states
-            ]
+            rows += [(InteractiveState(state, opponent), p * mass / total) for state, p in prior]
         solver = ExactIPOMDPPlanner(key, physics, bank, reference, horizon)
         solver.set_initial_belief(FiniteBelief(tuple(rows)))
         bank.register_solver(key, solver)

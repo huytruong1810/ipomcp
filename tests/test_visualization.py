@@ -10,13 +10,13 @@ from ipomdp.planning.solver_bank import SolverBank
 
 
 def test_extract_nested_belief_hierarchy_level3(tmp_path):
-    bank = SolverBank()
+    bank = SolverBank(0)
     env = TigerModel()
     cfg = PlannerConfig(simulations=50, depth=3, modeled_simulations=10)
     nested_weights = {3: {0: 1 / 3, 1: 1 / 3, 2: 1 / 3}, 2: {0: 0.5, 1: 0.5}, 1: {0: 1.0}}
 
     l3_planner = HierarchyBuilder(bank).build(
-        "i", 3, env, "j", config=cfg, nested_level_weights=nested_weights, prior_samples=600
+        "i", 3, env, "j", config=cfg, nested_level_weights=nested_weights
     )
 
     data = extract_nested_belief_hierarchy(l3_planner, agent_id="i", agent_level=3)

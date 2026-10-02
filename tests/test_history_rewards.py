@@ -4,6 +4,7 @@ The sampled hidden state of a simulation must never set the reward used in a
 backup: that would let the tree condition on information the agent lacks.
 """
 
+import random
 from types import SimpleNamespace
 
 import pytest
@@ -19,7 +20,8 @@ from ipomdp.planning.solver_types import SolverKey
 
 
 def setup(depth=2):
-    physics = TigerModel()
+    # Perfect creaks make the conditioned posterior analytic: silence means j listened.
+    physics = TigerModel(creak_accuracy=1.0)
     bank = SolverBank(seed=1)
     opponent = MentalModel(AgentFrame("j", 0, physics))
     belief = FiniteBelief(
@@ -51,7 +53,9 @@ def test_internal_reward_uses_posterior_not_sampled_hidden_state(state, conditio
     opponent = model.belief.mass[0][0].opponent
     node = POMCPNode()
     memory = planner._physical_marginal(model)
-    value = planner._simulate(InteractiveState(state, opponent), node, 0, memory, model)
+    value = planner._simulate(
+        InteractiveState(state, opponent), node, 0, memory, model, random.Random(0)
+    )
     # Opening resets the tiger, so the next (last) decision is at a uniform
     # belief, where listening (-1) is optimal.
     expected = (10 - 110 * p) + 0.95 * -1
@@ -73,5 +77,5 @@ def test_terminal_outcome_has_reward_and_no_continuation(monkeypatch):
 
     monkeypatch.setattr(planner, "_history_successor", unexpected)
     node = POMCPNode()
-    assert planner._simulate(atom, node, 0, {}, model) == 3.0
+    assert planner._simulate(atom, node, 0, {}, model, random.Random(0)) == 3.0
     assert node.continuation_counts == {}

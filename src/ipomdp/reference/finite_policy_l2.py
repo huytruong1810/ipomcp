@@ -85,9 +85,7 @@ class FinitePolicyL2Reference:
         count = 0
         for atom, prior in model.belief.mass:
             opponent = atom.opponent
-            for other_action, policy_mass in self.bank.filter.action_distribution(
-                opponent, atom.state
-            ):
+            for other_action, policy_mass in self.bank.filter.action_distribution(opponent):
                 joint = {"i": action, "j": other_action}
                 for following, transition in checked_distribution(
                     self.physics.transition_distribution(atom.state, joint), "Transition"
@@ -139,9 +137,7 @@ class FinitePolicyL2Reference:
             for action in self.actions:
                 terms = []
                 for atom, prior in model.belief.mass:
-                    for other_action, mass in self.bank.filter.action_distribution(
-                        atom.opponent, atom.state
-                    ):
+                    for other_action, mass in self.bank.filter.action_distribution(atom.opponent):
                         joint = {"i": action, "j": other_action}
                         for following, transition in checked_distribution(
                             self.physics.transition_distribution(atom.state, joint), "Transition"

@@ -40,7 +40,7 @@ OPTIMALITY_TOLERANCE = 1e-9
 
 def evaluate_cell(budget, horizon, seeds, beliefs=BELIEFS, gamma=0.95):
     """All (seed, belief) rows of one (budget, horizon) cell."""
-    physics = TigerModel(creak_accuracy=0.9)
+    physics = TigerModel()
     exact = ExactPOMDPSolver(physics, horizon=horizon, gamma=gamma)
     exact.solve()
     config = PlannerConfig(
@@ -48,8 +48,7 @@ def evaluate_cell(budget, horizon, seeds, beliefs=BELIEFS, gamma=0.95):
     )
     rows = []
     for seed in seeds:
-        bank = SolverBank(seed=seed)
-        bank.set_physical_prior(physics, (TIGER_LEFT, TIGER_RIGHT))
+        bank = SolverBank(seed)
         planner = HierarchyBuilder(bank).build(
             "i", 1, physics, "j", config=config, level_weights={0: 1.0}
         )

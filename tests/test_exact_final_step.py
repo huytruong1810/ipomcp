@@ -23,7 +23,6 @@ from ipomdp.planning.solver_bank import SolverBank
 def make_planner(p=0.5, depth=1, simulations=100):
     physics = TigerModel()
     bank = SolverBank(seed=17)
-    bank.set_physical_prior(physics, (TIGER_LEFT, TIGER_RIGHT))
     planner = HierarchyBuilder(bank).build(
         "i",
         1,
@@ -54,11 +53,9 @@ def test_exact_leaf_integrates_before_maximizing_and_ignores_rollout_memory(monk
     for atom, _ in planner.belief.mass:
         # Give the heuristic memory a misleading point mass. The leaf must use
         # the authoritative full posterior, not this heuristic or sampled state.
-        before = random.getstate()
-        assert planner._rollout(atom, 0, {atom.state: 1}, planner.model()) == -1
-        assert random.getstate() == before
+        assert planner._rollout(atom, 0, {atom.state: 1}, planner.model(), random.Random(0)) == -1
         node = POMCPNode()
-        assert planner._simulate(atom, node, 0, {}, planner.model()) == -1
+        assert planner._simulate(atom, node, 0, {}, planner.model(), random.Random(0)) == -1
         assert node.action_values == pytest.approx({"L": -1, "OL": -45, "OR": -45})
         assert node.action_counts == {}  # No fictitious per-action samples.
         assert node.visit_count == 1
@@ -70,10 +67,11 @@ def test_history_conditioning_uses_private_observation_and_resets_correctly():
     p_left = sum(w for atom, w in heard.belief.mass if atom.state == TIGER_LEFT)
     assert p_left == pytest.approx(0.85)
     assert planner._leaf_values(heard) == pytest.approx({"L": -1, "OL": -83.5, "OR": -6.5})
-    opened = planner._history_successor(heard, "OR", ("S", "S"))
+    # Opening resets the tiger and the opener observes uniformly: back to 50/50.
+    opened = planner._history_successor(heard, "OR", ("GL", "S"))
     assert planner._leaf_values(opened) == pytest.approx({"L": -1, "OL": -45, "OR": -45})
     with pytest.raises(UnsupportedObservation):
-        planner._history_successor(heard, "OR", ("GL", "S"))
+        planner._history_successor(heard, "OR", ("S", "S"))  # not an observation
 
 
 @pytest.mark.parametrize("belief", [0.08, 0.5, 0.92])

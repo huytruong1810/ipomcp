@@ -29,19 +29,15 @@ ACTIONS = ("L", "OL", "OR")
 STATES = (TIGER_LEFT, TIGER_RIGHT)
 
 
-def test_explicit_physical_prior_is_exact_and_not_replaceable():
-    physics, bank = tiger(), SolverBank(seed=1)
-    bank.set_physical_prior(physics, STATES)
-    assert bank.physical_prior(physics) == STATES
-    with pytest.raises(ValueError, match="already fixed"):
-        bank.set_physical_prior(physics, STATES)
-    with pytest.raises(ValueError, match="one physical prior"):
-        bank.physical_prior(physics, 2000)
+def test_bank_prior_is_the_domains_exact_prior():
+    physics, bank = tiger(), SolverBank(1)
+    assert bank.physical_prior(physics) == ((TIGER_LEFT, 0.5), (TIGER_RIGHT, 0.5))
+    assert bank.physical_prior(physics) is bank.physical_prior(tiger())
 
 
 @pytest.mark.parametrize("agent_id,level", [("i", 3), ("j", 2)])
 def test_declared_priors_and_hierarchies(agent_id, level):
-    planner = build_agent(agent_id, level, 100, 2, 0.95, 5)
+    planner = build_agent(agent_id, level, 100, 2, 0.95, 5, seed=0)
     other = "j" if agent_id == "i" else "i"
     expected = PRIOR_I if agent_id == "i" else PRIOR_J
     levels = opponent_level_distribution(planner, other)
@@ -67,17 +63,17 @@ def test_creak_point_nine_sensor_is_normalized_and_sampler_consistent(agent):
     for state, own, theirs in itertools.product(STATES, ACTIONS, ACTIONS):
         joint = {agent: own, other: theirs}
         total = math.fsum(
-            physics.get_observation_prob(o, state, joint, agent)
+            physics.observation_probability(o, state, joint, agent)
             for o in physics.get_all_observations(agent)
         )
         assert total == pytest.approx(1, abs=1e-15)
     rng, joint, n = random.Random(7), {agent: "L", other: "OL"}, 40000
     counts = {}
     for _ in range(n):
-        o = physics.sample_observation(TIGER_LEFT, joint, agent, rng=rng)
+        o = physics.sample_observation(TIGER_LEFT, joint, agent, rng)
         counts[o] = counts.get(o, 0) + 1
     for o in physics.get_all_observations(agent):
-        p = physics.get_observation_prob(o, TIGER_LEFT, joint, agent)
+        p = physics.observation_probability(o, TIGER_LEFT, joint, agent)
         assert abs(counts.get(o, 0) / n - p) < 5 * math.sqrt(p * (1 - p) / n) + 1e-12
 
 
@@ -132,7 +128,7 @@ def independent_level_posterior(planner, action, observation):
                     prior
                     * mass
                     * transition
-                    * physics.get_observation_prob(observation, following, joint, me)
+                    * physics.observation_probability(observation, following, joint, me)
                 )
     total = math.fsum(weights.values())
     return {level: w / total for level, w in weights.items()} if total else None
@@ -140,7 +136,7 @@ def independent_level_posterior(planner, action, observation):
 
 @pytest.mark.parametrize("agent_id,level", [("i", 3), ("j", 2)])
 def test_filter_level_posterior_matches_independent_bayes(agent_id, level):
-    planner = build_agent(agent_id, level, 200, 3, 0.95, 10)
+    planner = build_agent(agent_id, level, 200, 3, 0.95, 10, seed=0)
     other = "j" if agent_id == "i" else "i"
     physics = planner.pomdp_model
     checked = 0
@@ -158,12 +154,12 @@ def test_filter_level_posterior_matches_independent_bayes(agent_id, level):
             assert actual.get(k, 0.0) == pytest.approx(mass, abs=1e-12), (action, observation, k)
         assert other in {a.opponent.frame.agent_id for a, _ in posterior.belief.mass}
         checked += 1
-    # Listening supports 2 growls x 3 creak tokens; each opening yields (S, S).
-    assert checked == 8
+    # Listening supports 2 growls x 3 creak tokens; an opener observes all six uniformly.
+    assert checked == 6 + 2 * 6
 
 
 def test_general_reference_handles_mixed_levels_and_conserves_probability():
-    planner = build_agent("j", 2, 200, 2, 0.95, 10)
+    planner = build_agent("j", 2, 200, 2, 0.95, 10, seed=0)
     reference = FinitePolicyReference(planner.pomdp_model, planner.solver_bank)
     model = planner.model()
     assert reference.q_values(model, 1) == pytest.approx(
@@ -274,8 +270,8 @@ def test_resampling_never_drops_a_level_stratum():
 
 
 def test_bounded_filter_caps_support_at_every_nesting_level():
-    planner = build_agent("i", 3, 200, 2, 0.95, 5, max_support=8)
-    exact = build_agent("i", 3, 200, 2, 0.95, 5)
+    planner = build_agent("i", 3, 200, 2, 0.95, 5, seed=0, max_support=8)
+    exact = build_agent("i", 3, 200, 2, 0.95, 5, seed=0)
     for action, observation in [("L", ("GL", "S")), ("L", ("GR", "S")), ("L", ("GL", "S"))]:
         planner.update_root(action, observation)
         exact.update_root(action, observation)

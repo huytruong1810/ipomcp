@@ -171,14 +171,14 @@ class ExactPOMDPSolver:
                                 val_prev = alpha_prev.v0 if sp == s0 else alpha_prev.v1
                                 t0 = self._transition_prob(s0, sp, a, a_j)
                                 if t0 > 0:
-                                    o_prob0 = self.model.get_observation_prob(
+                                    o_prob0 = self.model.observation_probability(
                                         obs, sp, joint, self.agent_id
                                     )
                                     tau_0 += p_j * t0 * o_prob0 * val_prev
 
                                 t1 = self._transition_prob(s1, sp, a, a_j)
                                 if t1 > 0:
-                                    o_prob1 = self.model.get_observation_prob(
+                                    o_prob1 = self.model.observation_probability(
                                         obs, sp, joint, self.agent_id
                                     )
                                     tau_1 += p_j * t1 * o_prob1 * val_prev

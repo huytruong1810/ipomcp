@@ -29,9 +29,8 @@ def test_exact_l1_zero_horizon_and_invalid_inputs():
         ExactPOMDPSolver(TigerModel(), opponent_policy={"L": 0.2})
 
 
-@pytest.mark.parametrize("kind", ["mcts", "rts"])
-def test_oracle_comparison_binds_discount_belief_and_horizon(kind):
-    row = evaluate_case(kind, 1, 100, 17, 0.98, gamma=0.3)[0]
+def test_oracle_comparison_binds_discount_belief_and_horizon():
+    row = evaluate_case("mcts", 1, 100, 17, 0.98, gamma=0.3)[0]
     assert row["oracle_q"] == pytest.approx({"L": -1, "OL": -97.8, "OR": 7.8})
     assert row["first_action_loss"] == pytest.approx(0)
     assert row["horizon"] == 1 and row["gamma"] == 0.3

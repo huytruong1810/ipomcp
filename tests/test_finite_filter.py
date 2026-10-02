@@ -81,8 +81,8 @@ def oracle_l1(physics, p, action, obs):
         weights[following] += (
             prior
             / 3
-            * transition_probability(previous, following, action, unknown, physics.persistent)
-            * physics.get_observation_prob(obs, following, {"j": action, "i": unknown}, "j")
+            * transition_probability(previous, following, action, unknown)
+            * physics.observation_probability(obs, following, {"j": action, "i": unknown}, "j")
         )
     evidence = sum(weights.values())
     assert evidence > 0
@@ -103,8 +103,8 @@ def oracle_l2(physics, p_private, action, observation):
             0.5
             * (0.2 if level == 0 else 0.8)
             * p_action
-            * transition_probability(previous, following, action, other_action, physics.persistent)
-            * physics.get_observation_prob(observation, following, joint, "i")
+            * transition_probability(previous, following, action, other_action)
+            * physics.observation_probability(observation, following, joint, "i")
         )
         if not predictive:
             continue
@@ -114,7 +114,9 @@ def oracle_l2(physics, p_private, action, observation):
             )
         else:
             for private in physics.get_all_observations("j"):
-                weight = predictive * physics.get_observation_prob(private, following, joint, "j")
+                weight = predictive * physics.observation_probability(
+                    private, following, joint, "j"
+                )
                 if weight:
                     p_next = oracle_l1(physics, p_private, other_action, private)
                     key = (following, level, p_next)
@@ -131,11 +133,10 @@ def same_key(a, b):
     )
 
 
-@pytest.mark.parametrize("persistent", [False, True])
 @pytest.mark.parametrize("creak", [0.0, 0.4, 1.0])
 @pytest.mark.parametrize("p_private", [0.03, 0.5, 0.97])
-def test_every_reachable_l2_observation_matches_independent_reference(persistent, creak, p_private):
-    physics = TigerModel(creak_accuracy=creak, persistent=persistent)
+def test_every_reachable_l2_observation_matches_independent_reference(creak, p_private):
+    physics = TigerModel(creak_accuracy=creak)
     subject = fixture(physics, p_private)
     update = FiniteInteractiveFilter(greedy_one_step).update
     for action in ACTIONS:
@@ -175,7 +176,7 @@ def test_every_reachable_l2_observation_matches_independent_reference(persistent
 
 
 def test_perfect_creak_eliminates_listening_type_without_floor():
-    subject = fixture(TigerModel())
+    subject = fixture(TigerModel(creak_accuracy=1.0))
     result = FiniteInteractiveFilter(greedy_one_step).update(
         subject, LISTEN, (GROWL_LEFT, CREAK_RIGHT)
     )
@@ -260,7 +261,7 @@ def test_cache_eviction_order_and_serialization_preserve_results():
     kernel = FiniteInteractiveFilter(greedy_one_step, cache_size=1)
     observation = (GROWL_LEFT, SILENCE)
     first = kernel.update(subject, LISTEN, observation)
-    kernel.update(subject, OPEN_LEFT, (SILENCE, SILENCE))
+    kernel.update(subject, OPEN_LEFT, (GROWL_RIGHT, SILENCE))
     assert kernel.update(subject, LISTEN, observation) == first
     kernel.update.cache_clear()
     assert kernel.update(subject, LISTEN, observation) == first
@@ -305,9 +306,10 @@ def test_policy_errors_and_nested_model_misspecification_fail_explicitly():
             FiniteInteractiveFilter(lambda model: policy).update(
                 subject, LISTEN, (GROWL_LEFT, SILENCE)
             )
-    # A dogmatic private TL belief under persistent, perfect sensors cannot explain
-    # an actual GR. Do not silently discard that positive outer branch or reset it.
-    physics = TigerModel(growl_accuracy={"i": 1, "j": 1}, persistent=True)
+    # With perfect sensors, a dogmatic private TL belief cannot explain a GR heard
+    # with silence: listening i keeps the tiger left, and an opening i would have
+    # creaked. Do not silently discard that positive outer branch or reset it.
+    physics = TigerModel(growl_accuracy={"i": 1, "j": 1}, creak_accuracy=1)
     dogmatic = l1(physics, p_left=1)
     outer = MentalModel(
         AgentFrame("i", 2, physics), FiniteBelief(((InteractiveState(TIGER_RIGHT, dogmatic), 1),))
@@ -318,30 +320,6 @@ def test_policy_errors_and_nested_model_misspecification_fail_explicitly():
         )
 
 
-def test_finite_transition_laws_match_tiger_reference_and_deterministic_domains():
-    import random
-
-    from ipomdp.domains.uav import UAVModel
-    from ipomdp.domains.wumpus.model import WumpusModel
-
-    for persistent in [False, True]:
-        physics = TigerModel(persistent=persistent)
-        for previous, action_i, action_j in itertools.product(STATES, ACTIONS, ACTIONS):
-            distribution = dict(
-                physics.transition_distribution(previous, {"i": action_i, "j": action_j})
-            )
-            for following in STATES:
-                assert distribution.get(following, 0) == transition_probability(
-                    previous, following, action_i, action_j, persistent
-                )
-    for physics, agents in [(UAVModel(), ("i", "j")), (WumpusModel(), ("i", "j"))]:
-        state = physics.get_initial_state(rng=random.Random(91))
-        for a, b in itertools.product(*(physics.get_all_actions(agent) for agent in agents)):
-            joint = dict(zip(agents, (a, b)))
-            distribution = physics.transition_distribution(state, joint)
-            assert distribution == ((physics.sample_transition(state, joint), 1.0),)
-
-
 def test_tiny_and_large_weights_normalize_without_overflow():
     subject = fixture(TigerModel())
     a, b = [atom for atom, _ in subject.belief.mass][:2]
@@ -350,44 +328,11 @@ def test_tiny_and_large_weights_normalize_without_overflow():
         FiniteBelief(((a, 1e-300), (b, 1e300)))
 
 
-def test_observable_action_availability_must_agree_across_intentional_support():
-    import random
-    from dataclasses import replace
-
-    from ipomdp.domains.wumpus.constants import ACTION_FORWARD, AGENT_HUMAN, AGENT_WUMPUS
-    from ipomdp.domains.wumpus.model import WumpusModel
-
-    physics = WumpusModel()
-    state = physics.get_initial_state(rng=random.Random(3))
-    random_opponent = MentalModel(AgentFrame(AGENT_WUMPUS, 0, physics))
-    inconsistent = MentalModel(
-        AgentFrame(AGENT_HUMAN, 1, physics),
-        FiniteBelief(
-            (
-                (InteractiveState(state, random_opponent), 0.5),
-                (InteractiveState(replace(state, has_arrow=False), random_opponent), 0.5),
+def test_tiger_transition_law_matches_the_independent_reference():
+    physics = TigerModel()
+    for previous, action_i, action_j in itertools.product(STATES, ACTIONS, ACTIONS):
+        law = dict(physics.transition_distribution(previous, {"i": action_i, "j": action_j}))
+        for following in STATES:
+            assert law.get(following, 0) == transition_probability(
+                previous, following, action_i, action_j
             )
-        ),
-    )
-    kernel = FiniteInteractiveFilter(lambda model: {ACTION_FORWARD: 1.0})
-    with pytest.raises(ValueError, match="availability differs"):
-        kernel.action_distribution(inconsistent, state)
-
-
-def test_wumpus_sparse_observation_law_matches_full_probability_table():
-    import random
-
-    from ipomdp.domains.wumpus.model import WumpusModel
-
-    model = WumpusModel()
-    state = model.get_initial_state(random.Random(3))
-    for a, b in itertools.product(model.get_all_actions("i"), model.get_all_actions("j")):
-        joint = {"i": a, "j": b}
-        following = model.sample_transition(state, joint)
-        for agent in ["i", "j"]:
-            sparse = dict(model.observation_distribution(following, joint, agent))
-            assert sum(sparse.values()) == 1
-            for obs in model.get_all_observations(agent):
-                assert sparse.get(obs, 0) == model.get_observation_prob(
-                    obs, following, joint, agent
-                )

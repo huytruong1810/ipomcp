@@ -21,8 +21,8 @@ STATES = (TIGER_LEFT, TIGER_RIGHT)
 ACTIONS = (LISTEN, OPEN_LEFT, OPEN_RIGHT)
 
 
-def transition_probability(previous, following, action_i, action_j, persistent=False):
-    if persistent or action_i == action_j == LISTEN:
+def transition_probability(previous, following, action_i, action_j):
+    if action_i == action_j == LISTEN:
         return float(previous == following)
     return 0.5
 
@@ -42,10 +42,8 @@ def posterior(prior, action, observation, policies, model=None):
                 weight = (
                     mass
                     * probability
-                    * transition_probability(
-                        previous, following, action, other_action, model.persistent
-                    )
-                    * model.get_observation_prob(observation, following, joint, "i")
+                    * transition_probability(previous, following, action, other_action)
+                    * model.observation_probability(observation, following, joint, "i")
                 )
                 key = (following, kind)
                 unnormalized[key] = unnormalized.get(key, 0.0) + weight
@@ -79,7 +77,7 @@ def finite_horizon_values(probability_left, depth, gamma=0.95, opponent_policy=N
                         )
                         reward += predictive * model.get_reward(previous, joint, following, "i")
                         for obs in model.get_all_observations("i"):
-                            weight = predictive * model.get_observation_prob(
+                            weight = predictive * model.observation_probability(
                                 obs, following, joint, "i"
                             )
                             if weight:

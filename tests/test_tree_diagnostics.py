@@ -1,5 +1,7 @@
 """Algebraic tests for post-search diagnostics, independent of Tiger search."""
 
+import random
+
 from ipomdp.analysis.error_attribution import describe_node, trace_margin
 from ipomdp.planning.node import POMCPNode
 
@@ -171,7 +173,7 @@ def test_attribution_reconstructs_a_real_l2_search_tree_exactly():
     for key, solver in [
         (SolverKey("i", 2), planner),
         (SolverKey("j", 1), opponent),
-        (SolverKey("i", 0), RandomPlanner(physics.get_all_actions("i"))),
+        (SolverKey("i", 0), RandomPlanner(physics.get_all_actions("i"), random.Random(0))),
     ]:
         bank.register_solver(key, solver)
     planner.set_initial_belief(_two_state_belief(physics, 2, 0.2, 0.085))

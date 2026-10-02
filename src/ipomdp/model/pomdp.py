@@ -1,114 +1,72 @@
-"""Physical dynamics and observation contracts shared by the domains.
+"""The physical-domain contract every environment implements.
 
-Observations condition on the post-transition state and simultaneous joint action.
-Transition events needed for observation generation must therefore be encoded in
-that state (for example Wumpus bump and scream flags). Sampling and likelihood
-evaluation must implement the same probability kernel. Optional RNG arguments
-isolate real-environment randomness from planning randomness.
+A domain declares finite probability kernels; everything else is derived
+------------------------------------------------------------------------
+A domain states *what can happen and with what probability*:
 
-Action availability may depend only on information known at the acting agent's
-history. A hidden-state action mask leaks information even when it saves search
-work. Domain rollout policies have the same information restriction.
+- ``initial_distribution()``: the exact prior over physical states;
+- ``transition_distribution(s, a)``: P(s' | s, a) for a joint action a;
+- ``observation_distribution(s', a, i)``: P(o_i | s', a) for agent i;
+- ``get_reward(s, a, s', i)`` with declared ``reward_bounds(i)``.
+
+Sampling (``sample_initial_state``, ``sample_transition``,
+``sample_observation``) and likelihoods (``observation_probability``) are
+derived from those kernels here, so a sampler can never disagree with the law
+that exact belief updates and exact references use. Earlier versions let each
+domain implement sampler and likelihood separately; they had to agree by hand.
+
+Observations depend on the post-transition state and the joint action. Any
+transition event an observation must report (for example a bump or a scream)
+has to be recorded in the post-transition state.
+
+Information discipline
+----------------------
+- The action set depends only on the agent: ``get_all_actions(agent_id)``. An
+  action availability that varied with the hidden state would let a planner
+  branch on information it does not have. Actions that have no effect in some
+  states (shooting without an arrow) are allowed and simply have no effect.
+- A rollout policy sees only the agent's private rollout memory, never the
+  sampled state (``rollout_action``).
+
+Randomness
+----------
+Every sampling method takes an explicit ``random.Random``. No code in the
+package uses the process-global ``random`` module, so independent streams
+(environment, each planner) cannot interfere and results do not depend on call
+order across components.
 """
 
 import abc
-from typing import Any, Dict, Hashable, List, Optional
+import random
+from typing import Any, Dict, Hashable, List, Optional, Tuple
 
-# Type Aliases for strict typing in downstream planners.
-# States, Actions, and Observations should strictly be Hashable to allow for dictionary
-# lookups in UCB algorithms and Q-value tracking.
 State = Hashable
 Action = Hashable
 Observation = Hashable
 AgentID = Hashable
+Distribution = Tuple[Tuple[Any, float], ...]
 
 
 class POMDPModel(abc.ABC):
-    r"""
-    Abstract base class defining the physical < I, S, A, T, O, R, \gamma > tuple.
-
-    Any domain evaluated by the I-POMCP solver (e.g., Tiger, UAV, Wumpus)
-    must inherit from this class and implement these exact mechanics.
-    """
-
     # ------------------------------------------------------------------ #
-    # Core Environment Dynamics
+    # Declared by each domain
     # ------------------------------------------------------------------ #
 
     @abc.abstractmethod
-    def get_initial_state(self, rng=None) -> State:
-        """
-        Samples an initial physical state $s_0$ from the prior distribution $P(S_0)$.
-        """
-        pass
+    def initial_distribution(self) -> Distribution:
+        """Exact prior: ((state, probability), ...), probabilities summing to one."""
 
     @abc.abstractmethod
-    def sample_transition(
-        self, state: State, joint_action: Dict[AgentID, Action], rng=None
-    ) -> State:
-        r"""
-        Generative Transition Function: $s' \sim T(s, \vec{a})$.
-
-        Args:
-            state: The current physical state.
-            joint_action: A dictionary mapping every AgentID to their chosen Action.
-
-        Returns:
-            The subsequent physical state $s'$.
-        """
-        pass
-
-    def transition_distribution(self, state: State, joint_action: Dict[AgentID, Action]):
-        """Enumerate finite (post-state, probability) support for exact conditioning.
-
-        Sampling is not a substitute for this law. A domain without finite support
-        must use a separately justified sampled filter; it cannot silently turn one
-        random transition into a probability-one event. Current domains implement
-        this method explicitly. The enumerated and sampled laws must agree.
-        """
-        raise NotImplementedError("This model does not provide finite transition support")
+    def transition_distribution(
+        self, state: State, joint_action: Dict[AgentID, Action]
+    ) -> Distribution:
+        """P(s' | s, joint action) as ((next_state, probability), ...)."""
 
     @abc.abstractmethod
-    def sample_observation(
-        self, state: State, joint_action: Dict[AgentID, Action], agent_id: AgentID, rng=None
-    ) -> Observation:
-        r"""
-        Generative Observation Function: $o_i \sim O_i(s', \vec{a})$.
-        Used to generate hypothetical realities during the MCTS rollout.
-
-        Args:
-            state: The physical state *after* the transition ($s'$).
-            joint_action: The joint action that was just executed ($\vec{a}$).
-            agent_id: The specific agent receiving the observation.
-
-        Returns:
-            The generated observation $o_i$.
-        """
-        pass
-
-    @abc.abstractmethod
-    def get_observation_prob(
-        self,
-        observation: Observation,
-        state: State,
-        joint_action: Dict[AgentID, Action],
-        agent_id: AgentID,
-    ) -> float:
-        r"""
-        Evaluative Observation Probability: $P(o_i \mid s', \vec{a})$.
-        Used strictly to re-weight beliefs during the Interactive Particle Filter (IPF) update.
-
-        [ARCHITECTURAL MANDATE]: The mathematical distribution returned by this method
-        MUST perfectly symmetrically match the distribution generated by `sample_observation`.
-        """
-        pass
-
-    def observation_distribution(self, state, joint_action, agent_id):
-        """Enumerate the observation law; domains may avoid scanning zero-mass tokens."""
-        return tuple(
-            (o, self.get_observation_prob(o, state, joint_action, agent_id))
-            for o in self.get_all_observations(agent_id)
-        )
+    def observation_distribution(
+        self, state: State, joint_action: Dict[AgentID, Action], agent_id: AgentID
+    ) -> Distribution:
+        """P(o | s', joint action) for ``agent_id``, given the post-transition state."""
 
     @abc.abstractmethod
     def get_reward(
@@ -118,88 +76,84 @@ class POMDPModel(abc.ABC):
         next_state: State,
         agent_id: AgentID,
     ) -> float:
-        """
-        Reward Function: $R_i(s, \vec{a}, s')$.
-
-        Args:
-            state: The pre-transition state ($s$).
-            joint_action: The joint action executed ($\vec{a}$).
-            next_state: The post-transition state ($s'$).
-            agent_id: The agent for whom the reward is calculated.
-        """
-        pass
+        """R_i(s, joint action, s')."""
 
     @abc.abstractmethod
-    def reward_bounds(self, agent_id: AgentID) -> tuple[float, float]:
+    def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
         """Inclusive (min, max) of ``get_reward`` over every reachable transition.
 
         The planner's exploration scale is derived from these bounds, so they
         must hold for all states and joint actions, not only the likely ones.
-        A bound estimated from sampled returns would leak information about the
-        current particle and would understate rare penalties.
         """
 
     @abc.abstractmethod
     def is_terminal(self, state: State) -> bool:
-        """
-        Evaluates whether the given state represents the end of an episode.
-        If True, the MCTS trajectory immediately truncates and returns 0.0 future value.
-        """
-        pass
-
-    # ------------------------------------------------------------------ #
-    # Action and Observation Space Enumerators
-    # ------------------------------------------------------------------ #
+        """Whether the episode has ended; terminal states have no future reward."""
 
     @abc.abstractmethod
     def get_all_actions(self, agent_id: AgentID) -> List[Action]:
-        """
-        Return the maximal/complete action space for *agent_id*.
-        Must be implemented to prevent runtime instantiation errors.
-        """
-        pass
+        """The agent's complete, state-independent action set."""
 
     @abc.abstractmethod
     def get_all_observations(self, agent_id: AgentID) -> List[Observation]:
-        """
-        Return the maximal/complete observation space for *agent_id*.
-        Must be implemented to satisfy observation-enumerating baseline solvers (like RTS).
-        """
-        pass
+        """Every observation the agent can receive."""
 
-    def get_legal_actions(self, state: State, agent_id: AgentID) -> List[Action]:
-        """
-        Return the dynamically available actions for *agent_id* given the current *state*.
-
-        [ARCHITECTURAL MANDATE]: Override this in concrete domains where actions
-        can be rendered invalid by state (e.g., blocked paths, empty ammo).
-        By default, this falls back to `get_all_actions`, but proper implementation
-        massively reduces MCTS branching factors and speeds up planning.
-        """
-        return self.get_all_actions(agent_id)
-
-    def get_rollout_action(
-        self, state: State, agent_id: AgentID, belief: Optional[Any] = None
+    def rollout_action(
+        self, agent_id: AgentID, memory: Optional[Any], rng: random.Random
     ) -> Action:
-        """Choose a rollout action using the domain's fixed default policy.
+        """Default rollout policy: uniform over the agent's actions.
 
-        The default samples uniformly from actions. Overrides must not exploit
-        hidden state: a rollout policy still represents a partially informed agent
-        and may condition only on private belief or history.
-        This policy estimates leaf values at finite search budgets; it is not an
-        assertion of optimality. Domains with no legal actions terminate before
-        this hook is called.
+        Domains may override with a heuristic that uses only ``memory``, the
+        agent's private rollout memory (see ``update_rollout_memory``).
         """
-        import random
+        return rng.choice(self.get_all_actions(agent_id))
 
-        return random.choice(self.get_legal_actions(state, agent_id))
-
-    def update_rollout_belief(
-        self,
-        belief: Optional[Any],
-        action: Action,
-        observation: Observation,
-        agent_id: AgentID,
+    def update_rollout_memory(
+        self, memory: Optional[Any], action: Action, observation: Observation, agent_id: AgentID
     ) -> Optional[Any]:
-        """Optionally update private rollout belief from the agent's own action and observation."""
-        return belief
+        """Advance the private rollout memory on the agent's own action and observation.
+
+        The planner initialises the memory with the physical marginal of the
+        agent's belief. The default policy needs no memory and keeps it as is.
+        """
+        return memory
+
+    # ------------------------------------------------------------------ #
+    # Derived from the kernels
+    # ------------------------------------------------------------------ #
+
+    def sample_initial_state(self, rng: random.Random) -> State:
+        return _sample(self.initial_distribution(), rng)
+
+    def sample_transition(
+        self, state: State, joint_action: Dict[AgentID, Action], rng: random.Random
+    ) -> State:
+        return _sample(self.transition_distribution(state, joint_action), rng)
+
+    def sample_observation(
+        self,
+        state: State,
+        joint_action: Dict[AgentID, Action],
+        agent_id: AgentID,
+        rng: random.Random,
+    ) -> Observation:
+        return _sample(self.observation_distribution(state, joint_action, agent_id), rng)
+
+    def observation_probability(
+        self,
+        observation: Observation,
+        state: State,
+        joint_action: Dict[AgentID, Action],
+        agent_id: AgentID,
+    ) -> float:
+        for value, probability in self.observation_distribution(state, joint_action, agent_id):
+            if value == observation:
+                return probability
+        return 0.0
+
+
+def _sample(distribution: Distribution, rng: random.Random):
+    if len(distribution) == 1:
+        return distribution[0][0]
+    values, weights = zip(*distribution)
+    return rng.choices(values, weights=weights, k=1)[0]

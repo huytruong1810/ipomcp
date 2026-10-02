@@ -99,6 +99,11 @@ def _timed(call, timings, kind, agent):
     return result
 
 
+def planner_seed(trial_id: int) -> int:
+    """The planners' seed for a trial: fixed, distinct per trial, independent of the environment."""
+    return trial_id * 1_000_003 + 17
+
+
 def _get_belief_support(planner: Planner) -> int:
     """Number of distinct weighted interactive hypotheses, not search trajectories."""
     return len(planner.belief.mass) if getattr(planner, "belief", None) is not None else 0
@@ -239,8 +244,12 @@ class GenericBatchRunner(ABC):
             logger = get_logger("BatchRunner", log_file=os.path.join(self.log_dir, "execution.log"))
 
     @abstractmethod
-    def _setup_domain(self) -> Tuple[POMDPModel, Planner, Planner]:
-        """Return (environment physics, agent i's planner, agent j's planner)."""
+    def _setup_domain(self, seed: int) -> Tuple[POMDPModel, Planner, Planner]:
+        """Return (environment physics, agent i's planner, agent j's planner).
+
+        ``seed`` is derived from the trial id; runners give each real agent's
+        solver bank its own seed from it, e.g. ``seed`` and ``seed + 1``.
+        """
 
     def _get_custom_metrics(
         self,
@@ -256,18 +265,16 @@ class GenericBatchRunner(ABC):
         return self._run_episode(trial_id)
 
     def _run_episode(self, trial_id: int, snapshots=None) -> List[Dict[str, Any]]:
-        # Common Random Numbers (CRN): Dedicated isolated RNGs for transition and per-agent observations
-        env_rng_trans = random.Random(trial_id * 10000 + 42)
-        env_rng_obs_i = random.Random(trial_id * 10000 + 1042)
-        env_rng_obs_j = random.Random(trial_id * 10000 + 2042)
+        # Separate environment streams per trial: the initial state and
+        # transitions, and each agent's sensor. Equal trial ids give equal
+        # streams across conditions; the streams stay aligned only while the
+        # conditions' actions agree, so pairing is by trial, not by event.
+        env_rng_trans = random.Random(f"{trial_id}/environment/transition")
+        env_rng_obs_i = random.Random(f"{trial_id}/environment/observation/i")
+        env_rng_obs_j = random.Random(f"{trial_id}/environment/observation/j")
 
-        # Seed global RNG for planners
-        planner_seed = trial_id * 10000 + 1337
-        random.seed(planner_seed)
-        np.random.seed(planner_seed)
-
-        env, planner_i, planner_j = self._setup_domain()
-        true_state = env.get_initial_state(rng=env_rng_trans)
+        env, planner_i, planner_j = self._setup_domain(planner_seed(trial_id))
+        true_state = env.sample_initial_state(env_rng_trans)
 
         trial_records = []
         cum_reward_i = 0.0
@@ -318,16 +325,17 @@ class GenericBatchRunner(ABC):
                 a_j = _timed(planner_j.get_action, timings, "planning", "j")
                 joint_action = {"i": a_i, "j": a_j}
 
-                next_state = env.sample_transition(true_state, joint_action, rng=env_rng_trans)
-                o_i = env.sample_observation(next_state, joint_action, "i", rng=env_rng_obs_i)
-                o_j = env.sample_observation(next_state, joint_action, "j", rng=env_rng_obs_j)
-
+                next_state = env.sample_transition(true_state, joint_action, env_rng_trans)
                 r_i = env.get_reward(true_state, joint_action, next_state, "i")
                 r_j = env.get_reward(true_state, joint_action, next_state, "j")
-
                 cum_reward_i += r_i
                 cum_reward_j += r_j
                 is_terminal = env.is_terminal(next_state)
+                # Nobody acts after termination, so no observation is emitted.
+                o_i = o_j = None
+                if not is_terminal:
+                    o_i = env.sample_observation(next_state, joint_action, "i", env_rng_obs_i)
+                    o_j = env.sample_observation(next_state, joint_action, "j", env_rng_obs_j)
 
                 stats_i = planner_i.get_detailed_stats()
                 stats_j = planner_j.get_detailed_stats()

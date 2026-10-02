@@ -1,14 +1,13 @@
-"""One greedy policy contract and reproducible, isolated search randomness.
+"""The greedy decision rule shared by real decisions and opponent prediction.
 
-MCTS and sampled lookahead approximate Q; action execution and opponent prediction
-both distribute mass uniformly over maximizing estimates. A bounded solve is not
-an optimal policy. In particular, different real/model budgets remain an explicit
-approximation. Nested solves restore the caller's RNG stream even on failure.
+Every planner and every modeled opponent distributes probability uniformly over
+the actions with maximal estimated value. Using one rule for both keeps the
+opponent model consistent with how the modeled agent would actually act. A
+policy computed from a finite search is an approximation of the optimal policy,
+not the optimal policy itself.
 """
 
 import math
-import random
-from contextlib import contextmanager
 
 
 def greedy_policy(values):
@@ -19,16 +18,5 @@ def greedy_policy(values):
     return {a: 1.0 / len(actions) for a in actions}
 
 
-def sample_policy(policy):
-    return random.choices(list(policy), weights=list(policy.values()), k=1)[0]
-
-
-@contextmanager
-def search_randomness(seed):
-    """Process-local serial searches only; simultaneous threads are not supported."""
-    previous = random.getstate()
-    random.seed(seed)
-    try:
-        yield
-    finally:
-        random.setstate(previous)
+def sample_policy(policy, rng):
+    return rng.choices(list(policy), weights=list(policy.values()), k=1)[0]

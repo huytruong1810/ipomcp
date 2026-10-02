@@ -6,7 +6,7 @@ A real agent and every model nested in its belief share one bank:
 
 - **Registry.** One solver per (agent, level), so a modeled opponent's policy is
   computed by the solver declared for that level.
-- **Physical prior.** One prior per domain, shared by every nesting level.
+- **Physical prior.** The domain's exact prior, shared by every nesting level.
 - **Policy cache.** A modeled policy is a pure function of the modeled agent's
   belief, because search randomness is seeded from the bank seed and the
   belief's canonical digest. Cached results are immutable values, so cache
@@ -22,7 +22,6 @@ leak into the other's.
 
 import gc
 import math
-import random
 from functools import lru_cache
 
 from ipomdp.belief import canonical
@@ -31,12 +30,17 @@ from ipomdp.planning.solver_types import SolverKey
 
 
 class SolverBank:
-    def __init__(self, seed=None, max_support=None):
-        """``max_support`` = None keeps exact enumeration; an integer K bounds
-        every posterior at every nesting level by stratified resampling."""
+    def __init__(self, seed, max_support=None):
+        """``seed`` determines all search randomness of this bank's models.
+
+        ``max_support`` = None keeps exact enumeration; an integer K bounds
+        every posterior at every nesting level by stratified resampling.
+        """
+        if type(seed) is not int:
+            raise TypeError("A solver bank needs an explicit integer seed")
         self._solvers = {}
         self._physical_priors = {}
-        self.seed = random.getrandbits(64) if seed is None else seed
+        self.seed = seed
         self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
         # Canonical order makes random.choices intervals independent of how an
@@ -48,46 +52,17 @@ class SolverBank:
     # Physical prior
     # ------------------------------------------------------------------ #
 
-    def physical_prior(self, physics, samples=None):
-        """The one physical prior shared by every model of this domain in the bank.
+    def physical_prior(self, physics):
+        """The domain's exact prior, shared by every nesting level of this bank.
 
-        It is either declared with ``set_physical_prior`` or, on first request,
-        drawn as ``samples`` states from ``get_initial_state``. Sharing one
-        unconditional prior across nesting levels prevents a nested model from
-        ruling out an observation only because its own sample missed a state;
-        it never conditions a private belief on the true state. A request whose
-        sample size disagrees with the established prior is an error, because
-        models built from different priors would not be comparable.
+        Every model of a domain uses the same unconditional prior, so a nested
+        model never rules out an observation merely because its prior differs;
+        the prior never conditions on the true state.
         """
-        key = self._prior_key(physics)
+        key = canonical.digest(canonical.physics_identity(physics))
         if key not in self._physical_priors:
-            if samples is None:
-                raise ValueError("No declared physical prior; state the number of prior samples")
-            self._physical_priors[key] = tuple(physics.get_initial_state() for _ in range(samples))
-        states = self._physical_priors[key]
-        if samples is not None and len(states) != samples:
-            raise ValueError("All models in one bank must share one physical prior")
-        return states
-
-    def set_physical_prior(self, physics, states):
-        """Declare an exact, equally weighted physical prior before any model exists.
-
-        A sampled prior only approximates a declared distribution such as a
-        50/50 tiger. Equal-weight atoms are merged exactly, so a balanced tuple
-        represents that distribution without sampling error. Replacing an
-        established prior is refused.
-        """
-        states = tuple(states)
-        if not states:
-            raise ValueError("A physical prior needs at least one state")
-        key = self._prior_key(physics)
-        if key in self._physical_priors:
-            raise ValueError("This bank already fixed a physical prior for these physics")
-        self._physical_priors[key] = states
-
-    @staticmethod
-    def _prior_key(physics):
-        return canonical.digest(canonical.physics_identity(physics))
+            self._physical_priors[key] = physics.initial_distribution()
+        return self._physical_priors[key]
 
     # ------------------------------------------------------------------ #
     # Registry
@@ -113,6 +88,10 @@ class SolverBank:
     # ------------------------------------------------------------------ #
     # Policies and integrals
     # ------------------------------------------------------------------ #
+
+    def stream_seed(self, *labels):
+        """Seed for a named random stream of this bank (for example an agent's actions)."""
+        return canonical.digest([self.seed, *map(canonical.stable_value, labels)])
 
     def search_seed(self, model, settings):
         """Search randomness for one solve: equal problems get equal seeds."""
@@ -151,9 +130,7 @@ class SolverBank:
             if physics.is_terminal(atom.state):
                 continue
             other_id = atom.opponent.frame.agent_id
-            for other_action, probability in self.filter.action_distribution(
-                atom.opponent, atom.state
-            ):
+            for other_action, probability in self.filter.action_distribution(atom.opponent):
                 for action in all_actions:
                     joint = {frame.agent_id: action, other_id: other_action}
                     for following, transition_mass in checked_distribution(

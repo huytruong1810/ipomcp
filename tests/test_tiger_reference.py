@@ -24,7 +24,9 @@ def test_all_tiger_observation_kernels_normalize():
                 for second in ACTIONS:
                     for agent in ("i", "j"):
                         masses = [
-                            model.get_observation_prob(obs, state, {"i": first, "j": second}, agent)
+                            model.observation_probability(
+                                obs, state, {"i": first, "j": second}, agent
+                            )
                             for obs in model.get_all_observations(agent)
                         ]
                         assert min(masses) >= 0
@@ -46,7 +48,10 @@ def test_reset_decouples_physics_but_does_not_erase_type_evidence():
         for state in STATES
         for kind, mass in [("listener", 0.8), ("random", 0.2)]
     }
-    after = posterior(prior, LISTEN, (GROWL_LEFT, CREAK_RIGHT), policies)
+    # With perfect creaks, a creak rules out the always-listening type.
+    after = posterior(
+        prior, LISTEN, (GROWL_LEFT, CREAK_RIGHT), policies, TigerModel(creak_accuracy=1.0)
+    )
     assert sum(weight for (state, kind), weight in after.items() if kind == "listener") == 0
     assert after[TIGER_LEFT, "random"] == pytest.approx(0.85)
 

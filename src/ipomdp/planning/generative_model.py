@@ -1,11 +1,19 @@
-"""Sample physical events, then recursively update private subjective beliefs.
+"""One simulated joint step: the opponent acts, the world moves, minds advance.
 
-Private observations are sampled once. Their likelihood is NOT multiplied again;
-the separate conditioning kernel enumerates hidden events inside the opponent's
-own subjective model. No hidden outer state/action is supplied to that update.
+Given a particle (s, m_j) and the planning agent's action a_i:
+
+1. a_j is drawn from the opponent's modeled policy at m_j (uniform for L0;
+   for intentional models, the bank's cached policy for m_j's belief);
+2. s' is drawn from the transition kernel;
+3. if the opponent is intentional and the episode continues, its private
+   observation o_j is drawn and m_j advances by its own subjective update
+   U_j(b_j, a_j, o_j).
+
+The opponent's update receives only its own action and observation, never the
+outer state or the planning agent's action. o_j is sampled once here; its
+likelihood is not multiplied in again, because the subjective update already
+marginalises everything the opponent cannot see.
 """
-
-import random
 
 from ipomdp.belief.finite_belief import InteractiveState, MentalModel
 
@@ -14,28 +22,20 @@ class InteractiveGenerativeModel:
     def __init__(self, solver_bank):
         self.solver_bank = solver_bank
 
-    def sample_event(self, particle, action_i, agent_id_i, physics_model):
+    def tree_step(self, particle, action, agent_id, physics, rng):
+        """Return (next particle, joint action, agent's reward, terminal)."""
         opponent = particle.opponent
         other = opponent.frame.agent_id
-        distribution = self.solver_bank.filter.action_distribution(opponent, particle.state)
-        actions, weights = zip(*distribution)
-        action_j = random.choices(actions, weights=weights, k=1)[0]
-        joint = {agent_id_i: action_i, other: action_j}
-        following = physics_model.sample_transition(particle.state, joint)
-        reward = physics_model.get_reward(particle.state, joint, following, agent_id_i)
-        terminal = physics_model.is_terminal(following)
-        return following, joint, reward, terminal
-
-    def tree_step(self, particle, action_i, agent_id_i, physics_model):
-        following, joint, reward, terminal = self.sample_event(
-            particle, action_i, agent_id_i, physics_model
-        )
-        opponent = particle.opponent
-        other = opponent.frame.agent_id
-        action_j = joint[other]
-        # No future decision follows termination, so no private policy needs solving.
+        actions, weights = zip(*self.solver_bank.filter.action_distribution(opponent))
+        joint = {agent_id: action, other: rng.choices(actions, weights=weights, k=1)[0]}
+        following = physics.sample_transition(particle.state, joint, rng)
+        reward = physics.get_reward(particle.state, joint, following, agent_id)
+        terminal = physics.is_terminal(following)
+        # No future decision follows termination, so no private model needs advancing.
         if opponent.frame.level > 0 and not terminal:
-            private = physics_model.sample_observation(following, joint, other)
-            posterior = self.solver_bank.filter.update(opponent, action_j, private, terminal=False)
+            private = physics.sample_observation(following, joint, other, rng)
+            posterior = self.solver_bank.filter.update(
+                opponent, joint[other], private, terminal=False
+            )
             opponent = MentalModel(opponent.frame, posterior.belief)
         return InteractiveState(following, opponent), joint, reward, terminal

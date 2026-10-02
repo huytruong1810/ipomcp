@@ -34,10 +34,11 @@ belief and the opponents' modeled policies; it is not an exact solver.
 
 Reproducibility
 ---------------
-Each solve seeds its randomness from (bank seed, agent, level, canonical belief
-digest, configuration), and restores the caller's random state afterwards.
-Equal problems therefore receive equal searches regardless of query order,
-which makes modeled opponent policies pure functions of their beliefs.
+Each solve draws from its own ``random.Random`` seeded by (bank seed, agent,
+level, canonical belief digest, configuration). Equal problems therefore
+receive equal searches regardless of query order, which makes modeled opponent
+policies pure functions of their beliefs. Real actions are sampled from a
+separate stream owned by the planner. Nothing touches the global ``random``.
 """
 
 import random
@@ -50,7 +51,7 @@ from ipomdp.planning.exploration import HorizonBoundUCB
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.planner import Planner
-from ipomdp.planning.policy import greedy_policy, sample_policy, search_randomness
+from ipomdp.planning.policy import greedy_policy, sample_policy
 
 
 class IPOMCPPlanner(Planner):
@@ -62,6 +63,8 @@ class IPOMCPPlanner(Planner):
             pomdp_model, solver_key.agent_id, config.exploration
         )
         self.gen_model = InteractiveGenerativeModel(solver_bank)
+        # Stream for sampling this agent's real actions from its greedy policy.
+        self.rng = random.Random(solver_bank.stream_seed("actions", str(solver_key)))
         self.root = POMCPNode()
         self.recommendation_values = {}
         self.belief = None
@@ -98,26 +101,25 @@ class IPOMCPPlanner(Planner):
     # ------------------------------------------------------------------ #
 
     def get_action(self, belief=None):
-        return sample_policy(self.policy_for(self.model(belief)))
+        return sample_policy(self.policy_for(self.model(belief)), self.rng)
 
     def policy_for(self, model, modeled=False):
         """Greedy policy at ``model``'s belief; ``modeled`` selects the opponent budget."""
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
         simulations = self.config.modeled_simulations if modeled else self.config.simulations
-        legal = self._observable_actions(model)
-        if simulations < len(legal):
-            raise ValueError("Search budget must evaluate every available action")
+        if simulations < len(self.actions):
+            raise ValueError("Search budget must evaluate every action")
         settings = {"planner": "I-POMCP", "config": asdict(self.config), "simulations": simulations}
-        with search_randomness(self.solver_bank.search_seed(model, settings)):
-            node = POMCPNode()
-            particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
-            memory = self._physical_marginal(model)
-            # One batch draw: random.choices builds its cumulative weights once.
-            for particle in random.choices(particles, weights=weights, k=simulations):
-                self._simulate(particle, node, 0, memory, model)
-            values = dict(node.action_values)
-            policy = greedy_policy(values)
+        rng = random.Random(self.solver_bank.search_seed(model, settings))
+        node = POMCPNode()
+        particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
+        memory = self._physical_marginal(model)
+        # One batch draw: choices() builds its cumulative weights once.
+        for particle in rng.choices(particles, weights=weights, k=simulations):
+            self._simulate(particle, node, 0, memory, model, rng)
+        values = dict(node.action_values)
+        policy = greedy_policy(values)
         if not modeled:
             self.root = node
             self.recommendation_values = values
@@ -127,7 +129,7 @@ class IPOMCPPlanner(Planner):
     # Search
     # ------------------------------------------------------------------ #
 
-    def _simulate(self, particle, node, depth, memory, history_model):
+    def _simulate(self, particle, node, depth, memory, history_model, rng):
         """One descent; returns the sampled-continuation Q estimate at ``node``."""
         if self.pomdp_model.is_terminal(particle.state):
             node.visit_count += 1
@@ -140,28 +142,31 @@ class IPOMCPPlanner(Planner):
                 node.action_values.update(self._leaf_values(history_model))
             node.visit_count += 1
             return max(node.action_values.values())
-        legal = self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id)
-        action = self.exploration.select_action(node, legal, remaining, self.config.gamma)
+        action = self.exploration.select_action(
+            node, self.actions, remaining, self.config.gamma, rng
+        )
         following, joint, _, terminal = self.gen_model.tree_step(
-            particle, action, self.key.agent_id, self.pomdp_model
+            particle, action, self.key.agent_id, self.pomdp_model, rng
         )
         if terminal:
             continuation = 0.0
         else:
             observation = self.pomdp_model.sample_observation(
-                following.state, joint, self.key.agent_id
+                following.state, joint, self.key.agent_id, rng
             )
-            next_memory = self.pomdp_model.update_rollout_belief(
+            next_memory = self.pomdp_model.update_rollout_memory(
                 memory, action, observation, self.key.agent_id
             )
             next_model = self._history_successor(history_model, action, observation)
             child = node.get_child(action, observation)
             if child is None:
                 child = node.create_child(action, observation)
-                continuation = self._rollout(following, depth + 1, next_memory, next_model)
+                continuation = self._rollout(following, depth + 1, next_memory, next_model, rng)
                 child.rollout_value = continuation
             else:
-                continuation = self._simulate(following, child, depth + 1, next_memory, next_model)
+                continuation = self._simulate(
+                    following, child, depth + 1, next_memory, next_model, rng
+                )
             counts = node.continuation_counts.setdefault(action, {})
             counts[observation] = counts.get(observation, 0) + 1
         immediate = dict(self.solver_bank.expected_rewards(history_model))[action]
@@ -170,7 +175,7 @@ class IPOMCPPlanner(Planner):
         node.visit_count += 1
         return q
 
-    def _rollout(self, particle, depth, memory, history_model):
+    def _rollout(self, particle, depth, memory, history_model, rng):
         """Sampled return of the domain rollout policy, with the exact last step.
 
         Rollout rewards stay sampled: integrating them would require the exact
@@ -182,23 +187,21 @@ class IPOMCPPlanner(Planner):
             return 0.0
         if self.config.depth - depth == 1:
             return max(self._leaf_values(history_model).values())
-        action = self.pomdp_model.get_rollout_action(
-            particle.state, self.key.agent_id, belief=memory
-        )
-        if action not in self.pomdp_model.get_legal_actions(particle.state, self.key.agent_id):
-            raise ValueError("Domain rollout policy returned an illegal action")
+        action = self.pomdp_model.rollout_action(self.key.agent_id, memory, rng)
         following, joint, reward, terminal = self.gen_model.tree_step(
-            particle, action, self.key.agent_id, self.pomdp_model
+            particle, action, self.key.agent_id, self.pomdp_model, rng
         )
         if terminal:
             return reward
-        observation = self.pomdp_model.sample_observation(following.state, joint, self.key.agent_id)
-        next_memory = self.pomdp_model.update_rollout_belief(
+        observation = self.pomdp_model.sample_observation(
+            following.state, joint, self.key.agent_id, rng
+        )
+        next_memory = self.pomdp_model.update_rollout_memory(
             memory, action, observation, self.key.agent_id
         )
         next_model = self._history_successor(history_model, action, observation)
         return reward + self.config.gamma * self._rollout(
-            following, depth + 1, next_memory, next_model
+            following, depth + 1, next_memory, next_model, rng
         )
 
     # ------------------------------------------------------------------ #
@@ -212,19 +215,7 @@ class IPOMCPPlanner(Planner):
 
     def _leaf_values(self, model):
         """Q_1(b, a) = E[R | b, a] over the full joint belief; maximize afterwards."""
-        legal = self._observable_actions(model)
-        return {a: q for a, q in self.solver_bank.expected_rewards(model) if a in legal}
-
-    def _observable_actions(self, model):
-        """Legal actions must be identical across the belief, or they leak hidden state."""
-        legal_sets = {
-            frozenset(self.pomdp_model.get_legal_actions(atom.state, self.key.agent_id))
-            for atom, _ in model.belief.mass
-            if not self.pomdp_model.is_terminal(atom.state)
-        }
-        if len(legal_sets) != 1 or not next(iter(legal_sets)):
-            raise ValueError("Planning requires one nonempty observable action set")
-        return next(iter(legal_sets))
+        return dict(self.solver_bank.expected_rewards(model))
 
     @staticmethod
     def _physical_marginal(model):

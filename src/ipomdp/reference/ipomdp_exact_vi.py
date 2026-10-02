@@ -105,7 +105,7 @@ class ExactIPOMDPSolver:
             for action_i in self.actions:
                 joint = {self.agent_id: action_i, self.opponent_id: action}
                 for following, transition in self.model.transition_distribution(state, joint):
-                    likelihood = self.model.get_observation_prob(
+                    likelihood = self.model.observation_probability(
                         observation, following, joint, self.opponent_id
                     )
                     weights[following] += mass * transition * likelihood / len(self.actions)

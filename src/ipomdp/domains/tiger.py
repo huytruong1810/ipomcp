@@ -1,64 +1,68 @@
-"""Two-agent Tiger with simultaneous actions and post-transition observations.
+"""Two-agent Tiger, exactly as specified by Gmytrasiewicz & Doshi (2005).
 
-Opening rewards depend on the pre-transition tiger. In reset mode, any opening
-draws a new uniform tiger before observations. A listening agent hears a noisy
-growl about that new state and a creak about the other action; an opening agent
-receives silence. Persistent mode suppresses state resets. These choices define
-the experiment and must not be silently swapped for another Tiger variant.
+Source: P. J. Gmytrasiewicz and P. Doshi, "A Framework for Sequential Planning
+in Multi-Agent Settings", JAIR 24 (2005), Section 7.1 and Table 1.
 
-The rollout uses a private physical-memory heuristic with a declared uniform-L0
-reference model. That memory is not the authoritative interactive posterior and
-never restricts tree actions. Only the finite recursive filter updates real beliefs.
+States: tiger left (TL) or right (TR); initially 50/50.
+Actions (each agent): listen (L), open left (OL), open right (OR).
+
+Transition: if either agent opens a door, the tiger is placed uniformly at
+random; otherwise it stays.
+
+Reward (each agent, own action only, pre-transition state): listen -1; opening
+the tiger's door -100; opening the other door +10. The other agent's action
+affects an agent only through the state and the observations.
+
+Observation (agent k, post-transition state, joint action): a pair
+(growl, creak) from {GL, GR} x {CL, CR, S}:
+- If k opened a door, all six observations are equally likely (1/6): an
+  opening agent learns nothing.
+- If k listened, the growl is correct with probability g_k (0.85) and the
+  creak reports the other agent's action independently: correct with
+  probability c (0.9), each of the two other creak tokens with (1 - c) / 2.
+  "Correct" means S when the other agent listened, CL when it opened left and
+  CR when it opened right. A listening opponent therefore produces a false
+  creak with probability 1 - c.
+
+Level 0 in this codebase is uniformly random (not the paper's L0 POMDP agent);
+that convention belongs to the hierarchy builder, not to the physics.
 """
 
 import math
-import random
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 from ipomdp.model.pomdp import AgentID, POMDPModel
 
-# --- CONSTANTS ---
-# States
 TIGER_LEFT = "TL"
 TIGER_RIGHT = "TR"
+STATES = (TIGER_LEFT, TIGER_RIGHT)
 
-# Actions
 LISTEN = "L"
 OPEN_LEFT = "OL"
 OPEN_RIGHT = "OR"
+ACTIONS = (LISTEN, OPEN_LEFT, OPEN_RIGHT)
 
-# Observation Signals
 GROWL_LEFT = "GL"
 GROWL_RIGHT = "GR"
 CREAK_LEFT = "CL"
 CREAK_RIGHT = "CR"
 SILENCE = "S"
+GROWLS = (GROWL_LEFT, GROWL_RIGHT)
+CREAKS = (CREAK_LEFT, CREAK_RIGHT, SILENCE)
+OBSERVATIONS = tuple((g, c) for g in GROWLS for c in CREAKS)
 
-# Type Aliases for Clarity
-TigerState = str
-TigerAction = str
-TigerObservation = Tuple[str, str]  # (Growl, Creak)
+# The creak that correctly reports each action of the other agent.
+_TRUE_CREAK = {LISTEN: SILENCE, OPEN_LEFT: CREAK_LEFT, OPEN_RIGHT: CREAK_RIGHT}
+
+# Rollout heuristic threshold: open the safe door once the tiger's side is this
+# likely. 0.92 is reached after two consistent growls at accuracy 0.85.
+ROLLOUT_CONFIDENCE = 0.92
 
 
 class TigerModel(POMDPModel):
-    def __init__(
-        self, growl_accuracy: dict = None, creak_accuracy: float = 1.0, persistent: bool = False
-    ):
-        """
-        Initializes the Multi-Agent Tiger domain.
-
-        Args:
-            growl_accuracy: Dict mapping agent_id to their ability to hear the tiger.
-                            Default is 0.85 (standard benchmark).
-            creak_accuracy: The probability of correctly hearing the opponent open a door.
-            persistent: If True, the tiger does not reset its position after a door is opened.
-        """
-        if growl_accuracy is None:
-            self.growl_acc = {"i": 0.85, "j": 0.85}
-        else:
-            self.growl_acc = dict(growl_accuracy)
-
+    def __init__(self, growl_accuracy: Optional[Dict[str, float]] = None, creak_accuracy=0.9):
+        self.growl_acc = {"i": 0.85, "j": 0.85} if growl_accuracy is None else dict(growl_accuracy)
         if set(self.growl_acc) != {"i", "j"}:
             raise ValueError("Tiger growl accuracy must specify agents i and j")
         if any(
@@ -67,275 +71,85 @@ class TigerModel(POMDPModel):
         ):
             raise ValueError("Sensor accuracies must lie in [0,1]")
         self.creak_acc = creak_accuracy
-        self.persistent = persistent
 
-    def get_initial_state(self, rng=None) -> TigerState:
-        """The episode begins with the tiger uniformly distributed."""
-        choice_fn = rng.choice if rng is not None else random.choice
-        return choice_fn([TIGER_LEFT, TIGER_RIGHT])
-
-    def sample_transition(
-        self, state: TigerState, joint_action: Dict[AgentID, TigerAction], rng=None
-    ) -> TigerState:
-        """
-        If *anyone* opens a door, the episode conceptually resets, and the tiger
-        is placed randomly behind one of the two doors (unless persistent is True).
-        """
-        if not self.persistent:
-            for act in joint_action.values():
-                if act in (OPEN_LEFT, OPEN_RIGHT):
-                    choice_fn = rng.choice if rng is not None else random.choice
-                    return choice_fn([TIGER_LEFT, TIGER_RIGHT])
-        return state
+    def initial_distribution(self):
+        return ((TIGER_LEFT, 0.5), (TIGER_RIGHT, 0.5))
 
     def transition_distribution(self, state, joint_action):
-        """Exact support: persistent/listening dynamics or an independent uniform reset."""
-        if not self.persistent and any(a in (OPEN_LEFT, OPEN_RIGHT) for a in joint_action.values()):
+        if any(action != LISTEN for action in joint_action.values()):
             return ((TIGER_LEFT, 0.5), (TIGER_RIGHT, 0.5))
         return ((state, 1.0),)
 
-    def sample_observation(
-        self,
-        state: TigerState,
-        joint_action: Dict[AgentID, TigerAction],
-        agent_id: AgentID,
-        rng=None,
-    ) -> TigerObservation:
-        """
-        Generative observation model. Used during MCTS rollout simulation and environment stepping.
-        """
-        my_action = joint_action.get(agent_id, LISTEN)
-
-        # If I open a door, the noise deafens me. I hear absolutely nothing.
-        if my_action != LISTEN:
-            return (SILENCE, SILENCE)
-
-        # Identify the opponent's action (assumes 2-player for this logic)
-        other_action = LISTEN
-        for aid, act in joint_action.items():
-            if aid != agent_id:
-                other_action = act
-                break
-
-        rand_fn = rng.random if rng is not None else random.random
-
-        # 1. Sample Growl (Tiger Noise)
-        acc = self.growl_acc.get(agent_id, 0.85)
-        if state == TIGER_LEFT:
-            obs_growl = GROWL_LEFT if rand_fn() < acc else GROWL_RIGHT
-        else:
-            obs_growl = GROWL_RIGHT if rand_fn() < acc else GROWL_LEFT
-
-        # 2. Sample Creak (Opponent Door Noise)
-        r = rand_fn()
-        err = max(0.0, 1.0 - self.creak_acc)
-        p_wrong = min(0.05, err)
-        if other_action == LISTEN:
-            obs_creak = SILENCE
-        elif other_action == OPEN_LEFT:
-            if r < self.creak_acc:
-                obs_creak = CREAK_LEFT
-            elif r < self.creak_acc + p_wrong:
-                obs_creak = CREAK_RIGHT
-            else:
-                obs_creak = SILENCE
-        elif other_action == OPEN_RIGHT:
-            if r < self.creak_acc:
-                obs_creak = CREAK_RIGHT
-            elif r < self.creak_acc + p_wrong:
-                obs_creak = CREAK_LEFT
-            else:
-                obs_creak = SILENCE
-        else:
-            obs_creak = SILENCE
-
-        return (obs_growl, obs_creak)
-
     def observation_distribution(self, state, joint_action, agent_id):
-        """Reuse the finite sensor law without changing probabilities or ordering.
+        other_action = next(a for agent, a in joint_action.items() if agent != agent_id)
+        return _observation_law(
+            state, joint_action[agent_id], other_action, self.growl_acc[agent_id], self.creak_acc
+        )
 
-        Recursive filtering queries the same two-state/action sensor law millions
-        of times. Memoizing its immutable tuple avoids repeating the full token
-        enumeration. Physics is fixed during a bank's lifetime, as required by
-        all policy/filter caches. This bounded class-level cache adds no mutable
-        fields to physics fingerprints, consumes no RNG, and retains at most 512
-        keys across model instances. It does not approximate any belief mass.
-        """
-        return self._observation_distribution_cached(state, tuple(joint_action.items()), agent_id)
-
-    @lru_cache(maxsize=512)
-    def _observation_distribution_cached(self, state, joint_items, agent_id):
-        return super().observation_distribution(state, dict(joint_items), agent_id)
-
-    def get_observation_prob(
-        self,
-        observation: TigerObservation,
-        state: TigerState,
-        joint_action: Dict[AgentID, TigerAction],
-        agent_id: AgentID,
-    ) -> float:
-        """
-        Evaluative observation model. Used to re-weight beliefs in the Particle Filter.
-        MUST perfectly match the probability distribution generated by `sample_observation`.
-        """
-        obs_growl, obs_creak = observation
-        my_action = joint_action.get(agent_id, LISTEN)
-
-        # Deafened agents have 100% probability of hearing Silence
-        if my_action != LISTEN:
-            return 1.0 if observation == (SILENCE, SILENCE) else 0.0
-
-        other_action = LISTEN
-        for aid, act in joint_action.items():
-            if aid != agent_id:
-                other_action = act
-                break
-
-        # 1. Evaluate Growl Probability
-        acc = self.growl_acc.get(agent_id, 0.85)
-        if state == TIGER_LEFT:
-            if obs_growl == GROWL_LEFT:
-                p_growl = acc
-            elif obs_growl == GROWL_RIGHT:
-                p_growl = 1.0 - acc
-            else:
-                p_growl = 0.0
-        else:
-            if obs_growl == GROWL_RIGHT:
-                p_growl = acc
-            elif obs_growl == GROWL_LEFT:
-                p_growl = 1.0 - acc
-            else:
-                p_growl = 0.0
-
-        # 2. Evaluate Creak Probability
-        err = max(0.0, 1.0 - self.creak_acc)
-        p_wrong = min(0.05, err)
-        p_silence = max(0.0, err - p_wrong)
-
-        if other_action == LISTEN:
-            p_creak = 1.0 if obs_creak == SILENCE else 0.0
-        elif other_action == OPEN_LEFT:
-            if obs_creak == CREAK_LEFT:
-                p_creak = self.creak_acc
-            elif obs_creak == CREAK_RIGHT:
-                p_creak = p_wrong
-            elif obs_creak == SILENCE:
-                p_creak = p_silence
-            else:
-                p_creak = 0.0
-        elif other_action == OPEN_RIGHT:
-            if obs_creak == CREAK_RIGHT:
-                p_creak = self.creak_acc
-            elif obs_creak == CREAK_LEFT:
-                p_creak = p_wrong
-            elif obs_creak == SILENCE:
-                p_creak = p_silence
-            else:
-                p_creak = 0.0
-        else:
-            p_creak = 1.0 if obs_creak == SILENCE else 0.0
-
-        # Assume conditional independence between Tiger noise and Opponent noise
-        return p_growl * p_creak
-
-    def get_reward(
-        self,
-        state: TigerState,
-        joint_action: Dict[AgentID, TigerAction],
-        next_state: TigerState,
-        agent_id: AgentID,
-    ) -> float:
-        """
-        Standard Tiger Benchmark Rewards:
-        Listen = -1
-        Open Door w/ Tiger = -100
-        Open Door w/ Gold = +10
-        """
-        my_action = joint_action.get(agent_id)
-
-        if my_action == LISTEN:
+    def get_reward(self, state, joint_action, next_state, agent_id):
+        action = joint_action[agent_id]
+        if action == LISTEN:
             return -1.0
-
-        if my_action == OPEN_LEFT:
-            return -100.0 if state == TIGER_LEFT else 10.0
-
-        if my_action == OPEN_RIGHT:
-            return -100.0 if state == TIGER_RIGHT else 10.0
-
-        return 0.0
+        tiger_door = OPEN_LEFT if state == TIGER_LEFT else OPEN_RIGHT
+        return -100.0 if action == tiger_door else 10.0
 
     def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
-        """Opening onto the tiger costs 100; the treasure pays 10; listening costs 1."""
         return (-100.0, 10.0)
 
-    def is_terminal(self, state: TigerState) -> bool:
-        """Tiger is an infinite-horizon task. The state resets, it never terminates."""
+    def is_terminal(self, state) -> bool:
         return False
 
-    def get_all_actions(self, agent_id: AgentID) -> List[TigerAction]:
-        """Satisfies POMDPModel abstract method."""
-        return [LISTEN, OPEN_LEFT, OPEN_RIGHT]
+    def get_all_actions(self, agent_id: AgentID) -> List[str]:
+        return list(ACTIONS)
 
-    def get_all_observations(self, agent_id: AgentID) -> List[TigerObservation]:
+    def get_all_observations(self, agent_id: AgentID) -> List[Tuple[str, str]]:
+        return list(OBSERVATIONS)
+
+    def rollout_action(self, agent_id, memory, rng):
+        """Listen until one side is ROLLOUT_CONFIDENCE likely, then open the other door.
+
+        Uses only the private physical memory maintained by
+        ``update_rollout_memory``; it never inspects the sampled tiger.
         """
-        Satisfies POMDPModel abstract method.
-        Returns the Cartesian product of all possible (Growl, Creak) tuples.
-        """
-        growls = [GROWL_LEFT, GROWL_RIGHT, SILENCE]
-        creaks = [CREAK_LEFT, CREAK_RIGHT, SILENCE]
-        return [(g, c) for g in growls for c in creaks]
-
-    def get_rollout_action(
-        self, state: TigerState, agent_id: AgentID, belief: Optional[Dict[TigerState, float]] = None
-    ) -> TigerAction:
-        """Information-seeking rollout policy.
-
-        Conditions strictly on private belief confidence without inspecting hidden state.
-        When confidence is high (>= 92%, corresponding to >= 2 consistent growls),
-        it opens the safe door opposite the tiger to collect treasure (+10).
-        Otherwise, it listens to gather evidence (-1).
-        """
-        if belief is not None:
-            p_tl = belief.get(TIGER_LEFT, 0.5)
-            p_tr = belief.get(TIGER_RIGHT, 0.5)
-            if p_tl >= 0.92:
-                return OPEN_RIGHT
-            elif p_tr >= 0.92:
-                return OPEN_LEFT
-
+        if memory[TIGER_LEFT] >= ROLLOUT_CONFIDENCE:
+            return OPEN_RIGHT
+        if memory[TIGER_RIGHT] >= ROLLOUT_CONFIDENCE:
+            return OPEN_LEFT
         return LISTEN
 
-    def update_rollout_belief(
-        self,
-        belief: Optional[Dict[TigerState, float]],
-        action: TigerAction,
-        observation: TigerObservation,
-        agent_id: AgentID,
-    ) -> Dict[TigerState, float]:
-        """Update rollout memory under a declared uniform-random opponent.
+    def update_rollout_memory(self, memory, action, observation, agent_id):
+        """Physical-only Bayes update, marginalising the other agent as uniform L0.
 
-        This inexpensive policy memory is a physical-only approximation, not
-        the interactive posterior. It marginalizes unknown actions using L0,
-        handles noisy creaks and persistent dynamics, and never inspects the
-        sampled hidden state or true opponent action. The full opponent latent
-        model is propagated separately by the generative model. Impossible
-        evidence raises instead of resetting the prior.
+        This cheap memory drives the rollout heuristic only. It is not the
+        interactive posterior, which the planner carries separately.
         """
-        from ipomdp.belief.finite_filter import UnsupportedObservation
-
-        if belief is None:
-            raise ValueError("Tiger rollout memory requires an initial physical belief")
         other = "j" if agent_id == "i" else "i"
-        actions = self.get_all_actions(other)
         posterior = {TIGER_LEFT: 0.0, TIGER_RIGHT: 0.0}
-        for state, mass in belief.items():
-            for other_action in actions:
+        for state, mass in memory.items():
+            for other_action in ACTIONS:
                 joint = {agent_id: action, other: other_action}
                 for following, transition in self.transition_distribution(state, joint):
-                    likelihood = self.get_observation_prob(observation, following, joint, agent_id)
-                    posterior[following] += mass * transition * likelihood / len(actions)
+                    likelihood = self.observation_probability(
+                        observation, following, joint, agent_id
+                    )
+                    posterior[following] += mass * transition * likelihood / len(ACTIONS)
         evidence = math.fsum(posterior.values())
         if evidence == 0:
-            raise UnsupportedObservation("Impossible Tiger rollout observation")
+            raise ValueError("Impossible Tiger observation for the rollout memory")
         return {state: mass / evidence for state, mass in posterior.items()}
+
+
+@lru_cache(maxsize=None)
+def _observation_law(state, own_action, other_action, growl_accuracy, creak_accuracy):
+    """Memoised: called millions of times by exact filtering; at most 2*3*3 keys per sensor."""
+    if own_action != LISTEN:
+        return tuple((o, 1 / len(OBSERVATIONS)) for o in OBSERVATIONS)
+    true_growl = GROWL_LEFT if state == TIGER_LEFT else GROWL_RIGHT
+    true_creak = _TRUE_CREAK[other_action]
+    law = []
+    for growl, creak in OBSERVATIONS:
+        p_growl = growl_accuracy if growl == true_growl else 1 - growl_accuracy
+        p_creak = creak_accuracy if creak == true_creak else (1 - creak_accuracy) / 2
+        if p_growl * p_creak > 0:
+            law.append(((growl, creak), p_growl * p_creak))
+    return tuple(law)

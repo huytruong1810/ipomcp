@@ -8,6 +8,8 @@ from ipomdp.domains.tiger import TigerModel
 from ipomdp.planning.exploration import HorizonBoundUCB
 from ipomdp.planning.node import POMCPNode
 
+RNG = random.Random(0)
+
 
 def node_with(counts, values):
     node = POMCPNode()
@@ -35,20 +37,19 @@ def test_bounds_come_from_the_domain_contract():
 def test_exploration_grows_with_remaining_horizon():
     node = node_with({"good": 90, "uncertain": 10}, {"good": 10, "uncertain": 0})
     strategy = HorizonBoundUCB(-10, 10, 1)
-    assert strategy.select_action(node, ["good", "uncertain"], 1, 1) == "good"
-    assert strategy.select_action(node, ["good", "uncertain"], 3, 1) == "uncertain"
+    assert strategy.select_action(node, ["good", "uncertain"], 1, 1, RNG) == "good"
+    assert strategy.select_action(node, ["good", "uncertain"], 3, 1, RNG) == "uncertain"
 
 
 def test_untried_actions_are_selected_first():
     node = node_with({"good": 90}, {"good": 10})
-    assert HorizonBoundUCB(-10, 10, 1).select_action(node, ["good", "new"], 1, 1) == "new"
+    assert HorizonBoundUCB(-10, 10, 1).select_action(node, ["good", "new"], 1, 1, RNG) == "new"
 
 
 def test_exact_ties_are_broken_uniformly_not_by_action_order():
     node = node_with({"a": 10, "b": 10}, {"a": 1.0, "b": 1.0})
     strategy = HorizonBoundUCB(-1, 1, 1)
-    random.seed(0)
-    chosen = {strategy.select_action(node, ["a", "b"], 2, 0.9) for _ in range(50)}
+    chosen = {strategy.select_action(node, ["a", "b"], 2, 0.9, RNG) for _ in range(50)}
     assert chosen == {"a", "b"}
 
 

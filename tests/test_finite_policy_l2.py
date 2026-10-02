@@ -1,6 +1,7 @@
 """Independent small enumerations for a finite-computation opponent contract."""
 
 import itertools
+import random
 
 import pytest
 
@@ -92,7 +93,7 @@ def independent_h2(physics, bank, model, gamma):
                     )
                     reward += weight * own_reward
                     for obs in physics.get_all_observations("i"):
-                        mass = weight * physics.get_observation_prob(
+                        mass = weight * physics.observation_probability(
                             obs, following, {"i": action, "j": other}, "i"
                         )
                         if mass:
@@ -131,7 +132,9 @@ def scalar_private_update(physics, p, action, observation):
             prior
             / 3
             * transition_probability(previous, following, action, other)
-            * physics.get_observation_prob(observation, following, {"j": action, "i": other}, "j")
+            * physics.observation_probability(
+                observation, following, {"j": action, "i": other}, "j"
+            )
         )
     return weights[TIGER_LEFT] / sum(weights.values())
 
@@ -168,8 +171,8 @@ def test_joint_branches_preserve_model_identity_and_independent_moments(monkeypa
                             prior
                             * policy_mass
                             * transition_probability(atom.state, following, action, other)
-                            * physics.get_observation_prob(observation, following, joint, "i")
-                            * physics.get_observation_prob(private, following, joint, "j")
+                            * physics.observation_probability(observation, following, joint, "i")
+                            * physics.observation_probability(private, following, joint, "j")
                         )
                         if not mass:
                             continue
@@ -193,13 +196,13 @@ def test_joint_branches_preserve_model_identity_and_independent_moments(monkeypa
     seen = []
     distribution = bank.filter.action_distribution
 
-    def capture(opponent, state):
+    def capture(opponent):
         seen.append(opponent)
-        return distribution(opponent, state)
+        return distribution(opponent)
 
     monkeypatch.setattr(bank.filter, "action_distribution", capture)
     particle = model.belief.mass[0][0]
-    InteractiveGenerativeModel(bank).sample_event(particle, "L", "i", physics)
+    InteractiveGenerativeModel(bank).tree_step(particle, "L", "i", physics, random.Random(0))
     assert seen[0] is particle.opponent
 
 

@@ -1,13 +1,13 @@
 """Level-3 i versus level-2 j in two-agent Tiger, with both agents' opponent models.
 
 Declared design:
-- Physics: growl accuracy .85 for both agents, creak accuracy .90.
+- Physics: the published two-agent Tiger (growl .85, creak .90, false creaks).
 - i is L3 with prior over j's level {L1: .8, L2: .1, L0: .1}. Its modeled j/L2
   holds {L1: .5, L0: .5} over i, matching the real j's prior (an assumption that
   i knows j's level prior). Every modeled L1 holds uniform L0 opponents.
 - j is L2 with prior {L1: .5, L0: .5} over i; the real i (L3) lies outside that
   support, so j's L0 hypothesis absorbs unexplained actions.
-- Every physical prior at every nesting level is exactly 50/50 (no sampling).
+- Every physical prior at every nesting level is the domain's exact 50/50.
 - Both agents plan a fixed receding lookahead; the episode length is not known
   to the planners. Reported cumulative rewards are undiscounted.
 
@@ -23,7 +23,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.domains.tiger import TIGER_LEFT, TigerModel
 from ipomdp.experiments.batch_runner import (
     GenericBatchRunner,
     extract_nested_belief_hierarchy,
@@ -46,15 +46,14 @@ def tiger():
     return TigerModel(growl_accuracy=GROWL, creak_accuracy=CREAK)
 
 
-def build_agent(agent_id, level, n_sims, depth, gamma, modeled_sims, max_support=None):
-    """One isolated bank per real agent with an exact balanced physical prior.
+def build_agent(agent_id, level, n_sims, depth, gamma, modeled_sims, seed, max_support=None):
+    """One isolated, seeded bank per real agent.
 
     ``max_support`` bounds every interactive posterior in this bank (all nesting
     levels) by deterministic stratified resampling; None keeps exact filtering.
     """
     physics = tiger()
-    bank = SolverBank(max_support=max_support)
-    bank.set_physical_prior(physics, (TIGER_LEFT, TIGER_RIGHT))
+    bank = SolverBank(seed, max_support=max_support)
     other = "j" if agent_id == "i" else "i"
     nested = NESTED_I if agent_id == "i" else NESTED_J
     config = PlannerConfig(
@@ -82,9 +81,7 @@ def predicted_opponent_actions(planner):
         level = atom.opponent.frame.level
         row = by_level.setdefault(level, {"mass": 0.0, "actions": {}})
         row["mass"] += weight
-        for action, probability in planner.solver_bank.filter.action_distribution(
-            atom.opponent, atom.state
-        ):
+        for action, probability in planner.solver_bank.filter.action_distribution(atom.opponent):
             row["actions"][str(action)] = (
                 row["actions"].get(str(action), 0.0) + weight * probability
             )
@@ -126,16 +123,17 @@ class TigerL3vsL2Runner(GenericBatchRunner):
             creak=CREAK,
             prior_i={str(k): v for k, v in PRIOR_I.items()},
             prior_j={str(k): v for k, v in PRIOR_J.items()},
-            physical_prior="exact 50/50 at every nesting level",
+            physical_prior="the domain prior (50/50) at every nesting level",
         )
 
-    def _setup_domain(self):
+    def _setup_domain(self, seed):
         env = tiger()
+        common = dict(depth=self.depth, gamma=self.gamma, modeled_sims=self.modeled_sims)
         planner_i = build_agent(
-            "i", 3, self.sims_i, self.depth, self.gamma, self.modeled_sims, self.max_support
+            "i", 3, self.sims_i, seed=seed, max_support=self.max_support, **common
         )
         planner_j = build_agent(
-            "j", 2, self.sims_j, self.depth, self.gamma, self.modeled_sims, self.max_support
+            "j", 2, self.sims_j, seed=seed + 1, max_support=self.max_support, **common
         )
         return env, planner_i, planner_j
 

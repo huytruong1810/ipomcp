@@ -27,13 +27,12 @@ from ipomdp.planning.solver_bank import SolverBank
 
 def test_search_does_not_modify_its_own_root_belief():
     random.seed(3401)
-    planner = HierarchyBuilder(SolverBank()).build(
+    planner = HierarchyBuilder(SolverBank(0)).build(
         "i",
         1,
         TigerModel(),
         "j",
         config=PlannerConfig(simulations=200, depth=3, modeled_simulations=10),
-        prior_samples=50,
     )
     before = planner.belief
     planner.get_action()
@@ -46,32 +45,32 @@ def test_search_does_not_modify_its_own_root_belief():
 def test_bump_is_blocked_motion_not_arrival_at_boundary():
     model = WumpusModel(width=4, height=4, n_pits=0)
     state = replace(
-        model.get_initial_state(random.Random(3)),
+        model.sample_initial_state(random.Random(3)),
         human_pose=AgentPose(2, 0, EAST),
         wumpus_pose=AgentPose(0, 3, NORTH),
     )
     actions = {AGENT_HUMAN: ACTION_FORWARD, AGENT_WUMPUS: ACTION_TURN_LEFT}
-    arrived = model.sample_transition(state, actions)
+    arrived = model.transition_distribution(state, actions)[0][0]
     assert arrived.human_pose.x == 3
-    assert OBS_BUMP not in model.sample_observation(arrived, actions, AGENT_HUMAN)
-    blocked = model.sample_transition(arrived, actions)
-    observation = model.sample_observation(blocked, actions, AGENT_HUMAN)
+    assert OBS_BUMP not in model.observation_distribution(arrived, actions, AGENT_HUMAN)[0][0]
+    blocked = model.transition_distribution(arrived, actions)[0][0]
+    observation = model.observation_distribution(blocked, actions, AGENT_HUMAN)[0][0]
     assert OBS_BUMP in observation
-    assert model.get_observation_prob(observation, blocked, actions, AGENT_HUMAN) == 1
+    assert model.observation_probability(observation, blocked, actions, AGENT_HUMAN) == 1
 
 
 def test_scream_is_a_new_kill_and_terminal_reward_is_not_repeated():
     model = WumpusModel(n_pits=0)
     state = replace(
-        model.get_initial_state(random.Random(3)),
+        model.sample_initial_state(random.Random(3)),
         human_pose=AgentPose(0, 0, EAST),
         wumpus_pose=AgentPose(2, 0, NORTH),
     )
     actions = {AGENT_HUMAN: ACTION_SHOOT, AGENT_WUMPUS: ACTION_TURN_LEFT}
-    killed = model.sample_transition(state, actions)
-    assert OBS_SCREAM in model.sample_observation(killed, actions, AGENT_HUMAN)
-    repeated = model.sample_transition(killed, actions)
-    assert OBS_SCREAM not in model.sample_observation(repeated, actions, AGENT_HUMAN)
+    killed = model.transition_distribution(state, actions)[0][0]
+    assert OBS_SCREAM in model.observation_distribution(killed, actions, AGENT_HUMAN)[0][0]
+    repeated = model.transition_distribution(killed, actions)[0][0]
+    assert OBS_SCREAM not in model.observation_distribution(repeated, actions, AGENT_HUMAN)[0][0]
     dead = replace(state, human_alive=False)
     assert model.get_reward(dead, actions, dead, AGENT_HUMAN) == 0
     simultaneous = replace(state, human_alive=False, has_gold=True)
@@ -92,45 +91,17 @@ def test_invalid_configuration_fails_before_work(factory):
         factory()
 
 
-def test_tiger_creak_resets_rollout_belief():
-    from ipomdp.domains.tiger import (
-        CREAK_RIGHT,
-        GROWL_LEFT,
-        LISTEN,
-        OPEN_RIGHT,
-        SILENCE,
-        TIGER_LEFT,
-        TIGER_RIGHT,
-    )
-
+def test_tiger_rollout_memory_resets_after_own_opening():
+    """An opening agent observes uniformly, so its memory returns to 50/50."""
     model = TigerModel()
-    prior_high_confidence = {TIGER_LEFT: 0.01, TIGER_RIGHT: 0.99}
-
-    # If opponent opened a door (creak right observed), old belief resets to 0.5 before applying growl left
-    updated = model.update_rollout_belief(
-        prior_high_confidence, LISTEN, (GROWL_LEFT, CREAK_RIGHT), "i"
-    )
-    assert updated[TIGER_LEFT] == pytest.approx(0.85)
-    assert updated[TIGER_RIGHT] == pytest.approx(0.15)
-
-    # If agent opens door itself, deafened and reset to 0.5/0.5
-    self_opened = model.update_rollout_belief(
-        prior_high_confidence, OPEN_RIGHT, (SILENCE, SILENCE), "i"
-    )
-    assert self_opened == {TIGER_LEFT: 0.5, TIGER_RIGHT: 0.5}
-
-
-def test_tiger_persistent_rollout_open_does_not_reset():
-    model = TigerModel(persistent=True)
-    prior = {"TL": 0.9, "TR": 0.1}
-    assert model.update_rollout_belief(prior, "OR", ("S", "S"), "i") == pytest.approx(prior)
+    for observation in [("GL", "S"), ("GR", "CL")]:
+        memory = model.update_rollout_memory({"TL": 0.01, "TR": 0.99}, "OR", observation, "i")
+        assert memory == pytest.approx({"TL": 0.5, "TR": 0.5})
 
 
 def test_tiger_impossible_rollout_observation_is_not_repaired():
-    from ipomdp.belief.finite_filter import UnsupportedObservation
-
-    with pytest.raises(UnsupportedObservation):
-        TigerModel().update_rollout_belief({"TL": 0.5, "TR": 0.5}, "OR", ("GL", "S"), "i")
+    with pytest.raises(ValueError, match="Impossible"):
+        TigerModel().update_rollout_memory({"TL": 0.5, "TR": 0.5}, "L", ("S", "S"), "i")
 
 
 def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
@@ -138,13 +109,12 @@ def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
     from ipomdp.belief.finite_belief import InteractiveState, MentalModel
     from ipomdp.belief.frame import AgentFrame
 
-    planner = HierarchyBuilder(SolverBank()).build(
+    planner = HierarchyBuilder(SolverBank(0)).build(
         "i",
         2,
         TigerModel(),
         "j",
         config=PlannerConfig(simulations=20, depth=4, modeled_simulations=5),
-        prior_samples=20,
     )
     atom = planner.belief.mass[0][0]
     sentinel = MentalModel(AgentFrame("j", 0, planner.pomdp_model))
@@ -157,7 +127,7 @@ def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
 
     monkeypatch.setattr(planner.gen_model, "tree_step", tree_step)
     monkeypatch.setattr(planner, "_history_successor", lambda model, *args: model)
-    planner._rollout(atom, 1, {"TL": 0.5, "TR": 0.5}, planner.model())
+    planner._rollout(atom, 1, {"TL": 0.5, "TR": 0.5}, planner.model(), random.Random(0))
     # Depth 1 and 2 are sampled steps; depth 3 is the exact last decision.
     assert received == [atom.opponent, sentinel]
 
@@ -169,8 +139,8 @@ def test_search_keeps_all_legal_actions_below_root():
         TigerModel(),
         "j",
         config=PlannerConfig(simulations=2000, depth=3, modeled_simulations=10),
-        prior_samples=100,
     )
     planner.get_action()
-    child = planner.root.children["OL"][("S", "S")]
+    # The opener observes uniformly; take its most visited observation branch.
+    child = max(planner.root.children["OL"].values(), key=lambda node: node.visit_count)
     assert set(child.action_counts) == {"L", "OL", "OR"}

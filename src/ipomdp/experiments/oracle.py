@@ -20,20 +20,18 @@ Problems
   reference = exhaustive best response to that same finite policy
   (``reference.finite_policy_l2``). This isolates search error.
 
-MCTS simulations and RTS particles per branch are different units of work, so
-budgets are reported as given and cost is reported as measured wall time and
-memory, never as "equal compute".
+Cost is reported as the planner's process CPU time for the root decision.
 """
 
 import argparse
 import itertools
 import json
+import random
 import time
 from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 
-from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
@@ -68,24 +66,22 @@ def evaluate_case(
     """Solve one matched problem with the planner and the exact reference."""
     _validate_problem(planner_kind, level, opponent_depth, opponent_belief, opponent_budget)
     model = TigerModel()
-    bank = SolverBank(seed=seed)
+    bank = SolverBank(seed)
     key = SolverKey("i", level)
-    if planner_kind == "mcts":
-        config = PlannerConfig(
-            simulations=budget,
-            depth=horizon,
-            modeled_simulations=budget,
-            gamma=gamma,
-            exploration=exploration,
-        )
-        planner = IPOMCPPlanner(key, model, bank, config)
-    else:
-        config = RTSConfig(max_depth=horizon, obs_branching=9, num_particles=budget, gamma=gamma)
-        planner = RTSPlanner(key, model, bank, config)
+    config = PlannerConfig(
+        simulations=budget,
+        depth=horizon,
+        modeled_simulations=budget,
+        gamma=gamma,
+        exploration=exploration,
+    )
+    planner = IPOMCPPlanner(key, model, bank, config)
     bank.register_solver(key, planner)
-    bank.register_solver(SolverKey("j", 0), RandomPlanner(model.get_all_actions("j")))
+    # L0 action streams are never drawn in a single root decision; seed them anyway.
+    for agent in ("i", "j"):
+        rng = random.Random(bank.stream_seed("actions", f"{agent}_L0"))
+        bank.register_solver(SolverKey(agent, 0), RandomPlanner(model.get_all_actions(agent), rng))
     if level == 2:
-        bank.register_solver(SolverKey("i", 0), RandomPlanner(model.get_all_actions("i")))
         if opponent_budget is None:
             provider = FixedTigerL1Policy(model, opponent_depth, gamma)
         else:
@@ -107,11 +103,7 @@ def evaluate_case(
     started = time.process_time()
     policy = planner.policy_for(planner.model())
     planner_cpu_seconds = time.process_time() - started
-    estimates = (
-        dict(planner.recommendation_values)
-        if planner_kind == "mcts"
-        else planner.get_action_values()
-    )
+    estimates = dict(planner.recommendation_values)
     oracle_q = _reference_q(
         model,
         bank,
@@ -205,7 +197,7 @@ def _opponent_description(level, depth, belief, budget):
 
 
 def _validate_problem(planner_kind, level, opponent_depth, opponent_belief, opponent_budget):
-    if planner_kind not in ("mcts", "rts"):
+    if planner_kind != "mcts":
         raise ValueError("Unknown planner")
     if level not in (1, 2):
         raise ValueError("Reference level must be 1 or 2")
@@ -216,8 +208,6 @@ def _validate_problem(planner_kind, level, opponent_depth, opponent_belief, oppo
     if level == 2:
         if type(opponent_depth) is not int or opponent_depth < 1:
             raise ValueError("Level 2 requires an explicit positive opponent depth")
-        if planner_kind != "mcts":
-            raise ValueError("The level-2 comparison evaluates MCTS only")
 
 
 def run_oracle_comparison(
@@ -325,7 +315,7 @@ def main():
     parser.add_argument("--seeds", type=int, required=True)
     parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--beliefs", type=float, nargs="+", required=True)
-    parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts"])
+    parser.add_argument("--planners", choices=["mcts"], nargs="+", default=["mcts"])
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--exploration", type=float, default=1.0)
     parser.add_argument("--level", type=int, choices=[1, 2], default=1)

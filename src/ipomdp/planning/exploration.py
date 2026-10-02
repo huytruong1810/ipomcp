@@ -22,12 +22,11 @@ estimates are non-stationary, so no finite-budget guarantee is claimed.
 
 Untried actions are always selected before any tried action is scored, so every
 legal action at a visited history is evaluated at least once. Exact ties are
-broken uniformly at random (from the seeded search stream) rather than by
+broken uniformly at random (from the solve's own seeded stream) rather than by
 action order, which would bias small-budget searches toward early actions.
 """
 
 import math
-import random
 
 
 class HorizonBoundUCB:
@@ -54,7 +53,7 @@ class HorizonBoundUCB:
             gamma**step for step in range(remaining_horizon)
         )
 
-    def select_action(self, node, actions, remaining_horizon, gamma):
+    def select_action(self, node, actions, remaining_horizon, gamma, rng):
         if not actions:
             raise ValueError("UCB requires at least one legal action")
         for action in actions:
@@ -68,4 +67,4 @@ class HorizonBoundUCB:
             for action in actions
         }
         best = max(scores.values())
-        return random.choice([action for action, score in scores.items() if score == best])
+        return rng.choice([action for action, score in scores.items() if score == best])

@@ -7,7 +7,6 @@ Remaining mathematical and experimental limitations are tracked in BACKLOG.md.
 import gc
 import json
 import pickle
-import random
 import weakref
 from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
@@ -15,48 +14,14 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-from ipomdp.baselines.particles import DictDistribution, ParticleDistribution
-from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.domains.tiger import LISTEN, TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.experiments.batch_runner import extract_nested_belief_hierarchy, is_batch_complete
 from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.planning.node import POMCPNode
-from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from tests.runners import RandomTigerRunner
-
-
-@pytest.mark.parametrize("weights", [[-1, 2], [float("nan"), 1], [float("inf"), 1]])
-def test_invalid_mass_is_rejected(weights):
-    with pytest.raises(ValueError):
-        ParticleDistribution(["a", "b"], weights)
-    with pytest.raises(ValueError):
-        DictDistribution(dict(zip(["a", "b"], weights)))
-
-
-def test_cdf_boundary_never_selects_zero_mass(monkeypatch):
-    monkeypatch.setattr(random, "random", lambda: 0.0)
-    distribution = ParticleDistribution(["impossible", "possible"], [0, 1])
-    assert distribution.sample() == "possible"
-    assert distribution.resample(10) == ["possible"] * 10
-
-
-def test_tiny_weights_and_defensive_copies():
-    particles, weights = ["a", "b"], [1e-20, 3e-20]
-    distribution = ParticleDistribution(particles, weights)
-    particles[0] = "mutated"
-    weights[0] = 100
-    values, masses = distribution.values()
-    values.clear()
-    masses.clear()
-    assert distribution["a"] == pytest.approx(0.25)
-    distribution.normalize()
-    assert distribution["a"] == pytest.approx(0.25)
-    assert distribution.resample(0) == []
-    with pytest.raises(ValueError):
-        distribution.resample(-1)
 
 
 def test_interactive_states_are_immutable_and_pickleable():
@@ -105,48 +70,6 @@ def test_nested_hierarchy_averages_different_private_beliefs():
     assert weights["i_L3/j_L2"] == pytest.approx(1)
 
 
-class TerminalToy(TigerModel):
-    """A deterministic one-action model with analytic finite-horizon returns."""
-
-    def get_all_actions(self, agent_id):
-        return ["a"]
-
-    def get_legal_actions(self, state, agent_id):
-        return ["a"]
-
-    def get_all_observations(self, agent_id):
-        return ["o"]
-
-    def get_observation_prob(self, observation, state, joint_action, agent_id):
-        return 1.0
-
-    def sample_transition(self, state, joint_action, rng=None):
-        return "terminal" if state == "finish" else state
-
-    def transition_distribution(self, state, joint_action):
-        return ((self.sample_transition(state, joint_action), 1.0),)
-
-    def get_reward(self, state, joint_action, next_state, agent_id):
-        return 2.0
-
-    def is_terminal(self, state):
-        return state == "terminal"
-
-
-def test_rts_absorbing_terminal_and_mixed_survival_mass():
-    planner = RTSPlanner(
-        SolverKey("i", 1),
-        TerminalToy(),
-        SolverBank(),
-        RTSConfig(gamma=0.5, max_depth=2, obs_branching=3, num_particles=10),
-    )
-    # Half of the mass terminates after the first reward; only half gets step 2.
-    opponent = MentalModel(AgentFrame("j", 0, planner.pomdp_model))
-    belief = [InteractiveState("finish", opponent), InteractiveState("alive", opponent)]
-    assert planner._evaluate_action_branch(belief, "a", 0) == pytest.approx(2 + 0.5 * 0.5 * 2)
-    assert planner._evaluate_action_branch([InteractiveState("terminal", opponent)], "a", 0) == 0
-
-
 def test_batch_resume_requires_matching_manifest_and_complete_trials(tmp_path, monkeypatch):
     config = ExperimentConfig(n_trials=2, max_steps=3)
     runner = RandomTigerRunner(config, str(tmp_path))
@@ -188,12 +111,6 @@ def test_snapshot_capture_preserves_episode_rng():
     pd.testing.assert_frame_equal(batch[columns], snapshot[columns])
 
 
-def test_tiger_rollout_is_independent_of_hidden_state():
-    model = TigerModel()
-    assert model.get_rollout_action(TIGER_LEFT, "i") == LISTEN
-    assert model.get_rollout_action(TIGER_RIGHT, "i") == LISTEN
-
-
 def test_paired_statistics_reject_missing_seeds_and_adjust_pvalues(tmp_path):
     from ipomdp.analysis.statistics import compute_statistical_significance
 
@@ -209,6 +126,28 @@ def test_paired_statistics_reject_missing_seeds_and_adjust_pvalues(tmp_path):
     assert all(row["holm_pval"] == 1 for row in result.values())
     with pytest.raises(ValueError, match="complete common panel"):
         compute_statistical_significance(data.iloc[:-1], str(tmp_path))
+
+
+class TerminalToy(TigerModel):
+    """A deterministic one-action model where "finish" ends the episode next step."""
+
+    def get_all_actions(self, agent_id):
+        return ["a"]
+
+    def get_all_observations(self, agent_id):
+        return ["o"]
+
+    def observation_distribution(self, state, joint_action, agent_id):
+        return (("o", 1.0),)
+
+    def transition_distribution(self, state, joint_action):
+        return (("terminal" if state == "finish" else state, 1.0),)
+
+    def get_reward(self, state, joint_action, next_state, agent_id):
+        return 2.0
+
+    def is_terminal(self, state):
+        return state == "terminal"
 
 
 def test_public_continuation_is_conditioned_in_online_filter():

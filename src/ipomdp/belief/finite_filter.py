@@ -102,13 +102,13 @@ class FiniteInteractiveFilter:
         self.update = lru_cache(maxsize=cache_size)(self._update)
         self._intentional_distribution = lru_cache(maxsize=cache_size)(self._validate_policy)
 
-    def action_distribution(self, opponent, physical_state):
-        """L0 is uniformly random; intentional policies use only subjective beliefs.
+    def action_distribution(self, opponent):
+        """The opponent's action distribution, a function of its mental model only.
 
-        L0 uses the full fixed action alphabet, exactly like RandomPlanner. This
-        includes ineffective attempts (e.g. Wumpus shooting with no arrow); it does
-        not condition a baseline policy on a simulator state it cannot observe.
-        The intentional callback receives no outer state, avoiding information leaks.
+        L0 is uniform over the full action set, like ``RandomPlanner``.
+        Intentional models act by the supplied policy at their own belief. No
+        physical state is an argument, so the prediction cannot depend on
+        anything the opponent does not know.
         """
         frame = opponent.frame
         if frame.level == 0:
@@ -123,18 +123,12 @@ class FiniteInteractiveFilter:
         self._intentional_distribution.cache_clear()
 
     def _validate_policy(self, opponent):
-        """Validate once per immutable model, not once per outer physical particle."""
+        """Validate once per immutable model."""
         frame = opponent.frame
         distribution = checked_distribution(self._policy(opponent).items(), "Policy")
-        legal_sets = {
-            frozenset(frame.pomdp_model.get_legal_actions(atom.state, frame.agent_id))
-            for atom, _ in opponent.belief.mass
-        }
-        if len(legal_sets) != 1:
-            raise ValueError("Action availability differs across a subjective belief's support")
-        legal = next(iter(legal_sets))
-        if any(action not in legal for action, _ in distribution):
-            raise ValueError("Policy assigns mass to an unavailable action")
+        actions = set(frame.pomdp_model.get_all_actions(frame.agent_id))
+        if any(action not in actions for action, _ in distribution):
+            raise ValueError("Policy assigns mass to an unknown action")
         return distribution
 
     def _update(
@@ -158,11 +152,9 @@ class FiniteInteractiveFilter:
             rows.append(row)
 
         for atom, prior_mass in model.belief.mass:
-            if action not in physics.get_legal_actions(atom.state, frame.agent_id):
-                raise ValueError("Own action must be legal throughout the subjective belief")
             opponent = atom.opponent
             other = opponent.frame.agent_id
-            for other_action, action_mass in self.action_distribution(opponent, atom.state):
+            for other_action, action_mass in self.action_distribution(opponent):
                 joint = {frame.agent_id: action, other: other_action}
                 transitions = checked_distribution(
                     physics.transition_distribution(atom.state, joint), "Transition"
