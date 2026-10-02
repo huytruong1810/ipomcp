@@ -94,6 +94,7 @@ class RTSPlanner(Planner):
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
         settings = {"planner": "RTS", "config": asdict(self.config)}
+        model = self.solver_bank.search_model(model)
         rng = random.Random(self.solver_bank.search_seed(model, settings))
         values = self._q_values(model, self.config.depth, rng)
         if not modeled:
@@ -125,7 +126,9 @@ class RTSPlanner(Planner):
             )
             successor = MentalModel(
                 model.frame,
-                self.solver_bank.filter.update(model, action, observation, terminal=False).belief,
+                self.solver_bank.search_filter.update(
+                    model, action, observation, terminal=False
+                ).belief,
             )
             total += max(self._q_values(successor, remaining - 1, rng).values())
         return total / self.config.observation_samples

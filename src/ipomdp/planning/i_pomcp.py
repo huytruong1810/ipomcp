@@ -113,6 +113,7 @@ class IPOMCPPlanner(Planner):
         if simulations < len(self.actions):
             raise ValueError("Search budget must evaluate every action")
         settings = {"planner": "I-POMCP", "config": asdict(self.config), "simulations": simulations}
+        model = self.solver_bank.search_model(model)
         rng = random.Random(self.solver_bank.search_seed(model, settings))
         node = POMCPNode()
         particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
@@ -212,7 +213,9 @@ class IPOMCPPlanner(Planner):
 
     def _history_successor(self, model, action, observation):
         """The agent's exact posterior after its own action and observation."""
-        posterior = self.solver_bank.filter.update(model, action, observation, terminal=False)
+        posterior = self.solver_bank.search_filter.update(
+            model, action, observation, terminal=False
+        )
         return MentalModel(model.frame, posterior.belief)
 
     def _leaf_values(self, model):

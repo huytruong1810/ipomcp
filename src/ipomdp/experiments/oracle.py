@@ -218,10 +218,16 @@ def sample_history(physics, steps, rng):
     return history
 
 
+# The exact reference's enumeration guard. The default guard (200,000 branches)
+# stopped the L2 H3 reference at history 6; with this budget it completed there in
+# 146 s (one problem), so mid-episode problems stay scorable.
+REFERENCE_BRANCHES = 50_000_000
+
+
 def _exact_ipomdp_q(model, prior_model, history, seed, gamma, opponent_depth, horizon):
     """Q of the exact I-POMDP at the exact posterior after ``history``, j exact L1."""
     bank = SolverBank(seed)
-    best_response = BestResponseReference(model, bank, gamma)
+    best_response = BestResponseReference(model, bank, gamma, max_branches=REFERENCE_BRANCHES)
     rng = random.Random(bank.stream_seed("actions", "i_L0"))
     bank.register_solver(SolverKey("i", 0), RandomPlanner(model.get_all_actions("i"), rng))
     bank.register_solver(

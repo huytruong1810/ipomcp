@@ -141,3 +141,21 @@ def test_filters_are_chosen_by_name_and_validated():
     assert isinstance(SolverBank(0).filter, FiniteInteractiveFilter)
     with pytest.raises(ValueError, match="particle_filter"):
         SolverBank(0, particles=8, particle_filter="other")
+
+
+def test_search_beliefs_are_bounded_while_real_beliefs_stay_exact():
+    exact = agent()
+    split = agent(search_particles=8)
+    for observation in [("GL", "S"), ("GR", "CL"), ("GL", "S")]:
+        exact.update_root(LISTEN, observation)
+        split.update_root(LISTEN, observation)
+    assert belief_digest(split.belief) == belief_digest(exact.belief)
+    assert len(split.belief.mass) > 8
+    bank = split.solver_bank
+    assert len(bank.search_model(split.model()).belief.mass) <= 8
+    assert isinstance(bank.search_filter, CompressedInteractiveFilter)
+    assert split.get_action() in split.actions
+    plain = SolverBank(0)
+    assert (
+        plain.search_filter is plain.filter and plain.search_model(exact.model()) == exact.model()
+    )

@@ -23,10 +23,13 @@ class InteractiveGenerativeModel:
         self.solver_bank = solver_bank
 
     def tree_step(self, particle, action, agent_id, physics, rng):
-        """Return (next particle, joint action, agent's reward, terminal)."""
+        """Return (next particle, joint action, agent's reward, terminal).
+
+        In-tree work: the opponent's private model advances by the search filter.
+        """
         opponent = particle.opponent
         other = opponent.frame.agent_id
-        actions, weights = zip(*self.solver_bank.filter.action_distribution(opponent))
+        actions, weights = zip(*self.solver_bank.search_filter.action_distribution(opponent))
         joint = {agent_id: action, other: rng.choices(actions, weights=weights, k=1)[0]}
         following = physics.sample_transition(particle.state, joint, rng)
         reward = physics.get_reward(particle.state, joint, following, agent_id)
@@ -34,7 +37,7 @@ class InteractiveGenerativeModel:
         # No future decision follows termination, so no private model needs advancing.
         if opponent.frame.level > 0 and not terminal:
             private = physics.sample_observation(following, joint, other, rng)
-            posterior = self.solver_bank.filter.update(
+            posterior = self.solver_bank.search_filter.update(
                 opponent, joint[other], private, terminal=False
             )
             opponent = MentalModel(opponent.frame, posterior.belief)

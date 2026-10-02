@@ -62,6 +62,9 @@ class AgentSpec:
         particles: None for exact beliefs, or the bound N on belief supports.
         particle_filter: ``"compressed"`` (exact updates compressed to N
             atoms; the planner's default) or ``"sampled"`` (the published IPF).
+        search_particles: None, or the bound on the beliefs each search works
+            on, separately from the real-step beliefs (e.g. exact real updates
+            with deterministic sensors, bounded search).
         level_weights: Prior over the opponent's levels ({level: weight}).
         nested_level_weights: {level: {level: weight}} for nested models.
     """
@@ -71,6 +74,7 @@ class AgentSpec:
     modeled_planner: Optional[Dict] = None
     particles: Optional[int] = None
     particle_filter: str = "compressed"
+    search_particles: Optional[int] = None
     level_weights: Optional[Dict[int, float]] = None
     nested_level_weights: Optional[Dict[int, Dict[int, float]]] = None
 
@@ -130,6 +134,7 @@ class StudySpec:
                 modeled_planner=entry.get("modeled_planner"),
                 particles=entry.get("particles"),
                 particle_filter=entry.get("particle_filter", "compressed"),
+                search_particles=entry.get("search_particles"),
                 level_weights=_int_keys(entry.get("level_weights")),
                 nested_level_weights=(
                     {int(k): _int_keys(v) for k, v in entry["nested_level_weights"].items()}
@@ -158,6 +163,7 @@ def build_agents(spec: StudySpec, seed: int):
             bank_seed,
             particles=agent_spec.particles,
             particle_filter=agent_spec.particle_filter,
+            search_particles=agent_spec.search_particles,
         )
         planners[agent] = HierarchyBuilder(bank).build(
             agent,

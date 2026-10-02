@@ -66,13 +66,14 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
         self.particles, self.seed = particles, seed
 
     def initial_belief(self, rows):
-        return self._compress(FiniteBelief(tuple(rows)), "initial")
+        return self.compress(FiniteBelief(tuple(rows)), "initial")
 
     def _update(self, model, action, observation, terminal=None):
         posterior = super()._update(model, action, observation, terminal)
-        return Posterior(self._compress(posterior.belief, "update"), posterior.evidence)
+        return Posterior(self.compress(posterior.belief, "update"), posterior.evidence)
 
-    def _compress(self, belief, label):
+    def compress(self, belief, label="search"):
+        """``belief`` itself if it has at most N atoms, else N systematic draws (merged)."""
         if len(belief.mass) <= self.particles:
             return belief
         rng = random.Random(canonical.digest([self.seed, label, canonical.belief_digest(belief)]))

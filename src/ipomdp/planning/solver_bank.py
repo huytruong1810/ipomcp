@@ -26,6 +26,7 @@ from functools import lru_cache
 
 from ipomdp.belief import canonical
 from ipomdp.belief.compressed_filter import CompressedInteractiveFilter
+from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, checked_distribution
 from ipomdp.belief.particle_filter import ParticleInteractiveFilter
 from ipomdp.planning.solver_types import SolverKey
@@ -34,7 +35,9 @@ FILTERS = {"compressed": CompressedInteractiveFilter, "sampled": ParticleInterac
 
 
 class SolverBank:
-    def __init__(self, seed, *, particles=None, particle_filter="compressed"):
+    def __init__(
+        self, seed, *, particles=None, particle_filter="compressed", search_particles=None
+    ):
         """``seed`` determines all randomness of this bank's models.
 
         Belief representation, at every nesting level: exact enumeration
@@ -43,6 +46,15 @@ class SolverBank:
         (``particle_filter="compressed"``, the planner's default) or by the
         published sampled interactive particle filter (``"sampled"``, the
         IPF + RTS baseline's belief).
+
+        ``search_particles`` bounds the beliefs a search works on, separately
+        from the beliefs maintained between real steps: every search starts
+        from its root belief compressed to that many atoms, and its in-tree
+        updates use the compressed filter. With exact real updates this keeps
+        the agent's own belief exact, which matters with deterministic sensors
+        (a compressed real belief can lose the true world), while search cost
+        stays bounded. Tree observations are generated from atoms of the
+        compressed root, so they always have positive evidence there.
         """
         if type(seed) is not int:
             raise TypeError("A solver bank needs an explicit integer seed")
@@ -56,6 +68,11 @@ class SolverBank:
             if particles is not None
             else FiniteInteractiveFilter(self.policy, cache_size=4096)
         )
+        self.search_filter = (
+            CompressedInteractiveFilter(self.policy, search_particles, seed)
+            if search_particles is not None
+            else self.filter
+        )
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
         # Canonical order makes random.choices intervals independent of how an
         # equal belief was built; see ipomdp.belief.canonical.
@@ -65,6 +82,12 @@ class SolverBank:
     # ------------------------------------------------------------------ #
     # Physical prior
     # ------------------------------------------------------------------ #
+
+    def search_model(self, model):
+        """The model a search starts from: ``model``, compressed for the search filter."""
+        if self.search_filter is self.filter:
+            return model
+        return MentalModel(model.frame, self.search_filter.compress(model.belief))
 
     def physical_prior(self, physics):
         """The domain's exact prior, shared by every nesting level of this bank.
@@ -162,6 +185,7 @@ class SolverBank:
         """Drop cached policies, posteriors and integrals (memory only, never results)."""
         self._cached_policy.cache_clear()
         self.filter.clear_caches()
+        self.search_filter.clear_caches()
         self.ordered_mass.cache_clear()
         canonical.belief_digest.cache_clear()
         self.expected_rewards.cache_clear()

@@ -37,7 +37,7 @@ def planner():
     # Perfect creaks: a creak proves the opponent opened a door.
     physics = TigerModel(creak_accuracy=1.0)
     bank = SolverBank(seed=10)
-    bank.filter = FiniteInteractiveFilter(greedy_one_step)
+    bank.filter = bank.search_filter = FiniteInteractiveFilter(greedy_one_step)
     config = PlannerConfig(simulations=12, depth=2, modeled_simulations=12)
     solver = IPOMCPPlanner(SolverKey("i", 2), physics, bank, config)
     solver.set_initial_belief(fixture(physics).belief)
@@ -80,7 +80,7 @@ def test_unsupported_evidence_fails_without_changing_live_belief(planner):
 def test_nested_private_model_advances_with_a_simulated_step():
     physics = TigerModel()
     bank = SolverBank(seed=3)
-    bank.filter = FiniteInteractiveFilter(lambda model: {LISTEN: 1.0})
+    bank.filter = bank.search_filter = FiniteInteractiveFilter(lambda model: {LISTEN: 1.0})
     inner = l1(physics, "i")
     middle = MentalModel(
         AgentFrame("j", 2, physics),
