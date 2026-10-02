@@ -303,3 +303,59 @@ RTS (K = 4) with compressed beliefs at N = 64:
 | RTS K = 4 | compressed 64 | 97% | 1.66 | 2.7 s | 38 |
 
 - **Not yet measured:** L3.
+
+## 9. Estimator revision: each step's state is drawn from b_h (October 2, 2026)
+
+**What changed.** Sections 1–8 were run with root sampling: one particle drawn at the root and carried down the tree. Since commit `f793712`, every tree and rollout step draws its interactive state from the agent's history posterior b_h.
+- With exact b_h the two have the same distribution.
+- With bounded b_h only the new form is consistent: a carried particle can sit on an atom that compression removed from b_h. With deterministic sensors its observation then has zero evidence. This happened on Wumpus (Section 10).
+
+**L1 gate** (Section 1's design, n = 33 per cell; `results/l1_qualification_belief_sampling_20261002`):
+- 100% optimal at every budget and horizon, except H5 at 100 simulations: 94% (previously 97%).
+- Mean max Q error at 1,000 simulations: 0.09, 0.11, 0.57 and 1.67 at H2–H5 (previously 0.08, 0.13, 0.54 and 2.14).
+
+**L2 re-runs** (n = 30 per cell; `results/l2_revalidate_belief_sampling_20261002`):
+
+| Problem | Beliefs | Optimal now (before) | Mean max Q error now (before) |
+|---|---|---|---|
+| H3, k = 0 | exact | 100% (100%) | 0.13 (0.15) |
+| H3, k = 2 | exact | 100% (97%) | 0.12 (0.14) |
+| H3, k = 4 | exact | 100% (100%) | 0.10 (0.11) |
+| H3, k = 2 | compressed 64 | 97% (100%) | 0.26 (0.25) |
+| H3, k = 4 | compressed 64 | 100% (100%) | 0.17 (0.18) |
+| H3, k = 6 | compressed 64 | 97% (100%) | 1.03 (1.02) |
+| H3, k = 2 | compressed 256 | 100% (97%) | 0.12 (0.15) |
+| H3, k = 4 | compressed 256 | 100% (100%) | 0.11 (0.12) |
+| H3, k = 6 | compressed 256 | 97% (100%) | 0.20 (0.22) |
+| H4, root 250, modeled 100 | exact | 80% (93%) | 2.55 (1.56) |
+| H4, root 250, modeled 100 | compressed 64 | 80% (90%) | 2.54 (1.51) |
+| H4, root 1,000, modeled 100 | exact | 80% (93%) | 2.45 (1.21) |
+| H4, root 250, modeled 4,000 | exact | 100% (100%) | 1.04 (1.08) |
+| H4, root 250, modeled 4,000 | compressed 64 | 100% (97%) | 0.98 (0.97) |
+
+**Interpretation:**
+- **Within the sampling variation of n = 30, the revision reproduces every result except one.** The exception is the H4 rate at 100 modeled simulations, 93% → 80%.
+- **That rate is a property of a few modeled opponents.** A modeled j-L1 at 100 simulations is one random search per distinct belief. The revision changed the random streams, so different modeled policies came out, and one wrong opponent policy is shared by several problems.
+- **This strengthens Section 5's rule.** At 100 modeled simulations, H4 decisions depend on luck in the opponent models. At 4,000 they are 100% optimal for exact and compressed beliefs alike.
+- **Compressed 64 now equals exact beliefs on every H4 cell** (same optimal rates and losses), consistent with nothing exceeding 64 atoms on those problems.
+
+## 10. Wumpus pilot: exact real beliefs, compressed search (L1, H3)
+
+**Setup (pilot).**
+- The human (L1) against a uniform-random wumpus, on the full 4 × 4 prior (94,500 states).
+- The human's real beliefs are exact; each search starts from the belief compressed to 64 or 256 atoms (`SolverBank(search_particles=N)`).
+- The planner is I-POMCP with 1,000 simulations at depth 3, deciding after 0, 2 or 4 real steps of a scripted history.
+- The reference is the exact best response at H3 on the exact belief.
+- n = 11 decisions over 3 seeds; `results/wumpus_split_pilot_20261002`.
+
+**Measured:**
+- **Exact filtering is cheap.** Along one history the support shrank from 94,500 to 46 atoms in 8 steps, at most 2.9 s per update (`results/wumpus_exact_filtering_20261002`).
+- **The exact reference is tractable at H3:** 520–600 s at the prior, 92–101 s after 2–4 steps.
+- **Planning took 1.2–34 s per decision.**
+- **Losses were 0 in 3 of 11 decisions and 1.8–7.7 in the rest; mean max Q errors were 3–89** (rewards range over ±1,000).
+
+**Status: not qualified.** The split removes the failure mode but is not accurate yet. The likely causes, not yet separated, are:
+- compressing a 25,920–94,500-atom belief to 64–256 atoms;
+- 1,000 simulations over Wumpus's 5 actions and 32 observations.
+
+The next rung is a qualification grid over N and simulations against the exact reference.
