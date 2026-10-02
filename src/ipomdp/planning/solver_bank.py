@@ -1,0 +1,194 @@
+"""Per-experiment solvers, immutable policy results and recursive inference.
+
+One bank fixes physics/configuration per (agent, level), and owns its random seed.
+Cached policy results are values, not evolving trees. Deterministic private solves
+make cache eviction harmless to the modeled policy. Private beliefs are never
+stored in a registered planner's live root on behalf of another agent.
+"""
+
+import random
+from functools import lru_cache
+
+from ipomdp.belief import canonical
+from ipomdp.belief.finite_filter import FiniteInteractiveFilter
+from ipomdp.planning.solver_types import SolverKey
+
+
+class SolverBank:
+    def __init__(self, seed=None, max_support=None):
+        self._solvers = {}
+        self._physical_priors = {}
+        self.seed = random.getrandbits(64) if seed is None else seed
+        # None keeps exact enumeration; an integer bounds every posterior's support.
+        self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
+        self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
+        # Canonical order makes random.choices intervals independent of how an
+        # equal belief was built; see ipomdp.belief.canonical for the encoding.
+        self.ordered_mass = lru_cache(maxsize=16384)(canonical.canonical_mass)
+        self.continuation_law = lru_cache(maxsize=1024)(self._continuation_law)
+        self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
+
+    def initial_states(self, physics, count):
+        """One shared empirical physical prior per domain within this bank.
+
+        Independent finite priors can make a simulated observation unsupported by
+        the opponent solely through sampling. Sharing the same unconditional prior
+        measure avoids that incoherence; it never conditions a private belief on
+        the outer true state. Different banks still use independent prior samples.
+        Changing its size after constructing models would invalidate those models.
+        """
+        key = self._prior_key(physics)
+        if key not in self._physical_priors:
+            self._physical_priors[key] = tuple(physics.get_initial_state() for _ in range(count))
+        states = self._physical_priors[key]
+        if len(states) != count:
+            raise ValueError(
+                "All models in one bank must share the same initial physical sample count"
+            )
+        return states
+
+    @staticmethod
+    def _prior_key(physics):
+        return canonical.digest(canonical.physics_identity(physics))
+
+    def set_physical_prior(self, physics, states):
+        """Declare an explicit equally weighted physical prior before any model exists.
+
+        Sampling a large empirical prior only approximates a declared distribution
+        such as an exact 50/50 tiger. Equal-weight atoms are merged exactly, so a
+        balanced tuple represents that distribution without sampling error. Models
+        built later must request the same count; replacing a prior is refused.
+        """
+        states = tuple(states)
+        if not states:
+            raise ValueError("A physical prior needs at least one state")
+        key = self._prior_key(physics)
+        if key in self._physical_priors:
+            raise ValueError("This bank already fixed a physical prior for these physics")
+        self._physical_priors[key] = states
+
+    def register_solver(self, key, solver):
+        if key in self._solvers:
+            raise ValueError(f"Solver already registered: {key}")
+        self._solvers[key] = solver
+
+    def has_solver(self, key):
+        return key in self._solvers
+
+    def __contains__(self, key):
+        return key in self._solvers
+
+    def get_solver(self, key):
+        return self._solvers[key]
+
+    def get_solver_for_frame(self, frame):
+        solver = self.get_solver(SolverKey(frame.agent_id, frame.level))
+        if frame.level and solver.pomdp_model is not frame.pomdp_model:
+            raise ValueError("Frame physics differs from the registered solver")
+        return solver
+
+    def _expected_rewards(self, model):
+        """Integrate immediate reward over the full joint prior and finite dynamics.
+
+        Used as the root control variate, by the optional internal-history
+        reward estimator, and by the optional exact final-step evaluator. With one decision left these are the complete action
+        values, so maximization happens after integrating the full joint belief.
+        For root-sampling MCTS, Q(b,a) equals this
+        expectation plus the discounted expected continuation. UCB's root action
+        selection does not inspect the newly sampled hidden state, so replacing
+        the sampled immediate reward by its exact expectation preserves the value
+        target. Successor states and continuations are still sampled jointly.
+        It removes a major source of variance from rare Tiger penalties, without
+        changing reward, observation or policy semantics.
+        """
+        import math
+
+        from ipomdp.belief.finite_filter import checked_distribution
+
+        frame, physics = model.frame, model.frame.pomdp_model
+        all_actions = physics.get_all_actions(frame.agent_id)
+        terms = {a: [] for a in all_actions}
+        for atom, mass in model.belief.mass:
+            if physics.is_terminal(atom.state):
+                continue
+            other_id = atom.opponent.frame.agent_id
+            for other_action, probability in self.filter.action_distribution(
+                atom.opponent, atom.state
+            ):
+                for action in all_actions:
+                    joint = {frame.agent_id: action, other_id: other_action}
+                    for following, transition_mass in checked_distribution(
+                        physics.transition_distribution(atom.state, joint), "Transition"
+                    ):
+                        terms[action].append(
+                            mass
+                            * probability
+                            * transition_mass
+                            * physics.get_reward(atom.state, joint, following, frame.agent_id)
+                        )
+        return tuple((action, math.fsum(terms[action])) for action in all_actions)
+
+    def _continuation_law(self, model, action):
+        """Unconditional P(own observation, survival | full belief, own action).
+
+        Marginalize hidden states/actions. Terminal probability is deliberately
+        absent, not renormalized away. Private opponent observations affect the
+        successor posterior via filter.update, not this marginal evidence law.
+        """
+        import math
+        from collections import defaultdict
+
+        from ipomdp.belief.finite_filter import InferenceBudgetExceeded, checked_distribution
+
+        frame, physics = model.frame, model.frame.pomdp_model
+        terms = defaultdict(list)
+        count = 0
+        for atom, prior in model.belief.mass:
+            if action not in physics.get_legal_actions(atom.state, frame.agent_id):
+                raise ValueError("Tail action must be legal throughout the belief")
+            other = atom.opponent.frame.agent_id
+            for other_action, mass in self.filter.action_distribution(atom.opponent, atom.state):
+                joint = {frame.agent_id: action, other: other_action}
+                for following, transition in checked_distribution(
+                    physics.transition_distribution(atom.state, joint), "Transition"
+                ):
+                    if physics.is_terminal(following):
+                        continue
+                    for observation, likelihood in checked_distribution(
+                        physics.observation_distribution(following, joint, frame.agent_id),
+                        "Observation",
+                    ):
+                        count += 1
+                        if count > self.filter.max_branches:
+                            raise InferenceBudgetExceeded("Tail chance enumeration budget exceeded")
+                        terms[observation].append(prior * mass * transition * likelihood)
+        return tuple((obs, math.fsum(weights)) for obs, weights in terms.items())
+
+    def search_seed(self, model, settings):
+        return canonical.digest(
+            [
+                self.seed,
+                canonical.stable_value(model.frame.agent_id),
+                model.frame.level,
+                canonical.belief_digest(model.belief),
+                canonical.stable_value(settings),
+            ]
+        )
+
+    def _evaluate_policy(self, model):
+        solver = self.get_solver_for_frame(model.frame)
+        return tuple(solver.policy_for(model, modeled=True).items())
+
+    def policy(self, model):
+        return dict(self._cached_policy(model))
+
+    def clear_caches(self):
+        self._cached_policy.cache_clear()
+        self.filter.clear_caches()
+        self.ordered_mass.cache_clear()
+        canonical.belief_digest.cache_clear()
+        self.expected_rewards.cache_clear()
+        self.continuation_law.cache_clear()
+        import gc
+
+        gc.collect()

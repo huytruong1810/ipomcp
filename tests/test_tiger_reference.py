@@ -2,7 +2,7 @@
 
 import pytest
 
-from examples.tiger.model.tiger_model import (
+from ipomdp.domains.tiger import (
     CREAK_RIGHT,
     GROWL_LEFT,
     LISTEN,

@@ -1,7 +1,7 @@
 import pytest
 
-from solvers.exploration import HorizonBoundUCB, NormalizedUCB, StandardUCB
-from solvers.node import POMCPNode
+from ipomdp.planning.exploration import HorizonBoundUCB, NormalizedUCB, StandardUCB
+from ipomdp.planning.node import POMCPNode
 
 
 def test_standard_ucb_untried_actions():

@@ -4,8 +4,8 @@ from functools import partial
 
 import pytest
 
-from utils.process_supervisor import supervise_jobs
-from utils.source_lock import SourceLockViolation, source_hashes, verify_source_lock
+from ipomdp.infra.process_supervisor import supervise_jobs
+from ipomdp.infra.source_lock import SourceLockViolation, source_hashes, verify_source_lock
 
 
 def _success():

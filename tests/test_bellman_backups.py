@@ -4,11 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.config import IPOMCPConfig, MCTSConfig
-from examples.experiments.planner_oracle_experiment import evaluate_case
-from solvers.i_pomcp import IPOMCPPlanner
-from solvers.node import POMCPNode
-from solvers.solver_types import SolverKey
+from ipomdp.experiments.oracle import evaluate_case
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig
+from ipomdp.planning.i_pomcp import IPOMCPPlanner
+from ipomdp.planning.node import POMCPNode
+from ipomdp.planning.solver_types import SolverKey
 
 
 def test_chance_weighting_is_not_maximum_or_uniform_average_over_outcomes():

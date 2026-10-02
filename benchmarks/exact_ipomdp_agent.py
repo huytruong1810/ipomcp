@@ -11,16 +11,16 @@ the finite MCTS policy providers are replaced by exact solutions.
 import random
 from functools import lru_cache
 
-from examples.experiments.tiger_l3_vs_l2_experiment import NESTED_I, NESTED_J, tiger
-from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.frame import AgentFrame
-from solvers.exact.finite_policy_reference import FinitePolicyReference
-from solvers.planner import Planner
-from solvers.policy import sample_policy
-from solvers.random_planner import RandomPlanner
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import SolverKey
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT
+from ipomdp.experiments.tiger_l3_vs_l2 import NESTED_I, NESTED_J, tiger
+from ipomdp.planning.planner import Planner
+from ipomdp.planning.policy import sample_policy
+from ipomdp.planning.random_planner import RandomPlanner
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_types import SolverKey
+from ipomdp.reference.finite_policy_reference import FinitePolicyReference
 
 TIE_TOLERANCE = 1e-9
 

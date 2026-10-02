@@ -5,9 +5,8 @@ from dataclasses import replace
 
 import pytest
 
-from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig
-from examples.tiger.model.tiger_model import TigerModel
-from examples.wumpus.model.constants import (
+from ipomdp.domains.tiger import TigerModel
+from ipomdp.domains.wumpus.constants import (
     ACTION_FORWARD,
     ACTION_SHOOT,
     ACTION_TURN_LEFT,
@@ -18,10 +17,11 @@ from examples.wumpus.model.constants import (
     OBS_BUMP,
     OBS_SCREAM,
 )
-from examples.wumpus.model.wumpus_model import WumpusModel
-from examples.wumpus.model.wumpus_state import AgentPose
-from solvers.solver_bank import SolverBank
-from utils.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.domains.wumpus.model import WumpusModel
+from ipomdp.domains.wumpus.state import AgentPose
+from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.planning.config import ExperimentConfig, IPOMCPConfig, MCTSConfig
+from ipomdp.planning.solver_bank import SolverBank
 
 
 def test_search_does_not_resample_its_own_root_belief():
@@ -97,7 +97,7 @@ def test_invalid_configuration_fails_before_work(factory):
 
 
 def test_tiger_creak_resets_rollout_belief():
-    from examples.tiger.model.tiger_model import (
+    from ipomdp.domains.tiger import (
         CREAK_RIGHT,
         GROWL_LEFT,
         LISTEN,
@@ -131,7 +131,7 @@ def test_tiger_persistent_rollout_open_does_not_reset():
 
 
 def test_tiger_impossible_rollout_observation_is_not_repaired():
-    from ipomdp.finite_filter import UnsupportedObservation
+    from ipomdp.belief.finite_filter import UnsupportedObservation
 
     with pytest.raises(UnsupportedObservation):
         TigerModel().update_rollout_belief({"TL": 0.5, "TR": 0.5}, "OR", ("GL", "S"), "i")
@@ -139,8 +139,8 @@ def test_tiger_impossible_rollout_observation_is_not_repaired():
 
 def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
     """A later rollout event must receive the updated private mental model."""
-    from ipomdp.finite_belief import InteractiveState, MentalModel
-    from ipomdp.frame import AgentFrame
+    from ipomdp.belief.finite_belief import InteractiveState, MentalModel
+    from ipomdp.belief.frame import AgentFrame
 
     planner = I_POMDP_Bootstrapper(SolverBank()).create_solver(
         "i",

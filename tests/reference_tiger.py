@@ -8,7 +8,7 @@ the implementation's resampling or tree bookkeeping mistakes.
 
 from functools import lru_cache
 
-from examples.tiger.model.tiger_model import (
+from ipomdp.domains.tiger import (
     LISTEN,
     OPEN_LEFT,
     OPEN_RIGHT,

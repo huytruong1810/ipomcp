@@ -9,8 +9,15 @@ import random
 
 import pytest
 
-from core.config import IPOMCPConfig, MCTSConfig, RTSConfig
-from examples.tiger.model.tiger_model import (
+from ipomdp.baselines.rts import RTSPlanner
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.finite_filter import (
+    FiniteInteractiveFilter,
+    InferenceBudgetExceeded,
+    UnsupportedObservation,
+)
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import (
     CREAK_RIGHT,
     GROWL_LEFT,
     LISTEN,
@@ -19,17 +26,10 @@ from examples.tiger.model.tiger_model import (
     TIGER_RIGHT,
     TigerModel,
 )
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.finite_filter import (
-    FiniteInteractiveFilter,
-    InferenceBudgetExceeded,
-    UnsupportedObservation,
-)
-from ipomdp.frame import AgentFrame
-from solvers.i_pomcp import IPOMCPPlanner
-from solvers.rts_planner import RTSPlanner
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import SolverKey
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig, RTSConfig
+from ipomdp.planning.i_pomcp import IPOMCPPlanner
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_types import SolverKey
 from tests.test_finite_filter import fixture, greedy_one_step, l1, left_probability
 
 

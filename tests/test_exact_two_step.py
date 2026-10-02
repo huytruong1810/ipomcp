@@ -6,12 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.config import IPOMCPConfig, MCTSConfig
-from examples.experiments.planner_oracle_experiment import evaluate_case, run_oracle_comparison
-from examples.tiger.model.tiger_model import TIGER_LEFT
-from ipomdp.finite_filter import InferenceBudgetExceeded
-from solvers.node import POMCPNode
-from solvers.solver_bank import SolverBank
+from ipomdp.belief.finite_filter import InferenceBudgetExceeded
+from ipomdp.domains.tiger import TIGER_LEFT
+from ipomdp.experiments.oracle import evaluate_case, run_oracle_comparison
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig
+from ipomdp.planning.node import POMCPNode
+from ipomdp.planning.solver_bank import SolverBank
 from tests.test_exact_final_step import make_planner
 
 
@@ -129,7 +129,7 @@ def test_first_expansion_stores_exact_boundary_without_sampled_action_counts():
     assert set(child.action_values) == {"L", "OL", "OR"}
     assert child.rollout_value == pytest.approx(max(child.action_values.values()))
     # Independent alpha-vector oracle, with the same observable posterior.
-    from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
+    from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 
     posterior = planner._history_successor(planner.model(), action, observation)
     p_left = sum(mass for atom, mass in posterior.belief.mass if atom.state == TIGER_LEFT)

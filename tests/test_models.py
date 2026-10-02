@@ -1,6 +1,6 @@
 import pytest
 
-from examples.tiger.model.tiger_model import (
+from ipomdp.domains.tiger import (
     CREAK_LEFT,
     CREAK_RIGHT,
     GROWL_LEFT,
@@ -11,10 +11,10 @@ from examples.tiger.model.tiger_model import (
     TIGER_RIGHT,
     TigerModel,
 )
-from examples.uav.model.uav_model import LISTEN as UAV_LISTEN
-from examples.uav.model.uav_model import MOVE_E, MOVE_N, MOVE_S, MOVE_W, UAVModel, UAVState
-from examples.wumpus.model.constants import ACTION_SHOOT, AGENT_HUMAN, AGENT_WUMPUS
-from examples.wumpus.model.wumpus_model import WumpusModel
+from ipomdp.domains.uav import LISTEN as UAV_LISTEN
+from ipomdp.domains.uav import MOVE_E, MOVE_N, MOVE_S, MOVE_W, UAVModel, UAVState
+from ipomdp.domains.wumpus.constants import ACTION_SHOOT, AGENT_HUMAN, AGENT_WUMPUS
+from ipomdp.domains.wumpus.model import WumpusModel
 
 
 def test_tiger_model_symmetry():

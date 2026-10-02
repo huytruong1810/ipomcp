@@ -2,12 +2,12 @@
 
 import pytest
 
-from examples.experiments.planner_oracle_experiment import evaluate_case, run_oracle_comparison
-from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.frame import AgentFrame
-from solvers.exact.fixed_tiger_opponent import FixedTigerL1Policy
-from solvers.exact.ipomdp_exact_vi import ExactIPOMDPSolver
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments.oracle import evaluate_case, run_oracle_comparison
+from ipomdp.reference.fixed_tiger_opponent import FixedTigerL1Policy
+from ipomdp.reference.ipomdp_exact_vi import ExactIPOMDPSolver
 
 
 def private_model(physics, p):

@@ -6,7 +6,11 @@ import random
 
 import pytest
 
-from examples.experiments.tiger_l3_vs_l2_experiment import (
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments.batch_runner import _get_opponent_level_distribution
+from ipomdp.experiments.tiger_l3_vs_l2 import (
     PRIOR_I,
     PRIOR_J,
     build_agent,
@@ -15,15 +19,11 @@ from examples.experiments.tiger_l3_vs_l2_experiment import (
     predicted_opponent_actions,
     tiger,
 )
-from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.frame import AgentFrame
-from solvers.exact.finite_policy_l2 import FinitePolicyL2Reference
-from solvers.exact.finite_policy_reference import FinitePolicyReference
-from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
-from solvers.solver_bank import SolverBank
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.reference.finite_policy_l2 import FinitePolicyL2Reference
+from ipomdp.reference.finite_policy_reference import FinitePolicyReference
+from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 from tests.test_finite_policy_l2 import setup as l2_setup
-from utils.generic_batch_runner import _get_opponent_level_distribution
 
 ACTIONS = ("L", "OL", "OR")
 STATES = (TIGER_LEFT, TIGER_RIGHT)
@@ -208,7 +208,7 @@ def test_systematic_resampling_keeps_marginals_and_per_atom_error_below_one_over
 
     Small K relative to S is the regime where the former "2/K" claim failed.
     """
-    from ipomdp.finite_filter import resample
+    from ipomdp.belief.finite_filter import resample
 
     rng = random.Random(5)
     checked = 0
@@ -237,7 +237,7 @@ def test_systematic_resampling_keeps_marginals_and_per_atom_error_below_one_over
 
 def test_resampling_is_independent_of_atom_insertion_order():
     """Equal beliefs must compress identically, or cached posteriors depend on query order."""
-    from ipomdp.finite_filter import resample
+    from ipomdp.belief.finite_filter import resample
 
     rng = random.Random(11)
     for _ in range(50):
@@ -254,7 +254,7 @@ def test_resampling_is_independent_of_atom_insertion_order():
 
 
 def test_resampling_never_drops_a_level_stratum():
-    from ipomdp.finite_filter import resample
+    from ipomdp.belief.finite_filter import resample
 
     physics = tiger()
     l0_i = MentalModel(AgentFrame("i", 0, physics))

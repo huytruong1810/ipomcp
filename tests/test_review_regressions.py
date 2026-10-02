@@ -15,17 +15,17 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-from core.config import ExperimentConfig, RTSConfig
-from core.distribution import DictDistribution, ParticleDistribution
-from examples.tiger.model.tiger_model import LISTEN, TIGER_LEFT, TIGER_RIGHT, TigerModel
-from examples.tiger.runners.tiger_baseline_runner import TigerBaselineRunner
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.frame import AgentFrame
-from solvers.node import POMCPNode
-from solvers.rts_planner import RTSPlanner
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import SolverKey
-from utils.generic_batch_runner import extract_nested_belief_hierarchy, is_batch_complete
+from ipomdp.baselines.particles import DictDistribution, ParticleDistribution
+from ipomdp.baselines.rts import RTSPlanner
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import LISTEN, TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments.batch_runner import extract_nested_belief_hierarchy, is_batch_complete
+from ipomdp.planning.config import ExperimentConfig, RTSConfig
+from ipomdp.planning.node import POMCPNode
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_types import SolverKey
+from tests.runners import RandomTigerRunner
 
 
 @pytest.mark.parametrize("weights", [[-1, 2], [float("nan"), 1], [float("inf"), 1]])
@@ -150,30 +150,30 @@ def test_rts_absorbing_terminal_and_mixed_survival_mass():
 
 def test_batch_resume_requires_matching_manifest_and_complete_trials(tmp_path, monkeypatch):
     config = ExperimentConfig(n_trials=2, max_steps=3)
-    runner = TigerBaselineRunner(config, str(tmp_path))
+    runner = RandomTigerRunner(config, str(tmp_path))
     result = runner.run_batch(max_workers=1)
     assert is_batch_complete(tmp_path / "batch_results.csv", 2, 3)
     monkeypatch.setattr(
-        TigerBaselineRunner,
+        RandomTigerRunner,
         "_run_single_trial_parallel",
         lambda *_: pytest.fail("Completed trials must not run again"),
     )
-    resumed = TigerBaselineRunner(config, str(tmp_path)).run_batch(max_workers=1)
+    resumed = RandomTigerRunner(config, str(tmp_path)).run_batch(max_workers=1)
     pd.testing.assert_frame_equal(
         result.reset_index(drop=True), resumed.reset_index(drop=True), check_dtype=False
     )
     with pytest.raises(ValueError, match="differs"):
-        TigerBaselineRunner(ExperimentConfig(n_trials=2, max_steps=4), str(tmp_path)).run_batch(
+        RandomTigerRunner(ExperimentConfig(n_trials=2, max_steps=4), str(tmp_path)).run_batch(
             max_workers=1
         )
     checkpoint = tmp_path / "trials" / "000000.csv"
     pd.read_csv(checkpoint).iloc[:-1].to_csv(checkpoint, index=False)
     with pytest.raises(ValueError, match="Invalid trial"):
-        TigerBaselineRunner(config, str(tmp_path)).run_batch(max_workers=1)
+        RandomTigerRunner(config, str(tmp_path)).run_batch(max_workers=1)
 
 
 def test_snapshot_capture_preserves_episode_rng():
-    runner = TigerBaselineRunner(ExperimentConfig(n_trials=1, max_steps=8))
+    runner = RandomTigerRunner(ExperimentConfig(n_trials=1, max_steps=8))
     batch = pd.DataFrame(runner._run_single_trial_parallel(4))
     snapshot, _ = runner.run_single_trial_with_snapshots(4)
     columns = [
@@ -196,7 +196,7 @@ def test_tiger_rollout_is_independent_of_hidden_state():
 
 
 def test_paired_statistics_reject_missing_seeds_and_adjust_pvalues(tmp_path):
-    from examples.experiments.master_nested_ipomdp_benchmark import compute_statistical_significance
+    from ipomdp.analysis.statistics import compute_statistical_significance
 
     data = pd.DataFrame(
         [
@@ -213,7 +213,7 @@ def test_paired_statistics_reject_missing_seeds_and_adjust_pvalues(tmp_path):
 
 
 def test_public_continuation_is_conditioned_in_online_filter():
-    from ipomdp.finite_filter import FiniteInteractiveFilter
+    from ipomdp.belief.finite_filter import FiniteInteractiveFilter
 
     physics = TerminalToy()
     opponent = MentalModel(AgentFrame("j", 0, physics))

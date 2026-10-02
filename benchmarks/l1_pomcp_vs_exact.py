@@ -14,14 +14,14 @@ import time
 from functools import partial
 from pathlib import Path
 
-from examples.experiments.tiger_l3_vs_l2_experiment import _config, _exploration, tiger
-from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.frame import AgentFrame
-from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
-from solvers.solver_bank import SolverBank
-from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.process_supervisor import supervise_jobs
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT
+from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.experiments.tiger_l3_vs_l2 import _config, _exploration, tiger
+from ipomdp.infra.process_supervisor import supervise_jobs
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 
 BELIEFS = (0.02, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.85, 0.9, 0.95, 0.98)
 

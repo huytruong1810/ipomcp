@@ -4,17 +4,17 @@ import itertools
 
 import pytest
 
-from core.config import IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
-from examples.experiments.planner_oracle_experiment import evaluate_case, run_oracle_comparison
-from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.finite_filter import InferenceBudgetExceeded
-from ipomdp.frame import AgentFrame
-from solvers.exact.finite_policy_l2 import FinitePolicyL2Reference
-from solvers.generative_model import InteractiveGenerativeModel
-from solvers.i_pomcp import IPOMCPPlanner
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import SolverKey
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.finite_filter import InferenceBudgetExceeded
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments.oracle import evaluate_case, run_oracle_comparison
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
+from ipomdp.planning.generative_model import InteractiveGenerativeModel
+from ipomdp.planning.i_pomcp import IPOMCPPlanner
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_types import SolverKey
+from ipomdp.reference.finite_policy_l2 import FinitePolicyL2Reference
 from tests.reference_tiger import ACTIONS, STATES, transition_probability
 
 

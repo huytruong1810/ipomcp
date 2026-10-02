@@ -4,14 +4,14 @@ import random
 
 import pytest
 
-from core.config import IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
-from examples.tiger.model.tiger_model import LISTEN, OPEN_LEFT, OPEN_RIGHT, TigerModel
-from ipomdp.finite_belief import MentalModel
-from solvers.policy import greedy_policy
-from solvers.random_planner import RandomPlanner
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import SolverKey
-from utils.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.belief.finite_belief import MentalModel
+from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, OPEN_RIGHT, TigerModel
+from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig, OpponentPolicyConfig
+from ipomdp.planning.policy import greedy_policy
+from ipomdp.planning.random_planner import RandomPlanner
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_types import SolverKey
 
 
 def config(depth=1):
@@ -99,7 +99,7 @@ def test_equal_budgets_use_identical_real_and_modeled_policy():
 
 
 def test_nested_initial_models_share_the_unconditional_empirical_physical_prior():
-    from examples.wumpus.model.wumpus_model import WumpusModel
+    from ipomdp.domains.wumpus.model import WumpusModel
 
     bank = SolverBank(seed=4)
     solver = I_POMDP_Bootstrapper(bank).create_solver(
@@ -136,9 +136,9 @@ def test_one_step_mcts_values_equal_exact_expected_rewards(budget):
 
 @pytest.mark.parametrize("root_family", ["rts", "mcts"])
 def test_explicit_modeled_family_is_independent_of_root(root_family):
-    from core.config import RTSConfig
-    from solvers.i_pomcp import IPOMCPPlanner
-    from solvers.rts_planner import RTSPlanner
+    from ipomdp.baselines.rts import RTSPlanner
+    from ipomdp.planning.config import RTSConfig
+    from ipomdp.planning.i_pomcp import IPOMCPPlanner
 
     bank = SolverBank(seed=19)
     boot = I_POMDP_Bootstrapper(bank)
@@ -170,7 +170,7 @@ def test_explicit_modeled_family_is_independent_of_root(root_family):
 
 
 def test_frame_lookup_rejects_different_physics_even_at_same_level():
-    from ipomdp.frame import AgentFrame
+    from ipomdp.belief.frame import AgentFrame
 
     bank = SolverBank(seed=2)
     physics = TigerModel()
@@ -194,29 +194,3 @@ def test_bootstrap_preserves_reused_solver_physics_identity():
         assert atom.opponent.frame.pomdp_model is private_physics
         assert bank.get_solver_for_frame(atom.opponent.frame) is nested
     assert outer.get_action() in outer.actions
-
-
-@pytest.mark.parametrize("family", ["rts", "ipomcp"])
-def test_controlled_comparison_predicts_declared_opponent_private_policy(family):
-    from core.config import ExperimentConfig
-    from examples.tiger.runners.planner_comparison import ControlledConditionRunner
-
-    random.seed(31)
-    runner = ControlledConditionRunner(
-        ExperimentConfig(n_trials=1, max_steps=3), None, family, 2, 1, 30, 2, n_particles=20
-    )
-    _, protagonist, opponent, _ = runner._setup_domain()
-    predicted = protagonist.belief.mass[0][0].opponent
-    assert predicted.belief is not opponent.belief
-    root = opponent.root
-    for observation in [("GL", "S"), ("GR", "S"), ("GL", "CR")]:
-        assert protagonist.solver_bank.policy(predicted) == opponent.policy_for(opponent.model())
-        predicted = MentalModel(
-            predicted.frame,
-            protagonist.solver_bank.filter.update(
-                predicted, LISTEN, observation, terminal=False
-            ).belief,
-        )
-        opponent.update_root(LISTEN, observation)
-    assert protagonist.solver_bank.policy(predicted) == opponent.policy_for(opponent.model())
-    assert root.visit_count == 0  # Modeling did not search the original live root.

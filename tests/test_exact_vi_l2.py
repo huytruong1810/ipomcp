@@ -2,13 +2,13 @@
 
 import pytest
 
-from examples.tiger.model.tiger_model import (
+from ipomdp.domains.tiger import (
     LISTEN,
     OPEN_LEFT,
     OPEN_RIGHT,
     TigerModel,
 )
-from solvers.exact.ipomdp_exact_vi import ExactIPOMDPSolver
+from ipomdp.reference.ipomdp_exact_vi import ExactIPOMDPSolver
 
 
 def test_exact_l2_solver_initialization_and_solution():

@@ -1,6 +1,6 @@
 import pytest
 
-from core.distribution import DictDistribution, ParticleDistribution
+from ipomdp.baselines.particles import DictDistribution, ParticleDistribution
 
 
 def test_particle_distribution_uniform():

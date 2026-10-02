@@ -1,7 +1,7 @@
-from core.pomdp_model import POMDPModel
-from ipomdp.finite_belief import InteractiveState, MentalModel
-from solvers.node import POMCPNode
-from solvers.solver_types import AgentFrame
+from ipomdp.belief.finite_belief import InteractiveState, MentalModel
+from ipomdp.model.pomdp import POMDPModel
+from ipomdp.planning.node import POMCPNode
+from ipomdp.planning.solver_types import AgentFrame
 
 
 class DummyModel(POMDPModel):

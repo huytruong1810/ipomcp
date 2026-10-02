@@ -2,20 +2,20 @@
 
 import pytest
 
-from examples.tiger.model.tiger_model import (
+from ipomdp.domains.tiger import (
     LISTEN,
     OPEN_LEFT,
     OPEN_RIGHT,
     TigerModel,
 )
-from solvers.exact.alpha_vector import (
+from ipomdp.reference.alpha_vector import (
     AlphaVector2D,
     AlphaVectorND,
     prune_2d,
     prune_2d_with_intervals,
     prune_nd,
 )
-from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
+from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 from tests.reference_tiger import finite_horizon_values
 
 

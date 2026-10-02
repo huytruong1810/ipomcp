@@ -6,7 +6,12 @@ import json
 import os
 import tempfile
 
-from core.telemetry import MemoryWatchdog, SystemMonitor, SystemResourceSnapshot, TelemetryLogger
+from ipomdp.infra.resources import (
+    MemoryWatchdog,
+    SystemMonitor,
+    SystemResourceSnapshot,
+    TelemetryLogger,
+)
 
 
 def test_system_monitor_process_memory():

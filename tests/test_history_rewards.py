@@ -4,15 +4,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.config import IPOMCPConfig, MCTSConfig
-from examples.experiments.planner_oracle_experiment import evaluate_case, run_oracle_comparison
-from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.frame import AgentFrame
-from solvers.i_pomcp import IPOMCPPlanner
-from solvers.node import POMCPNode
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import SolverKey
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments.oracle import evaluate_case, run_oracle_comparison
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig
+from ipomdp.planning.i_pomcp import IPOMCPPlanner
+from ipomdp.planning.node import POMCPNode
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_types import SolverKey
 
 
 def setup(backup):

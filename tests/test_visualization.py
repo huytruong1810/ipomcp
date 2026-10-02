@@ -1,12 +1,12 @@
 import os
 
-from core.config import IPOMCPConfig, MCTSConfig
-from examples.tiger.model.tiger_model import TigerModel
-from solvers.solver_bank import SolverBank
-from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.generic_batch_runner import extract_nested_belief_hierarchy
-from utils.paper_plots import generate_nested_sunburst_pdf
-from utils.plotting import plot_episode_sunburst_slider, plot_nested_belief_sunburst
+from ipomdp.analysis.paper_plots import generate_nested_sunburst_pdf
+from ipomdp.analysis.plotting import plot_episode_sunburst_slider, plot_nested_belief_sunburst
+from ipomdp.domains.tiger import TigerModel
+from ipomdp.experiments.batch_runner import extract_nested_belief_hierarchy
+from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig
+from ipomdp.planning.solver_bank import SolverBank
 
 
 def test_extract_nested_belief_hierarchy_level3(tmp_path):

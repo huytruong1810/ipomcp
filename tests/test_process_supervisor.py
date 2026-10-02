@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from core.config import ExperimentConfig
-from examples.tiger.runners.tiger_baseline_runner import TigerBaselineRunner
-from utils.generic_batch_runner import is_batch_complete
-from utils.process_supervisor import supervise_jobs
+from ipomdp.experiments.batch_runner import is_batch_complete
+from ipomdp.infra.process_supervisor import supervise_jobs
+from ipomdp.planning.config import ExperimentConfig
+from tests.runners import RandomTigerRunner
 
 
 def _sleep():
@@ -67,7 +67,7 @@ def test_supervisor_enforces_rss_budget():
     assert outcomes[0]["monitored_peak_rss_mb"] > limit
 
 
-class RecoverableRunner(TigerBaselineRunner):
+class RecoverableRunner(RandomTigerRunner):
     def _run_single_trial_parallel(self, trial_id):
         if trial_id == 1 and not (Path(self.log_dir) / "recovered").exists():
             raise ValueError("injected recoverable worker failure")

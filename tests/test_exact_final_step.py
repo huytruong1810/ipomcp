@@ -8,15 +8,15 @@ import random
 
 import pytest
 
-from core.config import IPOMCPConfig, MCTSConfig
-from examples.experiments.planner_oracle_experiment import evaluate_case
-from examples.tiger.model.tiger_model import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.finite_filter import UnsupportedObservation
-from ipomdp.frame import AgentFrame
-from solvers.node import POMCPNode
-from solvers.solver_bank import SolverBank
-from utils.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.finite_filter import UnsupportedObservation
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.experiments.oracle import evaluate_case
+from ipomdp.planning.config import IPOMCPConfig, MCTSConfig
+from ipomdp.planning.node import POMCPNode
+from ipomdp.planning.solver_bank import SolverBank
 
 
 def make_planner(p=0.5, depth=1):

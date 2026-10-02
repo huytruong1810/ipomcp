@@ -1,10 +1,10 @@
-from core.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, RTSConfig
-from examples.tiger.model.tiger_model import TigerModel
-from solvers.rts_planner import RTSPlanner
-from solvers.solver_bank import SolverBank
-from solvers.solver_types import SolverKey
-from utils.bootstrapper import I_POMDP_Bootstrapper
-from utils.generic_batch_runner import GenericBatchRunner
+from ipomdp.baselines.rts import RTSPlanner
+from ipomdp.domains.tiger import TigerModel
+from ipomdp.experiments.batch_runner import GenericBatchRunner
+from ipomdp.experiments.bootstrapper import I_POMDP_Bootstrapper
+from ipomdp.planning.config import ExperimentConfig, IPOMCPConfig, MCTSConfig, RTSConfig
+from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_types import SolverKey
 
 
 def test_level1_rts_planner_creation_and_action_values():

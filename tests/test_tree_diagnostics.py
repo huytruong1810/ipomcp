@@ -1,7 +1,7 @@
 """Algebraic tests for post-search diagnostics, independent of Tiger search."""
 
-from examples.experiments.tree_diagnostics import describe_node
-from solvers.node import POMCPNode
+from ipomdp.analysis.error_attribution import describe_node
+from ipomdp.planning.node import POMCPNode
 
 
 class Reference:
@@ -83,7 +83,7 @@ def deep_tree():
 
 
 def test_trace_reconstructs_frontier_boundary_and_unresolved_mass():
-    from examples.experiments.tree_diagnostics import trace_margin
+    from ipomdp.analysis.error_attribution import trace_margin
 
     root = deep_tree()
     partial = trace_margin(root, "root", 3, DeepReference(), str, {"b": 1.0}, max_nodes=1)
@@ -98,7 +98,7 @@ def test_trace_reconstructs_frontier_boundary_and_unresolved_mass():
 
 
 def test_trace_subtracts_local_loss_and_handles_uniform_greedy_ties():
-    from examples.experiments.tree_diagnostics import trace_margin
+    from ipomdp.analysis.error_attribution import trace_margin
 
     class ReferenceWithLeaf(DeepReference):
         def q_values(self, model, horizon):
@@ -119,7 +119,7 @@ def test_trace_subtracts_local_loss_and_handles_uniform_greedy_ties():
 
 
 def test_trace_keeps_zero_count_branches_in_chance_error():
-    from examples.experiments.tree_diagnostics import trace_margin
+    from ipomdp.analysis.error_attribution import trace_margin
 
     class ChanceReference:
         gamma = 1.0
@@ -148,8 +148,8 @@ def test_trace_keeps_zero_count_branches_in_chance_error():
 
 
 def test_diagnostic_control_equality_and_explicit_candidate_contract():
-    from examples.experiments.planner_oracle_experiment import evaluate_case
-    from examples.experiments.tree_diagnostics import diagnose
+    from ipomdp.analysis.error_attribution import diagnose
+    from ipomdp.experiments.oracle import evaluate_case
 
     original = evaluate_case(
         "mcts",

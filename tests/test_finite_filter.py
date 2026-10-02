@@ -13,7 +13,10 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from examples.tiger.model.tiger_model import (
+from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.finite_filter import FiniteInteractiveFilter, UnsupportedObservation
+from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.tiger import (
     CREAK_RIGHT,
     GROWL_LEFT,
     GROWL_RIGHT,
@@ -25,9 +28,6 @@ from examples.tiger.model.tiger_model import (
     TIGER_RIGHT,
     TigerModel,
 )
-from ipomdp.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.finite_filter import FiniteInteractiveFilter, UnsupportedObservation
-from ipomdp.frame import AgentFrame
 from tests.reference_tiger import posterior as fixed_posterior
 from tests.reference_tiger import transition_probability
 
@@ -321,8 +321,8 @@ def test_policy_errors_and_nested_model_misspecification_fail_explicitly():
 def test_finite_transition_laws_match_tiger_reference_and_deterministic_domains():
     import random
 
-    from examples.uav.model.uav_model import UAVModel
-    from examples.wumpus.model.wumpus_model import WumpusModel
+    from ipomdp.domains.uav import UAVModel
+    from ipomdp.domains.wumpus.model import WumpusModel
 
     for persistent in [False, True]:
         physics = TigerModel(persistent=persistent)
@@ -354,8 +354,8 @@ def test_observable_action_availability_must_agree_across_intentional_support():
     import random
     from dataclasses import replace
 
-    from examples.wumpus.model.constants import ACTION_FORWARD, AGENT_HUMAN, AGENT_WUMPUS
-    from examples.wumpus.model.wumpus_model import WumpusModel
+    from ipomdp.domains.wumpus.constants import ACTION_FORWARD, AGENT_HUMAN, AGENT_WUMPUS
+    from ipomdp.domains.wumpus.model import WumpusModel
 
     physics = WumpusModel()
     state = physics.get_initial_state(rng=random.Random(3))
@@ -377,7 +377,7 @@ def test_observable_action_availability_must_agree_across_intentional_support():
 def test_wumpus_sparse_observation_law_matches_full_probability_table():
     import random
 
-    from examples.wumpus.model.wumpus_model import WumpusModel
+    from ipomdp.domains.wumpus.model import WumpusModel
 
     model = WumpusModel()
     state = model.get_initial_state(random.Random(3))

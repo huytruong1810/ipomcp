@@ -2,10 +2,10 @@
 
 import pytest
 
-from examples.experiments.planner_oracle_experiment import evaluate_case
-from examples.tiger.model.tiger_model import TigerModel
-from solvers.exact.alpha_vector import AlphaVector2D, prune_2d
-from solvers.exact.pomdp_exact_vi import ExactPOMDPSolver
+from ipomdp.domains.tiger import TigerModel
+from ipomdp.experiments.oracle import evaluate_case
+from ipomdp.reference.alpha_vector import AlphaVector2D, prune_2d
+from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 
 
 def test_large_slopes_are_not_merged_by_relative_tolerance():
@@ -52,7 +52,7 @@ def test_exploration_ablation_preserves_one_step_problem_and_records_settings(st
 def test_oracle_panel_records_and_executes_requested_seed_range(tmp_path, monkeypatch):
     import json
 
-    from examples.experiments import planner_oracle_experiment as experiment
+    from ipomdp.experiments import oracle as experiment
 
     observed = []
 
@@ -83,7 +83,7 @@ def test_oracle_panel_records_and_executes_requested_seed_range(tmp_path, monkey
 
 @pytest.mark.parametrize("seed_start", [-1, 0.5, True])
 def test_oracle_panel_rejects_invalid_seed_start_before_output(tmp_path, seed_start):
-    from examples.experiments.planner_oracle_experiment import run_oracle_comparison
+    from ipomdp.experiments.oracle import run_oracle_comparison
 
     out = tmp_path / "invalid"
     with pytest.raises(ValueError, match="seed_start"):
@@ -94,7 +94,7 @@ def test_oracle_panel_rejects_invalid_seed_start_before_output(tmp_path, seed_st
 def test_panel_rejects_impossible_worker_timing_and_keeps_evidence(tmp_path, monkeypatch):
     import json
 
-    from examples.experiments import planner_oracle_experiment as experiment
+    from ipomdp.experiments import oracle as experiment
 
     def impossible(jobs, **kwargs):
         for identifier in jobs:
@@ -119,7 +119,7 @@ def test_panel_rejects_impossible_worker_timing_and_keeps_evidence(tmp_path, mon
 def test_panel_preserves_timing_when_supervision_raises(tmp_path, monkeypatch):
     import json
 
-    from examples.experiments import planner_oracle_experiment as experiment
+    from ipomdp.experiments import oracle as experiment
 
     def interrupted(jobs, **kwargs):
         raise RuntimeError("injected parent failure")
