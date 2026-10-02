@@ -105,7 +105,7 @@ inside the search (section 1).
 L1 agent, so the loss includes both i's search error and its opponent-model
 error. Each cell covers 5 beliefs of i × 3 beliefs of j × 2 seeds (n = 30).
 CPU is per root decision, including the nested solves. Driver:
-`experiments.allocation_study`.
+`experiments.l2_panel`.
 
 Optimal rate (mean max Q error in brackets):
 

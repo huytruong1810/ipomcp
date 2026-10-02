@@ -74,4 +74,4 @@ Searching futures costs root simulations (`simulations`). Simulating minds costs
 
 Measured on an L3 Tiger decision, nested solves take 80–89% of CPU time. With exact beliefs a decision took 888 s and 1,779 nested solves; with the IPF (64 particles) it took 7.7 s and 228.
 
-Modeled policies and belief updates are pure functions, so their caches are kept across real steps. How to divide a fixed budget between the two costs is measured by `experiments.allocation_study` against the exact I-POMDP.
+Modeled policies and belief updates are pure functions, so their caches are kept across real steps. How to divide a fixed budget between the two costs is measured by `experiments.l2_panel` against the exact I-POMDP.
