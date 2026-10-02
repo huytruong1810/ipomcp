@@ -5,7 +5,7 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 2, 2026, at commit `90d3b5d`.
+Last updated October 2, 2026. `main` now holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
 
 ## 1. Goals
 
@@ -28,18 +28,24 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 
 ### Ground rules
 
-- All work happens in the worktree `/home/andyj1810/projects/ipomcp-claude`, on branch `claude/restructure`.
-- Run code with `PYTHONPATH=$PWD/src ../ipomcp/.venv/bin/python …` from the worktree. The shared venv otherwise imports `main`'s source.
-- **Do not edit or merge into `main`** (`/home/andyj1810/projects/ipomcp`) until the user confirms that Codex and Antigravity are finished. Other agents' processes run there (for example a Wumpus run logging to `runs/wumpus/full_seed0/main.log`); leave them alone.
+- Work in `/home/andyj1810/projects/ipomcp` on `main`; do not clone.
+- Run code with `.venv/bin/python` from the repository root. The editable install points at `src/`, so no `PYTHONPATH` is needed.
+- **Do not push to `origin`** unless the user asks.
 - Back up before deleting evidence. Kill processes by PID only.
+- **Housekeeping the user still has to do:** the permission classifier blocked deleting files and folders. These are left over:
+  - the worktree `/home/andyj1810/projects/ipomcp-claude` (branch `claude/restructure`, fully merged; its `results/` were copied into `results/`): `git worktree remove ../ipomcp-claude`;
+  - ignored legacy leftovers `src/core`, `src/examples`, `src/solvers`, `src/utils` (only `__pycache__`), `src/i_pomcp_py.egg-info` and `benchmarks/`;
+  - about 12 GB of legacy raw outputs in `results/` (`oracle/`, `archive/`, the `*-202609*` folders, `deep_prior/`, `payoff_matrix/`, `review-20260923/`). They are evidence for the legacy code only. The audit of the last legacy run is in `results/oracle/l2_recursive_chance_development_claude_audit_20261002/`. Archive them off the machine or delete them, as the user decides.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Report results with chosen methods only, label interim n, and define jargon (the user's report style).
 
 ## 2. Current state
 
-- **Tests.** 229 pass in about 30 s; `ruff check` and `ruff format --check` are clean.
-- **Running jobs.** None of ours. The working tree is clean.
-- **Archive.** The tag `archive/pre-restructure-20260930` preserves the pre-restructure code.
+- **Tests.** 229 pass in about 35 s on `main`; `ruff check` and `ruff format --check` are clean.
+- **Running jobs.** None.
+- **Archives.**
+  - Tag `archive/pre-restructure-20260930`: the pre-restructure code.
+  - Tag `archive/codex-final-20261002` (branch `codex/final-20261002`): Codex's and Antigravity's final working tree, preserved unchanged. It holds the legacy recursive-chance candidate (`src/solvers/recursive_chance.py`), its protocols (`docs/RECURSIVE_CHANCE_*.md`), the frozen contracts (`benchmarks/`) and the launchers. `main`'s merge has it as a parent, but `main`'s tree is the restructure.
 - **Results.** Stored under `results/` (git-ignored). A backup of everything up to September 30 is in `C:\Users\Andyj\ipomcp-results-backup-20260930`. Results from October 1–2 are not backed up yet; copy `results/` off the machine.
 
 ### What the package is now
@@ -91,6 +97,20 @@ studies/        tiger_l3_vs_l2.toml
 
 ## 4. Next steps, in order
 
+0. **Port recursive post-search chance scoring into `ipomdp.planning`** (from `codex/final-20261002`: `src/solvers/recursive_chance.py`, `docs/RECURSIVE_CHANCE_PLAN.md`).
+   - **The method.** After search, rescore the saved tree bottom-up with Q(h, a) = E[R | b_h, a] + γ Σ_o P(o, alive | b_h, a) V(h a o). It uses exact branch probabilities from the history posterior instead of empirical counts. An action with a missing positive-probability branch keeps its sampled Q; rollout frontiers stay approximate.
+   - **The legacy evidence** (my audit of 3,645 of 4,800 development cases; old Tiger spec, 100k simulations, H1–H8, finite modeled j-L1):
+     - 0 strict errors and 0 violations, against 4 and 1 for the current scoring;
+     - all 4 errors corrected, with no regressions, at +3% CPU;
+     - fully exact roots match the reference to within 5e-15;
+     - the maximum Q error got worse at H8 (8.22 against 6.23);
+     - only 2,002 of 3,645 roots were fully exact (none at H8).
+
+     Details in `results/oracle/l2_recursive_chance_development_claude_audit_20261002/report.txt`.
+   - **Panels not run.** The legacy run stopped at panel 09 (525/560), and panels 10–11 never ran. Those panels are dropped by the user's decision: the legacy code is retired, so they would not transfer.
+   - **Fit with the new planner.** The new planner already has b_h at every node (`search_filter`) and `continuation_counts`, so the port is a post-search pass over `POMCPNode`s. Keep the search Q and the recommendation Q separate.
+   - **Re-qualify** against the exact references on the panels in RESULTS.md Sections 5–9.
+
 1. **Wumpus qualification** (RESULTS.md Section 10).
    - Run a grid over `search_particles` (64 → 4,096) × simulations (1k → 10k), at L1 H3, against the exact best response. The pilot script is `results/wumpus_split_pilot_20261002/wumpus_split.py`.
    - Separate the two candidate causes: compressing a 25k–94k-atom root to N atoms, and too few simulations for 5 actions × 32 observations.
@@ -101,7 +121,7 @@ studies/        tiger_l3_vs_l2.toml
    - I-POMCP (compressed) vs IPF + RTS (sampled, as published) on longer histories and L3.
    - Report RTS with compressed beliefs as an ablation; it shows that RTS's misses are search error.
 5. **R9 scale-up ladder:** Tiger L1 → L4, then UAV, then Wumpus. Each rung passes its gate first. Then rerun the L3-vs-L2 study (`studies/tiger_l3_vs_l2.toml`, now on compressed beliefs by default) for sunbursts (contribution 3).
-6. **Merge into `main`,** only after the user confirms (Section 7).
+6. Clear the housekeeping items in Section 1 once the user has done or approved them.
 
 ## 5. Files touched this session (since `archive/pre-restructure-20260930`)
 
@@ -158,22 +178,20 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Editing `src/` (including formatting) while supervised jobs run | The source lock fails, or workers import mixed code | Wait for runs to finish |
 | `sleep N` chained in foreground tool calls | Blocked by the harness | Background job plus an `until …; do sleep 30; done` waiter |
 
-## 7. Merging into main
+## 7. Merge record
 
-Only after the user confirms that Codex and Antigravity are finished:
-
-1. Commit or archive their working tree on `main`.
-2. Merge `claude/snapshot-and-hardening`, `claude/l3-l2-tiger-experiment` (already contained) and `claude/restructure`.
-3. Run the full suite.
-4. Old frozen source locks will no longer match. That is expected.
+On October 2, 2026, after the user confirmed that Codex and Antigravity had finished:
+1. Codex's working tree was committed unchanged (`69097e6`, branch `codex/final-20261002`, tag `archive/codex-final-20261002`).
+2. `claude/restructure` merged it with `-s ours` (`f40c525`), keeping the restructured tree and recording the ancestry.
+3. `main` was fast-forwarded to `f40c525`. Nothing was pushed.
 
 ## 8. How to run
 
 ```bash
-cd /home/andyj1810/projects/ipomcp-claude
-PY="env PYTHONPATH=$PWD/src ../ipomcp/.venv/bin/python"
-$PY -m pytest -q                                   # about 30 s
-../ipomcp/.venv/bin/ruff check src tests && ../ipomcp/.venv/bin/ruff format --check src tests
+cd /home/andyj1810/projects/ipomcp
+PY=.venv/bin/python
+$PY -m pytest -q                                   # about 35 s
+.venv/bin/ruff check src tests && .venv/bin/ruff format --check src tests
 # Gates
 $PY -m ipomdp.experiments.l1_qualification --budgets 100 1000 5000 --seeds 0 1 2 --output results/<new>
 $PY -m ipomdp.experiments.belief_qualification --levels 2 --particles 16 64 256 \
