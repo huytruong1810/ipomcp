@@ -39,7 +39,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 - `canonical` gives every belief an order-independent, process-independent digest. Search seeding, sampling order and resampling depend only on *what* a belief is, never on how it was built.
 - **Belief updates** are subclasses of `InteractiveFilter`; both are pure and memoized:
   - `FiniteInteractiveFilter`: the exact I-POMDP update, enumerated.
-  - `ParticleInteractiveFilter`: the interactive particle filter, at most N particles at every level, seeded per update.
+  - `ParticleInteractiveFilter`: the interactive particle filter, at most N particles at every level, seeded per update and resampled systematically.
 
 ### `planning`: the I-POMCP planner
 
