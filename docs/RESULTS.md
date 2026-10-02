@@ -71,4 +71,67 @@ The single H3 miss is a near-tie: its loss is 0.004.
 
 ## 5. Root search vs opponent modeling (L2 Tiger, vs the exact I-POMDP)
 
-**Pending:** `experiments.allocation_study` with root budgets {250, 1k, 4k} × modeled budgets {5, 25, 100, 400} × horizons {3, 4}, scored against the exact I-POMDP.
+**Setup.** i is L2 and models j as an I-POMCP L1 with `modeled` simulations
+(depth equal to the horizon). The reference is the exact I-POMDP: j is an exact
+L1 agent, so the loss includes both i's search error and its opponent-model
+error. Each cell covers 5 beliefs of i × 3 beliefs of j × 2 seeds (n = 30).
+CPU is per root decision, including the nested solves. Driver:
+`experiments.allocation_study`.
+
+Optimal rate (mean max Q error in brackets):
+
+| Horizon | Root | Modeled 5 | Modeled 25 | Modeled 100 | Modeled 400 | Modeled 1,000 | Modeled 4,000 |
+|---|---|---|---|---|---|---|---|
+| 3 | 250 | 90% (0.77) | 90% (0.81) | 100% (0.33) | 100% (0.33) | | |
+| 3 | 1,000 | 87% (0.70) | 90% (0.68) | 100% (0.15) | 100% (0.15) | | |
+| 3 | 4,000 | 87% (0.62) | 87% (0.62) | 100% (0.06) | 100% (0.06) | | |
+| 4 | 250 | 80% (2.38) | 80% (2.22) | 93% (1.56) | 93% (1.56) | 93% (1.55) | 100% (1.08) |
+| 4 | 1,000 | 80% (2.08) | 80% (2.07) | 93% (1.21) | 93% (1.21) | 93% (1.20) | 100% (0.76) |
+| 4 | 4,000 | 80% (2.12) | 80% (1.98) | 93% (1.03) | 93% (1.03) | | |
+
+Mean CPU per decision: H3 0.07–1.2 s; H4 0.26–3.5 s up to modeled 400, 4.2–4.8 s
+at modeled 1,000 and 18–22 s at modeled 4,000.
+
+**Interpretation:**
+- **The modeled budget decides optimality; the root budget only reduces Q
+  error.** In every row the optimal rate is fixed by the modeled column. A
+  16-fold larger root budget never removes a miss caused by a wrong opponent
+  model.
+- **The H4 ceiling of 93% is opponent-model error.** The two misses (max loss
+  1.85) come from one modeled j-L1 that opens where the exact L1 listens
+  (Q gap 0.66 at 400 simulations). It persists at 1,000 modeled simulations
+  and disappears at 4,000, for both root budgets.
+- **Allocation rule.** Give the modeled budget priority: enough that each
+  modeled agent's decisions match its exact solution at the beliefs it is
+  modeled at (here 100 simulations at depth 3 and 4,000 at depth 4). Section 1
+  is not sufficient evidence for this, because it scores L1 decisions at
+  i's beliefs, not at the beliefs j is modeled at. Spend what remains on root
+  simulations, which lower Q error but do not change the decision once the
+  opponent model is right.
+
+## 6. I-POMCP vs RTS (L2 Tiger, vs the exact I-POMDP)
+
+**Setup.** i is L2. Both planners are given the exact j-L1 (depth 3, belief
+0.085), and both use exact beliefs, so the comparison varies only the
+planner's own lookahead. The
+reference is the exact I-POMDP at horizon 3. Each row covers 5 beliefs of i
+× 3 seeds (n = 15). Budget is root simulations for I-POMCP and observation
+samples per node (K) for RTS. Driver: `experiments.oracle --planners mcts rts`.
+
+| Planner | Budget | Optimal | Mean max Q error | CPU per decision |
+|---|---|---|---|---|
+| I-POMCP | 250 | 100% | 0.39 | 0.13 s |
+| I-POMCP | 1,000 | 100% | 0.12 | 0.23 s |
+| I-POMCP | 4,000 | 100% | 0.06 | 0.55 s |
+| RTS | K = 2 | 100% | 1.55 | 0.08 s |
+| RTS | K = 4 | 87% | 1.23 | 0.09 s |
+| RTS | K = 8 | 100% | 0.82 | 0.10 s |
+
+**Interpretation:**
+- At horizon 3, both planners usually choose correctly. I-POMCP's Q error is
+  an order of magnitude lower at a few times the CPU, and it keeps falling
+  with budget. RTS's error falls slowly with K, and its optimal rate is not
+  monotone in K at this n (two misses at K = 4).
+- RTS cost grows as (|A| K)^(H−1) per decision, while I-POMCP's grows linearly
+  in simulations. The scaling comparison at longer horizons, and with IPF
+  beliefs (IPF + RTS proper), is the next study.
