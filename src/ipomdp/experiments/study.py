@@ -43,7 +43,7 @@ from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.random_planner import RandomPlanner
-from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_bank import FILTERS, SolverBank
 
 DOMAINS = {"tiger": TigerModel, "uav": UAVModel, "wumpus": WumpusModel}
 AGENTS = ("i", "j")
@@ -59,7 +59,9 @@ class AgentSpec:
             ``{"kind": "rts", ...RTSConfig fields}``; unused at level 0.
         modeled_planner: The same form, for every nested intentional model;
             defaults to ``planner``.
-        particles: None for exact beliefs, or the IPF particle count.
+        particles: None for exact beliefs, or the bound N on belief supports.
+        particle_filter: ``"compressed"`` (exact updates compressed to N
+            atoms; the planner's default) or ``"sampled"`` (the published IPF).
         level_weights: Prior over the opponent's levels ({level: weight}).
         nested_level_weights: {level: {level: weight}} for nested models.
     """
@@ -68,12 +70,15 @@ class AgentSpec:
     planner: Optional[Dict] = None
     modeled_planner: Optional[Dict] = None
     particles: Optional[int] = None
+    particle_filter: str = "compressed"
     level_weights: Optional[Dict[int, float]] = None
     nested_level_weights: Optional[Dict[int, Dict[int, float]]] = None
 
     def __post_init__(self):
         if type(self.level) is not int or self.level < 0:
             raise ValueError("level must be a nonnegative integer")
+        if self.particle_filter not in FILTERS:
+            raise ValueError(f"particle_filter must be one of {sorted(FILTERS)}")
         if self.level > 0:
             _planner_config(self.planner)
             if self.modeled_planner is not None:
@@ -124,6 +129,7 @@ class StudySpec:
                 planner=entry.get("planner"),
                 modeled_planner=entry.get("modeled_planner"),
                 particles=entry.get("particles"),
+                particle_filter=entry.get("particle_filter", "compressed"),
                 level_weights=_int_keys(entry.get("level_weights")),
                 nested_level_weights=(
                     {int(k): _int_keys(v) for k, v in entry["nested_level_weights"].items()}
@@ -148,7 +154,11 @@ def build_agents(spec: StudySpec, seed: int):
             rng = random.Random(bank_seed)
             planners[agent] = RandomPlanner(physics.get_all_actions(agent), rng)
             continue
-        bank = SolverBank(bank_seed, particles=agent_spec.particles)
+        bank = SolverBank(
+            bank_seed,
+            particles=agent_spec.particles,
+            particle_filter=agent_spec.particle_filter,
+        )
         planners[agent] = HierarchyBuilder(bank).build(
             agent,
             agent_spec.level,

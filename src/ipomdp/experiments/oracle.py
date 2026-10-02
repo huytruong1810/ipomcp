@@ -36,9 +36,9 @@ filter (exact or particle), the exact reference with the exact filter, so the
 problem is the same while exact supports grow with k. The CPU of those k
 updates is recorded separately from the decision's.
 
-Beliefs: exact by default; ``particles=N`` gives the planner's bank the
-interactive particle filter, so ``rts`` becomes IPF + RTS and ``mcts`` becomes
-I-POMCP with the IPF. The exact I-POMDP reference is always solved in a separate
+Beliefs: exact by default; ``particles=N`` bounds the planner's beliefs to N
+atoms, by the compressed filter (``particle_filter="compressed"``) or the
+published sampled IPF (``"sampled"``; ``rts`` with it is IPF + RTS). The exact I-POMDP reference is always solved in a separate
 exact bank, so it never inherits particle error. A ``declared`` reference would
 not be exact with particles (the declared opponent's own updates would be
 sampled), so that combination is rejected.
@@ -85,6 +85,7 @@ def evaluate_case(
     opponent_budget=None,
     reference="declared",
     particles=None,
+    particle_filter="compressed",
     history_steps=0,
 ):
     """Solve one matched problem with the planner and the exact reference.
@@ -100,7 +101,7 @@ def evaluate_case(
     if history_steps and level == 1:
         raise ValueError("The L1 alpha-vector reference is solved at the prior; use level 2")
     model = TigerModel()
-    bank = SolverBank(seed, particles=particles)
+    bank = SolverBank(seed, particles=particles, particle_filter=particle_filter)
     key = SolverKey("i", level)
     config = _planner_config(planner_kind, budget, horizon, gamma, exploration)
     planner = _planner(planner_kind, key, model, bank, config)
@@ -159,6 +160,7 @@ def evaluate_case(
             ),
             "reference": reference if level == 2 and opponent_budget is not None else "exact",
             "particles": particles,
+            "particle_filter": particle_filter if particles else None,
             "history_steps": history_steps,
             "belief_support": len(planner.belief.mass),
             "history_update_cpu_seconds": update_cpu_seconds,
@@ -304,6 +306,7 @@ def run_oracle_comparison(
     opponent_budget=None,
     reference="declared",
     particles=None,
+    particle_filter="compressed",
     history_steps=0,
     workers=2,
     timeout=2400,
@@ -342,6 +345,7 @@ def run_oracle_comparison(
         opponent_budget=opponent_budget,
         reference=reference,
         particles=particles,
+        particle_filter=particle_filter,
         history_steps=history_steps,
         workers=workers,
         timeout=timeout,
@@ -365,6 +369,7 @@ def run_oracle_comparison(
         opponent_budget=opponent_budget,
         reference=reference,
         particles=particles,
+        particle_filter=particle_filter,
         history_steps=history_steps,
     )
     jobs = {i: partial(evaluate_case, *case, **options) for i, case in enumerate(cases)}
@@ -413,6 +418,9 @@ def main():
     parser.add_argument("--opponent-budget", type=int)
     parser.add_argument("--reference", choices=["declared", "exact"], default="declared")
     parser.add_argument("--particles", type=int)
+    parser.add_argument(
+        "--particle-filter", choices=["compressed", "sampled"], default="compressed"
+    )
     parser.add_argument("--history-steps", type=int, default=0)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=2400)

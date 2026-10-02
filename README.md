@@ -35,8 +35,8 @@ exact reference. The gates, in order:
 ```bash
 # Planner vs exact value iteration (L1 Tiger, horizons 1-5)
 uv run python -m ipomdp.experiments.l1_qualification --output results/l1_qualification
-# IPF beliefs vs exact beliefs along the same histories (L2/L3 Tiger)
-uv run python -m ipomdp.experiments.ipf_qualification --output results/ipf_qualification
+# Bounded beliefs (compressed, sampled IPF) vs exact beliefs along the same histories (L2/L3 Tiger)
+uv run python -m ipomdp.experiments.belief_qualification --particle-filters compressed sampled --output results/belief_qualification
 # Planner vs exact best response or exact I-POMDP on matched problems (L1/L2 Tiger)
 uv run python -m ipomdp.experiments.oracle --out results/oracle --budgets 1000 --horizons 3 --seeds 5 --beliefs 0.2 0.5
 # Planners on a grid of budgets vs the exact I-POMDP (L2 Tiger): allocation, then I-POMCP vs IPF + RTS

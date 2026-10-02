@@ -11,7 +11,7 @@ A real agent and every model nested in its belief share one bank:
   belief, because search randomness is seeded from the bank seed and the
   belief's canonical digest. Cached results are immutable values, so cache
   eviction changes cost only, never behaviour.
-- **Interactive filter.** The belief update (exact or particle), parameterised
+- **Interactive filter.** The belief update (exact, compressed or sampled), parameterised
   by ``policy`` so that nested opponents act by their own modeled policies.
 - **Expected rewards.** E[R | b, a] over the full joint belief, used by the
   planner at every tree history and at its exact last step.
@@ -25,26 +25,34 @@ import math
 from functools import lru_cache
 
 from ipomdp.belief import canonical
+from ipomdp.belief.compressed_filter import CompressedInteractiveFilter
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, checked_distribution
 from ipomdp.belief.particle_filter import ParticleInteractiveFilter
 from ipomdp.planning.solver_types import SolverKey
 
+FILTERS = {"compressed": CompressedInteractiveFilter, "sampled": ParticleInteractiveFilter}
+
 
 class SolverBank:
-    def __init__(self, seed, *, particles=None):
+    def __init__(self, seed, *, particles=None, particle_filter="compressed"):
         """``seed`` determines all randomness of this bank's models.
 
         Belief representation, at every nesting level: exact enumeration
-        (``FiniteInteractiveFilter``) by default, or the interactive particle
-        filter with ``particles`` particles.
+        (``FiniteInteractiveFilter``) when ``particles`` is None; otherwise at
+        most ``particles`` atoms, by exact updates compressed to N atoms
+        (``particle_filter="compressed"``, the planner's default) or by the
+        published sampled interactive particle filter (``"sampled"``, the
+        IPF + RTS baseline's belief).
         """
         if type(seed) is not int:
             raise TypeError("A solver bank needs an explicit integer seed")
+        if particle_filter not in FILTERS:
+            raise ValueError(f"particle_filter must be one of {sorted(FILTERS)}")
         self._solvers = {}
         self._physical_priors = {}
         self.seed = seed
         self.filter = (
-            ParticleInteractiveFilter(self.policy, particles, seed)
+            FILTERS[particle_filter](self.policy, particles, seed)
             if particles is not None
             else FiniteInteractiveFilter(self.policy, cache_size=4096)
         )

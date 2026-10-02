@@ -78,7 +78,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
   - belief support, the level posterior and the physical marginal;
   - optionally the nested hierarchy.
 - `runner.run_study` executes trials under supervision. It writes atomic per-trial checkpoints and a manifest of the spec plus source hashes, resumes only when both match, and writes a completion marker bound to the CSV bytes.
-- **Qualification drivers:** `l1_qualification`, `ipf_qualification`, `oracle` (one decision problem vs exact best response or exact I-POMDP; planners `mcts` and `rts`; exact or particle beliefs) and `l2_panel` (grids of planners, budgets, modeled budgets and particle counts vs the exact I-POMDP: the allocation and baseline studies).
+- **Qualification drivers:** `l1_qualification`, `belief_qualification`, `oracle` (one decision problem vs exact best response or exact I-POMDP; planners `mcts` and `rts`; exact or particle beliefs) and `l2_panel` (grids of planners, budgets, modeled budgets and particle counts vs the exact I-POMDP: the allocation and baseline studies).
 
 ### `baselines`
 

@@ -3,6 +3,11 @@
 Reference: P. Doshi and P. J. Gmytrasiewicz, "Monte Carlo Sampling Methods for
 Approximating Interactive POMDPs", JAIR 34 (2009).
 
+This is the filter as published, kept as the belief of the IPF + RTS baseline.
+The planner's default bounded belief is ``belief.compressed_filter``, which
+enumerates each update instead of sampling it and is far more accurate at the
+same N (see that module).
+
 Why
 ---
 The exact update enumerates every opponent action, successor state and private
@@ -16,11 +21,7 @@ propagations per level.
 Update (agent i, own action a_i, own observation o_i)
 -----------------------------------------------------
 1. Draw N particles (s, m_j) from the current belief by systematic resampling
-   (one uniform offset, N evenly spaced points over the cumulative weights, in
-   canonical atom order). Each atom of weight w is drawn floor(N w) or
-   ceil(N w) times, so small discrete beliefs are reproduced almost exactly
-   (a 50/50 prior with N = 64 gives exactly 32/32; independent draws gave
-   28/36 in a probe).
+   (``belief.resampling``).
 2. For each: draw a_j from the opponent's declared policy at m_j, draw
    s' ~ T(s, a_i, a_j), and weight by O_i(o_i | s', a_i, a_j).
 3. If the opponent is intentional and the episode continues, draw its private
@@ -46,12 +47,12 @@ not implemented, so such failures surface explicitly.
 Initial beliefs are N draws from the exact prior rows (equal weights merged).
 """
 
-import math
 import random
 
 from ipomdp.belief import canonical
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.finite_filter import InteractiveFilter, Posterior, UnsupportedObservation
+from ipomdp.belief.resampling import systematic_draws
 
 
 class ParticleInteractiveFilter(InteractiveFilter):
@@ -114,18 +115,3 @@ class ParticleInteractiveFilter(InteractiveFilter):
 
     def _rng(self, *labels):
         return random.Random(canonical.digest([self.seed, *labels]))
-
-
-def systematic_draws(weighted_atoms, count, rng):
-    """``count`` draws from ((atom, weight), ...) by systematic resampling."""
-    total = math.fsum(w for _, w in weighted_atoms)
-    offset = rng.random() / count
-    draws, cumulative, index = [], 0.0, 0
-    for atom, weight in weighted_atoms:
-        cumulative += weight / total
-        while index < count and offset + index / count < cumulative:
-            draws.append(atom)
-            index += 1
-    # Floating-point shortfall at the end of the cumulative sum goes to the last atom.
-    draws.extend(weighted_atoms[-1][0] for _ in range(count - index))
-    return draws

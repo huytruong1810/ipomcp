@@ -4,7 +4,7 @@ Contributions 1 and 2 both rest on one measurement: how good is a level-2
 Tiger decision, and what did it cost, compared with the exact I-POMDP. This
 driver runs that measurement over a grid of cells
 
-    (planner, horizon, budget, modeled budget, particles, history)
+    (planner, horizon, budget, modeled budget, particles, particle filter, history)
 
 where
 
@@ -14,7 +14,10 @@ where
   kind of planner (I-POMCP simulations, or RTS samples as in IPF + RTS where
   every level is solved by RTS), at depth equal to the horizon; 0 means j is the
   exact L1 agent, which isolates i's own search and belief error;
-- ``particles`` is the interactive particle filter's N, or 0 for exact beliefs;
+- ``particles`` bounds belief supports to N atoms, or 0 for exact beliefs;
+- ``particle filter`` is ``compressed`` (exact updates compressed to N; the
+  planner's default) or ``sampled`` (the published IPF; with ``rts`` this is
+  IPF + RTS); ``exact`` for exact beliefs;
 - ``history`` is the number of real steps i conditions on before deciding
   (``oracle.sample_history``): exact supports grow with it, IPF supports do not.
 
@@ -50,10 +53,10 @@ from ipomdp.infra.source_lock import source_hashes
 
 BELIEFS = (0.05, 0.2, 0.5, 0.8, 0.95)
 OPPONENT_BELIEFS = (0.085, 0.5, 0.915)
-CELL = ("planner", "horizon", "budget", "modeled", "particles", "history")
+CELL = ("planner", "horizon", "budget", "modeled", "particles", "particle_filter", "history")
 
 
-def evaluate_cell(planner, horizon, budget, modeled, particles, history, seed):
+def evaluate_cell(planner, horizon, budget, modeled, particles, particle_filter, history, seed):
     """Every (belief of i, belief of j) problem of one cell for one seed."""
     return [
         dict(
@@ -69,10 +72,12 @@ def evaluate_cell(planner, horizon, budget, modeled, particles, history, seed):
                 opponent_belief=p_j,
                 reference="exact",
                 particles=particles or None,
+                particle_filter=particle_filter if particles else "compressed",
                 history_steps=history,
             )[0],
             modeled=modeled,
             particles=particles,
+            particle_filter=particle_filter if particles else "exact",
             history=history,
             opponent_belief=p_j,
         )
@@ -140,15 +145,28 @@ def main():
     parser.add_argument(
         "--particles", type=int, nargs="+", default=[0], help="0 means exact beliefs"
     )
+    parser.add_argument(
+        "--particle-filters", choices=["compressed", "sampled"], nargs="+", default=["compressed"]
+    )
     parser.add_argument("--history", type=int, nargs="+", default=[0])
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    cells = list(
-        itertools.product(
-            args.planners, args.horizons, args.budgets, args.modeled, args.particles, args.history
-        )
+    # Exact-belief cells ignore the filter; keep one of each.
+    cells = sorted(
+        {
+            (planner, horizon, budget, modeled, n, flt if n else "exact", history)
+            for planner, horizon, budget, modeled, n, flt, history in itertools.product(
+                args.planners,
+                args.horizons,
+                args.budgets,
+                args.modeled,
+                args.particles,
+                args.particle_filters,
+                args.history,
+            )
+        }
     )
     summary, failures = run_panel(args.output, cells, args.seeds, args.workers)
     print(summary.round(4).to_string(index=False))
