@@ -11,8 +11,8 @@ A real agent and every model nested in its belief share one bank:
   belief, because search randomness is seeded from the bank seed and the
   belief's canonical digest. Cached results are immutable values, so cache
   eviction changes cost only, never behaviour.
-- **Interactive filter.** The belief update, parameterised by ``policy`` so that
-  nested opponents act by their own modeled policies.
+- **Interactive filter.** The belief update (exact or particle), parameterised
+  by ``policy`` so that nested opponents act by their own modeled policies.
 - **Expected rewards.** E[R | b, a] over the full joint belief, used by the
   planner at every tree history and at its exact last step.
 
@@ -26,22 +26,31 @@ from functools import lru_cache
 
 from ipomdp.belief import canonical
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, checked_distribution
+from ipomdp.belief.particle_filter import ParticleInteractiveFilter
 from ipomdp.planning.solver_types import SolverKey
 
 
 class SolverBank:
-    def __init__(self, seed, max_support=None):
-        """``seed`` determines all search randomness of this bank's models.
+    def __init__(self, seed, *, particles=None, max_support=None):
+        """``seed`` determines all randomness of this bank's models.
 
-        ``max_support`` = None keeps exact enumeration; an integer K bounds
-        every posterior at every nesting level by stratified resampling.
+        Belief representation, at every nesting level:
+        - default: exact enumeration (``FiniteInteractiveFilter``);
+        - ``particles=N``: the interactive particle filter with N particles;
+        - ``max_support=K``: exact updates compressed to at most K atoms.
         """
         if type(seed) is not int:
             raise TypeError("A solver bank needs an explicit integer seed")
+        if particles is not None and max_support is not None:
+            raise ValueError("Choose particles or a bounded exact support, not both")
         self._solvers = {}
         self._physical_priors = {}
         self.seed = seed
-        self.filter = FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
+        self.filter = (
+            ParticleInteractiveFilter(self.policy, particles, seed)
+            if particles is not None
+            else FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
+        )
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
         # Canonical order makes random.choices intervals independent of how an
         # equal belief was built; see ipomdp.belief.canonical.

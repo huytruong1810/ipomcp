@@ -27,7 +27,7 @@ action stream.
 import math
 import random
 
-from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.finite_belief import InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
@@ -97,13 +97,12 @@ class HierarchyBuilder:
                 physics = solver.pomdp_model if lower else model
                 belief = solver.initial_belief if lower else None
                 opponents[lower] = MentalModel(AgentFrame(opponent_id, lower, physics), belief)
-        belief = FiniteBelief(
-            tuple(
-                (InteractiveState(state, opponents[lower]), p_state * mass / total)
-                for state, p_state in self.bank.physical_prior(model)
-                for lower, mass in weights.items()
-                if mass > 0
-            )
+        # The bank's filter decides the representation: exact rows, or particles.
+        belief = self.bank.filter.initial_belief(
+            (InteractiveState(state, opponents[lower]), p_state * mass / total)
+            for state, p_state in self.bank.physical_prior(model)
+            for lower, mass in weights.items()
+            if mass > 0
         )
         solver = IPOMCPPlanner(key, model, self.bank, config)
         solver.set_initial_belief(belief)

@@ -75,29 +75,19 @@ def checked_distribution(items, description):
     return _check_distribution_cached(tuple(items), description)
 
 
-class FiniteInteractiveFilter:
-    """Pure recursion with bounded, instance-owned memoization.
+class InteractiveFilter:
+    """What every interactive belief update shares: opponents act by declared policies.
 
-    Cache eviction changes cost only. Cached outputs are immutable; clearing the
-    cache cannot change the target posterior or policy. The deliberate absence of
-    random draws makes small-case results independent of query order and seeds.
+    Subclasses implement ``_update(model, action, observation, terminal)``,
+    returning a ``Posterior``, and ``initial_belief(rows)``. ``update`` is the
+    memoized ``_update``: an update must be a pure function of its arguments so
+    that cached results, and the modeled policies computed from them, do not
+    depend on query order. Cache eviction changes cost only.
     """
 
-    def __init__(
-        self,
-        policy: Policy,
-        cache_size: int = 4096,
-        max_branches: int = 100000,
-        max_support: int | None = None,
-    ):
+    def __init__(self, policy: Policy, cache_size: int = 4096):
         if type(cache_size) is not int or cache_size < 0:
             raise ValueError("cache_size must be a nonnegative integer")
-        if type(max_branches) is not int or max_branches <= 0:
-            raise ValueError("max_branches must be a positive integer")
-        if max_support is not None and (type(max_support) is not int or max_support < 1):
-            raise ValueError("max_support must be None or a positive integer")
-        self.max_branches = max_branches
-        self.max_support = max_support
         self._policy = policy
         self.update = lru_cache(maxsize=cache_size)(self._update)
         self._intentional_distribution = lru_cache(maxsize=cache_size)(self._validate_policy)
@@ -114,7 +104,7 @@ class FiniteInteractiveFilter:
         if frame.level == 0:
             actions = frame.pomdp_model.get_all_actions(frame.agent_id)
             if not actions or len(set(actions)) != len(actions):
-                raise ValueError("L0 needs a nonempty distinct legal action set")
+                raise ValueError("L0 needs a nonempty distinct action set")
             return tuple((action, 1.0 / len(actions)) for action in actions)
         return self._intentional_distribution(opponent)
 
@@ -130,6 +120,38 @@ class FiniteInteractiveFilter:
         if any(action not in actions for action, _ in distribution):
             raise ValueError("Policy assigns mass to an unknown action")
         return distribution
+
+    def initial_belief(self, rows):
+        """The belief an agent starts from, given the exact prior rows."""
+        raise NotImplementedError
+
+    def _update(self, model, action, observation, terminal=None):
+        raise NotImplementedError
+
+
+class FiniteInteractiveFilter(InteractiveFilter):
+    """Exact enumeration of the I-POMDP belief update (see the module docstring)."""
+
+    def __init__(
+        self,
+        policy: Policy,
+        cache_size: int = 4096,
+        max_branches: int = 100000,
+        max_support: int | None = None,
+    ):
+        super().__init__(policy, cache_size)
+        if type(max_branches) is not int or max_branches <= 0:
+            raise ValueError("max_branches must be a positive integer")
+        if max_support is not None and (type(max_support) is not int or max_support < 1):
+            raise ValueError("max_support must be None or a positive integer")
+        self.max_branches = max_branches
+        self.max_support = max_support
+
+    def initial_belief(self, rows):
+        belief = FiniteBelief(tuple(rows))
+        if self.max_support is not None and len(belief.mass) > self.max_support:
+            belief = resample(belief, self.max_support)
+        return belief
 
     def _update(
         self,
