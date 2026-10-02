@@ -21,17 +21,18 @@ Read this first. Then read [ARCHITECTURE.md](ARCHITECTURE.md), [THEORY.md](THEOR
 | R4: kernel-only domain contract; published Tiger; revised UAV; exact Wumpus prior; explicit RNG | done |
 | R5: interactive particle filter | done; systematic resampling; L2 gate in RESULTS.md Section 3 (mean shrinks with N; a worst-case floor of about 0.05 level TV remains at N = 4,096) |
 | R6: compute balance | done: cross-step reuse; allocation rule in RESULTS.md Section 5 (modeled budget first) |
-| R7: RTS baseline | done: `baselines.rts`, `planner_kind="rts"` in `experiments.oracle`; L2 H3 comparison in RESULTS.md Section 6 |
+| R7: RTS baseline | done: `baselines.rts`; `experiments.l2_panel` compares I-POMCP and IPF + RTS against the exact I-POMDP (RESULTS.md Section 6) |
 | R8: analysis layer | done: `analysis.hierarchy`, `metrics`, `figures` (sunbursts with content and error) |
 | Runner | done: TOML `StudySpec`, symmetric `episodes`, supervised `runner` |
 | R9: scale-up ladder (Tiger L1 → L4, then UAV, then Wumpus) | not started |
 
 ## Next steps, in order
 
-1. **I-POMCP vs IPF + RTS at scale (contribution 2).** Section 6 compares on
-   exact beliefs at H3. Extend to IPF banks for both planners, H3–H5 and L2–L3,
-   reporting optimal rate, Q error and CPU against the exact I-POMDP where it
-   is tractable.
+1. **I-POMCP vs IPF + RTS: next rungs.** The L2 H3–H4 panel is in RESULTS.md
+   Section 6 (I-POMCP more accurate at lower CPU). Next:
+   - an H4 cell with 4,000 modeled simulations, to remove I-POMCP's opponent-model ceiling;
+   - starting beliefs taken from mid-episode histories, where exact supports are large and the IPF should pay off;
+   - L3.
 2. **Per-level modeled budgets.** The allocation rule says modeled agents must
    be accurate at the beliefs they are modeled at; lower levels are cheaper and
    more numerous, so a per-level budget may buy that accuracy more cheaply.

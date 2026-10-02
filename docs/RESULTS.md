@@ -138,29 +138,49 @@ at modeled 1,000 and 18–22 s at modeled 4,000.
   simulations, which lower Q error but do not change the decision once the
   opponent model is right.
 
-## 6. I-POMCP vs RTS (L2 Tiger, vs the exact I-POMDP)
+## 6. I-POMCP vs IPF + RTS (L2 Tiger, vs the exact I-POMDP)
 
-**Setup.** i is L2. Both planners are given the exact j-L1 (depth 3, belief
-0.085), and both use exact beliefs, so the comparison varies only the
-planner's own lookahead. The
-reference is the exact I-POMDP at horizon 3. Each row covers 5 beliefs of i
-× 3 seeds (n = 15). Budget is root simulations for I-POMCP and observation
-samples per node (K) for RTS. Driver: `experiments.oracle --planners mcts rts`.
+**Setup.** i is L2; j is modeled as an L1 agent solved by the *same kind* of
+planner (I-POMCP with `modeled` simulations, or RTS with K samples per node, as
+in IPF + RTS where every level is solved by RTS), at depth equal to the horizon.
+The reference is the exact I-POMDP, solved on exact beliefs in its own bank.
+Each cell covers 5 beliefs of i × 3 private beliefs of j × 2 seeds (n = 30).
+CPU is per root decision, including nested solves. Driver:
+`experiments.l2_panel`; data in `results/l2_baseline_20261002`.
 
-| Planner | Budget | Optimal | Mean max Q error | CPU per decision |
-|---|---|---|---|---|
-| I-POMCP | 250 | 100% | 0.39 | 0.13 s |
-| I-POMCP | 1,000 | 100% | 0.12 | 0.23 s |
-| I-POMCP | 4,000 | 100% | 0.06 | 0.55 s |
-| RTS | K = 2 | 100% | 1.55 | 0.08 s |
-| RTS | K = 4 | 87% | 1.23 | 0.09 s |
-| RTS | K = 8 | 100% | 0.82 | 0.10 s |
+**Both planners with IPF beliefs (N = 64)**: the full systems being compared.
+
+| Horizon | Planner | Budget (modeled) | Optimal | Mean max Q error | CPU per decision |
+|---|---|---|---|---|---|
+| 3 | I-POMCP | 250 (100) | 100% | 0.64 | 2.9 s |
+| 3 | I-POMCP | 1,000 (100) | 100% | 0.63 | 3.2 s |
+| 3 | I-POMCP | 4,000 (400) | 100% | 0.59 | 7.5 s |
+| 3 | IPF + RTS | K = 2 (2) | 93% | 2.19 | 1.0 s |
+| 3 | IPF + RTS | K = 4 (4) | 97% | 1.55 | 2.1 s |
+| 3 | IPF + RTS | K = 8 (8) | 97% | 1.27 | 4.1 s |
+| 4 | I-POMCP | 250 (100) | 97% | 1.60 | 21 s |
+| 4 | I-POMCP | 1,000 (100) | 90% | 1.54 | 22 s |
+| 4 | I-POMCP | 4,000 (400) | 93% | 1.24 | 60 s |
+| 4 | IPF + RTS | K = 2 (2) | 77% | 3.09 | 11 s |
+| 4 | IPF + RTS | K = 4 (4) | 80% | 2.66 | 43 s |
+| 4 | IPF + RTS | K = 8 (8) | 83% | 1.97 | 96 s |
+
+The panel covers every I-POMCP cell (root 250, 1,000 and 4,000 × modeled 100
+and 400). At H3 all are 100% optimal; at H4 they are 90–97% optimal.
+
+**Control: the same cells on exact beliefs.** These separate belief error from search error.
+- **I-POMCP:** H3 is 100% optimal at 0.4–1.9 s, and its Q error falls from 0.33 to 0.06 with the root budget. H4 is 93% optimal in every cell, at 1.6–6.5 s.
+- **RTS:** H3 is 87%, 97% and 100% optimal at K = 2, 4 and 8, taking 0.04–0.41 s. H4 is 77%, 90% and 83%, taking 0.5–13 s.
 
 **Interpretation:**
-- At horizon 3, both planners usually choose correctly. I-POMCP's Q error is
-  an order of magnitude lower at a few times the CPU, and it keeps falling
-  with budget. RTS's error falls slowly with K, and its optimal rate is not
-  monotone in K at this n (two misses at K = 4).
-- RTS cost grows as (|A| K)^(H−1) per decision, while I-POMCP's grows linearly
-  in simulations. The scaling comparison at longer horizons, and with IPF
-  beliefs (IPF + RTS proper), is the next study.
+- **Accuracy at matched CPU.** I-POMCP is more accurate at every horizon.
+  - At H4, I-POMCP with 250 root and 100 modeled simulations is 97% optimal in 21 s. IPF + RTS reaches 80–83% at 43–96 s.
+  - RTS's tree grows as (|A| K)^(H−1) at every nesting level. Its CPU rose 11–24× from H3 to H4, while I-POMCP's rose 6–8×.
+- **The I-POMCP H4 ceiling (93%) is the opponent-model error of Section 5.** It needs about 4,000 modeled simulations at depth 4, which this grid does not reach.
+- **IPF costs more than exact beliefs on these problems.**
+  - Each problem starts from a two-atom belief, so exact posteriors stay small within four steps, while the IPF always carries up to 64 particles per level.
+  - The IPF earns its cost where exact supports grow: by step 8 of an episode, the exact L2 belief holds 18,152 atoms (Section 3).
+  - So this panel compares the planners' accuracy with the IPF in place. It does not show that the IPF is faster here.
+- **With the IPF, I-POMCP's Q error has a floor of about 0.6 at H3, whatever the root budget.**
+  - The likely source is that each history's expected rewards are integrated over a 64-particle posterior, so particle error enters every backup. This has not been tested separately.
+  - The floor never changed a decision at H3.
