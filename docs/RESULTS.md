@@ -42,21 +42,50 @@ The single H3 miss is a near-tie: its loss is 0.004.
 
 ## 3. Interactive particle filter vs exact update (L2 Tiger)
 
-**Setup.** i is L2 with level prior {L1 .5, L0 .5}. Modeled opponents are I-POMCP with 50 simulations at depth 2. Histories are 8 steps long (listen, except one opening); there are 3 histories, so n = 24 steps per cell. Driver: `experiments.ipf_qualification`.
+**Setup.** i is L2 with level prior {L1 .5, L0 .5}. Modeled opponents are
+I-POMCP with 50 simulations at depth 2. Each history is 8 steps (listen, with
+one opening at step 4) generated against a uniform-random j; the IPF and the
+exact update condition on the same history. The IPF resamples systematically.
+Driver: `experiments.ipf_qualification`; data in
+`results/ipf_resampling_probe_20261002`.
 
-| Particles N | Level-posterior TV | Physical-belief error | Nested-path TV (depth 2) |
-|---|---|---|---|
-| 16 | 0.135 | 0.115 | 0.068 |
-| 64 | 0.058 | 0.041 | 0.029 |
-| 256 | 0.020 | 0.018 | 0.010 |
-| 1,024 | 0.019 | 0.011 | 0.009 |
+**All 12 histories** (n = 96 steps per cell):
 
-**At N = 4,096** (one history, n = 8 steps), level TV is at most 0.004 at every step.
+| Particles N | Level-posterior TV | Physical-belief error | Nested-path TV (depth 2) | Max level TV | Steps with level TV > 0.2 |
+|---|---|---|---|---|---|
+| 16 | 0.206 | 0.101 | 0.103 | 0.91 | 39% |
+| 64 | 0.062 | 0.041 | 0.031 | 0.68 | 6% |
+| 256 | 0.040 | 0.020 | 0.020 | 0.65 | 4% |
+
+**The 3 hardest histories at N = 256** (mean level TV 0.11, 0.12 and 0.09)
+were re-run at larger N (n = 24 steps per cell):
+
+| Particles N | Level-posterior TV | Max level TV | Physical-belief error | Nested-path TV |
+|---|---|---|---|---|
+| 1,024 | 0.020 | 0.067 | 0.010 | 0.010 |
+| 4,096 | 0.014 | 0.060 | 0.005 | 0.007 |
 
 **Interpretation:**
-- Errors at N = 256 and 1,024 coincide at late steps, because both counts produce the same discrete event (a nested policy flip). It disappears at 4,096.
-- Raising the modeled budget from 50 to 400 changed nothing. The floor is therefore not caused by search noise in the modeled policies.
-- The exact belief reached 18,152 atoms by step 8.
+- Mean errors shrink with N on every measure. Resampling systematically
+  instead of multinomially lowered the mean level TV at every N (paired over
+  the same 12 histories: by 0.021, 0.052 and 0.014 at N = 16, 64 and 256;
+  better on 6, 9 and 8 histories).
+- **The worst case does not shrink like the mean.** After the opening, level
+  TV of 0.04–0.06 persists at N = 4,096 on two of the hard histories. The
+  modeled opponents act greedily, so a nested particle belief slightly
+  different from the exact one can flip a modeled action. That is a discrete
+  change in the likelihood of j's behaviour, and more particles make it rarer
+  but cannot make it continuous.
+- An earlier 3-history run (multinomial resampling) reported a level TV of
+  0.019 at N = 1,024 and at most 0.004 at N = 4,096. Those histories were easy
+  ones; the 12-history sample above replaces it.
+- Raising the modeled budget from 50 to 400 did not change errors (earlier
+  run), so the floor is not search noise in the modeled policies.
+- The exact belief reaches 18,152 atoms by step 8.
+
+**Gate.** Use N ≥ 1,024 where per-step level posteriors are reported, and
+report the mean with the maximum. At L1, N = 64 already gave optimal decisions
+inside the search (section 1).
 
 ## 4. Cost of an L3 decision
 

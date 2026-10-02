@@ -19,30 +19,27 @@ Read this first. Then read [ARCHITECTURE.md](ARCHITECTURE.md), [THEORY.md](THEOR
 | R2: the validated estimator is the only planner | done (L1 gate passes) |
 | R3: one domain-agnostic exact reference | done (equal to the old exact L2 solver to 1e-15) |
 | R4: kernel-only domain contract; published Tiger; revised UAV; exact Wumpus prior; explicit RNG | done |
-| R5: interactive particle filter | done (L2 gate passes; see RESULTS.md Section 3) |
-| R6: compute balance | cross-step reuse done; allocation study written, results pending |
-| R7: IPF + RTS baseline as published | not started |
-| R8: analysis layer (metrics once, sunbursts with content and error) | not started |
+| R5: interactive particle filter | done; systematic resampling; L2 gate in RESULTS.md Section 3 (mean shrinks with N; a worst-case floor of about 0.05 level TV remains at N = 4,096) |
+| R6: compute balance | done: cross-step reuse; allocation rule in RESULTS.md Section 5 (modeled budget first) |
+| R7: RTS baseline | done: `baselines.rts`, `planner_kind="rts"` in `experiments.oracle`; L2 H3 comparison in RESULTS.md Section 6 |
+| R8: analysis layer | done: `analysis.hierarchy`, `metrics`, `figures` (sunbursts with content and error) |
+| Runner | done: TOML `StudySpec`, symmetric `episodes`, supervised `runner` |
 | R9: scale-up ladder (Tiger L1 → L4, then UAV, then Wumpus) | not started |
 
 ## Next steps, in order
 
-1. **Finish R6.**
-   - Read the allocation study and write a rule for dividing a budget between root and modeled simulations.
-   - Consider per-level modeled budgets, since lower levels are cheaper and more numerous.
-2. **R7.** IPF + reachability-tree sampling as in Doshi & Gmytrasiewicz (2009):
-   - sampled observation branching;
-   - a matched budget unit (generative calls and CPU seconds);
-   - the same reward integration for both planners;
-   - add it as a `planner_kind` in `experiments.oracle`.
-3. **Wumpus.** Add IPF reinvigoration (deterministic sensors make particle beliefs lose the true world).
-4. **R8.** One metrics layer that computes everything once from run records:
-   - sunbursts annotated with each modeled agent's belief, predicted action and error;
-   - confidence-aware best responses in place of float-equality "equilibria".
-5. **The experiment runner.**
-   - Replace hand-written `_setup_domain` subclasses with one declarative specification per study.
-   - Record both agents' CPU per component (already in the runner).
-6. **R9.** Every rung passes its gate before the next starts.
+1. **I-POMCP vs IPF + RTS at scale (contribution 2).** Section 6 compares on
+   exact beliefs at H3. Extend to IPF banks for both planners, H3–H5 and L2–L3,
+   reporting optimal rate, Q error and CPU against the exact I-POMDP where it
+   is tractable.
+2. **Per-level modeled budgets.** The allocation rule says modeled agents must
+   be accurate at the beliefs they are modeled at; lower levels are cheaper and
+   more numerous, so a per-level budget may buy that accuracy more cheaply.
+3. **Wumpus.** Add IPF reinvigoration from the exact prior conditioned on the
+   agent's own history (deterministic sensors make particle beliefs lose the
+   true world).
+4. **R9.** Every rung passes its gate before the next starts. Report IPF
+   hierarchy errors with N ≥ 1,024, mean and maximum.
 
 ## Merging into main
 
