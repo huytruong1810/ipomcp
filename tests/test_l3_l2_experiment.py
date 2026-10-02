@@ -20,10 +20,8 @@ from ipomdp.experiments.tiger_l3_vs_l2 import (
     tiger,
 )
 from ipomdp.planning.solver_bank import SolverBank
-from ipomdp.reference.finite_policy_l2 import FinitePolicyL2Reference
-from ipomdp.reference.finite_policy_reference import FinitePolicyReference
+from ipomdp.reference.best_response import BestResponseReference
 from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
-from tests.test_finite_policy_l2 import setup as l2_setup
 
 ACTIONS = ("L", "OL", "OR")
 STATES = (TIGER_LEFT, TIGER_RIGHT)
@@ -77,16 +75,6 @@ def test_creak_point_nine_sensor_is_normalized_and_sampler_consistent(agent):
         assert abs(counts.get(o, 0) / n - p) < 5 * math.sqrt(p * (1 - p) / n) + 1e-12
 
 
-@pytest.mark.parametrize("p,p_j", [(0.5, 0.5), (0.05, 0.085), (0.8, 0.915)])
-def test_general_reference_matches_l2_reference(p, p_j):
-    physics, bank, _, model = l2_setup(p=p, p_j=p_j)
-    old, new = FinitePolicyL2Reference(physics, bank), FinitePolicyReference(physics, bank)
-    for horizon in (1, 2, 3):
-        assert new.q_values(model, horizon) == pytest.approx(
-            old.q_values(model, horizon), abs=1e-12
-        )
-
-
 @pytest.mark.parametrize("agent", ["i", "j"])
 @pytest.mark.parametrize("p", [0.5, 0.2, 0.93])
 def test_general_reference_matches_alpha_vectors_against_uniform_l0(agent, p):
@@ -99,7 +87,7 @@ def test_general_reference_matches_alpha_vectors_against_uniform_l0(agent, p):
             ((InteractiveState(TIGER_LEFT, l0), p), (InteractiveState(TIGER_RIGHT, l0), 1 - p))
         ),
     )
-    reference = FinitePolicyReference(physics, SolverBank(seed=3))
+    reference = BestResponseReference(physics, SolverBank(3), 0.95)
     exact = ExactPOMDPSolver(physics, horizon=4, gamma=0.95, agent_id=agent, opponent_id=other)
     exact.solve()
     for horizon in (1, 2, 3, 4):
@@ -160,7 +148,7 @@ def test_filter_level_posterior_matches_independent_bayes(agent_id, level):
 
 def test_general_reference_handles_mixed_levels_and_conserves_probability():
     planner = build_agent("j", 2, 200, 2, 0.95, 10, seed=0)
-    reference = FinitePolicyReference(planner.pomdp_model, planner.solver_bank)
+    reference = BestResponseReference(planner.pomdp_model, planner.solver_bank, 0.95)
     model = planner.model()
     assert reference.q_values(model, 1) == pytest.approx(
         dict(planner.solver_bank.expected_rewards(model)), abs=1e-12

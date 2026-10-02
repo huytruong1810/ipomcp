@@ -14,11 +14,11 @@ Problems
 - Level 1: agent i against uniform-random L0 j; reference = alpha-vector value
   iteration (``reference.pomdp_exact_vi``).
 - Level 2 with an exact opponent: j is an exact L1 agent replanning at a fixed
-  depth, with a point prior on its private belief; reference =
-  ``reference.ipomdp_exact_vi``.
-- Level 2 with a finite opponent: j is an I-POMCP L1 with a declared budget;
-  reference = exhaustive best response to that same finite policy
-  (``reference.finite_policy_l2``). This isolates search error.
+  depth, with a point prior on its private belief.
+- Level 2 with a finite opponent: j is an I-POMCP L1 with a declared budget,
+  which isolates the protagonist's search error.
+In both level-2 cases the reference is the exact best response to the declared
+opponent (``reference.best_response``).
 
 Cost is reported as the planner's process CPU time for the root decision.
 """
@@ -43,9 +43,8 @@ from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
-from ipomdp.reference.finite_policy_l2 import FinitePolicyL2Reference
-from ipomdp.reference.fixed_tiger_opponent import FixedTigerL1Policy
-from ipomdp.reference.ipomdp_exact_vi import ExactIPOMDPSolver
+from ipomdp.reference.best_response import BestResponseReference
+from ipomdp.reference.exact_agent import ExactIPOMDPPlanner
 from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 
 
@@ -81,9 +80,10 @@ def evaluate_case(
     for agent in ("i", "j"):
         rng = random.Random(bank.stream_seed("actions", f"{agent}_L0"))
         bank.register_solver(SolverKey(agent, 0), RandomPlanner(model.get_all_actions(agent), rng))
+    reference = BestResponseReference(model, bank, gamma)
     if level == 2:
         if opponent_budget is None:
-            provider = FixedTigerL1Policy(model, opponent_depth, gamma)
+            provider = ExactIPOMDPPlanner(SolverKey("j", 1), model, bank, reference, opponent_depth)
         else:
             provider = IPOMCPPlanner(
                 SolverKey("j", 1),
@@ -104,17 +104,10 @@ def evaluate_case(
     policy = planner.policy_for(planner.model())
     planner_cpu_seconds = time.process_time() - started
     estimates = dict(planner.recommendation_values)
-    oracle_q = _reference_q(
-        model,
-        bank,
-        planner,
-        level,
-        horizon,
-        gamma,
-        belief_p,
-        opponent_belief,
-        opponent_depth,
-        opponent_budget,
+    oracle_q = (
+        ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
+        if level == 1
+        else reference.q_values(planner.model(), horizon)
     )
     if set(estimates) != set(oracle_q):
         raise ValueError("Planner must evaluate every legal action")
@@ -162,30 +155,6 @@ def _two_state_belief(model, level, belief_p, opponent_belief):
             (InteractiveState(TIGER_RIGHT, opponent), 1 - belief_p),
         )
     )
-
-
-def _reference_q(
-    model,
-    bank,
-    planner,
-    level,
-    horizon,
-    gamma,
-    belief_p,
-    opponent_belief,
-    opponent_depth,
-    opponent_budget,
-):
-    if level == 1:
-        return ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
-    if opponent_budget is None:
-        solver = ExactIPOMDPSolver(
-            model, horizon=horizon, gamma=gamma, opponent_horizon=opponent_depth
-        )
-        return solver.q_values(belief_p, opponent_belief, horizon)
-    # Evaluated after the planner's solve: the shared, cached finite opponent
-    # policies define the environment, never i's estimates.
-    return FinitePolicyL2Reference(model, bank, gamma).q_values(planner.model(), horizon)
 
 
 def _opponent_description(level, depth, belief, budget):

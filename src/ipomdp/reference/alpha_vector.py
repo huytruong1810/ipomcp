@@ -1,10 +1,8 @@
 """Alpha-vector representations and exact pruning operators.
 
-Provides:
-1. Exact 2D upper convex hull pruning in O(K log K) time with analytical
-   interval extraction (for 2-state POMDPs / Level 1 I-POMDP against L0).
-2. General D-dimensional alpha-vector representations with Linear Programming
-   (LP) dominance pruning via scipy.optimize.linprog.
+Exact upper-envelope pruning for alpha vectors over a two-state belief, with the
+interval of beliefs on which each surviving vector is optimal. Used by the L1
+Tiger value iteration, the independent exact POMDP reference.
 """
 
 from __future__ import annotations
@@ -12,9 +10,6 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from typing import Any, List, Optional, Sequence, Tuple
-
-import numpy as np
-from scipy.optimize import linprog
 
 
 @dataclass(frozen=True)
@@ -139,107 +134,3 @@ def prune_2d_with_intervals(
 def prune_2d(vectors: Sequence[AlphaVector2D], tol: float = 1e-9) -> List[AlphaVector2D]:
     """Prune dominated 2D alpha vectors, returning only the non-dominated set."""
     return [v for v, _, _ in prune_2d_with_intervals(vectors, tol=tol)]
-
-
-@dataclass(frozen=True)
-class AlphaVectorND:
-    """An alpha vector over a general D-dimensional discrete state space."""
-
-    values: Tuple[float, ...]
-    action: Optional[Any] = None
-
-    def value(self, belief: Sequence[float]) -> float:
-        """Evaluate the alpha vector under a belief distribution."""
-        return float(np.dot(self.values, belief))
-
-    @property
-    def dim(self) -> int:
-        return len(self.values)
-
-    def __repr__(self) -> str:
-        act_str = f"[{self.action}] " if self.action is not None else ""
-        vals_str = ", ".join(f"{x:.3f}" for x in self.values[:4])
-        if len(self.values) > 4:
-            vals_str += ", ..."
-        return f"AlphaND({act_str}[{vals_str}])"
-
-
-def prune_nd(
-    vectors: Sequence[AlphaVectorND],
-    tol: float = 1e-7,
-) -> List[AlphaVectorND]:
-    """Prune dominated multi-dimensional alpha vectors using Linear Programming.
-
-    For each vector v in Gamma, we solve the LP:
-        max delta
-        s.t.
-            <v - w, b> >= delta,  for all w in Gamma \\ {v}
-            sum(b) == 1
-            b >= 0
-    If delta* > tol, vector v is non-dominated at the witness belief point b*.
-    """
-    if not vectors:
-        return []
-    if len(vectors) == 1:
-        return [vectors[0]]
-
-    # Deduplicate
-    unique: List[AlphaVectorND] = []
-    seen: set[Tuple[float, ...]] = set()
-    for v in vectors:
-        rounded = tuple(round(x, 7) for x in v.values)
-        if rounded not in seen:
-            seen.add(rounded)
-            unique.append(v)
-
-    if len(unique) <= 1:
-        return unique
-
-    dim = unique[0].dim
-    non_dominated: List[AlphaVectorND] = []
-
-    # Variables for LP: x = [b_0, b_1, ..., b_{dim-1}, delta]
-    # Objective: maximize delta <=> minimize -delta
-    c = np.zeros(dim + 1)
-    c[-1] = -1.0
-
-    # Bounds: b_i >= 0, delta unbounded (or delta >= -inf)
-    bounds = [(0.0, 1.0) for _ in range(dim)] + [(None, None)]
-
-    # Equality constraint: sum(b_i) == 1
-    A_eq = np.zeros((1, dim + 1))
-    A_eq[0, :dim] = 1.0
-    b_eq = np.array([1.0])
-
-    for i, v in enumerate(unique):
-        # Build other vectors
-        others = [w for j, w in enumerate(unique) if j != i]
-        n_others = len(others)
-
-        # Inequality constraints: <v - w, b> >= delta
-        # <=> delta - <v - w, b> <= 0
-        # <=> sum_k (w_k - v_k) * b_k + delta <= 0
-        A_ub = np.zeros((n_others, dim + 1))
-        b_ub = np.zeros(n_others)
-
-        for row, w in enumerate(others):
-            diff = np.array(w.values) - np.array(v.values)
-            A_ub[row, :dim] = diff
-            A_ub[row, -1] = 1.0
-
-        res = linprog(
-            c,
-            A_ub=A_ub,
-            b_ub=b_ub,
-            A_eq=A_eq,
-            b_eq=b_eq,
-            bounds=bounds,
-            method="highs",
-        )
-
-        if not res.success:
-            raise RuntimeError(f"Alpha dominance LP failed: {res.message}")
-        if -res.fun > tol:
-            non_dominated.append(v)
-
-    return non_dominated

@@ -2,7 +2,7 @@
 
 Every intentional agent, real or modeled, chooses uniformly among the exact
 maximizers of its H-step receding decision problem. The problem is solved by
-exhaustive enumeration (``FinitePolicyReference``) against its own exactly
+exhaustive enumeration (``BestResponseReference``) against its own exactly
 solved lower-level models. This is the exact counterpart of an I-POMCP
 hierarchy with the same frames, priors, physics, fixed receding lookahead and
 belief update: only the finite search policies are replaced by exact ones.
@@ -20,7 +20,7 @@ from ipomdp.planning.policy import sample_policy
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
-from ipomdp.reference.finite_policy_reference import FinitePolicyReference
+from ipomdp.reference.best_response import BestResponseReference
 
 # Relative tolerance for treating exact Q values as tied. Exact enumeration in
 # floating point can differ in the last bits between algebraically equal paths.
@@ -74,7 +74,7 @@ def build_exact_agent(agent_id, opponent_id, level, physics, nested, horizon, ga
         horizon: Receding lookahead of every exact agent in the hierarchy.
     """
     bank = SolverBank(seed=0)  # exact policies consume no search randomness
-    reference = FinitePolicyReference(
+    reference = BestResponseReference(
         physics, bank, gamma, max_branches=10_000_000, cache_size=200_000
     )
     prior = bank.physical_prior(physics)

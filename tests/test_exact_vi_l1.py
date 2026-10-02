@@ -10,10 +10,8 @@ from ipomdp.domains.tiger import (
 )
 from ipomdp.reference.alpha_vector import (
     AlphaVector2D,
-    AlphaVectorND,
     prune_2d,
     prune_2d_with_intervals,
-    prune_nd,
 )
 from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 from tests.reference_tiger import finite_horizon_values
@@ -115,19 +113,3 @@ def test_exact_vi_decision_boundaries():
     assert solver.policy(0.5, 4) == LISTEN
     assert solver.policy(0.02, 4) == OPEN_LEFT
     assert solver.policy(0.98, 4) == OPEN_RIGHT
-
-
-def test_prune_nd_linear_programming():
-    """Test LP-based pruning on multi-dimensional alpha vectors."""
-    # 3D state space: (v0, v1, v2)
-    # v1 dominates at corner 0, v2 dominates at corner 1, v3 dominates at corner 2
-    # v4 is dominated everywhere
-    v1 = AlphaVectorND((10.0, 0.0, 0.0), action="A1")
-    v2 = AlphaVectorND((0.0, 10.0, 0.0), action="A2")
-    v3 = AlphaVectorND((0.0, 0.0, 10.0), action="A3")
-    v4 = AlphaVectorND((1.0, 1.0, 1.0), action="A4")  # strictly below convex hull
-
-    pruned = prune_nd([v1, v2, v3, v4])
-    assert len(pruned) == 3
-    actions = {v.action for v in pruned}
-    assert actions == {"A1", "A2", "A3"}

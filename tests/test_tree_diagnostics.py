@@ -155,7 +155,7 @@ def test_attribution_reconstructs_a_real_l2_search_tree_exactly():
     from ipomdp.planning.random_planner import RandomPlanner
     from ipomdp.planning.solver_bank import SolverBank
     from ipomdp.planning.solver_types import SolverKey
-    from ipomdp.reference.finite_policy_l2 import FinitePolicyL2Reference
+    from ipomdp.reference.best_response import BestResponseReference
 
     physics, bank = TigerModel(), SolverBank(seed=4)
     planner = IPOMCPPlanner(
@@ -178,7 +178,7 @@ def test_attribution_reconstructs_a_real_l2_search_tree_exactly():
         bank.register_solver(key, solver)
     planner.set_initial_belief(_two_state_belief(physics, 2, 0.2, 0.085))
     policy = planner.policy_for(planner.model())
-    reference = FinitePolicyL2Reference(physics, bank, 0.95)
+    reference = BestResponseReference(physics, bank, 0.95)
     tree = describe_node(
         planner.root, planner.model(), 3, reference, lambda m: belief_digest(m.belief)
     )

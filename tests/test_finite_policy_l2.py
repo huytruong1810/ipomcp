@@ -15,7 +15,7 @@ from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
-from ipomdp.reference.finite_policy_l2 import FinitePolicyL2Reference
+from ipomdp.reference.best_response import BestResponseReference
 from tests.reference_tiger import ACTIONS, STATES, transition_probability
 
 
@@ -115,7 +115,7 @@ def independent_h2(physics, bank, model, gamma):
 @pytest.mark.parametrize("p,p_j", [(0.5, 0.5), (0.05, 0.085), (0.8, 0.915)])
 def test_exhaustive_h2_matches_independent_physical_enumeration(p, p_j):
     physics, bank, _, model = setup(p=p, p_j=p_j)
-    reference = FinitePolicyL2Reference(physics, bank)
+    reference = BestResponseReference(physics, bank, 0.95)
     assert reference.q_values(model, 2) == pytest.approx(
         independent_h2(physics, bank, model, 0.95), abs=1e-11
     )
@@ -153,7 +153,7 @@ def test_joint_branches_preserve_model_identity_and_independent_moments(monkeypa
         return result
 
     monkeypatch.setattr(bank.filter, "update", traced)
-    reference = FinitePolicyL2Reference(physics, bank)
+    reference = BestResponseReference(physics, bank, 0.95)
     for action in ACTIONS:
         _, branches = reference.branches(model, action)
         for observation, evidence, successor in branches:
@@ -209,7 +209,7 @@ def test_joint_branches_preserve_model_identity_and_independent_moments(monkeypa
 def test_reference_budget_failure_is_explicit():
     physics, bank, _, model = setup()
     with pytest.raises(InferenceBudgetExceeded):
-        FinitePolicyL2Reference(physics, bank, max_branches=1).q_values(model, 2)
+        BestResponseReference(physics, bank, 0.95, max_branches=1).q_values(model, 2)
 
 
 def test_runner_records_distinct_real_and_modeled_configuration():
