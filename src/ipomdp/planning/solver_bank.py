@@ -20,7 +20,9 @@ Separate real agents use separate banks, so one agent's private models never
 leak into the other's.
 """
 
+import bisect
 import gc
+import itertools
 import math
 from functools import lru_cache
 
@@ -77,6 +79,7 @@ class SolverBank:
         # Canonical order makes random.choices intervals independent of how an
         # equal belief was built; see ipomdp.belief.canonical.
         self.ordered_mass = lru_cache(maxsize=16384)(canonical.canonical_mass)
+        self._cumulative_mass = lru_cache(maxsize=16384)(self._cumulative)
         self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
 
     # ------------------------------------------------------------------ #
@@ -88,6 +91,15 @@ class SolverBank:
         if self.search_filter is self.filter:
             return model
         return MentalModel(model.frame, self.search_filter.compress(model.belief))
+
+    def draw(self, belief, rng):
+        """One interactive state drawn from ``belief`` (canonical order, cached cumulative mass)."""
+        atoms, cumulative = self._cumulative_mass(belief)
+        return atoms[bisect.bisect_right(cumulative, rng.random() * cumulative[-1])]
+
+    def _cumulative(self, belief):
+        atoms, weights = zip(*self.ordered_mass(belief))
+        return atoms, tuple(itertools.accumulate(weights))
 
     def physical_prior(self, physics):
         """The domain's exact prior, shared by every nesting level of this bank.
@@ -187,6 +199,7 @@ class SolverBank:
         self.filter.clear_caches()
         self.search_filter.clear_caches()
         self.ordered_mass.cache_clear()
+        self._cumulative_mass.cache_clear()
         canonical.belief_digest.cache_clear()
         self.expected_rewards.cache_clear()
         gc.collect()

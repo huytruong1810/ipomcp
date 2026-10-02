@@ -53,9 +53,9 @@ def test_exact_leaf_integrates_before_maximizing_and_ignores_rollout_memory(monk
     for atom, _ in planner.belief.mass:
         # Give the heuristic memory a misleading point mass. The leaf must use
         # the authoritative full posterior, not this heuristic or sampled state.
-        assert planner._rollout(atom, 0, {atom.state: 1}, planner.model(), random.Random(0)) == -1
+        assert planner._rollout(0, {atom.state: 1}, planner.model(), random.Random(0)) == -1
         node = POMCPNode()
-        assert planner._simulate(atom, node, 0, {}, planner.model(), random.Random(0)) == -1
+        assert planner._simulate(node, 0, {}, planner.model(), random.Random(0)) == -1
         assert node.action_values == pytest.approx({"L": -1, "OL": -45, "OR": -45})
         assert node.action_counts == {}  # No fictitious per-action samples.
         assert node.visit_count == 1

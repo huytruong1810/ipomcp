@@ -43,7 +43,7 @@ def setup(depth=2):
 
 @pytest.mark.parametrize("state", [TIGER_LEFT, TIGER_RIGHT])
 @pytest.mark.parametrize("conditioned", [False, True])
-def test_internal_reward_uses_posterior_not_sampled_hidden_state(state, conditioned):
+def test_internal_reward_uses_posterior_not_sampled_hidden_state(state, conditioned, monkeypatch):
     planner, model = setup()
     p = 0.07
     if conditioned:
@@ -53,9 +53,11 @@ def test_internal_reward_uses_posterior_not_sampled_hidden_state(state, conditio
     opponent = model.belief.mass[0][0].opponent
     node = POMCPNode()
     memory = planner._physical_marginal(model)
-    value = planner._simulate(
-        InteractiveState(state, opponent), node, 0, memory, model, random.Random(0)
+    # Force the sampled hidden state; the backed-up reward must not depend on it.
+    monkeypatch.setattr(
+        planner.solver_bank, "draw", lambda belief, rng: InteractiveState(state, opponent)
     )
+    value = planner._simulate(node, 0, memory, model, random.Random(0))
     # Opening resets the tiger, so the next (last) decision is at a uniform
     # belief, where listening (-1) is optimal.
     expected = (10 - 110 * p) + 0.95 * -1
@@ -77,5 +79,5 @@ def test_terminal_outcome_has_reward_and_no_continuation(monkeypatch):
 
     monkeypatch.setattr(planner, "_history_successor", unexpected)
     node = POMCPNode()
-    assert planner._simulate(atom, node, 0, {}, model, random.Random(0)) == 3.0
+    assert planner._simulate(node, 0, {}, model, random.Random(0)) == 3.0
     assert node.continuation_counts == {}

@@ -104,10 +104,14 @@ def test_tiger_impossible_rollout_observation_is_not_repaired():
         TigerModel().update_rollout_memory({"TL": 0.5, "TR": 0.5}, "L", ("S", "S"), "i")
 
 
-def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
-    """A later rollout event must receive the updated private mental model."""
-    from ipomdp.belief.finite_belief import InteractiveState, MentalModel
-    from ipomdp.belief.frame import AgentFrame
+def test_rollout_draws_each_step_from_the_current_history_posterior(monkeypatch):
+    """Each rollout step samples its state (and opponent model) from b_h at that step.
+
+    The posterior at the next history already contains the opponent's advanced
+    private models, so drawing from it propagates them; a carried particle
+    could sit on an atom that a bounded posterior no longer holds.
+    """
+    from ipomdp.belief.finite_belief import FiniteBelief, MentalModel
 
     planner = HierarchyBuilder(SolverBank(0)).build(
         "i",
@@ -116,20 +120,23 @@ def test_rollout_propagates_opponent_before_next_decision(monkeypatch):
         "j",
         config=PlannerConfig(simulations=20, depth=4, modeled_simulations=5),
     )
-    atom = planner.belief.mass[0][0]
-    sentinel = MentalModel(AgentFrame("j", 0, planner.pomdp_model))
-    updated = InteractiveState(atom.state, sentinel)
-    received = []
+    root = planner.model()
+    atom = root.belief.mass[0][0]
+    successor = MentalModel(root.frame, FiniteBelief(((atom, 1.0),)))
+    drawn_from = []
 
-    def tree_step(particle, *args):
-        received.append(particle.opponent)
-        return updated, {"i": "L", "j": "L"}, -1, False
+    def draw(belief, rng):
+        drawn_from.append(belief)
+        return atom
 
-    monkeypatch.setattr(planner.gen_model, "tree_step", tree_step)
-    monkeypatch.setattr(planner, "_history_successor", lambda model, *args: model)
-    planner._rollout(atom, 1, {"TL": 0.5, "TR": 0.5}, planner.model(), random.Random(0))
+    monkeypatch.setattr(planner.solver_bank, "draw", draw)
+    monkeypatch.setattr(
+        planner.gen_model, "tree_step", lambda *args: (atom, {"i": "L", "j": "L"}, -1, False)
+    )
+    monkeypatch.setattr(planner, "_history_successor", lambda model, *args: successor)
+    planner._rollout(1, {"TL": 0.5, "TR": 0.5}, root, random.Random(0))
     # Depth 1 and 2 are sampled steps; depth 3 is the exact last decision.
-    assert received == [atom.opponent, sentinel]
+    assert drawn_from == [root.belief, successor.belief]
 
 
 def test_search_keeps_all_legal_actions_below_root():

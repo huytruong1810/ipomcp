@@ -62,7 +62,12 @@ def test_simulator_counts_same_observation_with_terminal_and_continuing_outcomes
         sample_observation=lambda *args: "same",
         update_rollout_memory=lambda *args: None,
     )
-    bank = SimpleNamespace(expected_rewards=lambda history: (("a", 0.0),), stream_seed=lambda *a: 0)
+    atom = SimpleNamespace(state="alive")
+    bank = SimpleNamespace(
+        expected_rewards=lambda history: (("a", 0.0),),
+        stream_seed=lambda *a: 0,
+        draw=lambda belief, rng: atom,
+    )
     planner = IPOMCPPlanner(
         SolverKey("i", 1),
         model,
@@ -77,12 +82,12 @@ def test_simulator_counts_same_observation_with_terminal_and_continuing_outcomes
     )
     monkeypatch.setattr(planner.gen_model, "tree_step", lambda *args: next(events))
     monkeypatch.setattr(planner, "_rollout", lambda *args: 10)
-    monkeypatch.setattr(planner, "_history_successor", lambda *args: "history")
+    history = SimpleNamespace(belief=None)
+    monkeypatch.setattr(planner, "_history_successor", lambda *args: history)
     root = POMCPNode()
-    atom = SimpleNamespace(state="alive")
-    assert planner._simulate(atom, root, 0, None, "history", random.Random(0)) == 10
+    assert planner._simulate(root, 0, None, history, random.Random(0)) == 10
     # Second sample terminates: Q = (10 + 0) / 2, terminal mass kept in the denominator.
-    assert planner._simulate(atom, root, 0, None, "history", random.Random(0)) == 5
+    assert planner._simulate(root, 0, None, history, random.Random(0)) == 5
     assert root.continuation_counts == {"a": {"same": 1}}
     assert root.action_counts == {"a": 2}
 

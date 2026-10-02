@@ -5,13 +5,13 @@ Algorithm (one decision)
 The agent's belief b is a finite joint distribution over physical states and
 complete opponent models (``belief.finite_belief``). For each of N simulations:
 
-1. Draw a root particle (s, m_j) from b.
-2. Descend the tree of the agent's private histories. At history h with
+1. Descend the tree of the agent's private histories. At history h with
    remaining horizon H, choose an action by horizon-bounded UCB
-   (``exploration.HorizonBoundUCB``), then simulate one joint step: the
-   opponent acts by its own modeled policy at m_j, the state transitions, both
-   agents observe, and the opponent's private model advances by its own
-   subjective update (``generative_model``).
+   (``exploration.HorizonBoundUCB``), draw an interactive state (s, m_j) from
+   the agent's posterior b_h at h, then simulate one joint step: the opponent
+   acts by its own modeled policy at m_j, the state transitions, both agents
+   observe, and the opponent's private model advances by its own subjective
+   update (``generative_model``).
 3. At a new child, estimate its value by one rollout with the domain's
    information-respecting rollout policy.
 4. Back up with the empirical chance-weighted Bellman operator
@@ -27,6 +27,15 @@ what made the estimator converge against exact references:
   integration adds no information the agent does not have.
 - The last decision (H = 1): Q_1(b_h, a) = E[R | b_h, a], maximized after
   integrating, which is the exact finite-horizon boundary condition.
+
+Sampling each step's state from b_h rather than carrying one root particle
+down the tree has the same distribution when b_h is exact (given the history,
+the carried particle is distributed as b_h). With bounded beliefs it is what
+keeps the tree consistent: a carried particle can sit on an atom that
+compression dropped from b_h, and under deterministic sensors its observation
+then has zero probability under b_h. Drawing from b_h makes the sampled
+observation distribution exactly P(o | b_h, a), the one the Bellman backup
+integrates, so every tree observation has positive evidence.
 
 Continuations below the root are still sampled. Search is therefore an
 estimator of the exact finite-horizon I-POMDP value relative to the supplied
@@ -116,11 +125,9 @@ class IPOMCPPlanner(Planner):
         model = self.solver_bank.search_model(model)
         rng = random.Random(self.solver_bank.search_seed(model, settings))
         node = POMCPNode()
-        particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
         memory = self._physical_marginal(model)
-        # One batch draw: choices() builds its cumulative weights once.
-        for particle in rng.choices(particles, weights=weights, k=simulations):
-            self._simulate(particle, node, 0, memory, model, rng)
+        for _ in range(simulations):
+            self._simulate(node, 0, memory, model, rng)
         values = dict(node.action_values)
         policy = greedy_policy(values)
         if not modeled:
@@ -132,11 +139,8 @@ class IPOMCPPlanner(Planner):
     # Search
     # ------------------------------------------------------------------ #
 
-    def _simulate(self, particle, node, depth, memory, history_model, rng):
+    def _simulate(self, node, depth, memory, history_model, rng):
         """One descent; returns the sampled-continuation Q estimate at ``node``."""
-        if self.pomdp_model.is_terminal(particle.state):
-            node.visit_count += 1
-            return 0.0
         remaining = self.config.depth - depth
         if remaining == 1:
             # Boundary history: solved by integration, not by sampled visits, so
@@ -148,6 +152,7 @@ class IPOMCPPlanner(Planner):
         action = self.exploration.select_action(
             node, self.actions, remaining, self.config.gamma, rng
         )
+        particle = self.solver_bank.draw(history_model.belief, rng)
         following, joint, _, terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model, rng
         )
@@ -164,12 +169,10 @@ class IPOMCPPlanner(Planner):
             child = node.get_child(action, observation)
             if child is None:
                 child = node.create_child(action, observation)
-                continuation = self._rollout(following, depth + 1, next_memory, next_model, rng)
+                continuation = self._rollout(depth + 1, next_memory, next_model, rng)
                 child.rollout_value = continuation
             else:
-                continuation = self._simulate(
-                    following, child, depth + 1, next_memory, next_model, rng
-                )
+                continuation = self._simulate(child, depth + 1, next_memory, next_model, rng)
             counts = node.continuation_counts.setdefault(action, {})
             counts[observation] = counts.get(observation, 0) + 1
         immediate = dict(self.solver_bank.expected_rewards(history_model))[action]
@@ -178,7 +181,7 @@ class IPOMCPPlanner(Planner):
         node.visit_count += 1
         return q
 
-    def _rollout(self, particle, depth, memory, history_model, rng):
+    def _rollout(self, depth, memory, history_model, rng):
         """Sampled return of the domain rollout policy, with the exact last step.
 
         Rollout rewards stay sampled: integrating them would require the exact
@@ -186,11 +189,10 @@ class IPOMCPPlanner(Planner):
         pays. Opponent private models still advance at every rollout step,
         because freezing them would change the opponent's dynamics.
         """
-        if self.pomdp_model.is_terminal(particle.state):
-            return 0.0
         if self.config.depth - depth == 1:
             return max(self._leaf_values(history_model).values())
         action = self.pomdp_model.rollout_action(self.key.agent_id, memory, rng)
+        particle = self.solver_bank.draw(history_model.belief, rng)
         following, joint, reward, terminal = self.gen_model.tree_step(
             particle, action, self.key.agent_id, self.pomdp_model, rng
         )
@@ -203,9 +205,7 @@ class IPOMCPPlanner(Planner):
             memory, action, observation, self.key.agent_id
         )
         next_model = self._history_successor(history_model, action, observation)
-        return reward + self.config.gamma * self._rollout(
-            following, depth + 1, next_memory, next_model, rng
-        )
+        return reward + self.config.gamma * self._rollout(depth + 1, next_memory, next_model, rng)
 
     # ------------------------------------------------------------------ #
     # Exact pieces
