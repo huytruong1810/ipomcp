@@ -176,7 +176,13 @@ and 400). At H3 all are 100% optimal; at H4 they are 90–97% optimal.
 - **Accuracy at matched CPU.** I-POMCP is more accurate at every horizon.
   - At H4, I-POMCP with 250 root and 100 modeled simulations is 97% optimal in 21 s. IPF + RTS reaches 80–83% at 43–96 s.
   - RTS's tree grows as (|A| K)^(H−1) at every nesting level. Its CPU rose 11–24× from H3 to H4, while I-POMCP's rose 6–8×.
-- **The I-POMCP H4 ceiling (93%) is the opponent-model error of Section 5.** It needs about 4,000 modeled simulations at depth 4, which this grid does not reach.
+- **On exact beliefs, the I-POMCP H4 ceiling (93%) is the opponent-model error of Section 5.**
+  - With 4,000 modeled simulations it is 100% optimal at root 250 and at root 1,000 (n = 30 each; 38 s per decision; `results/l2_baseline_h4_modeled4000_20261002`).
+- **With the IPF (N = 64), I-POMCP stays at 93% at H4 even with 4,000 modeled simulations (206 s per decision).**
+  - Those misses are belief error, not search error: different problems from the exact-belief misses, and independent of both budgets.
+  - At N = 64 the planner values opening at 6.2–6.5 against an exact 3.2–3.3.
+  - Re-run at root 1,000 and modeled 100, the two missed problems become optimal at N = 256 and N = 1,024 respectively (`results/l2_ipf_miss_20261002`).
+  - At L1, N = 64 was enough (Section 1); at L2 H4 it is not.
 - **IPF costs more than exact beliefs on these problems.**
   - Each problem starts from a two-atom belief, so exact posteriors stay small within four steps, while the IPF always carries up to 64 particles per level.
   - The IPF earns its cost where exact supports grow: by step 8 of an episode, the exact L2 belief holds 18,152 atoms (Section 3).

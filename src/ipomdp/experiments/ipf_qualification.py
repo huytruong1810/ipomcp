@@ -31,12 +31,12 @@ from pathlib import Path
 import pandas as pd
 
 from ipomdp.analysis.hierarchy import hierarchy_error, level_posterior, nested_hierarchy
-from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TIGER_LEFT, TigerModel
+from ipomdp.domains.tiger import TIGER_LEFT, TigerModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.experiments.oracle import HISTORY_ACTIONS, sample_history
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
 
-ACTIONS = (LISTEN, LISTEN, LISTEN, OPEN_LEFT, LISTEN, LISTEN, LISTEN, LISTEN)
 NESTED = {3: {2: 0.1, 1: 0.8, 0: 0.1}, 2: {1: 0.5, 0: 0.5}, 1: {0: 1.0}}
 
 
@@ -67,13 +67,11 @@ def evaluate(level, particles, history_seed, modeled_simulations=50, depth=2):
 
     exact = agent(SolverBank(history_seed))
     approximate = agent(SolverBank(history_seed, particles=particles))
-    rng = random.Random(f"history/{history_seed}")
-    state = physics.sample_initial_state(rng)
+    history = sample_history(
+        physics, len(HISTORY_ACTIONS), random.Random(f"history/{history_seed}")
+    )
     rows = []
-    for step, action in enumerate(ACTIONS, 1):
-        joint = {"i": action, "j": rng.choice(physics.get_all_actions("j"))}
-        state = physics.sample_transition(state, joint, rng)
-        observation = physics.sample_observation(state, joint, "i", rng)
+    for step, (action, observation) in enumerate(history, 1):
         exact.update_root(action, observation)
         approximate.update_root(action, observation)
         rows.append(

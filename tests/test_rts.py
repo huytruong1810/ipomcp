@@ -71,3 +71,13 @@ def test_finite_opponents_are_solved_by_the_planners_own_kind():
 def test_declared_reference_is_rejected_with_particle_beliefs():
     with pytest.raises(ValueError, match="not exact with particle beliefs"):
         evaluate_case("rts", 2, 2, 4, 0.3, opponent_budget=2, particles=16, **L2)
+
+
+def test_mid_episode_reference_is_the_exact_posterior_whatever_the_planners_beliefs():
+    exact = evaluate_case("mcts", 2, 60, 4, 0.3, history_steps=3, **L2)[0]
+    sampled = evaluate_case("rts", 2, 3, 4, 0.3, history_steps=3, particles=16, **L2)[0]
+    at_prior = evaluate_case("mcts", 2, 60, 4, 0.3, **L2)[0]
+    assert sampled["oracle_q"] == exact["oracle_q"] != at_prior["oracle_q"]
+    assert exact["history_steps"] == 3 and exact["belief_support"] > at_prior["belief_support"]
+    with pytest.raises(ValueError, match="solved at the prior"):
+        evaluate_case("mcts", 1, 60, 4, 0.3, history_steps=1)

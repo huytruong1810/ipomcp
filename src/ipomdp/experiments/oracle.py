@@ -28,6 +28,14 @@ Planners: ``mcts`` (I-POMCP; budget = root simulations) and ``rts``
 differ, so cost is compared as the planner's process CPU time for the root
 decision.
 
+Mid-episode problems: ``history_steps=k`` conditions i on the first k steps of
+a fixed history before the decision (i listens except for one opening at step
+4, j acts uniformly at random, the environment samples states and i's
+observations; ``sample_history``). The planner conditions with its own bank's
+filter (exact or particle), the exact reference with the exact filter, so the
+problem is the same while exact supports grow with k. The CPU of those k
+updates is recorded separately from the decision's.
+
 Beliefs: exact by default; ``particles=N`` gives the planner's bank the
 interactive particle filter, so ``rts`` becomes IPF + RTS and ``mcts`` becomes
 I-POMCP with the IPF. The exact I-POMDP reference is always solved in a separate
@@ -48,7 +56,7 @@ from pathlib import Path
 from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
@@ -77,6 +85,7 @@ def evaluate_case(
     opponent_budget=None,
     reference="declared",
     particles=None,
+    history_steps=0,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
@@ -88,6 +97,8 @@ def evaluate_case(
     _validate_problem(
         planner_kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
     )
+    if history_steps and level == 1:
+        raise ValueError("The L1 alpha-vector reference is solved at the prior; use level 2")
     model = TigerModel()
     bank = SolverBank(seed, particles=particles)
     key = SolverKey("i", level)
@@ -115,6 +126,14 @@ def evaluate_case(
         bank.register_solver(SolverKey("j", 1), provider)
     belief = _two_state_belief(model, level, belief_p, opponent_belief)
     planner.set_initial_belief(belief)
+    prior_model = planner.model()
+    history = sample_history(
+        model, history_steps, random.Random(f"history/{seed}/{belief_p}/{opponent_belief}")
+    )
+    started = time.process_time()
+    for action, observation in history:
+        planner.update_root(action, observation)
+    update_cpu_seconds = time.process_time() - started
     started = time.process_time()
     policy = planner.policy_for(planner.model())
     planner_cpu_seconds = time.process_time() - started
@@ -122,7 +141,9 @@ def evaluate_case(
     if level == 1:
         oracle_q = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
     elif reference == "exact" or opponent_budget is None:
-        oracle_q = _exact_ipomdp_q(model, planner.model(), seed, gamma, opponent_depth, horizon)
+        oracle_q = _exact_ipomdp_q(
+            model, prior_model, history, seed, gamma, opponent_depth, horizon
+        )
     else:
         oracle_q = best_response.q_values(planner.model(), horizon)
     if set(estimates) != set(oracle_q):
@@ -138,6 +159,9 @@ def evaluate_case(
             ),
             "reference": reference if level == 2 and opponent_budget is not None else "exact",
             "particles": particles,
+            "history_steps": history_steps,
+            "belief_support": len(planner.belief.mass),
+            "history_update_cpu_seconds": update_cpu_seconds,
             "horizon": horizon,
             "budget": budget,
             "seed": seed,
@@ -171,8 +195,29 @@ def _planner(planner_kind, key, model, bank, config):
     return planner_class(key, model, bank, config)
 
 
-def _exact_ipomdp_q(model, agent_model, seed, gamma, opponent_depth, horizon):
-    """Q of the exact I-POMDP: the same belief, with j an exact fixed-depth L1 agent."""
+HISTORY_ACTIONS = (LISTEN, LISTEN, LISTEN, OPEN_LEFT, LISTEN, LISTEN, LISTEN, LISTEN)
+
+
+def sample_history(physics, steps, rng):
+    """i's first ``steps`` (action, observation) pairs of a Tiger history.
+
+    i follows ``HISTORY_ACTIONS``, j acts uniformly at random, and the
+    environment samples the initial state, transitions and i's observations
+    from ``rng``. Every observation has positive probability under every
+    belief (Tiger's sensors are noisy), so any agent can condition on it.
+    """
+    if not 0 <= steps <= len(HISTORY_ACTIONS):
+        raise ValueError(f"history_steps must lie in [0, {len(HISTORY_ACTIONS)}]")
+    state, history = physics.sample_initial_state(rng), []
+    for action in HISTORY_ACTIONS[:steps]:
+        joint = {"i": action, "j": rng.choice(physics.get_all_actions("j"))}
+        state = physics.sample_transition(state, joint, rng)
+        history.append((action, physics.sample_observation(state, joint, "i", rng)))
+    return history
+
+
+def _exact_ipomdp_q(model, prior_model, history, seed, gamma, opponent_depth, horizon):
+    """Q of the exact I-POMDP at the exact posterior after ``history``, j exact L1."""
     bank = SolverBank(seed)
     best_response = BestResponseReference(model, bank, gamma)
     rng = random.Random(bank.stream_seed("actions", "i_L0"))
@@ -181,6 +226,10 @@ def _exact_ipomdp_q(model, agent_model, seed, gamma, opponent_depth, horizon):
         SolverKey("j", 1),
         ExactIPOMDPPlanner(SolverKey("j", 1), model, bank, best_response, opponent_depth),
     )
+    agent_model = prior_model
+    for action, observation in history:
+        posterior = bank.filter.update(agent_model, action, observation, terminal=False).belief
+        agent_model = MentalModel(agent_model.frame, posterior)
     return best_response.q_values(agent_model, horizon)
 
 
@@ -255,6 +304,7 @@ def run_oracle_comparison(
     opponent_budget=None,
     reference="declared",
     particles=None,
+    history_steps=0,
     workers=2,
     timeout=2400,
     max_rss_mb=4096,
@@ -292,6 +342,7 @@ def run_oracle_comparison(
         opponent_budget=opponent_budget,
         reference=reference,
         particles=particles,
+        history_steps=history_steps,
         workers=workers,
         timeout=timeout,
         max_rss_mb=max_rss_mb,
@@ -314,6 +365,7 @@ def run_oracle_comparison(
         opponent_budget=opponent_budget,
         reference=reference,
         particles=particles,
+        history_steps=history_steps,
     )
     jobs = {i: partial(evaluate_case, *case, **options) for i, case in enumerate(cases)}
     summaries = []
@@ -361,6 +413,7 @@ def main():
     parser.add_argument("--opponent-budget", type=int)
     parser.add_argument("--reference", choices=["declared", "exact"], default="declared")
     parser.add_argument("--particles", type=int)
+    parser.add_argument("--history-steps", type=int, default=0)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=2400)
     parser.add_argument("--max-rss-mb", type=float, default=4096)

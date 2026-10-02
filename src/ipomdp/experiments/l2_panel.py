@@ -4,7 +4,7 @@ Contributions 1 and 2 both rest on one measurement: how good is a level-2
 Tiger decision, and what did it cost, compared with the exact I-POMDP. This
 driver runs that measurement over a grid of cells
 
-    (planner, horizon, budget, modeled budget, particles)
+    (planner, horizon, budget, modeled budget, particles, history)
 
 where
 
@@ -12,19 +12,24 @@ where
   (reachability-tree sampling; budget = sampled observations per node);
 - ``modeled`` is the budget of the modeled opponent j-L1, solved by the same
   kind of planner (I-POMCP simulations, or RTS samples as in IPF + RTS where
-  every level is solved by RTS), at depth equal to the horizon;
-- ``particles`` is the interactive particle filter's N, or 0 for exact beliefs.
+  every level is solved by RTS), at depth equal to the horizon; 0 means j is the
+  exact L1 agent, which isolates i's own search and belief error;
+- ``particles`` is the interactive particle filter's N, or 0 for exact beliefs;
+- ``history`` is the number of real steps i conditions on before deciding
+  (``oracle.sample_history``): exact supports grow with it, IPF supports do not.
 
 Every cell is evaluated on the same problems: 5 beliefs of i x 3 private beliefs
 of j x the seeds. The reference is the exact I-POMDP (j an exact L1 agent of the
 same depth, all beliefs exact), solved in its own exact bank, so each loss
 includes search error, opponent-model error and, with particles, belief error.
 
-Two questions read off the same rows:
+Three questions read off the same rows:
 
 - **Allocation** (I-POMCP): at similar CPU, which split between root and
   modeled simulations buys the most accuracy;
-- **Baseline** (I-POMCP vs IPF + RTS): accuracy against CPU for each planner.
+- **Baseline** (I-POMCP vs IPF + RTS): accuracy against CPU for each planner;
+- **Belief representation**: at which history length the IPF's bounded supports
+  repay its fixed cost over exact beliefs, and at what accuracy.
 
 Each row records first-action loss, maximum Q error and the planner's CPU time
 for the decision (``experiments.oracle``). One supervised job per (cell, seed).
@@ -45,10 +50,10 @@ from ipomdp.infra.source_lock import source_hashes
 
 BELIEFS = (0.05, 0.2, 0.5, 0.8, 0.95)
 OPPONENT_BELIEFS = (0.085, 0.5, 0.915)
-CELL = ("planner", "horizon", "budget", "modeled", "particles")
+CELL = ("planner", "horizon", "budget", "modeled", "particles", "history")
 
 
-def evaluate_cell(planner, horizon, budget, modeled, particles, seed):
+def evaluate_cell(planner, horizon, budget, modeled, particles, history, seed):
     """Every (belief of i, belief of j) problem of one cell for one seed."""
     return [
         dict(
@@ -60,13 +65,15 @@ def evaluate_cell(planner, horizon, budget, modeled, particles, seed):
                 p,
                 level=2,
                 opponent_depth=horizon,
-                opponent_budget=modeled,
+                opponent_budget=modeled or None,
                 opponent_belief=p_j,
                 reference="exact",
                 particles=particles or None,
+                history_steps=history,
             )[0],
             modeled=modeled,
             particles=particles,
+            history=history,
             opponent_belief=p_j,
         )
         for p in BELIEFS
@@ -85,6 +92,8 @@ def summarize(rows):
             max_loss=("first_action_loss", "max"),
             mean_q_error=("max_abs_q_error", "mean"),
             mean_cpu_seconds=("planner_cpu_seconds", "mean"),
+            mean_update_cpu_seconds=("history_update_cpu_seconds", "mean"),
+            mean_support=("belief_support", "mean"),
         )
         .reset_index()
     )
@@ -131,12 +140,15 @@ def main():
     parser.add_argument(
         "--particles", type=int, nargs="+", default=[0], help="0 means exact beliefs"
     )
+    parser.add_argument("--history", type=int, nargs="+", default=[0])
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     cells = list(
-        itertools.product(args.planners, args.horizons, args.budgets, args.modeled, args.particles)
+        itertools.product(
+            args.planners, args.horizons, args.budgets, args.modeled, args.particles, args.history
+        )
     )
     summary, failures = run_panel(args.output, cells, args.seeds, args.workers)
     print(summary.round(4).to_string(index=False))
