@@ -346,13 +346,13 @@ RTS (K = 4) with compressed beliefs at N = 64:
 - The human's real beliefs are exact; each search starts from the belief compressed to 64 or 256 atoms (`SolverBank(search_particles=N)`).
 - The planner is I-POMCP with 1,000 simulations at depth 3, deciding after 0, 2 or 4 real steps of a scripted history.
 - The reference is the exact best response at H3 on the exact belief.
-- n = 13 decisions over 3 seeds; the run hit its 7,000 s time limit during seed 2. Data in `results/wumpus_split_pilot_20261002`.
+- n = 18 decisions over 3 seeds. Data in `results/wumpus_split_pilot_20261002`.
 
 **Measured:**
 - **Exact filtering is cheap.** Along one history the support shrank from 94,500 to 46 atoms in 8 steps, at most 2.9 s per update (`results/wumpus_exact_filtering_20261002`).
-- **The exact reference is tractable at H3:** 520–600 s at the prior, 92–101 s after 2–4 steps.
+- **The exact reference is tractable at H3:** 520–600 s at the prior, 92–142 s after 2–4 steps.
 - **Planning took 1.2–34 s per decision.**
-- **Losses were 0 in 5 of 13 decisions and 1.8–7.7 in the rest; max Q errors were 2.6–89** (rewards range over ±1,000).
+- **Losses were 0 in 5 of 18 decisions and 1.8–7.7 in the rest; max Q errors were 2.6–89** (rewards range over ±1,000).
 
 **Status: not qualified.** The split removes the failure mode but is not accurate yet. The likely causes, not yet separated, are:
 - compressing a 25,920–94,500-atom belief to 64–256 atoms;
