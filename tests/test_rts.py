@@ -47,3 +47,27 @@ def test_modeled_rts_policy_is_a_pure_function_of_belief():
     first = planner.policy_for(planner.model(), modeled=True)
     bank.clear_caches()
     assert planner.policy_for(planner.model(), modeled=True) == first
+
+
+L2 = dict(level=2, opponent_depth=2, opponent_belief=0.2)
+
+
+@pytest.mark.parametrize("planner", ["rts", "mcts"])
+def test_particle_planners_are_scored_against_the_exact_ipomdp(planner):
+    """With the IPF the reference is still solved on exact beliefs, so it is unchanged."""
+    budget = 3 if planner == "rts" else 60
+    exact = evaluate_case(planner, 2, budget, 4, 0.3, **L2)[0]
+    sampled = evaluate_case(planner, 2, budget, 4, 0.3, particles=16, **L2)[0]
+    assert sampled["oracle_q"] == exact["oracle_q"]
+    assert sampled["particles"] == 16 and exact["particles"] is None
+
+
+def test_finite_opponents_are_solved_by_the_planners_own_kind():
+    row = evaluate_case("rts", 2, 2, 4, 0.3, opponent_budget=2, reference="exact", **L2)[0]
+    assert row["opponent"]["policy"] == "same_planner_l1"
+    assert row["planner_config"] == {"depth": 2, "observation_samples": 2, "gamma": 0.95}
+
+
+def test_declared_reference_is_rejected_with_particle_beliefs():
+    with pytest.raises(ValueError, match="not exact with particle beliefs"):
+        evaluate_case("rts", 2, 2, 4, 0.3, opponent_budget=2, particles=16, **L2)

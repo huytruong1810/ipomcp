@@ -215,7 +215,7 @@ def test_reference_budget_failure_is_explicit():
 def test_runner_records_distinct_real_and_modeled_configuration():
     row = evaluate_case("mcts", 2, 100, 11, 0.5, level=2, opponent_depth=2, opponent_budget=25)[0]
     assert row["opponent"] == {
-        "policy": "ipomcp_l1",
+        "policy": "same_planner_l1",
         "depth": 2,
         "budget": 25,
         "initial_belief_p": 0.5,

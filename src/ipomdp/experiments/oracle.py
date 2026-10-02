@@ -14,15 +14,26 @@ Problems
 - Level 1: agent i against uniform-random L0 j; reference = alpha-vector value
   iteration (``reference.pomdp_exact_vi``).
 - Level 2 with an exact opponent: j is an exact L1 agent replanning at a fixed
-  depth, with a point prior on its private belief.
-- Level 2 with a finite opponent: j is an I-POMCP L1 with a declared budget,
-  which isolates the protagonist's search error.
-In both level-2 cases the reference is the exact best response to the declared
-opponent (``reference.best_response``).
+  depth, with a point prior on its private belief. The reference is the exact
+  I-POMDP.
+- Level 2 with a finite opponent: j is solved by the same kind of planner as i
+  with the declared ``opponent_budget`` (I-POMCP simulations, or RTS samples
+  per node, as in IPF + RTS where every level is solved by RTS). The reference
+  is either the exact best response to that declared opponent (``declared``:
+  search error only) or the exact I-POMDP (``exact``: search plus opponent-model
+  error).
 
-Planners: ``mcts`` (I-POMCP; budget = root simulations) and ``rts`` (the
-IPF + RTS baseline; budget = sampled observations per node). The units differ,
-so cost is compared as the planner's process CPU time for the root decision.
+Planners: ``mcts`` (I-POMCP; budget = root simulations) and ``rts``
+(reachability-tree sampling; budget = sampled observations per node). The units
+differ, so cost is compared as the planner's process CPU time for the root
+decision.
+
+Beliefs: exact by default; ``particles=N`` gives the planner's bank the
+interactive particle filter, so ``rts`` becomes IPF + RTS and ``mcts`` becomes
+I-POMCP with the IPF. The exact I-POMDP reference is always solved in a separate
+exact bank, so it never inherits particle error. A ``declared`` reference would
+not be exact with particles (the declared opponent's own updates would be
+sampled), so that combination is rejected.
 """
 
 import argparse
@@ -65,6 +76,7 @@ def evaluate_case(
     opponent_belief=0.5,
     opponent_budget=None,
     reference="declared",
+    particles=None,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
@@ -73,24 +85,14 @@ def evaluate_case(
     opponent model (search error only); "exact" scores it against the exact
     I-POMDP, where the opponent is the exact L1 agent (search plus model error).
     """
-    _validate_problem(planner_kind, level, opponent_depth, opponent_belief, opponent_budget)
-    if reference not in ("declared", "exact"):
-        raise ValueError("reference must be 'declared' or 'exact'")
+    _validate_problem(
+        planner_kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
+    )
     model = TigerModel()
-    bank = SolverBank(seed)
+    bank = SolverBank(seed, particles=particles)
     key = SolverKey("i", level)
-    if planner_kind == "mcts":
-        config = PlannerConfig(
-            simulations=budget,
-            depth=horizon,
-            modeled_simulations=budget,
-            gamma=gamma,
-            exploration=exploration,
-        )
-        planner = IPOMCPPlanner(key, model, bank, config)
-    else:
-        config = RTSConfig(depth=horizon, observation_samples=budget, gamma=gamma)
-        planner = RTSPlanner(key, model, bank, config)
+    config = _planner_config(planner_kind, budget, horizon, gamma, exploration)
+    planner = _planner(planner_kind, key, model, bank, config)
     bank.register_solver(key, planner)
     # L0 action streams are never drawn in a single root decision; seed them anyway.
     for agent in ("i", "j"):
@@ -103,17 +105,12 @@ def evaluate_case(
                 SolverKey("j", 1), model, bank, best_response, opponent_depth
             )
         else:
-            provider = IPOMCPPlanner(
+            provider = _planner(
+                planner_kind,
                 SolverKey("j", 1),
                 model,
                 bank,
-                PlannerConfig(
-                    simulations=opponent_budget,
-                    depth=opponent_depth,
-                    modeled_simulations=opponent_budget,
-                    gamma=gamma,
-                    exploration=exploration,
-                ),
+                _planner_config(planner_kind, opponent_budget, opponent_depth, gamma, exploration),
             )
         bank.register_solver(SolverKey("j", 1), provider)
     belief = _two_state_belief(model, level, belief_p, opponent_belief)
@@ -124,7 +121,7 @@ def evaluate_case(
     estimates = dict(planner.recommendation_values)
     if level == 1:
         oracle_q = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
-    elif reference == "exact" and opponent_budget is not None:
+    elif reference == "exact" or opponent_budget is None:
         oracle_q = _exact_ipomdp_q(model, planner.model(), seed, gamma, opponent_depth, horizon)
     else:
         oracle_q = best_response.q_values(planner.model(), horizon)
@@ -140,6 +137,7 @@ def evaluate_case(
                 level, opponent_depth, opponent_belief, opponent_budget
             ),
             "reference": reference if level == 2 and opponent_budget is not None else "exact",
+            "particles": particles,
             "horizon": horizon,
             "budget": budget,
             "seed": seed,
@@ -154,6 +152,23 @@ def evaluate_case(
             "planner_cpu_seconds": planner_cpu_seconds,
         }
     ]
+
+
+def _planner_config(planner_kind, budget, depth, gamma, exploration):
+    if planner_kind == "mcts":
+        return PlannerConfig(
+            simulations=budget,
+            depth=depth,
+            modeled_simulations=budget,
+            gamma=gamma,
+            exploration=exploration,
+        )
+    return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma)
+
+
+def _planner(planner_kind, key, model, bank, config):
+    planner_class = IPOMCPPlanner if planner_kind == "mcts" else RTSPlanner
+    return planner_class(key, model, bank, config)
 
 
 def _exact_ipomdp_q(model, agent_model, seed, gamma, opponent_depth, horizon):
@@ -195,12 +210,23 @@ def _opponent_description(level, depth, belief, budget):
         return {"policy": "uniform_l0"}
     if budget is None:
         return {"policy": "exact_l1_fixed_depth", "depth": depth, "initial_belief_p": belief}
-    return {"policy": "ipomcp_l1", "depth": depth, "budget": budget, "initial_belief_p": belief}
+    return {
+        "policy": "same_planner_l1",
+        "depth": depth,
+        "budget": budget,
+        "initial_belief_p": belief,
+    }
 
 
-def _validate_problem(planner_kind, level, opponent_depth, opponent_belief, opponent_budget):
+def _validate_problem(
+    planner_kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
+):
     if planner_kind not in ("mcts", "rts"):
         raise ValueError("Unknown planner")
+    if reference not in ("declared", "exact"):
+        raise ValueError("reference must be 'declared' or 'exact'")
+    if particles is not None and reference == "declared" and opponent_budget is not None:
+        raise ValueError("A declared reference is not exact with particle beliefs; use 'exact'")
     if level not in (1, 2):
         raise ValueError("Reference level must be 1 or 2")
     if not 0 <= opponent_belief <= 1:
@@ -227,6 +253,8 @@ def run_oracle_comparison(
     opponent_depth=None,
     opponent_belief=0.5,
     opponent_budget=None,
+    reference="declared",
+    particles=None,
     workers=2,
     timeout=2400,
     max_rss_mb=4096,
@@ -237,7 +265,9 @@ def run_oracle_comparison(
     pass/fail threshold here: a study states its tolerance before running.
     """
     for kind in planners:
-        _validate_problem(kind, level, opponent_depth, opponent_belief, opponent_budget)
+        _validate_problem(
+            kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
+        )
     if type(seeds) is not int or seeds < 1 or type(seed_start) is not int or seed_start < 0:
         raise ValueError("Need a positive seed count and a nonnegative first seed")
     # Each planner enforces its own minimum budget (MCTS: one simulation per action).
@@ -260,6 +290,8 @@ def run_oracle_comparison(
         opponent_depth=opponent_depth,
         opponent_belief=opponent_belief,
         opponent_budget=opponent_budget,
+        reference=reference,
+        particles=particles,
         workers=workers,
         timeout=timeout,
         max_rss_mb=max_rss_mb,
@@ -280,6 +312,8 @@ def run_oracle_comparison(
         opponent_depth=opponent_depth,
         opponent_belief=opponent_belief,
         opponent_budget=opponent_budget,
+        reference=reference,
+        particles=particles,
     )
     jobs = {i: partial(evaluate_case, *case, **options) for i, case in enumerate(cases)}
     summaries = []
@@ -325,6 +359,8 @@ def main():
     parser.add_argument("--opponent-depth", type=int)
     parser.add_argument("--opponent-belief", type=float, default=0.5)
     parser.add_argument("--opponent-budget", type=int)
+    parser.add_argument("--reference", choices=["declared", "exact"], default="declared")
+    parser.add_argument("--particles", type=int)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=2400)
     parser.add_argument("--max-rss-mb", type=float, default=4096)
