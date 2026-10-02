@@ -93,3 +93,17 @@ def test_panel_preserves_summary_when_supervision_raises(tmp_path, monkeypatch):
         experiment.run_oracle_comparison(tmp_path, seeds=1, **PANEL)
     summary = json.loads((tmp_path / "summary.json").read_text())
     assert summary["cases"] == []
+
+
+def test_exact_reference_scores_a_finite_opponent_planner_against_the_exact_ipomdp():
+    common = dict(level=2, opponent_depth=2, opponent_belief=0.085)
+    exact_opponent = evaluate_case("mcts", 2, 100, 3, 0.2, **common)[0]
+    finite_vs_exact = evaluate_case(
+        "mcts", 2, 100, 3, 0.2, opponent_budget=5, reference="exact", **common
+    )[0]
+    finite_vs_declared = evaluate_case("mcts", 2, 100, 3, 0.2, opponent_budget=5, **common)[0]
+    assert finite_vs_exact["oracle_q"] == pytest.approx(exact_opponent["oracle_q"])
+    assert finite_vs_exact["reference"] == "exact"
+    assert finite_vs_declared["reference"] == "declared"
+    with pytest.raises(ValueError, match="reference"):
+        evaluate_case("mcts", 1, 10, 0, 0.5, reference="oracle")

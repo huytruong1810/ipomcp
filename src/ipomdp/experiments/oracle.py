@@ -61,9 +61,18 @@ def evaluate_case(
     opponent_depth=None,
     opponent_belief=0.5,
     opponent_budget=None,
+    reference="declared",
 ):
-    """Solve one matched problem with the planner and the exact reference."""
+    """Solve one matched problem with the planner and the exact reference.
+
+    ``reference`` matters only for a level-2 problem with a finite opponent:
+    "declared" scores the planner against the best response to its own finite
+    opponent model (search error only); "exact" scores it against the exact
+    I-POMDP, where the opponent is the exact L1 agent (search plus model error).
+    """
     _validate_problem(planner_kind, level, opponent_depth, opponent_belief, opponent_budget)
+    if reference not in ("declared", "exact"):
+        raise ValueError("reference must be 'declared' or 'exact'")
     model = TigerModel()
     bank = SolverBank(seed)
     key = SolverKey("i", level)
@@ -80,10 +89,12 @@ def evaluate_case(
     for agent in ("i", "j"):
         rng = random.Random(bank.stream_seed("actions", f"{agent}_L0"))
         bank.register_solver(SolverKey(agent, 0), RandomPlanner(model.get_all_actions(agent), rng))
-    reference = BestResponseReference(model, bank, gamma)
+    best_response = BestResponseReference(model, bank, gamma)
     if level == 2:
         if opponent_budget is None:
-            provider = ExactIPOMDPPlanner(SolverKey("j", 1), model, bank, reference, opponent_depth)
+            provider = ExactIPOMDPPlanner(
+                SolverKey("j", 1), model, bank, best_response, opponent_depth
+            )
         else:
             provider = IPOMCPPlanner(
                 SolverKey("j", 1),
@@ -104,11 +115,12 @@ def evaluate_case(
     policy = planner.policy_for(planner.model())
     planner_cpu_seconds = time.process_time() - started
     estimates = dict(planner.recommendation_values)
-    oracle_q = (
-        ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
-        if level == 1
-        else reference.q_values(planner.model(), horizon)
-    )
+    if level == 1:
+        oracle_q = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
+    elif reference == "exact" and opponent_budget is not None:
+        oracle_q = _exact_ipomdp_q(model, planner.model(), seed, gamma, opponent_depth, horizon)
+    else:
+        oracle_q = best_response.q_values(planner.model(), horizon)
     if set(estimates) != set(oracle_q):
         raise ValueError("Planner must evaluate every legal action")
     value = max(oracle_q.values())
@@ -120,6 +132,7 @@ def evaluate_case(
             "opponent": _opponent_description(
                 level, opponent_depth, opponent_belief, opponent_budget
             ),
+            "reference": reference if level == 2 and opponent_budget is not None else "exact",
             "horizon": horizon,
             "budget": budget,
             "seed": seed,
@@ -134,6 +147,19 @@ def evaluate_case(
             "planner_cpu_seconds": planner_cpu_seconds,
         }
     ]
+
+
+def _exact_ipomdp_q(model, agent_model, seed, gamma, opponent_depth, horizon):
+    """Q of the exact I-POMDP: the same belief, with j an exact fixed-depth L1 agent."""
+    bank = SolverBank(seed)
+    best_response = BestResponseReference(model, bank, gamma)
+    rng = random.Random(bank.stream_seed("actions", "i_L0"))
+    bank.register_solver(SolverKey("i", 0), RandomPlanner(model.get_all_actions("i"), rng))
+    bank.register_solver(
+        SolverKey("j", 1),
+        ExactIPOMDPPlanner(SolverKey("j", 1), model, bank, best_response, opponent_depth),
+    )
+    return best_response.q_values(agent_model, horizon)
 
 
 def _two_state_belief(model, level, belief_p, opponent_belief):
