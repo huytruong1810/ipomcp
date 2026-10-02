@@ -25,6 +25,7 @@ class SolverBank:
         self._belief_digest = lru_cache(maxsize=16384)(self._encode_belief)
         self.ordered_mass = lru_cache(maxsize=16384)(self._ordered_mass)
         self._state_value = lru_cache(maxsize=65536)(stable_value)
+        self.continuation_law = lru_cache(maxsize=1024)(self._continuation_law)
         self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
 
     def initial_states(self, physics, count):
@@ -139,6 +140,42 @@ class SolverBank:
                         )
         return tuple((action, math.fsum(terms[action])) for action in all_actions)
 
+    def _continuation_law(self, model, action):
+        """Unconditional P(own observation, survival | full belief, own action).
+
+        Marginalize hidden states/actions. Terminal probability is deliberately
+        absent, not renormalized away. Private opponent observations affect the
+        successor posterior via filter.update, not this marginal evidence law.
+        """
+        import math
+        from collections import defaultdict
+
+        from ipomdp.finite_filter import InferenceBudgetExceeded, checked_distribution
+
+        frame, physics = model.frame, model.frame.pomdp_model
+        terms = defaultdict(list)
+        count = 0
+        for atom, prior in model.belief.mass:
+            if action not in physics.get_legal_actions(atom.state, frame.agent_id):
+                raise ValueError("Tail action must be legal throughout the belief")
+            other = atom.opponent.frame.agent_id
+            for other_action, mass in self.filter.action_distribution(atom.opponent, atom.state):
+                joint = {frame.agent_id: action, other: other_action}
+                for following, transition in checked_distribution(
+                    physics.transition_distribution(atom.state, joint), "Transition"
+                ):
+                    if physics.is_terminal(following):
+                        continue
+                    for observation, likelihood in checked_distribution(
+                        physics.observation_distribution(following, joint, frame.agent_id),
+                        "Observation",
+                    ):
+                        count += 1
+                        if count > self.filter.max_branches:
+                            raise InferenceBudgetExceeded("Tail chance enumeration budget exceeded")
+                        terms[observation].append(prior * mass * transition * likelihood)
+        return tuple((obs, math.fsum(weights)) for obs, weights in terms.items())
+
     def search_seed(self, model, settings):
         return digest(
             [
@@ -164,6 +201,7 @@ class SolverBank:
         self.ordered_mass.cache_clear()
         self._state_value.cache_clear()
         self.expected_rewards.cache_clear()
+        self.continuation_law.cache_clear()
         import gc
 
         gc.collect()

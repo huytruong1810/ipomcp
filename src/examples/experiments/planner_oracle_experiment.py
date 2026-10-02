@@ -63,6 +63,9 @@ def evaluate_case(
     opponent_exploration="normalized",
     opponent_exploration_const=1.0,
     exact_history_rewards=False,
+    exact_tail_depth=1,
+    exact_root_chance=False,
+    recursive_chance=False,
 ):
     """One independent solve. The supervisor owns time/RSS measurement."""
     _validate_level_contract(level, opponent_depth, opponent_belief, (planner_kind,))
@@ -96,6 +99,9 @@ def evaluate_case(
                 node_capacity=200,
                 exploration_const=exploration_const,
                 exact_final_step=exact_final_step,
+                exact_tail_depth=exact_tail_depth,
+                exact_root_chance=exact_root_chance,
+                recursive_chance=recursive_chance,
                 exact_history_rewards=exact_history_rewards,
                 backup=backup,
             )
@@ -128,7 +134,14 @@ def evaluate_case(
             bank.register_solver(SolverKey("j", 1), provider)
         planner.exploration_strategy = _exploration(model, "i", exploration, exploration_const)
     elif planner_kind == "rts":
-        if exact_final_step or exact_history_rewards or backup != "sampled":
+        if (
+            exact_final_step
+            or recursive_chance
+            or exact_root_chance
+            or exact_tail_depth != 1
+            or exact_history_rewards
+            or backup != "sampled"
+        ):
             raise ValueError("Reward, tail and backup ablations are MCTS-only")
         planner = bootstrap.create_level1_rts_solver(
             "i",
@@ -164,7 +177,9 @@ def evaluate_case(
         oracle = FinitePolicyL2Reference(model, bank, gamma)
         oracle_q = oracle.q_values(planner.model(), horizon)
     estimates = (
-        dict(planner.root.action_values) if planner_kind == "mcts" else planner.get_action_values()
+        dict(planner.recommendation_values)
+        if planner_kind == "mcts"
+        else planner.get_action_values()
     )
     if set(estimates) != set(oracle_q):
         raise ValueError("Planner must evaluate every legal action")
@@ -179,7 +194,7 @@ def evaluate_case(
                 if level == 1
                 else {
                     "policy": "finite_mcts_l1",
-                    "config": asdict(modeled_config),
+                    "config": modeled_config.to_dict(),
                     "exploration": {
                         "strategy": opponent_exploration,
                         **vars(provider.exploration_strategy),
@@ -197,7 +212,9 @@ def evaluate_case(
                 }
             ),
             "bank_seed": seed,
-            "planner_config": asdict(planner.config),
+            "planner_config": planner.config.to_dict()
+            if planner_kind == "mcts"
+            else asdict(planner.config),
             "horizon": horizon,
             "budget": budget,
             "seed": seed,
@@ -210,6 +227,21 @@ def evaluate_case(
                 {"strategy": exploration, **vars(planner.exploration_strategy)}
                 if planner_kind == "mcts"
                 else None
+            ),
+            **(
+                {
+                    "search_estimated_q": dict(planner.root.action_values),
+                    **(
+                        {"recursive_chance": planner.root_chance_details}
+                        if recursive_chance
+                        else {"root_chance": planner.root_chance_details}
+                    ),
+                    "recommendation_rule": "recursive_chance_complete_support"
+                    if recursive_chance
+                    else "exact_root_chance_complete_support",
+                }
+                if exact_root_chance or recursive_chance
+                else {}
             ),
             "oracle_q": oracle_q,
             "estimated_q": estimates,
@@ -306,6 +338,9 @@ def run_oracle_comparison(
     opponent_exploration="normalized",
     opponent_exploration_const=1.0,
     exact_history_rewards=False,
+    exact_tail_depth=1,
+    exact_root_chance=False,
+    recursive_chance=False,
 ):
     """Persist every outcome and source fingerprint before interpreting results.
 
@@ -328,12 +363,19 @@ def run_oracle_comparison(
     MCTSConfig(
         exploration_const=exploration_const,
         exact_final_step=exact_final_step,
+        exact_tail_depth=exact_tail_depth,
+        exact_root_chance=exact_root_chance,
+        recursive_chance=recursive_chance,
         exact_history_rewards=exact_history_rewards,
         backup=backup,
     )
-    if (exact_final_step or exact_history_rewards or backup != "sampled") and any(
-        kind != "mcts" for kind in planners
-    ):
+    if (
+        recursive_chance
+        or exact_root_chance
+        or exact_final_step
+        or exact_history_rewards
+        or backup != "sampled"
+    ) and any(kind != "mcts" for kind in planners):
         raise ValueError("Reward, tail and backup ablations are MCTS-only")
     if exploration not in {"normalized", "standard", "bounded"}:
         raise ValueError("Unknown exploration strategy")
@@ -361,6 +403,9 @@ def run_oracle_comparison(
         exploration=exploration,
         exploration_const=exploration_const,
         exact_final_step=exact_final_step,
+        exact_tail_depth=exact_tail_depth,
+        exact_root_chance=exact_root_chance,
+        recursive_chance=recursive_chance,
         exact_history_rewards=exact_history_rewards,
         backup=backup,
         workers=workers,
@@ -377,7 +422,7 @@ def run_oracle_comparison(
     )
     manifest = {
         "settings": settings,
-        "modeled_config": asdict(modeled_config) if modeled_config is not None else None,
+        "modeled_config": modeled_config.to_dict() if modeled_config is not None else None,
         "bank_seeds": list(range(seed_start, seed_start + seeds)),
         "scope": "L2 response to declared finite MCTS L1 policy"
         if modeled_config is not None
@@ -415,6 +460,9 @@ def run_oracle_comparison(
             opponent_exploration,
             opponent_exploration_const,
             exact_history_rewards,
+            exact_tail_depth,
+            exact_root_chance,
+            recursive_chance,
         )
         for i, case in enumerate(cases)
     }
@@ -486,6 +534,9 @@ def main():
         action="store_true",
         help="MCTS only: integrate final-step rewards over the full private-history belief",
     )
+    parser.add_argument("--recursive-chance", action="store_true")
+    parser.add_argument("--exact-root-chance", action="store_true")
+    parser.add_argument("--exact-tail-depth", type=int, choices=[1, 2], default=1)
     parser.add_argument(
         "--exact-history-rewards",
         action="store_true",

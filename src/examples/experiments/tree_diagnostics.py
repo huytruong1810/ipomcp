@@ -1,8 +1,9 @@
 """Post-search Tiger L2 tree diagnostics against the finite-policy reference.
 
 This development tool replays saved evaluator rows exactly before inspecting the
-tree. Reference values are never supplied to planning. It deliberately keeps
-the opponent model, horizon and RNG contract unchanged. A value error at a
+tree. Reference values are never supplied to planning. The optional candidate
+changes only the protagonist tail depth; control replays preserve the original
+RNG contract and both arms preserve the opponent model and horizon. A value error at a
 history is split into the estimation error of its greedy action(s), minus their
 reference action loss; those two terms must not be conflated with statistical
 bias or a proof of inadequate exploration.
@@ -66,9 +67,9 @@ def describe_node(node, model, horizon, reference, identity, levels=1, history=(
         greedy_estimation_error=estimation,
         unevaluated_actions=[a for a in oracle if a not in node.action_values],
     )
-    if horizon == 1:
+    if not node.action_counts:
         # Exact integrated tails have Q values but intentionally no action counts.
-        return dict(result, kind="final_step", actions={})
+        return dict(result, kind="final_step" if horizon == 1 else "exact_tail", actions={})
     actions = {}
     for action, estimate in node.action_values.items():
         reward, branches = reference.branches(model, action)
@@ -122,8 +123,102 @@ def describe_node(node, model, horizon, reference, identity, levels=1, history=(
     return result
 
 
-def diagnose(original):
-    """Replay one declared row; capture only the completed protagonist tree.
+def trace_margin(node, model, horizon, reference, identity, policy, max_nodes=256):
+    """Best-first additive attribution of a root estimated-versus-exact margin.
+
+    Expand the largest absolute weighted residual, not the largest raw error.
+    Continue along uniform greedy actions only, subtracting local action loss.
+    Keep both signed and absolute unresolved mass: cancellation is not coverage.
+    This is an algebraic attribution of one saved tree, not a causal ablation.
+    """
+    if type(max_nodes) is not int or max_nodes < 1:
+        raise ValueError("max_nodes must be a positive integer")
+    exact = reference.q_values(model, horizon)
+    best = max(exact.values())
+    optimal = [a for a, q in exact.items() if q == best]
+    coefficients = {
+        a: policy.get(a, 0.0) - (1 / len(optimal) if a in optimal else 0) for a in exact
+    }
+    target = math.fsum(w * (node.action_values[a] - exact[a]) for a, w in coefficients.items())
+    totals = dict(
+        immediate=0.0, chance=0.0, local_action_loss=0.0, rollout_frontier=0.0, exact_tail=0.0
+    )
+    pending, paths = [], []
+
+    def add_actions(current, current_model, remaining, description, weights, history):
+        for action, weight in weights.items():
+            if not weight:
+                continue
+            data = description["actions"][action]
+            totals["immediate"] += weight * data["immediate_error"]
+            totals["chance"] += weight * data["chance_error"]
+            branches = reference.branches(current_model, action)[1]
+            for (observation, _, successor), branch in zip(branches, data["branches"]):
+                if not branch["count"]:
+                    continue
+                child_weight = weight * reference.gamma * branch["frequency"]
+                child = current.get_child(action, observation)
+                child_history = (*history, dict(action=str(action), observation=str(observation)))
+                error = branch["value"] - branch["exact_value"]
+                pending.append(
+                    (
+                        abs(child_weight * error),
+                        child_weight * error,
+                        child_weight,
+                        child,
+                        successor,
+                        remaining - 1,
+                        child_history,
+                    )
+                )
+
+    root = describe_node(node, model, horizon, reference, identity, levels=0)
+    if root["kind"] in ("final_step", "exact_tail"):
+        totals["exact_tail"] = target
+    else:
+        add_actions(node, model, horizon, root, coefficients, ())
+    while pending and len(paths) < max_nodes:
+        index = max(range(len(pending)), key=lambda i: pending[i][0])
+        _, contribution, weight, child, successor, remaining, history = pending.pop(index)
+        description = describe_node(
+            child, successor, remaining, reference, identity, levels=0, history=history
+        )
+        paths.append(dict(weight=weight, weighted_value_error=contribution, **description))
+        kind = description["kind"]
+        if kind == "rollout_frontier":
+            totals["rollout_frontier"] += contribution
+        elif kind in ("final_step", "exact_tail"):
+            totals["exact_tail"] += contribution
+        else:
+            totals["local_action_loss"] -= weight * description["local_action_loss"]
+            chosen = description["greedy_actions"]
+            add_actions(
+                child,
+                successor,
+                remaining,
+                description,
+                {a: weight / len(chosen) for a in chosen},
+                history,
+            )
+    unresolved = math.fsum(item[1] for item in pending)
+    residual = target - math.fsum([*totals.values(), unresolved])
+    assert abs(residual) < 1e-8, residual
+    return dict(
+        target_margin_error=target,
+        contributions=totals,
+        unresolved_signed=unresolved,
+        unresolved_absolute=math.fsum(item[0] for item in pending),
+        pending_histories=len(pending),
+        expanded_histories=len(paths),
+        reconstruction_residual=residual,
+        paths=paths,
+    )
+
+
+def diagnose(original, trace_nodes=256, tail_depth=1):
+    """Replay one declared control or evaluate its explicit tail candidate.
+
+    Capture only the completed protagonist tree.
 
     Patching is scoped to a single supervisor child process and is restored even
     on exceptions. It records the returned planner, not simulation events, so it
@@ -153,6 +248,9 @@ def diagnose(original):
             exact_final_step=original["exact_final_step"],
             exact_history_rewards=original["exact_history_rewards"],
             backup=original["backup"],
+            exact_tail_depth=tail_depth,
+            recursive_chance=original["planner_config"]["mcts"].get("recursive_chance", False),
+            exact_root_chance=original["planner_config"]["mcts"].get("exact_root_chance", False),
             level=2,
             opponent_depth=cfg["max_depth"],
             opponent_belief=op["initial_belief_p"],
@@ -162,7 +260,11 @@ def diagnose(original):
             opponent_exploration=op["exploration"]["strategy"],
             opponent_exploration_const=op["exploration"]["c"],
         )[0]
-    assert row == original, "Full seeded replay differs; do not interpret diagnostics"
+    if tail_depth == 1:
+        assert row == original, "Full seeded replay differs; do not interpret diagnostics"
+    else:
+        for key in ("opponent_model", "oracle_q", "horizon", "budget", "seed", "belief_p", "gamma"):
+            assert row[key] == original[key], f"Candidate changed task semantics: {key}"
     assert len(captured) == 1
     planner, model = captured[0]
     reference = FinitePolicyL2Reference(planner.pomdp_model, planner.solver_bank, original["gamma"])
@@ -173,7 +275,26 @@ def diagnose(original):
         reference,
         lambda m: planner.solver_bank._belief_digest(m.belief),
     )
-    return [dict(row=row, exact_replay=True, tree=tree)]
+    trace = trace_margin(
+        planner.root,
+        model,
+        original["horizon"],
+        reference,
+        lambda m: planner.solver_bank._belief_digest(m.belief),
+        original["policy"],
+        max_nodes=trace_nodes,
+    )
+    return [
+        dict(
+            row=row,
+            exact_replay=row == original,
+            tree=tree,
+            margin_trace=trace,
+            trace_value_source="empirical_search_q",
+            trace_policy=original["policy"],
+            baseline_row=original,
+        )
+    ]
 
 
 def main():
@@ -186,7 +307,11 @@ def main():
         help="Audited JSON with errors entries containing full row dictionaries",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--trace-nodes", type=int, default=256)
+    parser.add_argument("--tail-depth", type=int, choices=[1, 2], default=1)
     args = parser.parse_args()
+    if args.trace_nodes < 1:
+        parser.error("--trace-nodes must be positive")
     raw = args.input.read_bytes()
     cases = [entry["row"] for entry in json.loads(raw)["errors"]]
     assert cases and all(r["level"] == 2 and r["backup"] == "empirical_bellman" for r in cases)
@@ -207,11 +332,15 @@ def main():
         timeout_seconds=600,
         max_rss_mb=2048,
         descendant_layers=1,
+        trace_nodes=args.trace_nodes,
+        exact_tail_depth=args.tail_depth,
     )
     (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2))
     start = time.monotonic()
     statuses = []
-    jobs = {i: partial(diagnose, row) for i, row in enumerate(cases)}
+    jobs = {
+        i: partial(diagnose, row, args.trace_nodes, args.tail_depth) for i, row in enumerate(cases)
+    }
     for i, result in supervise_jobs(
         jobs, workers=1, timeout_seconds=600, max_rss_mb=2048, log_directory=args.output / "logs"
     ):
