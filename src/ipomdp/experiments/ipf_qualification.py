@@ -26,6 +26,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ipomdp.analysis.hierarchy import hierarchy_error, level_posterior, nested_hierarchy
 from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TIGER_LEFT, TigerModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.planning.config import PlannerConfig
@@ -35,37 +36,8 @@ ACTIONS = (LISTEN, LISTEN, LISTEN, OPEN_LEFT, LISTEN, LISTEN, LISTEN, LISTEN)
 NESTED = {3: {2: 0.1, 1: 0.8, 0: 0.1}, 2: {1: 0.5, 0: 0.5}, 1: {0: 1.0}}
 
 
-def path_masses(belief, root, depth):
-    """{path: joint mass} for nested (agent, level) paths up to ``depth``."""
-    masses = {}
-
-    def walk(weighted, path, remaining):
-        if remaining == 0:
-            return
-        children = {}
-        for nested, mass in weighted:
-            for atom, weight in nested.mass:
-                frame = atom.opponent.frame
-                key = f"{path}/{frame.agent_id}_L{frame.level}"
-                masses[key] = masses.get(key, 0.0) + mass * weight
-                if atom.opponent.belief is not None:
-                    children.setdefault(key, []).append((atom.opponent.belief, mass * weight))
-        for key, group in children.items():
-            walk(group, key, remaining - 1)
-
-    walk([(belief, 1.0)], root, depth)
-    return masses
-
-
 def total_variation(a, b):
     return 0.5 * math.fsum(abs(a.get(k, 0.0) - b.get(k, 0.0)) for k in set(a) | set(b))
-
-
-def level_posterior(belief):
-    masses = {}
-    for atom, weight in belief.mass:
-        masses[atom.opponent.frame.level] = masses.get(atom.opponent.frame.level, 0.0) + weight
-    return masses
 
 
 def left(belief):
@@ -110,18 +82,10 @@ def evaluate(level, particles, history_seed, modeled_simulations=50, depth=2):
                     level_posterior(exact.belief), level_posterior(approximate.belief)
                 ),
                 physical_error=abs(left(exact.belief) - left(approximate.belief)),
-                nested_tv=total_variation(
-                    {
-                        k: v
-                        for k, v in path_masses(exact.belief, "i", 2).items()
-                        if k.count("/") == 2
-                    },
-                    {
-                        k: v
-                        for k, v in path_masses(approximate.belief, "i", 2).items()
-                        if k.count("/") == 2
-                    },
-                ),
+                nested_tv=hierarchy_error(
+                    nested_hierarchy(approximate.belief, "i", level, depth=2),
+                    nested_hierarchy(exact.belief, "i", level, depth=2),
+                )[2]["mass_tv"],
                 exact_support=len(exact.belief.mass),
                 particle_support=len(approximate.belief.mass),
             )

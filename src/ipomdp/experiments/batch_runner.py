@@ -14,6 +14,7 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
+from ipomdp.analysis.hierarchy import level_posterior, nested_hierarchy
 from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.infra.paths import REPOSITORY_ROOT, SOURCE_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
@@ -109,126 +110,21 @@ def _get_belief_support(planner: Planner) -> int:
     return len(planner.belief.mass) if getattr(planner, "belief", None) is not None else 0
 
 
-def opponent_level_distribution(planner: Any, opponent_id: str) -> Dict[str, float]:
-    belief = getattr(planner, "belief", None)
-    if belief is None:
-        return {}
-    masses = {level: 0.0 for level in range(planner.key.level)}
-    for atom, weight in belief.mass:
-        frame = atom.opponent.frame
-        if frame.agent_id == opponent_id:
-            masses[frame.level] += weight
-    return {f"prob_l{level}_{opponent_id}": mass for level, mass in sorted(masses.items())}
-
-
-def _extract_recursive(
-    node,
-    curr_agent,
-    curr_path_id,
-    curr_weight,
-    depth,
-    ids,
-    labels,
-    parents,
-    values,
-    hover_texts,
-    levels,
-    agent_names,
-):
-    """Integrate every weighted private belief, preserving its conditional mass."""
-
-    def descend(weighted_beliefs, agent, path, mass, remaining):
-        if remaining <= 0 or mass <= 0:
-            return
-        groups = {}
-        for belief, parent_mass in weighted_beliefs:
-            if belief is None:
-                continue
-            for atom, weight in belief.mass:
-                model = atom.opponent
-                group = groups.setdefault((model.frame.agent_id, model.frame.level), {})
-                group[model.belief] = group.get(model.belief, 0.0) + parent_mass * weight
-        for (opponent, level), children in sorted(groups.items()):
-            branch_mass = sum(children.values())
-            child_id = f"{path}/{opponent}_L{level}"
-            ids.append(child_id)
-            labels.append(f"{opponent} (L{level})")
-            parents.append(path)
-            values.append(branch_mass)
-            levels.append(level)
-            agent_names.append(opponent)
-            hover_texts.append(
-                f"Modeled by: {agent}<br>Conditional mass: {branch_mass / mass:.1%}<br>Joint mass: {branch_mass:.6f}"
-            )
-            if level > 0:
-                descend(list(children.items()), opponent, child_id, branch_mass, remaining - 1)
-
-    descend([(node, curr_weight)], curr_agent, curr_path_id, curr_weight, depth)
-
-
-def extract_nested_belief_hierarchy(
-    planner: Any, agent_id: str = "i", agent_level: int = 0, max_depth: int = 8
-) -> Dict[str, Any]:
-    """
-    Recursively extracts the full multi-level nested mental model belief tree for an I-POMDP agent.
-
-    Returns structured tabular data compatible with Plotly Sunburst, Icicle, and Treemap:
-    {
-        "agent_id": str,
-        "agent_level": int,
-        "ids": List[str],
-        "labels": List[str],
-        "parents": List[str],
-        "values": List[float],
-        "hover_texts": List[str],
-        "levels": List[int],
-        "agent_names": List[str]
-    }
-    """
+def level_columns(planner, opponent_id):
+    """{prob_l{k}_{opponent}: P(opponent is level k)} for an intentional planner; {} for L0."""
     if getattr(planner, "belief", None) is None:
         return {}
+    posterior = level_posterior(planner.belief)
+    return {f"prob_l{k}_{opponent_id}": posterior.get(k, 0.0) for k in range(planner.key.level)}
 
-    lvl = getattr(planner.key, "level", agent_level) if hasattr(planner, "key") else agent_level
-    root_id = f"{agent_id}_L{lvl}"
-    root_label = f"{agent_id} (Level-{lvl})"
-    hover = (
-        f"<b>Protagonist Agent {agent_id}</b><br>Reasoning Level: {lvl}<br>Total Belief Mass: 100%"
-    )
 
-    ids = [root_id]
-    labels = [root_label]
-    parents = [""]
-    values = [1.0]
-    hover_texts = [hover]
-    levels = [lvl]
-    agent_names = [agent_id]
-
-    _extract_recursive(
-        node=planner.belief,
-        curr_agent=agent_id,
-        curr_path_id=root_id,
-        curr_weight=1.0,
-        depth=max_depth,
-        ids=ids,
-        labels=labels,
-        parents=parents,
-        values=values,
-        hover_texts=hover_texts,
-        levels=levels,
-        agent_names=agent_names,
-    )
-
-    return {
-        "agent_id": agent_id,
-        "agent_level": lvl,
-        "ids": ids,
-        "labels": labels,
-        "parents": parents,
-        "values": values,
-        "hover_texts": hover_texts,
-        "levels": levels,
-        "agent_names": agent_names,
-    }
+def hierarchy_snapshot(planner, agent_id):
+    """Serialisable nested hierarchy of an intentional planner's belief (``analysis.hierarchy``)."""
+    if getattr(planner, "belief", None) is None:
+        return []
+    return [
+        node.to_dict() for node in nested_hierarchy(planner.belief, agent_id, planner.key.level)
+    ]
 
 
 class GenericBatchRunner(ABC):
@@ -307,11 +203,11 @@ class GenericBatchRunner(ABC):
         }
         init_custom = self._get_custom_metrics(true_state, true_state, env, planner_i, planner_j)
         init_record.update(init_custom)
-        init_record.update(opponent_level_distribution(planner_i, "j"))
+        init_record.update(level_columns(planner_i, "j"))
         trial_records.append(init_record)
         last_custom_metrics = init_custom
         if snapshots is not None:
-            snapshots[0] = extract_nested_belief_hierarchy(planner_i, "i")
+            snapshots[0] = hierarchy_snapshot(planner_i, "i")
 
         # Decision steps: t = 1 ... max_steps
         for t in range(1, self.config.max_steps + 1):
@@ -369,13 +265,13 @@ class GenericBatchRunner(ABC):
                     true_state, next_state, env, planner_i, planner_j
                 )
                 record.update(last_custom_metrics)
-                record.update(opponent_level_distribution(planner_i, "j"))
+                record.update(level_columns(planner_i, "j"))
                 record["belief_support_i"] = _get_belief_support(planner_i)
                 record["belief_support_j"] = _get_belief_support(planner_j)
                 trial_records.append(record)
                 true_state = next_state
                 if snapshots is not None:
-                    snapshots[t] = extract_nested_belief_hierarchy(planner_i, "i")
+                    snapshots[t] = hierarchy_snapshot(planner_i, "i")
             else:
                 record = {
                     "trial": trial_id,

@@ -9,7 +9,7 @@ import pytest
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.experiments.batch_runner import opponent_level_distribution
+from ipomdp.experiments.batch_runner import level_columns
 from ipomdp.experiments.tiger_l3_vs_l2 import (
     PRIOR_I,
     PRIOR_J,
@@ -38,7 +38,7 @@ def test_declared_priors_and_hierarchies(agent_id, level):
     planner = build_agent(agent_id, level, 100, 2, 0.95, 5, seed=0)
     other = "j" if agent_id == "i" else "i"
     expected = PRIOR_I if agent_id == "i" else PRIOR_J
-    levels = opponent_level_distribution(planner, other)
+    levels = level_columns(planner, other)
     for k, mass in expected.items():
         assert levels[f"prob_l{k}_{other}"] == pytest.approx(mass, abs=1e-15)
     assert physical_belief(planner) == 0.5

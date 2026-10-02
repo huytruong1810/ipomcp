@@ -23,12 +23,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from ipomdp.analysis.hierarchy import nested_hierarchy
 from ipomdp.domains.tiger import TIGER_LEFT, TigerModel
-from ipomdp.experiments.batch_runner import (
-    GenericBatchRunner,
-    extract_nested_belief_hierarchy,
-    opponent_level_distribution,
-)
+from ipomdp.experiments.batch_runner import GenericBatchRunner, level_columns
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.planning.config import PlannerConfig
@@ -93,9 +90,11 @@ def predicted_opponent_actions(planner):
 
 
 def hierarchy_values(planner, agent_id):
-    """Nested level hierarchy as {path id: joint mass}; ids are stable paths."""
-    tree = extract_nested_belief_hierarchy(planner, agent_id)
-    return dict(zip(tree["ids"], tree["values"]))
+    """Nested level hierarchy as {path: joint mass}; paths are stable across steps."""
+    return {
+        node.path: node.mass
+        for node in nested_hierarchy(planner.belief, agent_id, planner.key.level)
+    }
 
 
 def physical_belief(planner):
@@ -148,7 +147,7 @@ class TigerL3vsL2Runner(GenericBatchRunner):
             predicted_j_by_level=json.dumps(predicted_opponent_actions(planner_i)),
             predicted_i_by_level=json.dumps(predicted_opponent_actions(planner_j)),
         )
-        metrics.update(opponent_level_distribution(planner_j, "i"))
+        metrics.update(level_columns(planner_j, "i"))
         return metrics
 
 

@@ -9,18 +9,17 @@ import json
 import pickle
 import weakref
 from dataclasses import FrozenInstanceError
-from types import SimpleNamespace
 
 import pandas as pd
 import pytest
 
+from ipomdp.analysis.hierarchy import nested_hierarchy
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.experiments.batch_runner import extract_nested_belief_hierarchy, is_batch_complete
+from ipomdp.experiments.batch_runner import is_batch_complete
 from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.planning.node import POMCPNode
-from ipomdp.planning.solver_types import SolverKey
 from tests.runners import RandomTigerRunner
 
 
@@ -63,8 +62,7 @@ def test_nested_hierarchy_averages_different_private_beliefs():
     belief = FiniteBelief(
         ((InteractiveState(TIGER_LEFT, left), 0.25), (InteractiveState(TIGER_LEFT, right), 0.75))
     )
-    data = extract_nested_belief_hierarchy(SimpleNamespace(belief=belief, key=SolverKey("i", 3)))
-    weights = dict(zip(data["ids"], data["values"]))
+    weights = {node.path: node.mass for node in nested_hierarchy(belief, "i", 3)}
     assert weights["i_L3/j_L2/i_L0"] == pytest.approx(0.25)
     assert weights["i_L3/j_L2/i_L1"] == pytest.approx(0.75)
     assert weights["i_L3/j_L2"] == pytest.approx(1)
