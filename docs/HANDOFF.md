@@ -5,7 +5,7 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 2, 2026. `main` now holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+Last updated October 2, 2026 (chance scoring re-qualified). `main` now holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
 
 ## 1. Goals
 
@@ -42,7 +42,7 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 
 ## 2. Current state
 
-- **Tests.** 229 pass in about 35 s on `main`; `ruff check` and `ruff format --check` are clean.
+- **Tests.** 240 pass in about 35 s on `main`; `ruff check` and `ruff format --check` are clean.
 - **Running jobs.** None.
 - **Archives.**
   - Tag `archive/pre-restructure-20260930`: the pre-restructure code.
@@ -73,6 +73,7 @@ studies/        tiger_l3_vs_l2.toml
 ### Estimator, as validated (do not change without re-running the gates)
 
 - **Search.** I-POMCP over private histories, with empirical chance-weighted Bellman backups and horizon-bounded UCB from the declared reward bounds.
+- **Recommendation.** After search, the tree is rescored with exact chance probabilities (`planning.chance_scoring`). The scored values decide, for real and modeled agents.
 - **Exact pieces.** E[R | b_h, a] at every history, and Q_1(b_h, a) at the last step, integrated over the agent's posterior b_h.
 - **State sampling.** Since `f793712`, each tree and rollout step draws its state from b_h, instead of carrying one root particle. The two are equal in distribution when b_h is exact; with bounded b_h only the new form is consistent. It was re-validated in RESULTS.md Section 9.
 - **Beliefs.** `SolverBank(seed, particles=N, particle_filter="compressed" | "sampled", search_particles=M)`:
@@ -93,25 +94,17 @@ studies/        tiger_l3_vs_l2.toml
 | 8 | **The compressed filter** reverses Section 7. At N = 64 it is about as accurate as exact beliefs: k = 4 mid-episode, 0.18 vs 0.11 Q error at 1.9 s vs 26 s. At k = 6, where exact planning takes over 30 minutes, it is 100% optimal (n = 30). Belief errors are 4–40× smaller than the IPF's at equal N |
 | 9 | Re-validation after per-step belief sampling: everything reproduces except H4 at modeled 100 (93% → 80%), which is opponent-model luck. Modeled 4,000 stays at 100% |
 | 10 | Wumpus pilot (exact real beliefs, compressed search): runs without failure, but is **not accurate yet**: losses of 1.8–7.7 in 13 of 18 decisions |
+| 11 | **Chance scoring:** decisions neutral (1 corrected and 2 regressed of 747 paired decisions); Q error lower at H2–H3 (L2 H3 k = 0: 0.13 → 0.05), flat at H4–H5. Kept as the default |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
 ## 4. Next steps, in order
 
-0. **Port recursive post-search chance scoring into `ipomdp.planning`** (from `codex/final-20261002`: `src/solvers/recursive_chance.py`, `docs/RECURSIVE_CHANCE_PLAN.md`).
-   - **The method.** After search, rescore the saved tree bottom-up with Q(h, a) = E[R | b_h, a] + γ Σ_o P(o, alive | b_h, a) V(h a o). It uses exact branch probabilities from the history posterior instead of empirical counts. An action with a missing positive-probability branch keeps its sampled Q; rollout frontiers stay approximate.
-   - **The legacy evidence** (my audit of 3,645 of 4,800 development cases; old Tiger spec, 100k simulations, H1–H8, finite modeled j-L1):
-     - 0 strict errors and 0 violations, against 4 and 1 for the current scoring;
-     - all 4 errors corrected, with no regressions, at +3% CPU;
-     - fully exact roots match the reference to within 5e-15;
-     - the maximum Q error got worse at H8 (8.22 against 6.23);
-     - only 2,002 of 3,645 roots were fully exact (none at H8).
-
-     Details in `results/oracle/l2_recursive_chance_development_claude_audit_20261002/report.txt`.
-   - **Panels not run.** The legacy run stopped at panel 09 (525/560), and panels 10–11 never ran. Those panels are dropped by the user's decision: the legacy code is retired, so they would not transfer.
-   - **Fit with the new planner.** The new planner already has b_h at every node (`search_filter`) and `continuation_counts`, so the port is a post-search pass over `POMCPNode`s. Keep the search Q and the recommendation Q separate.
-   - **Re-qualify** against the exact references on the panels in RESULTS.md Sections 5–9.
-
+0. **Done (October 2): recursive post-search chance scoring** (`planning.chance_scoring`, commit `192ea90`; RESULTS.md Section 11).
+   - Decisions are neutral within n: 1 corrected and 2 regressed of 747 paired decisions.
+   - Q error falls at H2–H3 and is flat at H4–H5.
+   - It is kept as the default. Rows record both `search_q` and the scored `estimated_q`.
+   - Open question: the fallback (keeping search Q for actions with unsampled branches) mixes search and scored values in one max. The renormalized variant was worse. A better treatment of under-sampled actions is the remaining lever for H4–H5.
 1. **Wumpus qualification** (RESULTS.md Section 10).
    - Run a grid over `search_particles` (64 → 4,096) × simulations (1k → 10k), at L1 H3, against the exact best response. The pilot script is `results/wumpus_split_pilot_20261002/wumpus_split.py`.
    - Separate the two candidate causes: compressing a 25k–94k-atom root to N atoms, and too few simulations for 5 actions × 32 observations.
@@ -157,6 +150,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 - belief accuracy: `ipf_resampling_probe_20261002`, `belief_qualification_compressed_20261002`, `compressed_prototype_20261002`;
 - L2 panels: `l2_baseline_20261002`, `l2_baseline_h4_modeled4000_20261002`, `l2_ipf_miss_20261002`, `l2_mid_episode_20261002`, `l2_compressed_20261002`, `l2_compressed_k6_20261002`, `l2_revalidate_belief_sampling_20261002`;
 - gates and references: `l1_qualification_belief_sampling_20261002`, `reference_scaling_20261002`;
+- chance scoring: `l1_qualification_chance_scoring_20261002`, `l2_chance_scoring_20261002`;
 - Wumpus: `wumpus_exact_filtering_20261002`, `wumpus_split_pilot_20261002`.
 
 ## 6. Tried and did not work (do not repeat)

@@ -359,3 +359,64 @@ RTS (K = 4) with compressed beliefs at N = 64:
 - 1,000 simulations over Wumpus's 5 actions and 32 observations.
 
 The next rung is a qualification grid over N and simulations against the exact reference.
+
+## 11. Post-search chance scoring (October 2, 2026)
+
+**What changed** (commit `192ea90`, `planning.chance_scoring`). After search, the planner rescores its tree bottom-up, weighting each observation by its exact probability P(o, alive | b_h, a) under the agent's belief at that history, instead of by how often search sampled it (THEORY.md). Two cases keep their approximate values:
+- an action with an observation search never sampled keeps its **search value** (a "fallback");
+- a branch reached once keeps its rollout estimate.
+
+The rescored values decide, for real decisions and for modeled opponents alike.
+
+**Design.** Search itself (exploration, backups, random streams) is unchanged, and every decision records both values:
+- **"search":** the empirical-backup value, i.e. what the planner decided on before this change;
+- **"scored":** the rescored value.
+
+The "same-tree" columns compare the two on identical trees. The search columns reproduce Sections 1 and 9 exactly.
+
+**L1 gate** (Section 1's design, n = 33 per cell; `results/l1_qualification_chance_scoring_20261002`). Mean max Q error, search → scored:
+
+| Simulations | H2 | H3 | H4 | H5 |
+|---|---|---|---|---|
+| 100 | 0.29 → 0.02 | 0.45 → 0.38 | 1.16 → 1.17 | 2.43 → 3.52 |
+| 1,000 | 0.09 → 0 | 0.11 → 0.004 | 0.57 → 0.61 | 1.67 → 1.57 |
+| 5,000 | 0.05 → 0 | 0.05 → 0 | 0.34 → 0.38 | 1.46 → 1.50 |
+
+("0" means below 1e-13.)
+- **Decisions:** 100% optimal everywhere except H5 at 100 simulations, 94% → 91%. On the same trees, 0 decisions were corrected and 1 regressed, out of 297 at H3–H5.
+- **Per action (H4, 5,000 simulations):** the mean Q error of listening, the most-sampled action, halves (0.078 → 0.038). The rarely sampled door openings get slightly worse (0.25 → 0.27, 0.17 → 0.19). Their children have only one or two visits, and exact weights give those noisy estimates their full probability.
+
+**L2 panel** (Section 9's 15 cells, n = 30 per cell, against the exact I-POMDP; `results/l2_chance_scoring_20261002`). All values are search → scored:
+
+| Problem | Beliefs | Optimal | Mean max Q error | CPU (s) |
+|---|---|---|---|---|
+| H3, k = 0 | exact | 100% → 100% | 0.13 → 0.05 | 0.33 → 0.25 |
+| H3, k = 2 | exact | 100% → 100% | 0.12 → 0.08 | 2.1 → 1.9 |
+| H3, k = 4 | exact | 100% → 100% | 0.10 → 0.04 | 23 → 22 |
+| H3, k = 2 | compressed 64 | 97% → 97% | 0.26 → 0.24 | 1.5 → 1.4 |
+| H3, k = 4 | compressed 64 | 100% → 100% | 0.17 → 0.14 | 1.6 → 1.6 |
+| H3, k = 6 | compressed 64 | 97% → 93% | 1.03 → 1.01 | 2.7 → 4.2 |
+| H3, k = 2 | compressed 256 | 100% → 100% | 0.12 → 0.08 | 2.3 → 2.2 |
+| H3, k = 4 | compressed 256 | 100% → 100% | 0.11 → 0.05 | 4.4 → 4.1 |
+| H3, k = 6 | compressed 256 | 97% → 100% | 0.20 → 0.16 | 5.9 → 8.0 |
+| H4, root 250, modeled 100 | exact | 80% → 80% | 2.55 → 2.54 | 0.8 → 0.8 |
+| H4, root 250, modeled 100 | compressed 64 | 80% → 80% | 2.55 → 2.58 | 0.9 → 0.9 |
+| H4, root 1,000, modeled 100 | exact | 80% → 80% | 2.45 → 2.37 | 1.1 → 1.0 |
+| H4, root 1,000, modeled 100 | compressed 64 | 80% → 80% | 2.45 → 2.39 | 1.2 → 1.2 |
+| H4, root 250, modeled 4,000 | exact | 100% → 100% | 1.04 → 1.05 | 35 → 33 |
+| H4, root 250, modeled 4,000 | compressed 64 | 100% → 100% | 0.98 → 0.98 | 34 → 33 |
+
+CPU columns are the previous run (Section 9) and this run. The k = 6 runs shared the machine with unrelated jobs.
+
+- **Same tree:** 1 decision corrected and 1 regressed, out of 450. Both are the same near-tie problem (k = 6, seed 1, p = 0.05: exact Q of listen 3.86, open-right 4.19). In both, open-right kept its search value (fallback) while listen was rescored, so the root compared a scored value against a search value.
+- **Modeled opponents:** scoring them did not change any H4 result. Every search column equals Section 9 to the last digit, so no modeled policy's greedy action changed.
+- **Exactness flag:** the scored root was never certified exact in these panels. Once-visited deep histories leave actions untried, so the flag is conservative.
+
+**Rejected variant.** Instead of falling back, weight the sampled branches by their exact probabilities, renormalized to the continuation mass. On the L1 gate it gave the same decisions and more upward bias (listen at H4, 1,000 simulations: bias +0.04 → +0.13). Script: `rejected_renormalized_variant.py` in the L1 results folder.
+
+**Verdict.**
+- **Decisions are neutral within this n.** Across the two gates, 1 was corrected and 2 regressed out of 747 paired decisions. The legacy evidence (4 corrected, 0 regressed) was on a different estimator and does not transfer.
+- **Q accuracy improves where branches are well sampled:** H2–H3 Q error falls 30–100%, and complete subtrees are exact.
+- **It does not help at H4–H5**, where error is dominated by under-sampled actions and opponent models.
+
+Kept as the default because it improves the accuracy of reported Q values at no decision cost. The comparison stays one commit away, since every row records both values.
