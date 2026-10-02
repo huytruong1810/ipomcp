@@ -28,11 +28,10 @@ Read this first. Then read [ARCHITECTURE.md](ARCHITECTURE.md), [THEORY.md](THEOR
 
 ## Next steps, in order
 
-1. **I-POMCP vs IPF + RTS: next rungs.** The L2 H3–H4 panel is in RESULTS.md
-   Section 6 (I-POMCP more accurate at lower CPU). Next:
-   - an H4 cell with 4,000 modeled simulations, to remove I-POMCP's opponent-model ceiling;
-   - starting beliefs taken from mid-episode histories, where exact supports are large and the IPF should pay off;
-   - L3.
+1. **Contribution 2: where the IPF pays off.** Mid-episode results are in RESULTS.md Section 7. Wherever the exact I-POMDP is tractable (L2 H3, k ≤ 4), exact beliefs are faster or more accurate than the IPF; the IPF only wins where exact planning and the reference become intractable (k ≥ 6). Open questions:
+   - lower the IPF's in-tree error (it resamples the opponent afresh at every in-tree update);
+   - find a reference that scales past k = 4, so accuracy can be measured where the IPF is needed: for example exact filtering of i's belief, plus exact best response with a bounded nested enumeration;
+   - L3, and H4 with 4,000 modeled simulations on IPF beliefs at N ≥ 1,024.
 2. **Per-level modeled budgets.** The allocation rule says modeled agents must
    be accurate at the beliefs they are modeled at; lower levels are cheaper and
    more numerous, so a per-level budget may buy that accuracy more cheaply.
