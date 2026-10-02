@@ -20,9 +20,9 @@ from ipomdp.domains.wumpus.constants import (
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.domains.wumpus.state import AgentPose
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
-from ipomdp.experiments.config import ExperimentConfig
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
+from tests.study_fixtures import random_tiger
 
 
 def test_search_does_not_modify_its_own_root_belief():
@@ -83,7 +83,7 @@ def test_scream_is_a_new_kill_and_terminal_reward_is_not_repeated():
         lambda: PlannerConfig(simulations=0, depth=1, modeled_simulations=1),
         lambda: PlannerConfig(simulations=1, depth=0, modeled_simulations=1),
         lambda: PlannerConfig(simulations=1, depth=1, modeled_simulations=1, gamma=float("nan")),
-        lambda: ExperimentConfig(n_trials=0, max_steps=1),
+        lambda: random_tiger(trials=0),
     ],
 )
 def test_invalid_configuration_fails_before_work(factory):

@@ -24,7 +24,6 @@ Here U_j is j's own update. It receives only j's action and observation and marg
   4. weights each particle by O_i.
 
   Supports are at most N at every level. The mean weight is an unbiased estimate of P(o_i | b, a_i). Measured error against the exact update is in [RESULTS.md](RESULTS.md).
-- **Bounded exact update** (`max_support=K`): stratified resampling of an exact posterior by (level, state). Level and physical marginals stay exact. With S strata and K > S, the per-atom mass error of one update is below 1/(K − S). This does not bound error accumulated over steps or nesting levels.
 
 ## The planner's estimator
 

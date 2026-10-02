@@ -1,0 +1,27 @@
+# Level-3 i versus level-2 j in the published two-agent Tiger.
+# i's prior over j's level: L1 .8, L2 .1, L0 .1. Its modeled j/L2 holds the real
+# j's prior over i (L1 .5, L0 .5): an assumption that i knows j's level prior.
+# j's prior over i: L1 .5, L0 .5; the real i (L3) lies outside that support.
+# Both agents plan a fixed 5-step receding lookahead with IPF beliefs.
+name = "tiger-l3-vs-l2"
+domain = "tiger"
+trials = 100
+steps = 20
+record_hierarchies = true
+workers = 8
+trial_timeout_seconds = 14400.0
+max_trial_rss_mb = 3072.0
+
+[agents.i]
+level = 3
+particles = 256
+planner = { kind = "ipomcp", simulations = 10000, depth = 5, modeled_simulations = 100 }
+level_weights = { 1 = 0.8, 2 = 0.1, 0 = 0.1 }
+nested_level_weights = { 2 = { 1 = 0.5, 0 = 0.5 }, 1 = { 0 = 1.0 } }
+
+[agents.j]
+level = 2
+particles = 256
+planner = { kind = "ipomcp", simulations = 7500, depth = 5, modeled_simulations = 100 }
+level_weights = { 1 = 0.5, 0 = 0.5 }
+nested_level_weights = { 1 = { 0 = 1.0 } }

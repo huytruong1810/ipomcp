@@ -240,8 +240,9 @@ def run_oracle_comparison(
         _validate_problem(kind, level, opponent_depth, opponent_belief, opponent_budget)
     if type(seeds) is not int or seeds < 1 or type(seed_start) is not int or seed_start < 0:
         raise ValueError("Need a positive seed count and a nonnegative first seed")
-    if not budgets or any(b < 3 for b in budgets) or not horizons or any(h < 1 for h in horizons):
-        raise ValueError("Need budgets >= 3 and positive horizons")
+    # Each planner enforces its own minimum budget (MCTS: one simulation per action).
+    if not budgets or any(b < 1 for b in budgets) or not horizons or any(h < 1 for h in horizons):
+        raise ValueError("Need positive budgets and horizons")
     directory = Path(out)
     directory.mkdir(parents=True, exist_ok=True)
     if any(directory.iterdir()):

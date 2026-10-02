@@ -17,10 +17,10 @@ from ipomdp.analysis.hierarchy import nested_hierarchy
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.experiments.batch_runner import is_batch_complete
-from ipomdp.experiments.config import ExperimentConfig
+from ipomdp.experiments.episodes import run_episode
+from ipomdp.experiments.runner import is_complete, run_study
 from ipomdp.planning.node import POMCPNode
-from tests.runners import RandomTigerRunner
+from tests.study_fixtures import random_tiger
 
 
 def test_interactive_states_are_immutable_and_pickleable():
@@ -68,45 +68,27 @@ def test_nested_hierarchy_averages_different_private_beliefs():
     assert weights["i_L3/j_L2"] == pytest.approx(1)
 
 
-def test_batch_resume_requires_matching_manifest_and_complete_trials(tmp_path, monkeypatch):
-    config = ExperimentConfig(n_trials=2, max_steps=3)
-    runner = RandomTigerRunner(config, str(tmp_path))
-    result = runner.run_batch(max_workers=1)
-    assert is_batch_complete(tmp_path / "batch_results.csv", 2, 3)
-    monkeypatch.setattr(
-        RandomTigerRunner,
-        "_run_single_trial_parallel",
-        lambda *_: pytest.fail("Completed trials must not run again"),
-    )
-    resumed = RandomTigerRunner(config, str(tmp_path)).run_batch(max_workers=1)
+def test_resume_requires_matching_manifest_and_complete_trials(tmp_path):
+    spec = random_tiger(trials=2, steps=3)
+    result = run_study(spec, tmp_path, workers=1)
+    assert is_complete(tmp_path, spec)
+    resumed = run_study(spec, tmp_path, workers=1, episode=_must_not_run)
     pd.testing.assert_frame_equal(
         result.reset_index(drop=True), resumed.reset_index(drop=True), check_dtype=False
     )
-    with pytest.raises(ValueError, match="differs"):
-        RandomTigerRunner(ExperimentConfig(n_trials=2, max_steps=4), str(tmp_path)).run_batch(
-            max_workers=1
-        )
+    with pytest.raises(ValueError, match="different study"):
+        run_study(random_tiger(trials=2, steps=4), tmp_path, workers=1)
     checkpoint = tmp_path / "trials" / "000000.csv"
     pd.read_csv(checkpoint).iloc[:-1].to_csv(checkpoint, index=False)
     with pytest.raises(ValueError, match="Invalid trial"):
-        RandomTigerRunner(config, str(tmp_path)).run_batch(max_workers=1)
+        run_study(spec, tmp_path, workers=1)
 
 
-def test_snapshot_capture_preserves_episode_rng():
-    runner = RandomTigerRunner(ExperimentConfig(n_trials=1, max_steps=8))
-    batch = pd.DataFrame(runner._run_single_trial_parallel(4))
-    snapshot, _ = runner.run_single_trial_with_snapshots(4)
-    columns = [
-        "action_i",
-        "action_j",
-        "obs_i",
-        "obs_j",
-        "reward_i",
-        "reward_j",
-        "cum_reward_i",
-        "cum_reward_j",
-    ]
-    pd.testing.assert_frame_equal(batch[columns], snapshot[columns])
+def test_episodes_are_reproducible_per_trial():
+    spec = random_tiger(trials=1, steps=8)
+    first, second = pd.DataFrame(run_episode(spec, 4)), pd.DataFrame(run_episode(spec, 4))
+    columns = ["action_i", "action_j", "observation_i", "observation_j", "cum_reward_i", "state"]
+    pd.testing.assert_frame_equal(first[columns], second[columns])
 
 
 def test_paired_statistics_reject_missing_seeds_and_adjust_pvalues(tmp_path):
@@ -168,3 +150,7 @@ def test_public_continuation_is_conditioned_in_online_filter():
     assert live.evidence == stopped.evidence == pytest.approx(0.5)
     assert {a.state for a, _ in live.belief.mass} == {"alive"}
     assert {a.state for a, _ in stopped.belief.mass} == {"terminal"}
+
+
+def _must_not_run(spec, trial):
+    raise AssertionError("Completed trials must not run again")

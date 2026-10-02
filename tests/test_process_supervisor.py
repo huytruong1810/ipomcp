@@ -8,10 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from ipomdp.experiments.batch_runner import is_batch_complete
-from ipomdp.experiments.config import ExperimentConfig
+from ipomdp.experiments.runner import is_complete, run_study
 from ipomdp.infra.process_supervisor import supervise_jobs
-from tests.runners import RandomTigerRunner
+from tests.study_fixtures import fails_until_recovered, random_tiger
 
 
 def _sleep():
@@ -67,31 +66,26 @@ def test_supervisor_enforces_rss_budget():
     assert outcomes[0]["monitored_peak_rss_mb"] > limit
 
 
-class RecoverableRunner(RandomTigerRunner):
-    def _run_single_trial_parallel(self, trial_id):
-        if trial_id == 1 and not (Path(self.log_dir) / "recovered").exists():
-            raise ValueError("injected recoverable worker failure")
-        return super()._run_single_trial_parallel(trial_id)
-
-
 @pytest.mark.parametrize("workers", [1, 2])
-def test_batch_failure_record_checkpoint_and_resume(tmp_path, workers):
-    config = ExperimentConfig(n_trials=2, max_steps=1)
-    runner = RecoverableRunner(config, str(tmp_path))
+def test_failed_trial_is_recorded_and_resume_runs_only_missing_trials(tmp_path, workers):
+    spec = random_tiger(trials=2, steps=1)
+    marker = tmp_path / "recovered"
+    out = tmp_path / "run"
+    flaky = partial(fails_until_recovered, str(marker))
     with pytest.raises(RuntimeError, match="checkpointed"):
-        runner.run_batch(max_workers=workers)
-    checkpoint = tmp_path / "trials/000000.csv"
+        run_study(spec, out, workers=workers, episode=flaky)
+    checkpoint = out / "trials/000000.csv"
     original = checkpoint.read_bytes()
-    assert not is_batch_complete(tmp_path / "batch_results.csv", 2, 1)
-    failures = [json.loads(p.read_text()) for p in (tmp_path / "attempts").glob("*/trial-1.json")]
+    assert not is_complete(out, spec)
+    failures = [json.loads(p.read_text()) for p in (out / "attempts").glob("*/trial-1.json")]
     assert failures[0]["error_type"] == "ValueError"
-    (tmp_path / "recovered").touch()
-    result = runner.run_batch(max_workers=workers)
+    marker.touch()
+    result = run_study(spec, out, workers=workers, episode=flaky)
     assert len(result) == 4
     assert checkpoint.read_bytes() == original
-    assert is_batch_complete(tmp_path / "batch_results.csv", 2, 1)
+    assert is_complete(out, spec)
     # Historical failure records survive a successful retry.
-    assert len(list((tmp_path / "attempts").glob("*/trial-1.json"))) == 2
+    assert len(list((out / "attempts").glob("*/trial-1.json"))) == 2
 
 
 def _spawn_descendant(pid_file):

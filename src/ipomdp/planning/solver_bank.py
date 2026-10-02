@@ -31,25 +31,22 @@ from ipomdp.planning.solver_types import SolverKey
 
 
 class SolverBank:
-    def __init__(self, seed, *, particles=None, max_support=None):
+    def __init__(self, seed, *, particles=None):
         """``seed`` determines all randomness of this bank's models.
 
-        Belief representation, at every nesting level:
-        - default: exact enumeration (``FiniteInteractiveFilter``);
-        - ``particles=N``: the interactive particle filter with N particles;
-        - ``max_support=K``: exact updates compressed to at most K atoms.
+        Belief representation, at every nesting level: exact enumeration
+        (``FiniteInteractiveFilter``) by default, or the interactive particle
+        filter with ``particles`` particles.
         """
         if type(seed) is not int:
             raise TypeError("A solver bank needs an explicit integer seed")
-        if particles is not None and max_support is not None:
-            raise ValueError("Choose particles or a bounded exact support, not both")
         self._solvers = {}
         self._physical_priors = {}
         self.seed = seed
         self.filter = (
             ParticleInteractiveFilter(self.policy, particles, seed)
             if particles is not None
-            else FiniteInteractiveFilter(self.policy, cache_size=4096, max_support=max_support)
+            else FiniteInteractiveFilter(self.policy, cache_size=4096)
         )
         self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
         # Canonical order makes random.choices intervals independent of how an

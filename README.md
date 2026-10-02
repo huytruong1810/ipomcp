@@ -45,6 +45,18 @@ uv run python -m ipomdp.experiments.allocation_study --output results/allocation
 
 Current results, each with its sample size, are in [docs/RESULTS.md](docs/RESULTS.md).
 
+## Running a study
+
+A study is a TOML file (see `studies/`): domain, both agents' levels, planners,
+belief representation and priors, trials and steps.
+
+```bash
+uv run python -m ipomdp.experiments.runner studies/tiger_l3_vs_l2.toml --output results/tiger_l3_vs_l2
+```
+
+Analysis reads the resulting `episodes.csv` through `ipomdp.analysis.metrics`
+and renders with `ipomdp.analysis.figures`.
+
 ## Layout
 
 ```
@@ -54,9 +66,11 @@ src/ipomdp/
   belief/       interactive states, canonical identity, exact filter, particle filter
   planning/     I-POMCP planner, exploration, history nodes, solver bank
   reference/    exact best response, exact I-POMDP agents, L1 alpha-vector iteration
-  experiments/  hierarchy builder, episode runner, qualification and study drivers
-  analysis/     statistics, error attribution, figures
+  baselines/    IPF + RTS (reachability-tree sampling over interactive beliefs)
+  experiments/  study specs, episode runner, hierarchy builder, qualification drivers
+  analysis/     nested hierarchies with content and error, metrics, figures, statistics
   infra/        process supervision, source locks, resource measurement, paths
+studies/        declarative study specifications (TOML)
 tests/          contract, unit, reference and qualification tests
 docs/           architecture, theory, domains, results, handoff; review/ records the
                 review that preceded the current design

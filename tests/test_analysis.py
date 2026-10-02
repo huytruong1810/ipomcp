@@ -1,18 +1,16 @@
 """Analysis layer: hierarchies with content and error, long-format metrics, figures."""
 
-import random
+import json
 
-import pandas as pd
 import pytest
 
 from ipomdp.analysis import figures, metrics
 from ipomdp.analysis.hierarchy import hierarchy_error, level_posterior, nested_hierarchy
 from ipomdp.domains.tiger import TigerModel
-from ipomdp.experiments.batch_runner import GenericBatchRunner, hierarchy_snapshot
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
-from ipomdp.experiments.config import ExperimentConfig
+from ipomdp.experiments.runner import run_study
+from ipomdp.experiments.study import AgentSpec, StudySpec
 from ipomdp.planning.config import PlannerConfig
-from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 
 NESTED = {3: {0: 1 / 3, 1: 1 / 3, 2: 1 / 3}, 2: {0: 0.5, 1: 0.5}, 1: {0: 1.0}}
@@ -53,21 +51,18 @@ def test_hierarchy_error_is_zero_for_equal_and_positive_for_different_beliefs():
     assert error[1]["mass_tv"] + error[1]["physical_tv"] > 0
 
 
-class L1VersusRandom(GenericBatchRunner):
-    def _setup_domain(self, seed):
-        env = TigerModel()
-        planner_i = HierarchyBuilder(SolverBank(seed)).build(
-            "i", 1, env, "j", config=PlannerConfig(simulations=20, depth=2, modeled_simulations=20)
-        )
-        return env, planner_i, RandomPlanner(env.get_all_actions("j"), random.Random(seed))
-
-
 @pytest.fixture(scope="module")
 def episodes(tmp_path_factory):
-    runner = L1VersusRandom(
-        ExperimentConfig(n_trials=3, max_steps=3), str(tmp_path_factory.mktemp("runs"))
+    planner = {"kind": "ipomcp", "simulations": 20, "depth": 2, "modeled_simulations": 20}
+    spec = StudySpec(
+        name="l1-vs-random",
+        domain="tiger",
+        trials=3,
+        steps=3,
+        agents={"i": AgentSpec(level=1, planner=planner), "j": AgentSpec(level=0)},
+        record_hierarchies=True,
     )
-    return runner.run_batch(max_workers=3)
+    return run_study(spec, tmp_path_factory.mktemp("runs"), workers=3)
 
 
 def test_metrics_tables_are_long_and_complete(episodes):
@@ -107,7 +102,7 @@ def test_sunbursts_keep_slice_positions_and_show_error(tmp_path):
     assert (tmp_path / "one.html").stat().st_size > 0
 
 
-def test_runner_snapshot_serialises_hierarchy():
-    snapshot = hierarchy_snapshot(l3_agent(), "i")
-    frame = pd.DataFrame(snapshot)
-    assert frame.loc[0, "path"] == "i_L3" and frame["mass"].iloc[0] == 1.0
+def test_episodes_record_hierarchies_and_both_agents_costs(episodes):
+    first = json.loads(episodes["hierarchy_i"].iloc[0])
+    assert first[0]["path"] == "i_L1" and first[0]["mass"] == 1.0
+    assert {"planning_cpu_j", "update_cpu_j", "physical_i"} <= set(episodes.columns)

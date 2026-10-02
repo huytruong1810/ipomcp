@@ -38,7 +38,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 - `FiniteBelief` is a normalized measure over interactive states, with duplicates merged exactly.
 - `canonical` gives every belief an order-independent, process-independent digest. Search seeding, sampling order and resampling depend only on *what* a belief is, never on how it was built.
 - **Belief updates** are subclasses of `InteractiveFilter`; both are pure and memoized:
-  - `FiniteInteractiveFilter`: the exact I-POMDP update, enumerated. Optionally it compresses posteriors to K atoms.
+  - `FiniteInteractiveFilter`: the exact I-POMDP update, enumerated.
   - `ParticleInteractiveFilter`: the interactive particle filter, at most N particles at every level, seeded per update.
 
 ### `planning`: the I-POMCP planner
@@ -70,18 +70,27 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 
 ### `experiments`
 
+- **Studies are declarative.** A `StudySpec` gives the domain, each agent's level, planner (`ipomcp` or `rts`), belief representation (exact or IPF particles) and level priors, and the trial design. Specifications load from TOML; see `studies/`.
 - `HierarchyBuilder` builds an agent and all lower-level models in one bank, under declared level priors.
-- `GenericBatchRunner` runs supervised, checkpointed episodes. It records, per step and per agent:
-  - rewards;
-  - planning and belief-update CPU time;
-  - belief support and level posteriors.
-- The qualification and study drivers are `l1_qualification`, `ipf_qualification`, `oracle` and `allocation_study`.
+- `episodes.run_episode` runs one trial, symmetric in the two agents. Each row records, per agent:
+  - actions, observations and rewards;
+  - planning and belief-update CPU and wall time;
+  - belief support, the level posterior and the physical marginal;
+  - optionally the nested hierarchy.
+- `runner.run_study` executes trials under supervision. It writes atomic per-trial checkpoints and a manifest of the spec plus source hashes, resumes only when both match, and writes a completion marker bound to the CSV bytes.
+- **Qualification drivers:** `l1_qualification`, `ipf_qualification`, `oracle` (planner vs exact best response or exact I-POMDP; planners `mcts` and `rts`) and `allocation_study`.
+
+### `baselines`
+
+- `RTSPlanner`: reachability-tree sampling over interactive beliefs (Doshi & Gmytrasiewicz, 2009). With an IPF bank it is the IPF + RTS baseline. It uses the same reward integrator and declared opponents as I-POMCP, so comparisons vary only the lookahead.
 
 ### `analysis`
 
-- Paired statistics.
-- Additive attribution of search-tree error (`error_attribution`).
-- Figures.
+- `hierarchy`: nested belief hierarchies as path nodes carrying joint mass and the physical belief held at each node, and their error against an exact hierarchy per depth.
+- `metrics`: long-format rewards, costs and level posteriors computed once from episode records, with trial-clustered bootstrap intervals.
+- `figures`: static figures (matplotlib) and interactive sunbursts (plotly) of any depth, with content and error in the hover text.
+- `statistics`: paired comparisons with Holm correction.
+- `error_attribution`: an additive decomposition of search-tree error.
 
 ### `infra`
 

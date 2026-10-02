@@ -17,23 +17,13 @@ in the three current domains. Correlated sensors require a different joint kerne
 Policy and dynamics providers must remain fixed and pure for this object's lifetime.
 An externally mutable MCTS node cannot be a policy or belief cache key.
 
-Optional bounded support (``max_support``) makes the kernel an approximation:
-any posterior with more distinct joint hypotheses than the bound is replaced by
-a stratified systematic resample (see ``resample`` for strata and error bound).
-It applies at every nesting level, because nested posteriors come from this same
-update. Resampling is seeded from the canonical digest of the exact posterior,
-so the update stays a deterministic, order-independent, cacheable function.
-The default (None) keeps exact enumeration.
 """
 
-import hashlib
 import math
-import random
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 
-from ipomdp.belief import canonical
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.model.pomdp import Action, Observation
 
@@ -137,21 +127,14 @@ class FiniteInteractiveFilter(InteractiveFilter):
         policy: Policy,
         cache_size: int = 4096,
         max_branches: int = 100000,
-        max_support: int | None = None,
     ):
         super().__init__(policy, cache_size)
         if type(max_branches) is not int or max_branches <= 0:
             raise ValueError("max_branches must be a positive integer")
-        if max_support is not None and (type(max_support) is not int or max_support < 1):
-            raise ValueError("max_support must be None or a positive integer")
         self.max_branches = max_branches
-        self.max_support = max_support
 
     def initial_belief(self, rows):
-        belief = FiniteBelief(tuple(rows))
-        if self.max_support is not None and len(belief.mass) > self.max_support:
-            belief = resample(belief, self.max_support)
-        return belief
+        return FiniteBelief(tuple(rows))
 
     def _update(
         self,
@@ -225,78 +208,4 @@ class FiniteInteractiveFilter(InteractiveFilter):
                 f"{frame!r}: zero finite-support evidence for "
                 f"action={action!r}, observation={observation!r}"
             )
-        belief = FiniteBelief(tuple(rows))
-        if self.max_support is not None and len(belief.mass) > self.max_support:
-            belief = resample(belief, self.max_support)
-        return Posterior(belief, evidence)
-
-
-def resample(belief: FiniteBelief, count: int) -> FiniteBelief:
-    """Stratified systematic resampling to at most ``count`` atoms, deterministic.
-
-    Why stratify. Strata are (opponent level, physical state), and each stratum
-    keeps its exact total mass. The opponent-level posterior and the physical
-    belief therefore stay exact. No level can be dropped by sampling, in
-    particular the uniform L0 hypothesis, which supports every observation:
-    plain resampling at small ``count`` dropped L0 and later produced
-    zero-evidence failures. Only nested private models within a stratum are
-    sampled.
-
-    Allocation. With S strata and K = ``count`` >= S, stratum k with total mass
-    t_k receives floor(1 + (K - S) t_k) >= 1 draws, plus one more by largest
-    remainder (ties broken by stratum key) until the draws sum to K.
-
-    Error bound. Systematic resampling gives each atom floor or ceil of
-    n_k w / t_k hits, so its retained mass t_k hits / n_k differs from its exact
-    mass w by less than t_k / n_k. Since n_k > (K - S) t_k, the per-atom mass
-    error is below 1 / (K - S) whenever K > S. When K == S every stratum keeps
-    one atom and the bound is only t_k. This is a per-update, per-atom bound.
-    It does not bound error accumulated over time or across nesting levels,
-    because every nested posterior is resampled as well.
-
-    Determinism. Equal beliefs must give equal outputs regardless of the order
-    in which their atoms were inserted. The update cache is keyed by belief
-    equality, so an order-dependent result would make posteriors depend on
-    query order. So strata, the atom order within each stratum and the seed
-    all come from the canonical encoding in ``ipomdp.belief.canonical``.
-    """
-    strata = {}
-    for atom, weight in belief.mass:
-        key = (atom.opponent.frame.level, canonical.state_key(atom.state))
-        strata.setdefault(key, []).append((atom, weight))
-    if count < len(strata):
-        raise ValueError("Support bound must be at least the number of level/state strata")
-    if len(belief.mass) <= count:
-        return belief
-    keys = sorted(strata)
-    for k in keys:
-        strata[k].sort(key=canonical.atom_sort_key)
-    totals = {k: math.fsum(w for _, w in strata[k]) for k in keys}
-    quota = {k: 1 + (count - len(keys)) * totals[k] for k in keys}
-    draws = {k: int(quota[k]) for k in keys}
-    for k in sorted(keys, key=lambda k: (int(quota[k]) - quota[k], k))[
-        : count - sum(draws.values())
-    ]:
-        draws[k] += 1
-    seed = hashlib.sha256((canonical.belief_digest(belief) + str(count)).encode()).digest()
-    rng = random.Random(seed)
-    kept = []
-    for k in keys:
-        rows, n = strata[k], draws[k]
-        if len(rows) <= n:
-            kept.extend(rows)
-            continue
-        offset = rng.random() / n
-        cumulative, index = 0.0, 0
-        for atom, weight in rows:
-            cumulative += weight / totals[k]
-            hits = 0
-            while index < n and offset + index / n < cumulative:
-                hits += 1
-                index += 1
-            if hits:
-                kept.append((atom, totals[k] * hits / n))
-        if index < n:
-            # Cumulative rounding can leave final draws; FiniteBelief merges duplicates.
-            kept.append((rows[-1][0], totals[k] * (n - index) / n))
-    return FiniteBelief(tuple(kept))
+        return Posterior(FiniteBelief(tuple(rows)), evidence)
