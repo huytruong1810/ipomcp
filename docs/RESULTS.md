@@ -291,4 +291,15 @@ RTS (K = 4) with compressed beliefs at N = 64:
 - **So bounded beliefs now pay off inside the region where the exact I-POMDP is tractable,** and can be scored there. This replaces the Section 7 conclusion for the planner.
 - **One problem differs from exact at H4 with 4,000 modeled simulations** (97% against 100%). Its loss, 1.53, is the exact-belief miss at low modeled budgets. The likely cause is that compressed nested beliefs change the modeled opponent's search seeds, so this is opponent-model noise; it has not been tested separately.
 - **RTS with compressed beliefs keeps its exact-belief accuracy at exact-belief cost.** Its misses are therefore its own search error, and the sampled IPF added cost without changing them.
-- **Not yet measured:** L3, and histories beyond k = 4, where only bounded beliefs run.
+
+**Beyond the exact planner: k = 6** (same problems; n = 30 per cell; `results/l2_compressed_k6_20261002`):
+- Raising the exact reference's enumeration guard to 50 million branches (`oracle.REFERENCE_BRANCHES`) made it complete at k = 6, in 146 s for one problem.
+- Exact-belief I-POMCP did not finish one decision there in 30 minutes (n = 1).
+
+| Planner | Beliefs | Optimal | Mean max Q error | Planning CPU | Support |
+|---|---|---|---|---|---|
+| I-POMCP 1,000 | compressed 64 | 100% | 1.02 | 2.9 s | 38 |
+| I-POMCP 1,000 | compressed 256 | 100% | 0.22 | 7.6 s | 96 |
+| RTS K = 4 | compressed 64 | 97% | 1.66 | 2.7 s | 38 |
+
+- **Not yet measured:** L3.
