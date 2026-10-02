@@ -11,13 +11,15 @@ fixed, not configurable:
 - exact one-step leaf values at the planning horizon, integrated over the full
   private-history belief before maximizing;
 - exact expected immediate rewards at every tree history (a control variate);
-- horizon-bounded UCB exploration scaled by the domain's declared reward bounds.
+- horizon-bounded UCB exploration scaled by the domain's declared reward bounds;
+- post-search scoring of the finished tree with exact chance probabilities
+  (``chance_scoring``), whose values decide.
 
-Earlier alternatives (sampled-return backups, empirical-range UCB, root or
-recursive chance rescoring, a two-step exact tail) were removed because they
-either did not converge or did not generalise beyond Tiger. A switch that
-selects a non-convergent estimator is a way to produce wrong results, not a
-feature.
+Earlier alternatives (sampled-return backups, empirical-range UCB, root-only
+chance rescoring, a two-step exact tail) were removed because they either did
+not converge, traded corrected errors for new ones, or did not generalise
+beyond Tiger. A switch that selects a non-convergent estimator is a way to
+produce wrong results, not a feature.
 
 What remains are computational budgets and two scalars of the decision problem.
 """

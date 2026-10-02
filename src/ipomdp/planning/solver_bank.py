@@ -81,6 +81,7 @@ class SolverBank:
         self.ordered_mass = lru_cache(maxsize=16384)(canonical.canonical_mass)
         self._cumulative_mass = lru_cache(maxsize=16384)(self._cumulative)
         self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
+        self.continuation_law = lru_cache(maxsize=4096)(self._continuation_law)
 
     # ------------------------------------------------------------------ #
     # Physical prior
@@ -193,6 +194,41 @@ class SolverBank:
                         )
         return tuple((action, math.fsum(terms[action])) for action in all_actions)
 
+    def _continuation_law(self, model, action):
+        """((o, P(o, alive | b, a)), ...) for every own observation of positive probability.
+
+        The agent's own observation marginal after acting, restricted to
+        nonterminal successors: the masses sum to the probability that the
+        episode continues, and terminal mass is left out rather than
+        renormalized away. It is the chance law that post-search scoring
+        (``planning.chance_scoring``) integrates in place of the empirical
+        observation counts. The opponents' private observations and updates
+        are not enumerated, because the agent's own observation does not
+        depend on them.
+        """
+        frame, physics = model.frame, model.frame.pomdp_model
+        terms = {}
+        for atom, mass in model.belief.mass:
+            if physics.is_terminal(atom.state):
+                continue
+            other_id = atom.opponent.frame.agent_id
+            for other_action, probability in self.filter.action_distribution(atom.opponent):
+                joint = {frame.agent_id: action, other_id: other_action}
+                for following, transition_mass in checked_distribution(
+                    physics.transition_distribution(atom.state, joint), "Transition"
+                ):
+                    if physics.is_terminal(following):
+                        continue
+                    for observation, likelihood in checked_distribution(
+                        physics.observation_distribution(following, joint, frame.agent_id),
+                        "Observation",
+                    ):
+                        terms.setdefault(observation, []).append(
+                            mass * probability * transition_mass * likelihood
+                        )
+        law = ((o, math.fsum(weights)) for o, weights in terms.items())
+        return tuple((o, p) for o, p in law if p > 0)
+
     def clear_caches(self):
         """Drop cached policies, posteriors and integrals (memory only, never results)."""
         self._cached_policy.cache_clear()
@@ -202,4 +238,5 @@ class SolverBank:
         self._cumulative_mass.cache_clear()
         canonical.belief_digest.cache_clear()
         self.expected_rewards.cache_clear()
+        self.continuation_law.cache_clear()
         gc.collect()

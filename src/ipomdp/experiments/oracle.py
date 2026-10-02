@@ -9,6 +9,12 @@ same problem is solved exactly, and the row records:
   handles ties exactly and is not an episode regret.
 - ``max_abs_q_error`` = max_a |Q_hat(b, a) - Q*(b, a)|.
 
+For I-POMCP, Q_hat is the post-search chance-scored value that decides
+(``planning.chance_scoring``). The same search's empirical-backup values are
+recorded beside it (``search_q``, ``search_first_action_loss``,
+``search_max_abs_q_error``), so the two are compared on identical trees, and
+``scores_exact`` says whether the scored root is exact by construction.
+
 Problems
 --------
 - Level 1: agent i against uniform-random L0 j; reference = alpha-vector value
@@ -62,6 +68,7 @@ from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
+from ipomdp.planning.policy import greedy_policy
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
@@ -150,6 +157,22 @@ def evaluate_case(
     if set(estimates) != set(oracle_q):
         raise ValueError("Planner must evaluate every legal action")
     value = max(oracle_q.values())
+
+    def loss(policy):
+        return value - sum(prob * oracle_q[action] for action, prob in policy.items())
+
+    def q_error(estimates):
+        return max(abs(estimates[a] - oracle_q[a]) for a in oracle_q)
+
+    search = {}
+    if planner_kind == "mcts":
+        search = {
+            "search_q": dict(planner.search_values),
+            "search_first_action_loss": loss(greedy_policy(planner.search_values)),
+            "search_max_abs_q_error": q_error(planner.search_values),
+            "scores_exact": planner.scores.exact,
+            "fallback_actions": planner.scores.fallback_actions,
+        }
     return [
         {
             "planner": planner_kind,
@@ -172,10 +195,10 @@ def evaluate_case(
             "oracle_q": oracle_q,
             "estimated_q": estimates,
             "policy": policy,
-            "first_action_loss": value
-            - sum(prob * oracle_q[action] for action, prob in policy.items()),
-            "max_abs_q_error": max(abs(estimates[a] - oracle_q[a]) for a in oracle_q),
+            "first_action_loss": loss(policy),
+            "max_abs_q_error": q_error(estimates),
             "planner_cpu_seconds": planner_cpu_seconds,
+            **search,
         }
     ]
 

@@ -17,6 +17,12 @@ complete opponent models (``belief.finite_belief``). For each of N simulations:
 4. Back up with the empirical chance-weighted Bellman operator
    (``node.POMCPNode.bellman_backup``).
 
+After the simulations, the finished tree is rescored bottom-up with the exact
+chance law P(o, alive | b_h, a) in place of the sampled observation frequencies
+(``chance_scoring``). The rescored values decide; the search values are kept
+beside them for diagnostics. Real decisions and modeled opponents use the same
+rule, so an opponent is predicted to act as the planner itself would.
+
 Two quantities are integrated exactly instead of sampled, because doing so was
 what made the estimator converge against exact references:
 
@@ -55,6 +61,7 @@ from dataclasses import asdict
 
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
+from ipomdp.planning.chance_scoring import score_tree
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.exploration import HorizonBoundUCB
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
@@ -75,7 +82,10 @@ class IPOMCPPlanner(Planner):
         # Stream for sampling this agent's real actions from its greedy policy.
         self.rng = random.Random(solver_bank.stream_seed("actions", str(solver_key)))
         self.root = POMCPNode()
+        # Last real decision: search Q, and the rescored values it was taken on.
+        self.search_values = {}
         self.recommendation_values = {}
+        self.scores = None
         self.belief = None
         self.initial_belief = None
 
@@ -105,7 +115,9 @@ class IPOMCPPlanner(Planner):
             self.model(), action, observation, terminal=False
         ).belief
         self.root = POMCPNode()
+        self.search_values = {}
         self.recommendation_values = {}
+        self.scores = None
 
     # ------------------------------------------------------------------ #
     # Decisions
@@ -128,11 +140,20 @@ class IPOMCPPlanner(Planner):
         memory = self._physical_marginal(model)
         for _ in range(simulations):
             self._simulate(node, 0, memory, model, rng)
-        values = dict(node.action_values)
-        policy = greedy_policy(values)
+        scores = score_tree(
+            node,
+            model,
+            self.config.depth,
+            self.solver_bank,
+            self._history_successor,
+            self.config.gamma,
+        )
+        policy = greedy_policy(scores.values)
         if not modeled:
             self.root = node
-            self.recommendation_values = values
+            self.search_values = dict(node.action_values)
+            self.recommendation_values = dict(scores.values)
+            self.scores = scores
         return policy
 
     # ------------------------------------------------------------------ #
@@ -237,6 +258,10 @@ class IPOMCPPlanner(Planner):
             "modeled_simulations": self.config.modeled_simulations,
             "belief_size": len(self.belief.mass),
             "root_visit_count": self.root.visit_count,
-            "action_values": {str(a): q for a, q in self.root.action_values.items()},
+            "search_values": {str(a): q for a, q in self.search_values.items()},
+            "action_values": {str(a): q for a, q in self.recommendation_values.items()},
             "action_counts": {str(a): c for a, c in self.root.action_counts.items()},
+            "scores_exact": self.scores.exact if self.scores else None,
+            "fallback_actions": self.scores.fallback_actions if self.scores else None,
+            "frontiers": self.scores.frontiers if self.scores else None,
         }

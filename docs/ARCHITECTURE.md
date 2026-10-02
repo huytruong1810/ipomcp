@@ -48,14 +48,15 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 - **`IPOMCPPlanner`** is root-sampling tree search over the agent's private histories. It uses:
   - empirical chance-weighted Bellman backups (`node.POMCPNode.bellman_backup`);
   - exact expected immediate rewards at every history, plus exact last-decision values, integrated over the agent's own posterior at that history;
-  - horizon-bounded UCB scaled by declared reward bounds (`exploration.HorizonBoundUCB`).
+  - horizon-bounded UCB scaled by declared reward bounds (`exploration.HorizonBoundUCB`);
+  - post-search chance scoring (`chance_scoring.score_tree`): the finished tree is rescored bottom-up with the exact chance law P(o, alive | b_h, a) in place of sampled frequencies. The scored values decide, for real decisions and modeled opponents alike; the search values are kept beside them (`search_values`).
 
   These components are fixed rather than configurable. They are the estimator shown to converge against exact references; the alternatives that did not converge were removed.
 - **`SolverBank`** is one agent's registry of nested models. It holds:
   - the domain prior;
   - the belief update (exact or particle);
   - a cache of modeled policies;
-  - the exact reward integrator.
+  - the exact reward integrator (`expected_rewards`) and chance law (`continuation_law`).
 
   A modeled opponent's policy is the greedy policy of that opponent's own planner, solved at the opponent's belief with the *modeled* simulation budget.
 - **Purity.** Every solve is seeded from (bank seed, agent, level, canonical belief digest, configuration). A modeled policy is therefore a pure function of the modeled belief, and caches remain valid across real steps.

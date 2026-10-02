@@ -86,16 +86,32 @@ def evaluate_cell(planner, horizon, budget, modeled, particles, particle_filter,
     ]
 
 
+def _optimal_rate(losses):
+    """Share of decisions with zero loss; NaN for planners without the column (RTS)."""
+    losses = losses.dropna()
+    return float((losses <= 1e-9).mean()) if len(losses) else float("nan")
+
+
+def _mean(flags):
+    flags = flags.dropna()
+    return float(flags.astype(float).mean()) if len(flags) else float("nan")
+
+
 def summarize(rows):
     frame = pd.DataFrame(rows)
     return (
         frame.groupby(list(CELL))
         .agg(
             n=("first_action_loss", "size"),
-            optimal_rate=("first_action_loss", lambda x: float((x <= 1e-9).mean())),
+            optimal_rate=("first_action_loss", _optimal_rate),
             mean_loss=("first_action_loss", "mean"),
             max_loss=("first_action_loss", "max"),
             mean_q_error=("max_abs_q_error", "mean"),
+            max_q_error=("max_abs_q_error", "max"),
+            search_optimal_rate=("search_first_action_loss", _optimal_rate),
+            search_max_loss=("search_first_action_loss", "max"),
+            search_mean_q_error=("search_max_abs_q_error", "mean"),
+            exact_root_rate=("scores_exact", _mean),
             mean_cpu_seconds=("planner_cpu_seconds", "mean"),
             mean_update_cpu_seconds=("history_update_cpu_seconds", "mean"),
             mean_support=("belief_support", "mean"),

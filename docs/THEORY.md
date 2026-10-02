@@ -53,6 +53,19 @@ Terminal outcomes stay in N(h, a) with zero continuation. Child values are re-re
 
 None of these exact pieces use the sampled hidden state or the opponent's actual action. Action selection never inspects the sampled state, so replacing sampled rewards by their expectations leaves the backup's target unchanged and removes their variance.
 
+**Post-search chance scoring** (`planning.chance_scoring`). After the simulations, the tree is rescored bottom-up with the exact chance law instead of the sampled frequencies C(h, a, o) / N(h, a):
+
+    Q*(h, a) = E[R | b_h, a] + γ Σ_o P(o, alive | b_h, a) V*(h a o),   V*(h) = max_{evaluated a} Q*(h, a)
+
+with V* at the last decision equal to max_a E[R | b_h, a]. Terminal mass contributes zero and is not renormalized away. What stays approximate:
+- an action with a positive-probability observation that search never sampled keeps its search Q as a whole (weighting only the sampled branches would bias it toward zero);
+- a child reached once enters with its rollout estimate;
+- actions search never tried are not maximized over.
+
+If every legal action is evaluated, every positive branch has a child, and every leaf is the exact last step, backward induction makes the scored root equal to the exact best response to the opponents' modeled policies, relative to the searched belief (tests check this to 1e-9). The planner records whether this held (`scores.exact`); local completeness at one history does not certify its subtree, so exactness is propagated from the leaves.
+
+The scored values decide, both for the planner's real decisions and when it is queried as a modeled opponent, so an opponent is predicted to act by the same rule. Search itself (UCB, backups, random streams) is unchanged; the search values are kept as `search_values` for paired comparison.
+
 **Exploration.** UCB with width (r_max − r_min) Σ_{t<H} γ^t from the declared reward bounds. Ties are broken uniformly.
 
 **What is not claimed.** There is no finite-budget optimality guarantee. Tree statistics are non-stationary, and the maximum over noisy children is optimistic at small counts. Convergence is established empirically against exact references.
