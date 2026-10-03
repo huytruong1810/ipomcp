@@ -10,6 +10,7 @@ being 61-88% optimal here.
 import pytest
 
 from ipomdp.experiments.l1_qualification import evaluate_cell, summarize
+from ipomdp.experiments.oracle import optimal_q_error
 
 BELIEFS = (0.1, 0.5, 0.85, 0.98)
 SEEDS = (0, 1)
@@ -23,5 +24,14 @@ def test_root_decisions_are_exactly_optimal_at_one_thousand_simulations(horizon)
 
 def test_q_error_shrinks_with_budget():
     rows = [row for budget in (100, 3000) for row in evaluate_cell(budget, 4, SEEDS, BELIEFS)]
-    errors = summarize(rows).set_index("budget")["mean_max_q_error"]
-    assert errors[3000] < errors[100]
+    summary = summarize(rows).set_index("budget")
+    for metric in ("mean_max_q_error", "mean_optimal_q_error"):
+        assert summary.loc[3000, metric] < summary.loc[100, metric], metric
+    # The optimal action's error never exceeds the all-action maximum.
+    assert all(row["optimal_q_error"] <= row["max_abs_q_error"] for row in rows)
+
+
+def test_optimal_q_error_ignores_clearly_wrong_actions():
+    exact = {"listen": 2.0, "open_left": -90.0, "open_right": 2.0}
+    estimates = {"listen": 2.1, "open_left": -95.0, "open_right": 1.8}
+    assert optimal_q_error(estimates, exact) == pytest.approx(0.2)

@@ -9,6 +9,8 @@ depth H, solves the same problem from the exact belief, and each row records:
 - ``optimal``: every action the planner's policy can choose is an exact maximizer;
 - ``loss``: V*(b) - sum_a pi(a | b) Q*(b, a);
 - ``max_abs_q_error``: max_a |Q_hat(b, a) - Q*(b, a)|;
+- ``optimal_q_error``: the same over the exactly optimal actions only
+  (``oracle.optimal_q_error``), the error of the value the decision rests on;
 - ``planner_cpu_seconds``: process CPU time of the root decision.
 
 This is the first rung of the small-scale-first ladder. A planner change must
@@ -29,13 +31,13 @@ from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalMo
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, optimal_q_error
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 
 BELIEFS = (0.02, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.85, 0.9, 0.95, 0.98)
-OPTIMALITY_TOLERANCE = 1e-9
 
 
 def evaluate_cell(budget, horizon, seeds, beliefs=BELIEFS, gamma=0.95):
@@ -77,6 +79,7 @@ def evaluate_cell(budget, horizon, seeds, beliefs=BELIEFS, gamma=0.95):
                         q[a] >= best - OPTIMALITY_TOLERANCE for a, w in policy.items() if w > 0
                     ),
                     max_abs_q_error=max(abs(estimate[a] - q[a]) for a in q),
+                    optimal_q_error=optimal_q_error(estimate, q),
                     planner_cpu_seconds=cpu,
                 )
             )
@@ -95,6 +98,7 @@ def summarize(rows):
             max_loss=("loss", "max"),
             mean_max_q_error=("max_abs_q_error", "mean"),
             max_q_error=("max_abs_q_error", "max"),
+            mean_optimal_q_error=("optimal_q_error", "mean"),
             mean_cpu_seconds=("planner_cpu_seconds", "mean"),
         )
         .reset_index()

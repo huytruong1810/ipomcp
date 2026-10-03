@@ -53,7 +53,7 @@ from pathlib import Path
 import pandas as pd
 
 from ipomdp.analysis.statistics import clopper_pearson
-from ipomdp.experiments.oracle import evaluate_case
+from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, evaluate_case
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
@@ -106,7 +106,7 @@ def evaluate_cell(
 
 def _optimal(losses):
     """Zero-loss flags; empty for planners without the column (RTS search columns)."""
-    return losses.dropna() <= 1e-9
+    return losses.dropna() <= OPTIMALITY_TOLERANCE
 
 
 def _optimal_rate(losses):
@@ -142,9 +142,11 @@ def summarize(rows):
             max_loss=("first_action_loss", "max"),
             mean_q_error=("max_abs_q_error", "mean"),
             max_q_error=("max_abs_q_error", "max"),
+            mean_optimal_q_error=("optimal_q_error", "mean"),
             search_optimal_rate=("search_first_action_loss", _optimal_rate),
             search_max_loss=("search_first_action_loss", "max"),
             search_mean_q_error=("search_max_abs_q_error", "mean"),
+            search_mean_optimal_q_error=("search_optimal_q_error", "mean"),
             exact_root_rate=("scores_exact", _mean),
             mean_cpu_seconds=("planner_cpu_seconds", "mean"),
             mean_update_cpu_seconds=("history_update_cpu_seconds", "mean"),

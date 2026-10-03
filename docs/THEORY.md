@@ -84,6 +84,7 @@ Every error report states which one it uses.
 
 - **First-action loss:** V*(b) − Σ_a π(a|b) Q*(b, a). This is the value lost by the planner's root decision when every later decision is optimal. It handles ties exactly and is not an episode regret.
 - **Maximum Q error:** max_a |Q̂(b, a) − Q*(b, a)|.
+- **Optimal-action Q error:** the same maximum, taken only over the exactly optimal actions. It is the error of the value the agent acts on, and the measure for error bounds. The all-action maximum is dominated by clearly wrong actions, which search rightly samples little (RESULTS.md Section 12.2).
 - **Belief error:**
   - total variation between level posteriors;
   - total variation between nested path masses at a given depth (what a sunburst ring shows);

@@ -8,11 +8,13 @@ same problem is solved exactly, and the row records:
   lost by the planner's root decision when every later decision is optimal. It
   handles ties exactly and is not an episode regret.
 - ``max_abs_q_error`` = max_a |Q_hat(b, a) - Q*(b, a)|.
+- ``optimal_q_error`` = the same maximum over the exactly optimal actions only
+  (``optimal_q_error``): the error of the value the decision rests on.
 
 For I-POMCP, Q_hat is the post-search chance-scored value that decides
 (``planning.chance_scoring``). The same search's empirical-backup values are
 recorded beside it (``search_q``, ``search_first_action_loss``,
-``search_max_abs_q_error``), so the two are compared on identical trees, and
+``search_max_abs_q_error``, ``search_optimal_q_error``), so the two are compared on identical trees, and
 ``scores_exact`` says whether the scored root is exact by construction.
 
 Problems
@@ -170,6 +172,7 @@ def evaluate_case(
             "search_q": dict(planner.search_values),
             "search_first_action_loss": loss(greedy_policy(planner.search_values)),
             "search_max_abs_q_error": q_error(planner.search_values),
+            "search_optimal_q_error": optimal_q_error(planner.search_values, oracle_q),
             "scores_exact": planner.scores.exact,
             "fallback_actions": planner.scores.fallback_actions,
         }
@@ -197,10 +200,28 @@ def evaluate_case(
             "policy": policy,
             "first_action_loss": loss(policy),
             "max_abs_q_error": q_error(estimates),
+            "optimal_q_error": optimal_q_error(estimates, oracle_q),
             "planner_cpu_seconds": planner_cpu_seconds,
             **search,
         }
     ]
+
+
+OPTIMALITY_TOLERANCE = 1e-9
+
+
+def optimal_q_error(estimates, exact):
+    """max |Q_hat(b, a) - Q*(b, a)| over the actions that are exactly optimal.
+
+    The all-action maximum (``max_abs_q_error``) is dominated by clearly wrong
+    actions: search rightly spends few simulations below them, so their
+    continuation values stay noisy while the decision is unaffected (RESULTS.md
+    Section 12.2: L1 H5 at 5,000 simulations, 1.35 over all actions vs 0.12 on
+    the optimal one). Error bounds on the value an agent acts on are reported
+    with this metric; both are recorded.
+    """
+    best = max(exact.values())
+    return max(abs(estimates[a] - q) for a, q in exact.items() if q >= best - OPTIMALITY_TOLERANCE)
 
 
 def _planner_config(planner_kind, budget, depth, gamma, exploration):

@@ -420,3 +420,79 @@ CPU columns are the previous run (Section 9) and this run. The k = 6 runs shared
 - **It does not help at H4–H5**, where error is dominated by under-sampled actions and opponent models.
 
 Kept as the default because it improves the accuracy of reported Q values at no decision cost. The comparison stays one commit away, since every row records both values.
+
+## 12. Wider n (October 2, 2026)
+
+Sections 1–11 rest on 30–33 decisions per cell. This section re-measures the questions those cells left open, with more problems.
+
+### 12.1 L1 H5 Q error: no regression from per-step belief sampling
+
+**Question.** At 5,000 simulations, L1 H5 mean max Q error was 0.88 in Section 1, 1.46 after per-step belief sampling (Section 9's code) and 1.50 with chance scoring (Section 11). Did `f793712` make long-horizon values worse?
+
+**Design.** Section 1's problem (11 beliefs) at H5, 1,000 and 5,000 simulations, seeds 0–19: n = 220 per cell. Three arms, paired by (seed, belief):
+- **before:** `f793712^` (one root particle carried down the tree);
+- **after:** `f793712` (each step's state drawn from b_h);
+- **HEAD:** `6f6c49d` (after + chance scoring).
+
+The before and after arms ran from temporary worktrees of those commits. `results/gap2_belief_sampling_paired_20261002`.
+
+**Results** (mean max Q error; differences are paired, with 95% t-intervals):
+
+| Simulations | before | after | HEAD (scored) | after − before | HEAD − after |
+|---|---|---|---|---|---|
+| 1,000 | 1.71 | 1.47 | 1.52 | −0.24 [−0.53, +0.06] | +0.05 [−0.02, +0.12] |
+| 5,000 | 1.05 | 1.03 | 1.14 | −0.02 [−0.22, +0.18] | +0.11 [+0.05, +0.17] |
+
+Every decision in every arm is optimal (220/220; 95% Clopper–Pearson lower bound 98.3%).
+
+- **No regression from `f793712`.** On seeds 0–2, the arms reproduce the earlier figures exactly (0.88, 1.46/1.67 and 1.50). Per-seed means at 5,000 simulations range from 0.56 to 2.15, so three-seed averages cannot resolve differences of this size.
+- **Chance scoring slightly raises L1 H5 Q error at 5,000 simulations** (+0.11; Wilcoxon p = 0.0005). HEAD's search values equal the after arm's to the last digit, so this is scoring alone, on identical trees (`scoring_on_identical_trees.py`). Every one of the 440 roots has at least one action that falls back to its search value. This corrects Section 11's "flat at H4–H5": at H5 scoring is mildly harmful to Q values, though not to decisions.
+- **The long-horizon plateau is real, and it is heavy-tailed.** Mean max Q error at H5 falls only from 1.47 to 1.03 between 1,000 and 5,000 simulations, and single decisions reach errors of 6–12. This is HANDOFF next step 3.
+
+### 12.2 The long-horizon Q plateau is mostly the metric
+
+**Question.** Mean max Q error barely falls with budget at long horizons (L1 H5: 1.47 → 1.03 from 1,000 to 5,000 simulations, Section 12.1; L2 H4 about 1.0 in 100%-optimal cells). Where does the error enter?
+
+**Design.** L1 H5, seeds 0–4 × Section 1's 11 beliefs (n = 55 problems per budget). Each root action's search Q error is split exactly into immediate, chance and continuation error (`analysis.error_attribution.describe_node`). `results/q_plateau_diagnosis_20261002/root_attribution.py`.
+
+**Findings.**
+- **The error is continuation error.** Immediate error is 0, since E[R | b_h, a] is exact, and chance error is at most 0.007 in mean. Every root action sampled all 6 observation branches, and no child was a rollout frontier.
+- **It sits on clearly wrong actions.** The eight largest errors (2.2–5.7) are all on the door the tiger is likely behind (exact Q −79 to −99). These eight had 121–205 of 5,000 visits (door openings average 800–1,200), as UCB should give them, so the value of the 4-step game after the reset is estimated from few samples. "max_a |Q̂ − Q*|" takes its maximum over these actions.
+- **The decision-relevant value converges.** Q error of the optimal action(s) falls with budget, while the all-action maximum barely moves:
+
+| L1 H5 (n = 55) | 1,000 simulations | 5,000 simulations |
+|---|---|---|
+| Max Q error over all actions | 1.57 | 1.35 |
+| Q error of the optimal action | 0.40 | 0.12 |
+
+- **L2 shows the same pattern** (Section 11's rows, n = 30 per cell). Optimal-action Q error vs the all-action maximum:
+  - H4, modeled 4,000: 0.44 vs 1.05;
+  - H3, k = 6, compressed 64: 0.30 vs 1.01;
+  - H4, modeled 100: 0.85–1.09 vs 2.4–2.6, where opponent-model error also enters.
+- **Chance scoring is neutral on the optimal action** (0.120 → 0.120 at 5,000 simulations). Its +0.11 in Section 12.1 is on the poorly sampled wrong actions, where every root falls back on at least one action.
+
+**Consequence for contribution 2.** Error bounds should be reported on the decision-relevant value: optimal-action Q error, or the value error |max Q̂ − V*|. The all-action maximum is still recorded, but it measures how well search has valued actions it rightly neglects.
+
+### 12.3 L2 decisions over 380 problems per cell
+
+**Design.** Six cells of Sections 9 and 11, each over 19 beliefs of i (0.05, 0.10, …, 0.95) × 5 private beliefs of j (0.085, 0.3, 0.5, 0.7, 0.915) × seeds 0–3, so n = 380 per cell (was 30). With k > 0, each seed also draws a different history (states, j's actions, i's observations; i's actions follow `oracle.HISTORY_ACTIONS`). Reference: the exact I-POMDP. Intervals are exact 95% Clopper–Pearson. `results/l2_wide_n_20261002` (launcher inside).
+
+Exact beliefs at H3, k = 4 were left out: one problem took 279 s of planner CPU (Section 8's mean was 22 s), and compressed 64 is the planner default.
+
+| Problem | Beliefs | Optimal | 95% interval | Mean max Q error | Optimal-action Q error | CPU (s) |
+|---|---|---|---|---|---|---|
+| H3, k = 0 | exact | 380/380 | 99.0–100% | 0.05 | 0.05 | 0.3 |
+| H3, k = 2 | exact | 379/380 | 98.5–100% | 0.09 | 0.06 | 2.7 |
+| H3, k = 2 | compressed 64 | 373/380 | 96.2–99.3% | 0.21 | 0.14 | 1.6 |
+| H3, k = 4 | compressed 64 | 380/380 | 99.0–100% | 0.13 | 0.13 | 1.8 |
+| H4, root 250, modeled 4,000 | exact | 380/380 | 99.0–100% | 1.00 | 0.48 | 36 |
+| H4, root 1,000, modeled 100 | exact | 370/380 | 95.2–98.7% | 1.45 | 0.46 | 2.2 |
+
+**Findings.**
+- **H3 decisions are near-optimal at this n.** The 8 misses (H3, k = 2) are near ties: each lost exactly the gap to the second-best action, 0.11–0.40.
+- **The H4 misses at modeled 100 are confined to the four "corner" problems,** where both i (0.05 or 0.95) and j (0.085 or 0.915) are confident:
+  - corner problems: 6/16 optimal (95% interval 15–65%);
+  - every other problem: 364/364 (99.0–100%).
+  The old grid's 80% (Sections 9 and 11) came from its problem mix: corners were 4 of its 15 problems, but are 4 of 95 here. A headline rate over a belief grid depends on the grid, so this cell is reported split. At modeled 4,000 the corners are 16/16. This is Section 5's opponent-model error, localized: j-L1 at a confident belief is mis-solved by 100 simulations.
+- **Chance scoring** corrected 5 decisions and regressed 1 out of 2,280, all near ties.
+- **Optimal-action Q error is 2–3× below the all-action maximum at H4** (Section 12.2).
