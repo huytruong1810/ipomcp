@@ -599,4 +599,11 @@ At an equal 1,600 cap, replicates are worse on near ties (17/20 vs 20/20), becau
 - **Cost, paired.** For 40 problems, both arms ran back to back in one process, in alternating order. i's decision CPU with stopping (cap 6,400) is 0.47× flat 1,600 (median 0.47; Wilcoxon p = 2×10⁻¹²): 9.8 s vs 20.6 s under that machine load. Per modeled solve it is 0.16 s vs 0.37 s, with 3.5 replicates on average and no per-replicate overhead.
 - **The unpaired panel CPU is not comparable.** The gate panel showed 13.1–13.8 s against 13.7 s for arm A, but arm A ran on a quieter machine (another project's 8 jobs were running during the gate). CPU comparisons across runs at different load are invalid; compare only paired, same-process measurements.
 
-**Verdict.** At L2 H4, stopping with cap 6,400 gives the accuracy of flat 1,600 at half the CPU, and caps the near-tie error at the level that flat 6,400 reaches (12.5). It stays opt-in until it passes at H3 and at L3, where modeled solves nest.
+**L3 gate** (L3 H3, root 1,000, stopping with cap 1,600 for both modeled levels, the 162 problems of 12.7; `results/l3_stopping_gate_20261003`):
+- **Accuracy.** 162/162 optimal. Values are identical to the exact-opponent cell, so every modeled policy matched the exact one.
+- **Cost, paired** (16 problems, alternating order). Stopping costs 1.30× flat 400 (median 1.23; Wilcoxon p = 3×10⁻⁵): 37.6 s vs 29.5 s. Flat 400 already reproduces the exact policies at L3 H3 (12.7), while the rule's floor is 3 replicates × 200 = 600 simulations. That floor applies at each nested level.
+
+**Verdict.**
+- **Use stopping where the qualified flat budget is well above its 600-simulation floor.** At L2 H4 it halves CPU at equal accuracy, and caps near-tie error at the level flat 6,400 reaches (12.5).
+- **Use a flat budget where a small one already qualifies.** At L3 H3, flat 400 matches exact and the rule costs 1.3×.
+- **It stays opt-in, chosen per modeled level.** It is not a default.
