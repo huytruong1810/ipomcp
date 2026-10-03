@@ -96,6 +96,7 @@ def evaluate_case(
     particles=None,
     particle_filter="compressed",
     history_steps=0,
+    opponent_observer=None,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
@@ -103,16 +104,24 @@ def evaluate_case(
     "declared" scores the planner against the best response to its own finite
     opponent model (search error only); "exact" scores it against the exact
     I-POMDP, where the opponent is the exact L1 agent (search plus model error).
+
+    ``opponent_observer`` (level 2 only) is called as ``observer(model, policy)``
+    for every j-L1 mental model whose modeled policy the planner requests, with
+    the policy it got. These are the beliefs at which the opponent's budget must
+    be qualified (``experiments.modeled_qualification``); the bank's policy cache
+    means each distinct model is reported once.
     """
     _validate_problem(
         planner_kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
     )
     if history_steps and level == 1:
         raise ValueError("The L1 alpha-vector reference is solved at the prior; use level 2")
+    if opponent_observer is not None and level == 1:
+        raise ValueError("Level 1 has a uniform L0 opponent; there is no modeled policy to observe")
     model = TigerModel()
     bank = SolverBank(seed, particles=particles, particle_filter=particle_filter)
     key = SolverKey("i", level)
-    config = _planner_config(planner_kind, budget, horizon, gamma, exploration)
+    config = planner_config(planner_kind, budget, horizon, gamma, exploration)
     planner = _planner(planner_kind, key, model, bank, config)
     bank.register_solver(key, planner)
     # L0 action streams are never drawn in a single root decision; seed them anyway.
@@ -131,8 +140,10 @@ def evaluate_case(
                 SolverKey("j", 1),
                 model,
                 bank,
-                _planner_config(planner_kind, opponent_budget, opponent_depth, gamma, exploration),
+                planner_config(planner_kind, opponent_budget, opponent_depth, gamma, exploration),
             )
+        if opponent_observer is not None:
+            provider = _ObservedSolver(provider, opponent_observer)
         bank.register_solver(SolverKey("j", 1), provider)
     belief = _two_state_belief(model, level, belief_p, opponent_belief)
     planner.set_initial_belief(belief)
@@ -224,7 +235,26 @@ def optimal_q_error(estimates, exact):
     return max(abs(estimates[a] - q) for a, q in exact.items() if q >= best - OPTIMALITY_TOLERANCE)
 
 
-def _planner_config(planner_kind, budget, depth, gamma, exploration):
+class _ObservedSolver:
+    """A registered solver that reports each modeled policy it computes, with its model.
+
+    The bank asks a registered solver only for modeled policies, so delegating
+    ``policy_for`` and the physics it checks frames against is the whole contract.
+    """
+
+    def __init__(self, solver, observer):
+        self.solver, self.observer = solver, observer
+        self.pomdp_model = solver.pomdp_model
+
+    def policy_for(self, model, modeled=False):
+        policy = self.solver.policy_for(model, modeled)
+        if modeled:
+            self.observer(model, policy)
+        return policy
+
+
+def planner_config(planner_kind, budget, depth, gamma, exploration):
+    """The configuration every oracle problem gives a planner of this kind and budget."""
     if planner_kind == "mcts":
         return PlannerConfig(
             simulations=budget,
