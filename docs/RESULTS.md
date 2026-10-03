@@ -542,3 +542,38 @@ All 10 wrong decisions at 100 fall in the problems where i's decision was wrong.
 - **j's own loss does not separate harmful from harmless mistakes.** Harmful ones lose 0.66; harmless ones lose 0.2–1.0. No loss tolerance selects the budget i needs.
 - **Zero wrong modeled decisions is the qualifying rule.** It is sufficient for i to be unaffected, and it uses only the modeled level's exact reference. That makes it usable where the higher level's exact solution is out of reach (L3 and beyond). It certifies 400 at H3 and 6,400 at H4 (0/8,284; correct rate ≥ 99.96%).
 - **It is conservative.** At H4, i's decisions are already 380/380 at 1,600 (12.4), with 2 harmless near-tie beliefs left. Where the higher level's exact reference exists, it can lower the budget, as in 12.4. Where it does not, the certified budget is the honest choice.
+
+### 12.6 Why near-tie modeled decisions need thousands of simulations
+
+**Question.** At H4, wrong j-L1 queries fall 152 → 95 → 38 → 0 from 100 to 6,400 simulations (12.5). That is a 64× budget for a few near-tie beliefs. Is this a bug, a poor allocation, or estimator variance?
+
+**Design.** j-L1 (depth 4) at P(tiger left) = 0.0767: exact Q is open-left 0.246, listen 0.043, open-right −92.9. Budgets 100–6,400 × seeds 0–19 (n = 20 per budget). Root visits and Q estimates are logged per action. `results/near_tie_diagnosis_20261003/near_tie.py`.
+
+| Simulations | Correct | Visits listen / open-left / open-right | Search Q(open-left): mean ± sd | Scored Q(open-left): mean ± sd |
+|---|---|---|---|---|
+| 100 | 11/20 | 42 / 43 / 15 | 0.35 ± 1.00 | 0.30 ± 1.09 |
+| 400 | 12/20 | 181 / 183 / 36 | 0.30 ± 0.50 | 0.28 ± 0.43 |
+| 1,600 | 18/20 | 761 / 769 / 70 | 0.26 ± 0.22 | 0.26 ± 0.19 |
+| 6,400 | 20/20 | 3,120 / 3,169 / 112 | 0.24 ± 0.07 | 0.27 ± 0.03 |
+
+**Findings.**
+- **No bug.** Estimates centre on the exact values and their spread shrinks as 1/√n.
+- **No allocation problem.** UCB splits visits evenly between the two contenders and spends little on the clearly wrong door. Simple-regret root selection, such as Sequential Halving (Karnin et al. 2013, as used at the root of Gumbel MuZero, Danihelka et al. 2022), would allocate the same way here, so it was not tried.
+- **The floor is return variance.** About 6.5 per simulation means a 0.2 gap needs thousands of visits per action. Only variance reduction moves this floor. Chance scoring already cuts the spread 2.5× at 6,400 (0.07 → 0.03).
+- **Consequence.** A flat modeled budget pays the near-tie price at every queried belief, even though most beliefs are clear. Adaptive per-belief budgets would cut that cost: stop when the decision is statistically separated, spend more on near ties. Such a rule is not designed or tested yet.
+
+### 12.7 First level-3 decisions against the exact L3 I-POMDP (October 3, 2026)
+
+**Design.** `experiments.panel` at level 3: i-L3 models j-L2, who models i-L1, who faces uniform L0 j. Point beliefs: 9 of i (0.1–0.9) × 3 of j × 3 of the modeled i-L1 (0.085, 0.5, 0.915) × seeds 0–1, n = 162 per cell. Root 1,000; modeled 0 means every lower level is exact. Before the run, the L3 reference was checked against `build_exact_agent`'s independently assembled hierarchy: equal to 0.0 at H3. `results/l3_panel_20261003`.
+
+| Horizon | Modeled simulations | Optimal | 95% interval | Optimal-action Q error | Max Q error | CPU (s) |
+|---|---|---|---|---|---|---|
+| 2 | exact | 162/162 | 97.7–100% | 0 | 0 | 0.16 |
+| 3 | exact | 162/162 | 97.7–100% | 0.06 | 0.42 | 17 |
+| 3 | 100 | 162/162 | 97.7–100% | 0.17 | 0.48 | 14 |
+| 3 | 400 | 162/162 | 97.7–100% | 0.06 | 0.42 | 26 |
+
+- **Every L3 decision checked is optimal**, with exact or finite modeled opponents.
+- **At 400 simulations, every modeled j-L2 policy equals the exact one.** i's trees and values are identical to the exact-opponent cell to the last digit. At 100, 144 of 162 problems are identical, and Q error rises (0.17 vs 0.06) without changing a decision.
+- **Mid-episode exact checks reach their limit at L3.** All four H3, k = 2 jobs exceeded the 4 GB memory limit. One such problem alone ran over 30 minutes and reached a 5 GB peak. At H2, k = 2 takes 6–8 s, but i's support there is 32 atoms, so compressed 64 equals exact and nothing is tested. H2 at k = 4 with exact beliefs did not finish in 26 minutes.
+- **Tractable frontier for exact L3 decision checks (Tiger): H3 at k = 0 and H2 at k ≤ 2.** Compressed-belief error at L3 must be measured as belief error against exact filtering (`belief_qualification`), not as decisions.
