@@ -1,6 +1,6 @@
 # Results
 
-All results come from the current code (branch `claude/restructure`, October 1, 2026) and the published Tiger specification unless stated otherwise. **n** is the number of evaluated decisions or steps behind each number.
+All results come from the current code (`main`; Sections 1–8 from October 1, 2026) and the published Tiger specification unless stated otherwise. **n** is the number of evaluated decisions or steps behind each number.
 
 Terms:
 - **"Optimal":** every action the planner can choose is an exact maximizer.
@@ -447,7 +447,7 @@ Every decision in every arm is optimal (220/220; 95% Clopper–Pearson lower bou
 
 - **No regression from `f793712`.** On seeds 0–2, the arms reproduce the earlier figures exactly (0.88, 1.46/1.67 and 1.50). Per-seed means at 5,000 simulations range from 0.56 to 2.15, so three-seed averages cannot resolve differences of this size.
 - **Chance scoring slightly raises L1 H5 Q error at 5,000 simulations** (+0.11; Wilcoxon p = 0.0005). HEAD's search values equal the after arm's to the last digit, so this is scoring alone, on identical trees (`scoring_on_identical_trees.py`). Every one of the 440 roots has at least one action that falls back to its search value. This corrects Section 11's "flat at H4–H5": at H5 scoring is mildly harmful to Q values, though not to decisions.
-- **The long-horizon plateau is real, and it is heavy-tailed.** Mean max Q error at H5 falls only from 1.47 to 1.03 between 1,000 and 5,000 simulations, and single decisions reach errors of 6–12. This is HANDOFF next step 3.
+- **The long-horizon plateau is real, and it is heavy-tailed.** Mean max Q error at H5 falls only from 1.47 to 1.03 between 1,000 and 5,000 simulations, and single decisions reach errors of 6–12. Section 12.2 locates it.
 
 ### 12.2 The long-horizon Q plateau is mostly the metric
 
@@ -496,3 +496,28 @@ Exact beliefs at H3, k = 4 were left out: one problem took 279 s of planner CPU 
   The old grid's 80% (Sections 9 and 11) came from its problem mix: corners were 4 of its 15 problems, but are 4 of 95 here. A headline rate over a belief grid depends on the grid, so this cell is reported split. At modeled 4,000 the corners are 16/16. This is Section 5's opponent-model error, localized: j-L1 at a confident belief is mis-solved by 100 simulations.
 - **Chance scoring** corrected 5 decisions and regressed 1 out of 2,280, all near ties.
 - **Optimal-action Q error is 2–3× below the all-action maximum at H4** (Section 12.2).
+
+### 12.4 Modeled budget, qualified at the beliefs j is modeled at
+
+**Question.** Section 12.3's H4 misses at modeled 100 sit on the corner problems. Are they wrong j-L1 decisions, and what modeled budget removes them?
+
+**Probe** (`results/modeled_budget_probe_20261002/probe.py`). On the 16 corner problems (H4, root 1,000, modeled 100), every j-L1 belief that i's search asked a modeled policy for was logged: 480 beliefs, 12–60 per problem. Each was re-solved by j-L1 I-POMCP at several budgets and scored against the exact L1 agent (depth 4). Re-solving at 100 reproduced the in-search policy in 480/480 cases.
+
+| Modeled simulations | Wrong j-L1 decisions (of 480) |
+|---|---|
+| 100 | 10 |
+| 400 | 6 |
+| 1,600 | 0 |
+| 4,000 | 0 |
+
+All 10 wrong decisions at 100 fall in the problems where i's decision was wrong. In the problems i got right, 0 of 360 were wrong. They occur where j is confident but not certain (P(tiger left) in 0.05–0.15 or 0.85–0.95), where listening and opening are close for j.
+
+**End to end** (wide grid, n = 380 per cell, root 1,000; `results/l2_h4_modeled_sweep_20261002`, with modeled 100 from 12.3):
+
+| Modeled simulations | Optimal | 95% interval | Corners | Optimal-action Q error | CPU (s) |
+|---|---|---|---|---|---|
+| 100 | 370/380 | 95.2–98.7% | 6/16 | 0.46 | 2.2 |
+| 400 | 374/380 | 96.6–99.4% | 10/16 | 0.35 | 4.9 |
+| 1,600 | 380/380 | 99.0–100% | 16/16 | 0.19 | 13.7 |
+
+**Conclusion.** Qualifying j-L1 at the beliefs it is modeled at predicts the budget that i's decisions need: 1,600 here, not the 4,000 used so far. H4 with root 1,000 and modeled 1,600 is 100% optimal at 2.6× less CPU than root 250 and modeled 4,000 (13.7 s vs 36 s), with lower optimal-action Q error (0.19 vs 0.48).
