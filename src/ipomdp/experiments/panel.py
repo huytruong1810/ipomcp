@@ -1,19 +1,22 @@
-"""L2 panel: planners scored against the exact I-POMDP on a grid of budgets.
+"""Panel: planners scored against the exact I-POMDP on a grid of budgets.
 
-Contributions 1 and 2 both rest on one measurement: how good is a level-2
-Tiger decision, and what did it cost, compared with the exact I-POMDP. This
-driver runs that measurement over a grid of cells
+Contributions 1 and 2 both rest on one measurement: how good is a level-2 or
+level-3 Tiger decision, and what did it cost, compared with the exact I-POMDP.
+This driver runs that measurement over a grid of cells
 
-    (planner, horizon, budget, modeled budget, particles, particle filter, history)
+    (planner, level, horizon, budget, modeled budget, particles, particle filter, history)
 
 where
 
 - ``planner`` is ``mcts`` (I-POMCP; budget = root simulations) or ``rts``
   (reachability-tree sampling; budget = sampled observations per node);
-- ``modeled`` is the budget of the modeled opponent j-L1, solved by the same
-  kind of planner (I-POMCP simulations, or RTS samples as in IPF + RTS where
-  every level is solved by RTS), at depth equal to the horizon; 0 means j is the
-  exact L1 agent, which isolates i's own search and belief error;
+- ``level`` is i's level, 2 or 3: i models j at level - 1, who (at level 3)
+  models i at level 1;
+- ``modeled`` is the budget of every modeled intentional level below i, solved
+  by the same kind of planner (I-POMCP simulations, or RTS samples as in
+  IPF + RTS where every level is solved by RTS), at depth equal to the horizon;
+  0 means every lower level is exact, which isolates i's own search and belief
+  error;
 - ``particles`` bounds belief supports to N atoms, or 0 for exact beliefs;
 - ``particle filter`` is ``compressed`` (exact updates compressed to N; the
   planner's default) or ``sampled`` (the published IPF; with ``rts`` this is
@@ -23,11 +26,13 @@ where
 
 Every cell is evaluated on the same problems: beliefs of i x private beliefs of
 j x the seeds (by default 5 x 3; ``beliefs`` and ``opponent_beliefs`` widen the
-grid). With ``history`` > 0 the seed also draws the history's states, j's
+grid), and at level 3 also x the private beliefs of the level-1 i that j
+models (``nested_beliefs``). With ``history`` > 0 the seed also draws the history's states, j's
 actions and i's observations, so seeds add problems, not only planner
-randomness; at ``history`` 0 they add planner randomness only. The reference is the exact I-POMDP (j an exact L1 agent of the
-same depth, all beliefs exact), solved in its own exact bank, so each loss
-includes search error, opponent-model error and, with particles, belief error.
+randomness; at ``history`` 0 they add planner randomness only. The reference
+is the exact I-POMDP (every lower level exact at the same depth, all beliefs
+exact), solved in its own exact bank, so each loss includes search error,
+opponent-model error and, with particles, belief error.
 
 Three questions read off the same rows:
 
@@ -60,11 +65,22 @@ from ipomdp.infra.source_lock import source_hashes
 
 BELIEFS = (0.05, 0.2, 0.5, 0.8, 0.95)
 OPPONENT_BELIEFS = (0.085, 0.5, 0.915)
-CELL = ("planner", "horizon", "budget", "modeled", "particles", "particle_filter", "history")
+NESTED_BELIEFS = (0.5,)
+CELL = (
+    "planner",
+    "level",
+    "horizon",
+    "budget",
+    "modeled",
+    "particles",
+    "particle_filter",
+    "history",
+)
 
 
 def evaluate_cell(
     planner,
+    level,
     horizon,
     budget,
     modeled,
@@ -74,8 +90,12 @@ def evaluate_cell(
     seed,
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
+    nested_beliefs=NESTED_BELIEFS,
 ):
-    """Every (belief of i, belief of j) problem of one cell for one seed."""
+    """Every (belief of i, belief of j[, belief of the modeled i]) problem of one cell and seed."""
+    if level not in (2, 3):
+        raise ValueError("The panel scores levels 2 and 3")
+    nested = nested_beliefs if level == 3 else (NESTED_BELIEFS[0],)
     return [
         dict(
             evaluate_case(
@@ -84,7 +104,7 @@ def evaluate_cell(
                 budget,
                 seed,
                 p,
-                level=2,
+                level=level,
                 opponent_depth=horizon,
                 opponent_budget=modeled or None,
                 opponent_belief=p_j,
@@ -92,15 +112,18 @@ def evaluate_cell(
                 particles=particles or None,
                 particle_filter=particle_filter if particles else "compressed",
                 history_steps=history,
+                nested_belief=p_n,
             )[0],
             modeled=modeled,
             particles=particles,
             particle_filter=particle_filter if particles else "exact",
             history=history,
             opponent_belief=p_j,
+            nested_belief=p_n,
         )
         for p in beliefs
         for p_j in opponent_beliefs
+        for p_n in nested
     ]
 
 
@@ -163,6 +186,7 @@ def run_panel(
     workers,
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
+    nested_beliefs=NESTED_BELIEFS,
     timeout_seconds=7200,
     max_rss_mb=4096,
 ):
@@ -175,12 +199,17 @@ def run_panel(
         seeds=list(seeds),
         beliefs=list(beliefs),
         opponent_beliefs=list(opponent_beliefs),
+        nested_beliefs=list(nested_beliefs),
     )
     (output / "manifest.json").write_text(
         json.dumps(dict(panel=manifest, source_sha256=lock), indent=2)
     )
     jobs_index = list(itertools.product(cells, seeds))
-    problems = dict(beliefs=tuple(beliefs), opponent_beliefs=tuple(opponent_beliefs))
+    problems = dict(
+        beliefs=tuple(beliefs),
+        opponent_beliefs=tuple(opponent_beliefs),
+        nested_beliefs=tuple(nested_beliefs),
+    )
     jobs = {
         i: partial(evaluate_cell, *cell, seed, **problems)
         for i, (cell, seed) in enumerate(jobs_index)
@@ -209,6 +238,7 @@ def run_panel(
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts"])
+    parser.add_argument("--levels", type=int, choices=[2, 3], nargs="+", default=[2])
     parser.add_argument("--horizons", type=int, nargs="+", default=[3, 4])
     parser.add_argument("--budgets", type=int, nargs="+", default=[250, 1000, 4000])
     parser.add_argument("--modeled", type=int, nargs="+", default=[5, 25, 100, 400])
@@ -222,15 +252,23 @@ def main():
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
     parser.add_argument("--beliefs", type=float, nargs="+", default=list(BELIEFS))
     parser.add_argument("--opponent-beliefs", type=float, nargs="+", default=list(OPPONENT_BELIEFS))
+    parser.add_argument(
+        "--nested-beliefs",
+        type=float,
+        nargs="+",
+        default=list(NESTED_BELIEFS),
+        help="private beliefs of the level-1 i that j models (level 3 only)",
+    )
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     # Exact-belief cells ignore the filter; keep one of each.
     cells = sorted(
         {
-            (planner, horizon, budget, modeled, n, flt if n else "exact", history)
-            for planner, horizon, budget, modeled, n, flt, history in itertools.product(
+            (planner, level, horizon, budget, modeled, n, flt if n else "exact", history)
+            for planner, level, horizon, budget, modeled, n, flt, history in itertools.product(
                 args.planners,
+                args.levels,
                 args.horizons,
                 args.budgets,
                 args.modeled,
@@ -241,7 +279,13 @@ def main():
         }
     )
     summary, failures = run_panel(
-        args.output, cells, args.seeds, args.workers, args.beliefs, args.opponent_beliefs
+        args.output,
+        cells,
+        args.seeds,
+        args.workers,
+        args.beliefs,
+        args.opponent_beliefs,
+        args.nested_beliefs,
     )
     print(summary.round(4).to_string(index=False))
     if failures:

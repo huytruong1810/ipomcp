@@ -106,7 +106,7 @@ reported, and report the mean with the maximum. The compressed filter (Section
 L1 agent, so the loss includes both i's search error and its opponent-model
 error. Each cell covers 5 beliefs of i × 3 beliefs of j × 2 seeds (n = 30).
 CPU is per root decision, including the nested solves. Driver:
-`experiments.l2_panel`.
+`experiments.panel`.
 
 Optimal rate (mean max Q error in brackets):
 
@@ -147,7 +147,7 @@ in IPF + RTS where every level is solved by RTS), at depth equal to the horizon.
 The reference is the exact I-POMDP, solved on exact beliefs in its own bank.
 Each cell covers 5 beliefs of i × 3 private beliefs of j × 2 seeds (n = 30).
 CPU is per root decision, including nested solves. Driver:
-`experiments.l2_panel`; data in `results/l2_baseline_20261002`.
+`experiments.panel`; data in `results/l2_baseline_20261002`.
 
 **Both planners with IPF beliefs (N = 64)**: the full systems being compared.
 
@@ -201,7 +201,7 @@ and 400). At H3 all are 100% optimal; at H4 they are 90–97% optimal.
 - The reference is the exact I-POMDP at the exact posterior.
 - Each cell covers 5 beliefs of i × 3 beliefs of j × 2 seeds (n = 30).
 - Planning CPU is per decision; update CPU covers all k belief updates; support is the number of distinct interactive hypotheses i holds.
-- Driver: `experiments.l2_panel`; data in `results/l2_mid_episode_20261002`.
+- Driver: `experiments.panel`; data in `results/l2_mid_episode_20261002`.
 
 | History k | Beliefs | Optimal | Mean max Q error | Planning CPU | Update CPU | Support |
 |---|---|---|---|---|---|---|

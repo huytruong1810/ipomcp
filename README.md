@@ -40,8 +40,8 @@ uv run python -m ipomdp.experiments.belief_qualification --particle-filters comp
 # Planner vs exact best response or exact I-POMDP on matched problems (L1/L2 Tiger)
 uv run python -m ipomdp.experiments.oracle --out results/oracle --budgets 1000 --horizons 3 --seeds 5 --beliefs 0.2 0.5
 # Planners on a grid of budgets vs the exact I-POMDP (L2 Tiger): allocation, then I-POMCP vs IPF + RTS
-uv run python -m ipomdp.experiments.l2_panel --output results/allocation
-uv run python -m ipomdp.experiments.l2_panel --planners rts --budgets 2 4 --modeled 2 4 --particles 64 --output results/rts_ipf
+uv run python -m ipomdp.experiments.panel --output results/allocation
+uv run python -m ipomdp.experiments.panel --planners rts --budgets 2 4 --modeled 2 4 --particles 64 --output results/rts_ipf
 ```
 
 Current results, each with its sample size, are in [docs/RESULTS.md](docs/RESULTS.md).

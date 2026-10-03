@@ -14,7 +14,7 @@ What it does
 ------------
 For each L2 Tiger problem (belief of i, private belief of j, seed, history k):
 
-1. Solve i's decision as ``l2_panel`` does (I-POMCP, root ``budget``, j-L1 an
+1. Solve i's decision as ``panel`` does (I-POMCP, root ``budget``, j-L1 an
    I-POMCP agent of ``modeled`` simulations at depth equal to the horizon), and
    record every j-L1 model whose policy i's search requests
    (``oracle.evaluate_case(opponent_observer=...)``) with the policy it got.

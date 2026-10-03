@@ -14,7 +14,8 @@ def test_fixed_l2_uniform_two_step_hand_calculation_and_runner_binding():
     assert row["first_action_loss"] == 0
     assert row["level"] == 2
     assert row["opponent"] == {
-        "policy": "exact_l1_fixed_depth",
+        "policy": "exact_fixed_depth",
+        "level": 1,
         "depth": 2,
         "initial_belief_p": 0.5,
     }

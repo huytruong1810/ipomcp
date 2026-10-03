@@ -63,7 +63,7 @@ src/ipomdp/
   planning/     IPOMCPPlanner, HorizonBoundUCB, POMCPNode (Bellman backups), SolverBank
   reference/    BestResponseReference (exact, any level/domain), ExactIPOMDPPlanner, alpha vectors (L1)
   baselines/    RTSPlanner (reachability-tree sampling)
-  experiments/  study (TOML StudySpec), episodes, runner, bootstrapper, oracle, l2_panel,
+  experiments/  study (TOML StudySpec), episodes, runner, bootstrapper, oracle, panel,
                 l1_qualification, belief_qualification
   analysis/     hierarchy (sunburst nodes with content and error), metrics, figures, statistics
   infra/        process supervision, source locks, resources, paths
@@ -139,7 +139,7 @@ studies/        tiger_l3_vs_l2.toml
 4. **Wumpus qualification** (RESULTS.md Section 10).
    - Run a grid over `search_particles` (64 → 4,096) × simulations (1k → 10k), at L1 H3, against the exact best response. The pilot script is `results/wumpus_split_pilot_20261002/wumpus_split.py`.
    - Separate the two candidate causes: compressing a 25k–94k-atom root to N atoms, and too few simulations for 5 actions × 32 observations.
-   - Consider a package driver (like `l2_panel`, but domain-generic) once the design settles.
+   - Consider a package driver (like `panel`, but domain-generic) once the design settles.
 5. **Contribution 2 at scale.**
    - I-POMCP (compressed) vs IPF + RTS (sampled, as published) on longer histories and L3, scored with `optimal_q_error` as well as decisions.
    - Report RTS with compressed beliefs as an ablation; it shows that RTS's misses are search error.
@@ -173,7 +173,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 **New modules:**
 - `belief/compressed_filter.py`;
 - `belief/resampling.py`;
-- `experiments/l2_panel.py` (replaces `allocation_study`);
+- `experiments/panel.py` (replaces `allocation_study`; levels 2 and 3);
 - `experiments/study.py`, `episodes.py` and `runner.py` (replace `batch_runner`, `experiments/config.py` and `tiger_l3_vs_l2.py`);
 - `studies/tiger_l3_vs_l2.toml`.
 
@@ -191,7 +191,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
   - an exact reference in its own bank, with `REFERENCE_BRANCHES`.
 
 **Tests:**
-- new: `test_bounded_beliefs.py` (renamed from `test_particle_filter.py`), `test_l2_panel.py`, `test_hierarchies.py`, `study_fixtures.py`;
+- new: `test_bounded_beliefs.py` (renamed from `test_particle_filter.py`), `test_panel.py`, `test_hierarchies.py`, `study_fixtures.py`;
 - updated: `test_rts.py`, `test_history_rewards.py`, `test_bellman_backups.py`, `test_exact_final_step.py`, `test_search_and_domain_contracts.py`, `test_online_filter.py`.
 
 **Docs:** README, ARCHITECTURE, THEORY, RESULTS (Sections 1–10), and this file. The review findings are in `docs/review/phase-00..11`.
@@ -247,12 +247,15 @@ $PY -m pytest -q                                   # about 35 s
 $PY -m ipomdp.experiments.l1_qualification --budgets 100 1000 5000 --seeds 0 1 2 --output results/<new>
 $PY -m ipomdp.experiments.belief_qualification --levels 2 --particles 16 64 256 \
     --particle-filters compressed sampled --output results/<new>
-# L2 panels vs the exact I-POMDP (cells: planner, horizon, budget, modeled, particles, filter, history)
-$PY -m ipomdp.experiments.l2_panel --planners mcts --horizons 3 --budgets 1000 --modeled 0 \
+# L2/L3 panels vs the exact I-POMDP (cells: planner, level, horizon, budget, modeled, particles, filter, history)
+$PY -m ipomdp.experiments.panel --planners mcts --levels 2 --horizons 3 --budgets 1000 --modeled 0 \
     --particles 0 64 --history 0 2 4 --output results/<new>
+# Modeled-agent qualification (j-L1 at the beliefs i's L2 search queries it at)
+$PY -m ipomdp.experiments.modeled_qualification --horizons 4 --modeled 100 --ladder 100 400 1600 6400 \
+    --seeds 0 1 --workers 12 --output results/<new>
 # Studies
 $PY -m ipomdp.experiments.runner studies/tiger_l3_vs_l2.toml --output results/<new>
 ```
 
-- For custom grids, call `l2_panel.run_panel(output, cells, seeds, workers)` from a guarded launcher script, and copy the launcher into the output directory.
+- For custom grids, call `panel.run_panel(output, cells, seeds, workers)` from a guarded launcher script, and copy the launcher into the output directory.
 - Size runs from measured CPU. One machine has 24 cores and about 19 GB free; 12 workers are safe for Tiger L2 panels.

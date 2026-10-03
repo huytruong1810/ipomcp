@@ -64,7 +64,7 @@ def test_particle_planners_are_scored_against_the_exact_ipomdp(planner):
 
 def test_finite_opponents_are_solved_by_the_planners_own_kind():
     row = evaluate_case("rts", 2, 2, 4, 0.3, opponent_budget=2, reference="exact", **L2)[0]
-    assert row["opponent"]["policy"] == "same_planner_l1"
+    assert row["opponent"]["policy"] == "same_planner"
     assert row["planner_config"] == {"depth": 2, "observation_samples": 2, "gamma": 0.95}
 
 
