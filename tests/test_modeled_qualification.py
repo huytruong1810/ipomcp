@@ -46,6 +46,8 @@ def test_ladder_reproduces_the_search_and_reports_a_qualifying_budget(tmp_path):
     assert failures == []
     assert sorted(summary["ladder_budget"]) == [5, 200]
     assert len(set(summary["queries"])) == 1  # every rung scores the same queries
+    assert (summary["wrong_beliefs"] <= summary["beliefs"]).all()
+    assert (summary["beliefs"] <= summary["queries"]).all()
     by_rung = summary.set_index("ladder_budget")
     assert (
         by_rung["wrong"]

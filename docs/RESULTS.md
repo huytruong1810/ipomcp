@@ -521,3 +521,24 @@ All 10 wrong decisions at 100 fall in the problems where i's decision was wrong.
 | 1,600 | 380/380 | 99.0–100% | 16/16 | 0.19 | 13.7 |
 
 **Conclusion.** Qualifying j-L1 at the beliefs it is modeled at predicts the budget that i's decisions need: 1,600 here, not the 4,000 used so far. H4 with root 1,000 and modeled 1,600 is 100% optimal at 2.6× less CPU than root 250 and modeled 4,000 (13.7 s vs 36 s), with lower optimal-action Q error (0.19 vs 0.48).
+
+### 12.5 Modeled-agent qualification over the whole grid (October 3, 2026)
+
+**Design.** `experiments.modeled_qualification` (the 12.4 probe as a driver). For each L2 problem (19 beliefs of i × 5 of j × seeds 0–1, n = 190 problems per horizon), i searches with root 1,000 and modeled 100. Every j-L1 belief that i's search queries is recorded and re-solved over a budget ladder, then scored against the exact L1 agent. On every query, the driver checks that the rung equal to 100 reproduces the policy i used. `results/modeled_qualification_20261003` and `results/modeled_qualification_h4_6400_20261003` (6,400 rung).
+
+| Horizon | j-L1 simulations | Wrong / queries | Distinct beliefs wrong / queried | Wrong in problems i got wrong | Max j loss |
+|---|---|---|---|---|---|
+| 3 | 100 | 19 / 3,325 | 1 / 87 | 0 | 0.46 |
+| 3 | 400 | 0 / 3,325 | 0 / 87 | 0 | 0 |
+| 4 | 100 | 152 / 8,284 | 6 / 235 | 6 | 1.01 |
+| 4 | 400 | 95 / 8,284 | 4 / 235 | 4 | 0.66 |
+| 4 | 1,600 | 38 / 8,284 | 2 / 235 | 0 | 0.32 |
+| 4 | 6,400 | 0 / 8,284 | 0 / 235 | 0 | 0 |
+
+**Findings.**
+- **Mistakes cluster on a few beliefs.** At H4 and 100 simulations, 152 wrong queries come from 6 distinct beliefs.
+  - The harmful one is j's **prior** (P(tiger left) = 0.085 or 0.915). j opens a door where the exact choice is to listen (Q −0.67 vs −0.01). The prior is queried in every problem with that j.
+  - The two left at 1,600 (P(tiger left) = 0.077 or 0.924) are near ties: j listens where opening is better by 0.20–0.32. i is unaffected.
+- **j's own loss does not separate harmful from harmless mistakes.** Harmful ones lose 0.66; harmless ones lose 0.2–1.0. No loss tolerance selects the budget i needs.
+- **Zero wrong modeled decisions is the qualifying rule.** It is sufficient for i to be unaffected, and it uses only the modeled level's exact reference. That makes it usable where the higher level's exact solution is out of reach (L3 and beyond). It certifies 400 at H3 and 6,400 at H4 (0/8,284; correct rate ≥ 99.96%).
+- **It is conservative.** At H4, i's decisions are already 380/380 at 1,600 (12.4), with 2 harmless near-tie beliefs left. Where the higher level's exact reference exists, it can lower the budget, as in 12.4. Where it does not, the certified budget is the honest choice.

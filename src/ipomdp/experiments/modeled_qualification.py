@@ -28,8 +28,18 @@ For each L2 Tiger problem (belief of i, private belief of j, seed, history k):
 Each row is one (problem, queried model, ladder budget) with the modeled
 agent's first-action loss. The summary gives, per ladder budget, the number of
 wrong modeled decisions with an exact 95% Clopper-Pearson interval on the
-correct rate, split by whether i's own decision was wrong, and the
-**qualifying budget**: the smallest rung with no wrong modeled decision.
+correct rate, split by whether i's own decision was wrong, the number of
+distinct queried beliefs and of distinct wrong ones (queries repeat across
+problems, and mistakes cluster on a few beliefs), and the **qualifying
+budget**: the smallest rung with no wrong modeled decision.
+
+Why zero wrong decisions, not a loss tolerance: the modeled agent's own loss
+does not separate mistakes that change i's decision from those that do not
+(L2 H4: the harmful ones lose 0.66, harmless ones 0.2-1.0; RESULTS.md Section
+12.5). Zero wrong is sufficient for i to be unaffected and needs no
+higher-level reference, which is what makes it usable where the higher
+level's exact solution is out of reach; it is conservative (H4: it certifies
+6,400 where i's decisions are already 380/380 at 1,600).
 
 Scope: level 1 modeled under level 2, with exact beliefs. A level-3 version
 needs an exact j-L2 reference in the oracle (HANDOFF next steps).
@@ -45,6 +55,7 @@ from pathlib import Path
 import pandas as pd
 
 from ipomdp.analysis.statistics import clopper_pearson
+from ipomdp.belief import canonical
 from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, evaluate_case, planner_config
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
@@ -107,6 +118,7 @@ def evaluate_problems(
                         opponent_belief=opponent_belief,
                         decision_loss=decision["first_action_loss"],
                         query=index,
+                        belief_digest=canonical.belief_digest(model.belief),
                         physical_belief=_physical_marginal(model),
                         exact_q={str(a): q for a, q in exact.items()},
                         ladder_budget=rung,
@@ -156,6 +168,8 @@ def summarize(rows):
                 zip([*GROUP, "ladder_budget"], key),
                 queries=n,
                 wrong=wrong,
+                beliefs=int(group["belief_digest"].nunique()),
+                wrong_beliefs=int(group.loc[group["wrong"], "belief_digest"].nunique()),
                 correct_rate_low=low,
                 correct_rate_high=high,
                 mean_loss=float(group["loss"].mean()),
