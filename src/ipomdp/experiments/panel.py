@@ -44,6 +44,8 @@ Three questions read off the same rows:
 
 Each row records first-action loss, maximum Q error and the planner's CPU time
 for the decision (``experiments.oracle``). One supervised job per (cell, seed).
+``modeled_stopping`` (panel-wide, I-POMCP) solves every finite modeled level by
+sequential replicate searches capped at ``modeled`` (``planning.replicates``).
 The summary gives each optimal rate with its exact 95% Clopper-Pearson interval,
 because rates near 1 from tens of problems bound little (30/30 rules out only
 rates below 0.884).
@@ -52,6 +54,7 @@ rates below 0.884).
 import argparse
 import itertools
 import json
+from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 
@@ -91,6 +94,7 @@ def evaluate_cell(
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
     nested_beliefs=NESTED_BELIEFS,
+    modeled_stopping=None,
 ):
     """Every (belief of i, belief of j[, belief of the modeled i]) problem of one cell and seed."""
     if level not in (2, 3):
@@ -113,6 +117,7 @@ def evaluate_cell(
                 particle_filter=particle_filter if particles else "compressed",
                 history_steps=history,
                 nested_belief=p_n,
+                opponent_stopping=modeled_stopping,
             )[0],
             modeled=modeled,
             particles=particles,
@@ -187,6 +192,7 @@ def run_panel(
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
     nested_beliefs=NESTED_BELIEFS,
+    modeled_stopping=None,
     timeout_seconds=7200,
     max_rss_mb=4096,
 ):
@@ -200,6 +206,7 @@ def run_panel(
         beliefs=list(beliefs),
         opponent_beliefs=list(opponent_beliefs),
         nested_beliefs=list(nested_beliefs),
+        modeled_stopping=asdict(modeled_stopping) if modeled_stopping else None,
     )
     (output / "manifest.json").write_text(
         json.dumps(dict(panel=manifest, source_sha256=lock), indent=2)
@@ -209,6 +216,7 @@ def run_panel(
         beliefs=tuple(beliefs),
         opponent_beliefs=tuple(opponent_beliefs),
         nested_beliefs=tuple(nested_beliefs),
+        modeled_stopping=modeled_stopping,
     )
     jobs = {
         i: partial(evaluate_cell, *cell, seed, **problems)

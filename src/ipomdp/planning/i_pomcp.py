@@ -68,6 +68,7 @@ from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.planner import Planner
 from ipomdp.planning.policy import greedy_policy, sample_policy
+from ipomdp.planning.replicates import mean_values
 
 
 class IPOMCPPlanner(Planner):
@@ -130,10 +131,45 @@ class IPOMCPPlanner(Planner):
         """Greedy policy at ``model``'s belief; ``modeled`` selects the opponent budget."""
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
+        if modeled and self.config.modeled_stopping is not None:
+            return greedy_policy(self._replicate_values(model))
         simulations = self.config.modeled_simulations if modeled else self.config.simulations
+        node, scores = self._search(model, simulations)
+        policy = greedy_policy(scores.values)
+        if not modeled:
+            self.root = node
+            self.search_values = dict(node.action_values)
+            self.recommendation_values = dict(scores.values)
+            self.scores = scores
+        return policy
+
+    def _replicate_values(self, model):
+        """Replicate-mean scored values of a modeled solve (``replicates``)."""
+        rule = self.config.modeled_stopping
+        samples = []
+        for replicate in range(max(1, self.config.modeled_simulations // rule.batch)):
+            samples.append(self._search(model, rule.batch, replicate)[1].values)
+            if rule.separated(samples):
+                break
+        return mean_values(samples)
+
+    # ------------------------------------------------------------------ #
+    # Search
+    # ------------------------------------------------------------------ #
+
+    def _search(self, model, simulations, replicate=None):
+        """One seeded search of ``simulations`` from ``model``; returns (tree, scores).
+
+        The seed keys on the configuration without ``modeled_stopping``: the
+        rule only decides how many replicate searches run, each keyed by its
+        index, so every single-search solve keeps the stream it always had.
+        """
         if simulations < len(self.actions):
             raise ValueError("Search budget must evaluate every action")
-        settings = {"planner": "I-POMCP", "config": asdict(self.config), "simulations": simulations}
+        config = {k: v for k, v in asdict(self.config).items() if k != "modeled_stopping"}
+        settings = {"planner": "I-POMCP", "config": config, "simulations": simulations}
+        if replicate is not None:
+            settings["replicate"] = replicate
         model = self.solver_bank.search_model(model)
         rng = random.Random(self.solver_bank.search_seed(model, settings))
         node = POMCPNode()
@@ -148,17 +184,7 @@ class IPOMCPPlanner(Planner):
             self._history_successor,
             self.config.gamma,
         )
-        policy = greedy_policy(scores.values)
-        if not modeled:
-            self.root = node
-            self.search_values = dict(node.action_values)
-            self.recommendation_values = dict(scores.values)
-            self.scores = scores
-        return policy
-
-    # ------------------------------------------------------------------ #
-    # Search
-    # ------------------------------------------------------------------ #
+        return node, scores
 
     def _simulate(self, node, depth, memory, history_model, rng):
         """One descent; returns the sampled-continuation Q estimate at ``node``."""

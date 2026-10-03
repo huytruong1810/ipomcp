@@ -21,11 +21,15 @@ not converge, traded corrected errors for new ones, or did not generalise
 beyond Tiger. A switch that selects a non-convergent estimator is a way to
 produce wrong results, not a feature.
 
-What remains are computational budgets and two scalars of the decision problem.
+What remains are computational budgets, an optional rule for spending the
+modeled budget adaptively (``replicates.ModeledStopping``), and two scalars of
+the decision problem.
 """
 
 import math
 from dataclasses import dataclass
+
+from ipomdp.planning.replicates import ModeledStopping
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,10 @@ class PlannerConfig:
         gamma: Discount factor of the planning objective.
         exploration: Dimensionless UCB constant multiplying the horizon-scaled
             reward width (see ``exploration.HorizonBoundUCB``).
+        modeled_stopping: When set, a modeled policy is solved by sequential
+            replicate searches that stop once the decision is separated, with
+            ``modeled_simulations`` as the cap (``replicates``). When None, one
+            search of ``modeled_simulations``.
     """
 
     simulations: int
@@ -50,6 +58,7 @@ class PlannerConfig:
     modeled_simulations: int
     gamma: float = 0.95
     exploration: float = 1.0
+    modeled_stopping: ModeledStopping | None = None
 
     def __post_init__(self):
         for name in ("simulations", "depth", "modeled_simulations"):
@@ -60,3 +69,8 @@ class PlannerConfig:
             raise ValueError("gamma must lie in [0, 1]")
         if not math.isfinite(self.exploration) or self.exploration <= 0:
             raise ValueError("exploration must be finite and positive")
+        if self.modeled_stopping is not None:
+            if type(self.modeled_stopping) is not ModeledStopping:
+                raise TypeError("modeled_stopping must be a ModeledStopping")
+            if self.modeled_stopping.batch > self.modeled_simulations:
+                raise ValueError("A replicate batch cannot exceed the modeled cap")

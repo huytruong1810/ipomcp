@@ -98,6 +98,7 @@ def evaluate_case(
     history_steps=0,
     nested_belief=0.5,
     opponent_observer=None,
+    opponent_stopping=None,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
@@ -113,9 +114,12 @@ def evaluate_case(
 
     ``opponent_observer`` (levels 2-3) is called as ``observer(model, policy)``
     for every model of the opponent (j at level - 1) whose modeled policy the
-    planner requests, with the policy it got. These are the beliefs at which the opponent's budget must
-    be qualified (``experiments.modeled_qualification``); the bank's policy cache
-    means each distinct model is reported once.
+    planner requests, with the policy it got. These are the beliefs at which the
+    opponent's budget must be qualified (``experiments.modeled_qualification``);
+    the bank's policy cache means each distinct model is reported once.
+
+    ``opponent_stopping`` (I-POMCP only) gives every finite modeled level a
+    ``replicates.ModeledStopping`` rule, with ``opponent_budget`` as its cap.
     """
     _validate_problem(
         planner_kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
@@ -147,7 +151,14 @@ def evaluate_case(
                 key_below,
                 model,
                 bank,
-                planner_config(planner_kind, opponent_budget, opponent_depth, gamma, exploration),
+                planner_config(
+                    planner_kind,
+                    opponent_budget,
+                    opponent_depth,
+                    gamma,
+                    exploration,
+                    modeled_stopping=opponent_stopping,
+                ),
             )
         if opponent_observer is not None and key_below.level == level - 1:
             provider = _ObservedSolver(provider, opponent_observer)
@@ -201,7 +212,8 @@ def evaluate_case(
             "level": level,
             "opponent": _opponent_description(
                 level, opponent_depth, opponent_belief, opponent_budget, nested_belief
-            ),
+            )
+            | ({"stopping": asdict(opponent_stopping)} if opponent_stopping else {}),
             "reference": reference if level >= 2 and opponent_budget is not None else "exact",
             "particles": particles,
             "particle_filter": particle_filter if particles else None,
@@ -260,7 +272,7 @@ class _ObservedSolver:
         return policy
 
 
-def planner_config(planner_kind, budget, depth, gamma, exploration):
+def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stopping=None):
     """The configuration every oracle problem gives a planner of this kind and budget."""
     if planner_kind == "mcts":
         return PlannerConfig(
@@ -269,7 +281,10 @@ def planner_config(planner_kind, budget, depth, gamma, exploration):
             modeled_simulations=budget,
             gamma=gamma,
             exploration=exploration,
+            modeled_stopping=modeled_stopping,
         )
+    if modeled_stopping is not None:
+        raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
     return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma)
 
 
