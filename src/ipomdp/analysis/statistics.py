@@ -75,3 +75,19 @@ def compute_statistical_significance(
         json.dump(results, stream, indent=2, allow_nan=False)
 
     return results
+
+
+def clopper_pearson(successes: int, n: int, confidence: float = 0.95) -> tuple[float, float]:
+    """Exact two-sided binomial confidence interval for a rate of ``successes / n``.
+
+    Optimal rates are reported with this interval because they sit at or near
+    1, where normal approximations break down: 30/30 optimal only rules out true
+    rates below about 0.884 at 95%. The bounds are Beta quantiles (Clopper and
+    Pearson, 1934); an empty sample gives the uninformative interval (0, 1).
+    """
+    if not 0 <= successes <= n:
+        raise ValueError("Need 0 <= successes <= n")
+    tail = (1 - confidence) / 2
+    low = float(stats.beta.ppf(tail, successes, n - successes + 1)) if successes else 0.0
+    high = float(stats.beta.ppf(1 - tail, successes + 1, n - successes)) if successes < n else 1.0
+    return low, high

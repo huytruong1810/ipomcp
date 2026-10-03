@@ -21,8 +21,11 @@ where
 - ``history`` is the number of real steps i conditions on before deciding
   (``oracle.sample_history``): exact supports grow with it, IPF supports do not.
 
-Every cell is evaluated on the same problems: 5 beliefs of i x 3 private beliefs
-of j x the seeds. The reference is the exact I-POMDP (j an exact L1 agent of the
+Every cell is evaluated on the same problems: beliefs of i x private beliefs of
+j x the seeds (by default 5 x 3; ``beliefs`` and ``opponent_beliefs`` widen the
+grid). With ``history`` > 0 the seed also draws the history's states, j's
+actions and i's observations, so seeds add problems, not only planner
+randomness; at ``history`` 0 they add planner randomness only. The reference is the exact I-POMDP (j an exact L1 agent of the
 same depth, all beliefs exact), solved in its own exact bank, so each loss
 includes search error, opponent-model error and, with particles, belief error.
 
@@ -36,6 +39,9 @@ Three questions read off the same rows:
 
 Each row records first-action loss, maximum Q error and the planner's CPU time
 for the decision (``experiments.oracle``). One supervised job per (cell, seed).
+The summary gives each optimal rate with its exact 95% Clopper-Pearson interval,
+because rates near 1 from tens of problems bound little (30/30 rules out only
+rates below 0.884).
 """
 
 import argparse
@@ -46,6 +52,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ipomdp.analysis.statistics import clopper_pearson
 from ipomdp.experiments.oracle import evaluate_case
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
@@ -56,7 +63,18 @@ OPPONENT_BELIEFS = (0.085, 0.5, 0.915)
 CELL = ("planner", "horizon", "budget", "modeled", "particles", "particle_filter", "history")
 
 
-def evaluate_cell(planner, horizon, budget, modeled, particles, particle_filter, history, seed):
+def evaluate_cell(
+    planner,
+    horizon,
+    budget,
+    modeled,
+    particles,
+    particle_filter,
+    history,
+    seed,
+    beliefs=BELIEFS,
+    opponent_beliefs=OPPONENT_BELIEFS,
+):
     """Every (belief of i, belief of j) problem of one cell for one seed."""
     return [
         dict(
@@ -81,15 +99,29 @@ def evaluate_cell(planner, horizon, budget, modeled, particles, particle_filter,
             history=history,
             opponent_belief=p_j,
         )
-        for p in BELIEFS
-        for p_j in OPPONENT_BELIEFS
+        for p in beliefs
+        for p_j in opponent_beliefs
     ]
 
 
+def _optimal(losses):
+    """Zero-loss flags; empty for planners without the column (RTS search columns)."""
+    return losses.dropna() <= 1e-9
+
+
 def _optimal_rate(losses):
-    """Share of decisions with zero loss; NaN for planners without the column (RTS)."""
-    losses = losses.dropna()
-    return float((losses <= 1e-9).mean()) if len(losses) else float("nan")
+    flags = _optimal(losses)
+    return float(flags.mean()) if len(flags) else float("nan")
+
+
+def _optimal_rate_low(losses):
+    flags = _optimal(losses)
+    return clopper_pearson(int(flags.sum()), len(flags))[0]
+
+
+def _optimal_rate_high(losses):
+    flags = _optimal(losses)
+    return clopper_pearson(int(flags.sum()), len(flags))[1]
 
 
 def _mean(flags):
@@ -104,6 +136,8 @@ def summarize(rows):
         .agg(
             n=("first_action_loss", "size"),
             optimal_rate=("first_action_loss", _optimal_rate),
+            optimal_rate_low=("first_action_loss", _optimal_rate_low),
+            optimal_rate_high=("first_action_loss", _optimal_rate_high),
             mean_loss=("first_action_loss", "mean"),
             max_loss=("first_action_loss", "max"),
             mean_q_error=("max_abs_q_error", "mean"),
@@ -120,17 +154,35 @@ def summarize(rows):
     )
 
 
-def run_panel(output, cells, seeds, workers, timeout_seconds=7200, max_rss_mb=4096):
+def run_panel(
+    output,
+    cells,
+    seeds,
+    workers,
+    beliefs=BELIEFS,
+    opponent_beliefs=OPPONENT_BELIEFS,
+    timeout_seconds=7200,
+    max_rss_mb=4096,
+):
     """Run every (cell, seed) job under supervision; write rows, failures and summary."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     lock = source_hashes(REPOSITORY_ROOT)
-    manifest = dict(cells=[dict(zip(CELL, c)) for c in cells], seeds=list(seeds))
+    manifest = dict(
+        cells=[dict(zip(CELL, c)) for c in cells],
+        seeds=list(seeds),
+        beliefs=list(beliefs),
+        opponent_beliefs=list(opponent_beliefs),
+    )
     (output / "manifest.json").write_text(
         json.dumps(dict(panel=manifest, source_sha256=lock), indent=2)
     )
     jobs_index = list(itertools.product(cells, seeds))
-    jobs = {i: partial(evaluate_cell, *cell, seed) for i, (cell, seed) in enumerate(jobs_index)}
+    problems = dict(beliefs=tuple(beliefs), opponent_beliefs=tuple(opponent_beliefs))
+    jobs = {
+        i: partial(evaluate_cell, *cell, seed, **problems)
+        for i, (cell, seed) in enumerate(jobs_index)
+    }
     rows, failures = [], []
     for index, outcome in supervise_jobs(
         jobs,
@@ -166,6 +218,8 @@ def main():
     )
     parser.add_argument("--history", type=int, nargs="+", default=[0])
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
+    parser.add_argument("--beliefs", type=float, nargs="+", default=list(BELIEFS))
+    parser.add_argument("--opponent-beliefs", type=float, nargs="+", default=list(OPPONENT_BELIEFS))
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -184,7 +238,9 @@ def main():
             )
         }
     )
-    summary, failures = run_panel(args.output, cells, args.seeds, args.workers)
+    summary, failures = run_panel(
+        args.output, cells, args.seeds, args.workers, args.beliefs, args.opponent_beliefs
+    )
     print(summary.round(4).to_string(index=False))
     if failures:
         raise SystemExit(f"{len(failures)} jobs failed; see failures.json")

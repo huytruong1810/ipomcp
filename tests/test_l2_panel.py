@@ -29,3 +29,26 @@ def test_panel_rows_cover_every_problem_and_name_their_cell(tmp_path):
     assert {r["opponent"]["policy"] for r in rows if r["planner"] == "mcts"} == {
         "exact_l1_fixed_depth"
     }
+
+
+def test_panel_takes_a_belief_grid_and_bounds_each_optimal_rate(tmp_path):
+    cells = [("mcts", 1, 20, 0, 0, "exact", 0)]
+    summary, failures = run_panel(
+        tmp_path / "panel",
+        cells,
+        seeds=[0, 1],
+        workers=1,
+        beliefs=(0.1, 0.9),
+        opponent_beliefs=(0.5,),
+    )
+    assert failures == []
+    row = summary.iloc[0]
+    assert row["n"] == 4
+    # Horizon 1 against the exact reference: every decision is optimal, and 4/4
+    # still leaves the exact 95% interval wide.
+    assert row["optimal_rate"] == 1.0
+    assert row["optimal_rate_high"] == 1.0
+    assert 0.39 < row["optimal_rate_low"] < 0.40
+    manifest = json.loads((tmp_path / "panel" / "manifest.json").read_text())
+    assert manifest["panel"]["beliefs"] == [0.1, 0.9]
+    assert manifest["panel"]["opponent_beliefs"] == [0.5]
