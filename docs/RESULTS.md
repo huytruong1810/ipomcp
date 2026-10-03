@@ -577,3 +577,26 @@ All 10 wrong decisions at 100 fall in the problems where i's decision was wrong.
 - **At 400 simulations, every modeled j-L2 policy equals the exact one.** i's trees and values are identical to the exact-opponent cell to the last digit. At 100, 144 of 162 problems are identical, and Q error rises (0.17 vs 0.06) without changing a decision.
 - **Mid-episode exact checks reach their limit at L3.** All four H3, k = 2 jobs exceeded the 4 GB memory limit. One such problem alone ran over 30 minutes and reached a 5 GB peak. At H2, k = 2 takes 6–8 s, but i's support there is 32 atoms, so compressed 64 equals exact and nothing is tested. H2 at k = 4 with exact beliefs did not finish in 26 minutes.
 - **Tractable frontier for exact L3 decision checks (Tiger): H3 at k = 0 and H2 at k ≤ 2.** Compressed-belief error at L3 must be measured as belief error against exact filtering (`belief_qualification`), not as decisions.
+
+### 12.8 Sequential replicate searches for modeled policies (October 3, 2026)
+
+**Design change** (commit `c0cba21`, `planning.replicates`, opt-in through `PlannerConfig.modeled_stopping`). A modeled policy is solved by independent replicate searches of 200 simulations, a form of root parallelization (Chaslot et al. 2008). After at least 3 replicates, the solve stops once the two best mean scored values are 3 standard errors apart, which is fixed-confidence best-arm identification (cf. LUCB, Kalyanakrishnan et al. 2012). The cap is `modeled_simulations`. Search seeds exclude the rule, so single-search streams and all earlier results are unchanged. Motivation: 12.6 shows the near-tie floor is return variance, so spending adaptively is the lever.
+
+**Offline A/B** (235 distinct j-L1 beliefs queried at L2 H4 × seeds 0–4, n = 1,175; `results/sequential_replicates_ab_20261003`):
+
+| Modeled solve | Correct | Mean simulations |
+|---|---|---|
+| single search, 400 | 1,171/1,175 | 400 |
+| single search, 1,600 | 1,175/1,175 | 1,600 |
+| single search, 6,400 | 1,175/1,175 | 6,400 |
+| replicates with stopping, cap 1,600 | 1,172/1,175 | 627 |
+| replicates with stopping, cap 6,400 | 1,175/1,175 | 699 |
+
+At an equal 1,600 cap, replicates are worse on near ties (17/20 vs 20/20), because small trees lose depth. The gain comes from adaptivity: about 4,070 simulations on the 4 near-tie beliefs, about 600 elsewhere.
+
+**Gate on i's decisions** (L2 H4, root 1,000, the 380-problem grid of 12.3; `results/l2_h4_stopping_gate_20261003`):
+- **Accuracy.** Stopping with cap 1,600 or 6,400 is 380/380 optimal (99.0–100%), the same as flat 1,600. Optimal-action Q error is 0.16 vs 0.19.
+- **Cost, paired.** For 40 problems, both arms ran back to back in one process, in alternating order. i's decision CPU with stopping (cap 6,400) is 0.47× flat 1,600 (median 0.47; Wilcoxon p = 2×10⁻¹²): 9.8 s vs 20.6 s under that machine load. Per modeled solve it is 0.16 s vs 0.37 s, with 3.5 replicates on average and no per-replicate overhead.
+- **The unpaired panel CPU is not comparable.** The gate panel showed 13.1–13.8 s against 13.7 s for arm A, but arm A ran on a quieter machine (another project's 8 jobs were running during the gate). CPU comparisons across runs at different load are invalid; compare only paired, same-process measurements.
+
+**Verdict.** At L2 H4, stopping with cap 6,400 gives the accuracy of flat 1,600 at half the CPU, and caps the near-tie error at the level that flat 6,400 reaches (12.5). It stays opt-in until it passes at H3 and at L3, where modeled solves nest.
