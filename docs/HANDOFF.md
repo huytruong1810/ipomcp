@@ -100,6 +100,7 @@ studies/        tiger_l3_vs_l2.toml
   Exact real beliefs with a compressed search is the Wumpus configuration.
 - **Exact reference budget.** The oracle's exact I-POMDP uses `oracle.REFERENCE_BRANCHES = 50M`. At history 6 it completes in 146 s for one problem.
 - **Modeled solves.** One search of `modeled_simulations` by default. `PlannerConfig(modeled_stopping=ModeledStopping())` switches to sequential replicate searches capped at `modeled_simulations` (12.8). Search seeds exclude the rule, so single-search results are unchanged.
+- **Per-level modeled stacks** (`experiments.modeled_levels`, October 3). The drivers name each modeled level's solve, top-down: `400` flat, `6400s` stopping with cap 6,400, `exact`; `6400s/400` at level 3 is j-L2 with stopping over i-L1 flat 400. One label applies to every level. This replaced `opponent_budget`/`opponent_stopping` (oracle) and the panel-wide `modeled_stopping`; the panel's `modeled` cell is now this label (`exact` instead of 0).
 - **Metrics.** Rows record `first_action_loss`, `max_abs_q_error` and `optimal_q_error`, for both search and scored values. Use `optimal_q_error` for error bounds (12.2), and Clopper–Pearson intervals (`analysis.statistics.clopper_pearson`) for optimal rates.
 
 ### Validated configurations (Tiger; root 1,000 simulations unless noted)
@@ -273,16 +274,17 @@ $PY -m ipomdp.experiments.l1_qualification --budgets 100 1000 5000 --seeds 0 1 2
 $PY -m ipomdp.experiments.belief_qualification --levels 2 --particles 16 64 256 \
     --particle-filters compressed sampled --output results/<new>
 # L2/L3 panels vs the exact I-POMDP (cells: planner, level, horizon, budget, modeled, particles, filter, history)
-$PY -m ipomdp.experiments.panel --planners mcts --levels 2 --horizons 3 --budgets 1000 --modeled 0 \
+$PY -m ipomdp.experiments.panel --planners mcts --levels 2 --horizons 3 --budgets 1000 --modeled exact \
     --particles 0 64 --history 0 2 4 --output results/<new>
 # L3 panel (i-L3 -> j-L2 -> i-L1): add --levels 3 and --nested-beliefs 0.085 0.5 0.915
-# Modeled-agent qualification (j-L1 at the beliefs i's L2 search queries it at)
-$PY -m ipomdp.experiments.modeled_qualification --horizons 4 --modeled 100 --ladder 100 400 1600 6400 \
+# Modeled-agent qualification (j-(L-1) at the beliefs i's level-L search queries it at; rungs are stacks)
+$PY -m ipomdp.experiments.modeled_qualification --horizons 4 --modeled 100 --ladder 100 400 1600 6400s \
     --seeds 0 1 --workers 12 --output results/<new>
+# Level 3: add --level 3 --nested-beliefs 0.085 0.5 0.915 and stack rungs such as 100/400 1600s/400
 # Studies
 $PY -m ipomdp.experiments.runner studies/tiger_l3_vs_l2.toml --output results/<new>
 ```
 
-- For custom grids, call `panel.run_panel(output, cells, seeds, workers, beliefs=..., opponent_beliefs=..., nested_beliefs=..., modeled_stopping=ModeledStopping())` from a guarded launcher script, and copy the launcher into the output directory. Cells are `(planner, level, horizon, budget, modeled, particles, filter, history)`. The wide L2 grid (19 × 5 beliefs) and the L3 grid (9 × 3 × 3) are in the launchers in `results/l2_wide_n_20261002` and `results/l3_panel_20261003`.
+- For custom grids, call `panel.run_panel(output, cells, seeds, workers, beliefs=..., opponent_beliefs=..., nested_beliefs=...)` from a guarded launcher script, and copy the launcher into the output directory. Cells are `(planner, level, horizon, budget, modeled, particles, filter, history)`, with `modeled` a stack label such as `exact`, `1600` or `6400s/400`. The wide L2 grid (19 × 5 beliefs) and the L3 grid (9 × 3 × 3) are in the launchers in `results/l2_wide_n_20261002` and `results/l3_panel_20261003`.
 - Wait on background jobs by PID or output file, never with `pgrep -f` (Section 6).
 - Size runs from measured CPU. One machine has 24 cores and about 19 GB free; 12 workers are safe for Tiger L2 panels.

@@ -34,7 +34,8 @@ first-action loss and the re-solve's process CPU. Each rung keeps one bank per
 problem, so lower-level solves are shared across queries as they are inside
 i's search and the CPU is the amortized cost. The summary gives, per rung, the
 number of wrong modeled decisions with an exact 95% Clopper-Pearson interval
-on the correct rate, split by whether i's own decision was wrong; the number
+on the correct rate, split by whether i's own decision was wrong (when it is
+scored: ``score_decision=False`` skips level L's exact reference); the number
 of distinct queried beliefs and of distinct wrong ones (queries repeat across
 problems, and mistakes cluster on a few beliefs); and the mean CPU per query.
 The **qualifying** rung is the cheapest one, by mean CPU, with no wrong
@@ -95,9 +96,15 @@ def evaluate_problem(
     belief_p,
     opponent_belief,
     nested_belief,
+    score_decision=True,
     gamma=0.95,
 ):
-    """Rows for every queried j-(level-1) model of one problem, at every rung of ``ladder``."""
+    """Rows for every queried j-(level-1) model of one problem, at every rung of ``ladder``.
+
+    ``score_decision=False`` skips the level-L exact reference for i's own
+    decision (``decision_loss`` is None); the modeled level is still scored
+    against its own exact reference, which is the qualification.
+    """
     used_stack = parse_stack(modeled, level - 1)
     rungs = [parse_stack(label, level - 1) for label in ladder]
     if any(rung[0] is None for rung in rungs):
@@ -115,7 +122,7 @@ def evaluate_problem(
         opponent_belief=opponent_belief,
         nested_belief=nested_belief,
         modeled=modeled,
-        reference="exact",
+        reference="exact" if score_decision else "none",
         history_steps=history,
         opponent_observer=lambda model, policy: queried.append((model, policy)),
     )[0]
@@ -146,7 +153,7 @@ def evaluate_problem(
                     belief_p=belief_p,
                     opponent_belief=opponent_belief,
                     nested_belief=nested_belief,
-                    decision_loss=decision["first_action_loss"],
+                    decision_loss=decision.get("first_action_loss"),
                     query=index,
                     belief_digest=canonical.belief_digest(model.belief),
                     physical_belief=_physical_marginal(model),
@@ -195,7 +202,8 @@ def summarize(rows):
     """Per (group, rung): wrong modeled decisions, overall and by i's outcome, and CPU."""
     frame = pd.DataFrame(rows)
     frame["wrong"] = frame["loss"] > OPTIMALITY_TOLERANCE
-    frame["decision_wrong"] = frame["decision_loss"] > OPTIMALITY_TOLERANCE
+    frame["scored"] = frame["decision_loss"].notna()
+    frame["decision_wrong"] = frame["decision_loss"].astype(float) > OPTIMALITY_TOLERANCE
     records = []
     for key, group in frame.groupby([*GROUP, "rung"], sort=False):
         wrong, n = int(group["wrong"].sum()), len(group)
@@ -211,12 +219,19 @@ def summarize(rows):
                 correct_rate_high=high,
                 mean_loss=float(group["loss"].mean()),
                 max_loss=float(group["loss"].max()),
-                wrong_where_decision_wrong=int(group.loc[group["decision_wrong"], "wrong"].sum()),
-                wrong_where_decision_right=int(group.loc[~group["decision_wrong"], "wrong"].sum()),
+                wrong_where_decision_wrong=_split(group, group["decision_wrong"]),
+                wrong_where_decision_right=_split(group, ~group["decision_wrong"]),
                 mean_cpu_seconds=float(group["cpu_seconds"].mean()),
             )
         )
     return pd.DataFrame(records)
+
+
+def _split(group, decisions):
+    """Wrong modeled queries among problems with the given i outcome (None if unscored)."""
+    if not group["scored"].all():
+        return None
+    return int(group.loc[decisions, "wrong"].sum())
 
 
 def qualifying_rungs(summary):
@@ -241,6 +256,7 @@ def run_qualification(
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
     nested_beliefs=NESTED_BELIEFS,
+    score_decision=True,
     workers=4,
     timeout_seconds=7200,
     max_rss_mb=4096,
@@ -263,6 +279,7 @@ def run_qualification(
         beliefs=list(beliefs),
         opponent_beliefs=list(opponent_beliefs),
         nested_beliefs=list(nested),
+        score_decision=score_decision,
     )
     (output / "manifest.json").write_text(
         json.dumps(dict(settings=settings, source_sha256=lock), indent=2)
@@ -272,7 +289,20 @@ def run_qualification(
         itertools.product(horizons, histories, seeds, beliefs, opponent_beliefs, nested)
     )
     jobs = {
-        i: partial(evaluate_problem, level, h, budget, modeled, tuple(ladder), k, s, p, p_j, p_n)
+        i: partial(
+            evaluate_problem,
+            level,
+            h,
+            budget,
+            modeled,
+            tuple(ladder),
+            k,
+            s,
+            p,
+            p_j,
+            p_n,
+            score_decision,
+        )
         for i, (h, k, s, p, p_j, p_n) in enumerate(jobs_index)
     }
     rows, failures = [], []
@@ -313,6 +343,11 @@ def main():
     parser.add_argument("--beliefs", type=float, nargs="+", default=list(BELIEFS))
     parser.add_argument("--opponent-beliefs", type=float, nargs="+", default=list(OPPONENT_BELIEFS))
     parser.add_argument("--nested-beliefs", type=float, nargs="+", default=list(NESTED_BELIEFS))
+    parser.add_argument(
+        "--no-decision-score",
+        action="store_true",
+        help="skip i's exact reference (intractable at L3 beyond H3)",
+    )
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -328,6 +363,7 @@ def main():
         beliefs=args.beliefs,
         opponent_beliefs=args.opponent_beliefs,
         nested_beliefs=args.nested_beliefs,
+        score_decision=not args.no_decision_score,
         workers=args.workers,
     )
     print(summary.round(4).to_string(index=False))

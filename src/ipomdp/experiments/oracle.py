@@ -108,7 +108,12 @@ def evaluate_case(
     ``modeled`` (levels 2-3) labels the modeled stack, one solve per level
     below i, top-down (``modeled_levels``): ``exact``, ``400``, ``6400s/400``.
 
-    ``reference`` matters only for a level-2 or level-3 problem with a finite
+    ``reference="none"`` returns the planner's decision, values and CPU without
+    solving a reference: for drivers that need i's search but not its score,
+    where the exact reference is intractable (``modeled_qualification`` at L3
+    beyond H3; RESULTS.md Section 12.7).
+
+    Otherwise ``reference`` matters only for a level-2 or level-3 problem with a finite
     modeled level: "declared" scores the planner against the best response to its
     own finite opponent models (search error only); "exact" scores it against
     the exact I-POMDP, where every lower level is exact (search plus model
@@ -173,6 +178,30 @@ def evaluate_case(
     policy = planner.policy_for(planner.model())
     planner_cpu_seconds = time.process_time() - started
     estimates = dict(planner.recommendation_values)
+    row = {
+        "planner": planner_kind,
+        "planner_config": asdict(config),
+        "level": level,
+        "opponent": _opponent_description(
+            level, opponent_depth, opponent_belief, stack, nested_belief
+        ),
+        "reference": reference if any(stack) else "exact",
+        "particles": particles,
+        "particle_filter": particle_filter if particles else None,
+        "history_steps": history_steps,
+        "belief_support": len(planner.belief.mass),
+        "history_update_cpu_seconds": update_cpu_seconds,
+        "horizon": horizon,
+        "budget": budget,
+        "seed": seed,
+        "belief_p": belief_p,
+        "gamma": gamma,
+        "estimated_q": estimates,
+        "policy": policy,
+        "planner_cpu_seconds": planner_cpu_seconds,
+    }
+    if reference == "none":
+        return [row]
     if level == 1:
         oracle_q = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
     elif reference == "exact" or not any(stack):
@@ -202,31 +231,12 @@ def evaluate_case(
             "fallback_actions": planner.scores.fallback_actions,
         }
     return [
-        {
-            "planner": planner_kind,
-            "planner_config": asdict(config),
-            "level": level,
-            "opponent": _opponent_description(
-                level, opponent_depth, opponent_belief, stack, nested_belief
-            ),
-            "reference": reference if any(stack) else "exact",
-            "particles": particles,
-            "particle_filter": particle_filter if particles else None,
-            "history_steps": history_steps,
-            "belief_support": len(planner.belief.mass),
-            "history_update_cpu_seconds": update_cpu_seconds,
-            "horizon": horizon,
-            "budget": budget,
-            "seed": seed,
-            "belief_p": belief_p,
-            "gamma": gamma,
+        row
+        | {
             "oracle_q": oracle_q,
-            "estimated_q": estimates,
-            "policy": policy,
             "first_action_loss": loss(policy),
             "max_abs_q_error": q_error(estimates),
             "optimal_q_error": optimal_q_error(estimates, oracle_q),
-            "planner_cpu_seconds": planner_cpu_seconds,
             **search,
         }
     ]
@@ -344,8 +354,8 @@ def _validate_problem(
     """Check one problem's options; returns its modeled stack (empty at level 1)."""
     if planner_kind not in ("mcts", "rts"):
         raise ValueError("Unknown planner")
-    if reference not in ("declared", "exact"):
-        raise ValueError("reference must be 'declared' or 'exact'")
+    if reference not in ("declared", "exact", "none"):
+        raise ValueError("reference must be 'declared', 'exact' or 'none'")
     if level not in (1, 2, 3):
         raise ValueError("Reference level must be 1, 2 or 3")
     if not 0 <= opponent_belief <= 1:
@@ -493,7 +503,7 @@ def main():
     parser.add_argument("--opponent-depth", type=int)
     parser.add_argument("--opponent-belief", type=float, default=0.5)
     parser.add_argument("--modeled", default=EXACT, help="modeled stack, e.g. 400 or 6400s")
-    parser.add_argument("--reference", choices=["declared", "exact"], default="declared")
+    parser.add_argument("--reference", choices=["declared", "exact", "none"], default="declared")
     parser.add_argument("--particles", type=int)
     parser.add_argument(
         "--particle-filter", choices=["compressed", "sampled"], default="compressed"

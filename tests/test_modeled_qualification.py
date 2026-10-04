@@ -81,3 +81,26 @@ def test_level_three_rungs_are_whole_stacks_and_reproduce_the_search(tmp_path):
     rows = json.loads((tmp_path / "q3" / "rows.json").read_text())
     assert {r["nested_belief"] for r in rows} == {0.2, 0.8}
     assert qualifying[(3, 2, 30, "20/5", 0)] in ("20/5", "40s[20,2,3.0]/exact", None)
+
+
+def test_unscored_decisions_skip_the_reference_but_still_qualify(tmp_path):
+    row = evaluate_case(
+        "mcts", 2, 20, 0, 0.3, level=2, opponent_depth=2, modeled="5", reference="none"
+    )[0]
+    assert "oracle_q" not in row and "first_action_loss" not in row
+    assert set(row["estimated_q"]) == set(row["policy"]) | set(row["estimated_q"])
+    summary, _, failures = run_qualification(
+        tmp_path / "q",
+        horizons=[2],
+        budget=30,
+        modeled="5",
+        ladder=("5",),
+        seeds=[0],
+        beliefs=(0.1,),
+        opponent_beliefs=(0.5,),
+        score_decision=False,
+        workers=1,
+    )
+    assert failures == []
+    assert summary.iloc[0]["queries"] > 0
+    assert summary["wrong_where_decision_wrong"].isna().all()
