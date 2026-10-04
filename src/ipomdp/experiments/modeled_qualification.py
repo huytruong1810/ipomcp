@@ -130,11 +130,12 @@ def evaluate_problem(
         return []
     # Frames must carry the very physics instance the banks are built on.
     physics = queried[0][0].frame.pomdp_model
-    reference = _exact_reference(physics, level - 1, horizon, seed, gamma)
     solvers = [_queried_solver(physics, level - 1, rung, horizon, seed, gamma) for rung in rungs]
     rows = []
     for index, (model, used) in enumerate(queried):
-        exact = reference.q_values(model, horizon)
+        # A fresh reference per query: its caches grew about 370 MB per query at
+        # L3 H4 (to 9.6 GB over 67 queries) while reuse across queries was small.
+        exact = _exact_reference(physics, level - 1, horizon, seed, gamma).q_values(model, horizon)
         best = max(exact.values())
         for rung, solver in zip(rungs, solvers):
             started = time.process_time()
