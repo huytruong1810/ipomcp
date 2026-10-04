@@ -52,6 +52,8 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
   - post-search chance scoring (`chance_scoring.score_tree`): the finished tree is rescored bottom-up with the exact chance law P(o, alive | b_h, a) in place of sampled frequencies. The scored values decide, for real decisions and modeled opponents alike; the search values are kept beside them (`search_values`).
 
   These components are fixed rather than configurable. They are the estimator shown to converge against exact references; the alternatives that did not converge were removed.
+
+  One budget policy is configurable: `PlannerConfig.modeled_stopping` (`replicates.ModeledStopping`). When set, a *modeled* policy is solved by independent replicate searches that stop once the two best actions are separated, capped at `modeled_simulations`. It pays where the qualified flat budget is well above its 600-simulation floor (RESULTS.md 12.8).
 - **`SolverBank`** is one agent's registry of nested models. It holds:
   - the domain prior;
   - the belief update (exact or particle);

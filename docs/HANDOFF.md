@@ -5,7 +5,18 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 3, 2026 (modeled qualification driver, L3 oracle and panel, sequential modeled stopping; RESULTS.md Sections 12.5–12.8). `main` now holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+Last updated October 3, 2026 (modeled qualification driver, L3 oracle and panel, sequential modeled stopping; RESULTS.md Sections 12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+
+## 0. Start here (fresh agent)
+
+- **State.** `main` is clean at the last commit, with nothing running. 252 tests pass; ruff is clean. Nothing has been pushed.
+- **Where the science stands.** Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3). The open problem is the cost of simulating modeled opponents.
+- **Your first task** is next step 1 in Section 4: per-level modeled budgets and rules.
+- **Before running anything:**
+  - Read Section 6 (what not to repeat) and the standards in Section 1. The user expects redesign over scaling, and A/B gates with statistics.
+  - The machine is shared. Another project (`~/projects/jepa_ipomdp`) runs multi-core jobs here; never touch its processes.
+  - Compare CPU only within paired, same-process runs.
+- **Results** go in a new dated folder under `results/`, with the launcher or script copied inside. Numbers go into `docs/RESULTS.md` (next free section: 12.9 or 13). Update this file and the reviewer report (Section 4) when results land.
 
 ## 1. Goals
 
@@ -61,10 +72,15 @@ src/ipomdp/
                   compressed_filter   exact updates, supports compressed to N  <- planner default
                   particle_filter     published sampled IPF                   <- IPF + RTS baseline
                 resampling (systematic draws, shared)
-  planning/     IPOMCPPlanner, HorizonBoundUCB, POMCPNode (Bellman backups), SolverBank
+  planning/     IPOMCPPlanner, HorizonBoundUCB, POMCPNode (Bellman backups), SolverBank,
+                chance_scoring (post-search exact chance weights),
+                replicates (opt-in sequential replicate searches for modeled policies)
   reference/    BestResponseReference (exact, any level/domain), ExactIPOMDPPlanner, alpha vectors (L1)
   baselines/    RTSPlanner (reachability-tree sampling)
-  experiments/  study (TOML StudySpec), episodes, runner, bootstrapper, oracle, panel,
+  experiments/  study (TOML StudySpec), episodes, runner, bootstrapper,
+                oracle (one problem vs the exact reference; levels 1-3),
+                panel (grids of cells vs the exact I-POMDP; levels 2-3),
+                modeled_qualification (a modeled level scored at the beliefs it is queried at),
                 l1_qualification, belief_qualification
   analysis/     hierarchy (sunburst nodes with content and error), metrics, figures, statistics
   infra/        process supervision, source locks, resources, paths
@@ -83,13 +99,25 @@ studies/        tiger_l3_vs_l2.toml
 
   Exact real beliefs with a compressed search is the Wumpus configuration.
 - **Exact reference budget.** The oracle's exact I-POMDP uses `oracle.REFERENCE_BRANCHES = 50M`. At history 6 it completes in 146 s for one problem.
+- **Modeled solves.** One search of `modeled_simulations` by default. `PlannerConfig(modeled_stopping=ModeledStopping())` switches to sequential replicate searches capped at `modeled_simulations` (12.8). Search seeds exclude the rule, so single-search results are unchanged.
+- **Metrics.** Rows record `first_action_loss`, `max_abs_q_error` and `optimal_q_error`, for both search and scored values. Use `optimal_q_error` for error bounds (12.2), and Clopper–Pearson intervals (`analysis.statistics.clopper_pearson`) for optimal rates.
+
+### Validated configurations (Tiger; root 1,000 simulations unless noted)
+
+| Problem | Modeled opponent | Beliefs | Evidence |
+|---|---|---|---|
+| L1, H1–H5 | uniform L0 | exact | 220/220 at H5 (12.1) |
+| L2, H3, k ≤ 4 | exact, or I-POMCP 400 (zero-wrong certified, 12.5) | exact or compressed 64 | 373–380/380 (12.3) |
+| L2, H4 | I-POMCP 1,600 flat, or stopping with cap 6,400 (half the CPU) | exact | 380/380 (12.4, 12.8) |
+| L3, H3, k = 0 | I-POMCP 400 flat (reproduces exact) | exact | 162/162 (12.7) |
+| Wumpus L1 | not validated | exact real, compressed search | Section 10 pilot only |
 
 ## 3. Key results (details and n in RESULTS.md)
 
 | Section | Result |
 |---|---|
 | 1 | L1 Tiger: 100% optimal against alpha vectors at H1–5 from 1,000 simulations (n = 33 per cell) |
-| 5 | **Allocation:** the modeled-opponent budget decides correctness; the root budget only reduces Q error. H4 L2 needs about 4,000 modeled simulations to reach 100% |
+| 5 | **Allocation:** the modeled-opponent budget decides correctness; the root budget only reduces Q error. (H4 L2's need was later refined to 1,600 with root 1,000; see 12.4) |
 | 6 | I-POMCP vs IPF + RTS, L2 H3–H4: I-POMCP is more accurate at matched CPU. RTS cost grows 11–24× from H3 to H4 |
 | 7 | With the **sampled IPF**, exact beliefs dominate wherever the exact reference is tractable |
 | 8 | **The compressed filter** reverses Section 7. At N = 64 it is about as accurate as exact beliefs: k = 4 mid-episode, 0.18 vs 0.11 Q error at 1.9 s vs 26 s. At k = 6, where exact planning takes over 30 minutes, it is 100% optimal (n = 30). Belief errors are 4–40× smaller than the IPF's at equal N |
@@ -160,38 +188,32 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Charts** are hand-drawn widgets with inline rows.
 - **Sunburst and belief-growth data** come from `results/report_hierarchies_20261002/hierarchies.py` (one history, n = 1).
 - **Allocation, belief and baseline sections** predate the last two estimator revisions. The doc says so; their key cells reproduced in Sections 9 and 11.
-- **Updated October 2 with Section 12:** lead, an optimal-action Q error metric row, the L1 plateau finding, a 380-problem L2 table (with the modeled 400/1,600 sweep) and the allocation rule (1,600 at depth 4). The IPF + RTS comparison (97% vs 80–83%) is still from the 15-problem grid; next step 5 re-runs it.
+- **Updated October 2 with Section 12:** lead, an optimal-action Q error metric row, the L1 plateau finding, a 380-problem L2 table (with the modeled 400/1,600 sweep) and the allocation rule (1,600 at depth 4). The IPF + RTS comparison (97% vs 80–83%) is still from the 15-problem grid; next step 6 re-runs it.
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
-## 5. Files touched this session (since `archive/pre-restructure-20260930`)
+## 5. What changed, and where (since `archive/pre-restructure-20260930`)
 
-Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or reviewed; see `git log archive/pre-restructure-20260930..HEAD`. Changes in the latest stretch (October 1–2):
+Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or reviewed; `git log archive/pre-restructure-20260930..HEAD` has the full record.
 
-**New modules:**
-- `belief/compressed_filter.py`;
-- `belief/resampling.py`;
-- `experiments/panel.py` (replaces `allocation_study`; levels 2 and 3);
-- `experiments/study.py`, `episodes.py` and `runner.py` (replace `batch_runner`, `experiments/config.py` and `tiger_l3_vs_l2.py`);
-- `studies/tiger_l3_vs_l2.toml`.
-
-**Renamed:** `experiments/ipf_qualification.py` → `belief_qualification.py`, which now compares both filters.
-
-**Changed:**
-- `planning/solver_bank.py`: `particle_filter`, `search_particles`, `search_filter`, `search_model`, `draw`;
-- `planning/i_pomcp.py` (per-step draws from b_h; search on `search_model`) and `planning/generative_model.py` (in-tree work uses `search_filter`);
-- `baselines/rts.py`: search on `search_model` and `search_filter`;
-- `belief/particle_filter.py`: systematic resampling; documented as the baseline's filter;
-- `belief/finite_filter.py`: exact only (the old `max_support`/`resample` compression was removed);
+**October 3:**
+- new: `experiments/modeled_qualification.py`, `planning/replicates.py`;
+- renamed: `experiments/l2_panel.py` → `experiments/panel.py`, with `level` in each cell, a `nested_beliefs` grid and a panel-wide `modeled_stopping`;
 - `experiments/oracle.py`:
-  - `particles`, `particle_filter` and `history_steps`, with `sample_history` and `HISTORY_ACTIONS`;
-  - same-kind finite opponents;
-  - an exact reference in its own bank, with `REFERENCE_BRANCHES`.
+  - levels 1–3, via `_modeled_keys` (the opponent stack) and `_point_model` (nested point beliefs);
+  - `opponent_observer` and `opponent_stopping`;
+  - public `planner_config`, `optimal_q_error` and `OPTIMALITY_TOLERANCE`;
+- `planning/config.py` gained `modeled_stopping`, and `planning/i_pomcp.py` gained `_search` and `_replicate_values`;
+- `analysis/statistics.py` gained `clopper_pearson`;
+- tests: new `test_modeled_qualification.py`, `test_l3_oracle.py`, `test_replicates.py`; `test_l2_panel.py` became `test_panel.py`.
 
-**Tests:**
-- new: `test_bounded_beliefs.py` (renamed from `test_particle_filter.py`), `test_panel.py`, `test_hierarchies.py`, `study_fixtures.py`;
-- updated: `test_rts.py`, `test_history_rewards.py`, `test_bellman_backups.py`, `test_exact_final_step.py`, `test_search_and_domain_contracts.py`, `test_online_filter.py`.
+**October 1–2:**
+- new: `belief/compressed_filter.py`, `belief/resampling.py`, `experiments/study.py`, `episodes.py` and `runner.py` (they replace `batch_runner`, `experiments/config.py` and `tiger_l3_vs_l2.py`), `studies/tiger_l3_vs_l2.toml`;
+- renamed: `experiments/ipf_qualification.py` → `belief_qualification.py`, which now compares both filters;
+- `planning/solver_bank.py`: `particle_filter`, `search_particles`, `search_filter`, `search_model`, `draw`;
+- `planning/i_pomcp.py` (per-step draws from b_h) and `planning/chance_scoring.py`;
+- `baselines/rts.py`, `belief/particle_filter.py` (systematic resampling), `belief/finite_filter.py` (exact only).
 
-**Docs:** README, ARCHITECTURE, THEORY, RESULTS (Sections 1–10), and this file. The review findings are in `docs/review/phase-00..11`.
+**Docs:** README, ARCHITECTURE, THEORY (including the optimal-action Q error), RESULTS (Sections 1–12) and this file. The review findings are in `docs/review/phase-00..11`.
 
 **Results directories,** each holding the launcher or probe script that produced it:
 - belief accuracy: `ipf_resampling_probe_20261002`, `belief_qualification_compressed_20261002`, `compressed_prototype_20261002`;
@@ -244,7 +266,7 @@ On October 2, 2026, after the user confirmed that Codex and Antigravity had fini
 ```bash
 cd /home/andyj1810/projects/ipomcp
 PY=.venv/bin/python
-$PY -m pytest -q                                   # about 35 s
+$PY -m pytest -q                                   # about 45 s (slower while other jobs load the machine)
 .venv/bin/ruff check src tests && .venv/bin/ruff format --check src tests
 # Gates
 $PY -m ipomdp.experiments.l1_qualification --budgets 100 1000 5000 --seeds 0 1 2 --output results/<new>
@@ -253,6 +275,7 @@ $PY -m ipomdp.experiments.belief_qualification --levels 2 --particles 16 64 256 
 # L2/L3 panels vs the exact I-POMDP (cells: planner, level, horizon, budget, modeled, particles, filter, history)
 $PY -m ipomdp.experiments.panel --planners mcts --levels 2 --horizons 3 --budgets 1000 --modeled 0 \
     --particles 0 64 --history 0 2 4 --output results/<new>
+# L3 panel (i-L3 -> j-L2 -> i-L1): add --levels 3 and --nested-beliefs 0.085 0.5 0.915
 # Modeled-agent qualification (j-L1 at the beliefs i's L2 search queries it at)
 $PY -m ipomdp.experiments.modeled_qualification --horizons 4 --modeled 100 --ladder 100 400 1600 6400 \
     --seeds 0 1 --workers 12 --output results/<new>
@@ -260,5 +283,6 @@ $PY -m ipomdp.experiments.modeled_qualification --horizons 4 --modeled 100 --lad
 $PY -m ipomdp.experiments.runner studies/tiger_l3_vs_l2.toml --output results/<new>
 ```
 
-- For custom grids, call `panel.run_panel(output, cells, seeds, workers)` from a guarded launcher script, and copy the launcher into the output directory.
+- For custom grids, call `panel.run_panel(output, cells, seeds, workers, beliefs=..., opponent_beliefs=..., nested_beliefs=..., modeled_stopping=ModeledStopping())` from a guarded launcher script, and copy the launcher into the output directory. Cells are `(planner, level, horizon, budget, modeled, particles, filter, history)`. The wide L2 grid (19 × 5 beliefs) and the L3 grid (9 × 3 × 3) are in the launchers in `results/l2_wide_n_20261002` and `results/l3_panel_20261003`.
+- Wait on background jobs by PID or output file, never with `pgrep -f` (Section 6).
 - Size runs from measured CPU. One machine has 24 cores and about 19 GB free; 12 workers are safe for Tiger L2 panels.
