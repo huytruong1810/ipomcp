@@ -4,7 +4,7 @@ Contributions 1 and 2 both rest on one measurement: how good is a level-2 or
 level-3 Tiger decision, and what did it cost, compared with the exact I-POMDP.
 This driver runs that measurement over a grid of cells
 
-    (planner, level, horizon, budget, modeled budget, particles, particle filter, history)
+    (planner, level, horizon, budget, modeled stack, particles, particle filter, history)
 
 where
 
@@ -12,11 +12,13 @@ where
   (reachability-tree sampling; budget = sampled observations per node);
 - ``level`` is i's level, 2 or 3: i models j at level - 1, who (at level 3)
   models i at level 1;
-- ``modeled`` is the budget of every modeled intentional level below i, solved
-  by the same kind of planner (I-POMCP simulations, or RTS samples as in
-  IPF + RTS where every level is solved by RTS), at depth equal to the horizon;
-  0 means every lower level is exact, which isolates i's own search and belief
-  error;
+- ``modeled`` labels how each modeled intentional level below i is solved, at
+  depth equal to the horizon (``modeled_levels``): the same kind of planner
+  with its own budget (I-POMCP simulations, or RTS samples as in IPF + RTS
+  where every level is solved by RTS) and, for I-POMCP, optionally sequential
+  stopping (``6400s``); per level top-down (``6400s/400`` at level 3), or one
+  label for all. ``exact`` makes every lower level exact, which isolates i's
+  own search and belief error;
 - ``particles`` bounds belief supports to N atoms, or 0 for exact beliefs;
 - ``particle filter`` is ``compressed`` (exact updates compressed to N; the
   planner's default) or ``sampled`` (the published IPF; with ``rts`` this is
@@ -44,8 +46,6 @@ Three questions read off the same rows:
 
 Each row records first-action loss, maximum Q error and the planner's CPU time
 for the decision (``experiments.oracle``). One supervised job per (cell, seed).
-``modeled_stopping`` (panel-wide, I-POMCP) solves every finite modeled level by
-sequential replicate searches capped at ``modeled`` (``planning.replicates``).
 The summary gives each optimal rate with its exact 95% Clopper-Pearson interval,
 because rates near 1 from tens of problems bound little (30/30 rules out only
 rates below 0.884).
@@ -54,13 +54,13 @@ rates below 0.884).
 import argparse
 import itertools
 import json
-from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 
 import pandas as pd
 
 from ipomdp.analysis.statistics import clopper_pearson
+from ipomdp.experiments.modeled_levels import EXACT, parse_stack, stack_label
 from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, evaluate_case
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
@@ -94,7 +94,6 @@ def evaluate_cell(
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
     nested_beliefs=NESTED_BELIEFS,
-    modeled_stopping=None,
 ):
     """Every (belief of i, belief of j[, belief of the modeled i]) problem of one cell and seed."""
     if level not in (2, 3):
@@ -110,14 +109,13 @@ def evaluate_cell(
                 p,
                 level=level,
                 opponent_depth=horizon,
-                opponent_budget=modeled or None,
+                modeled=modeled,
                 opponent_belief=p_j,
                 reference="exact",
                 particles=particles or None,
                 particle_filter=particle_filter if particles else "compressed",
                 history_steps=history,
                 nested_belief=p_n,
-                opponent_stopping=modeled_stopping,
             )[0],
             modeled=modeled,
             particles=particles,
@@ -192,13 +190,16 @@ def run_panel(
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
     nested_beliefs=NESTED_BELIEFS,
-    modeled_stopping=None,
     timeout_seconds=7200,
     max_rss_mb=4096,
 ):
     """Run every (cell, seed) job under supervision; write rows, failures and summary."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
+    # One label per configuration, so "400" and "400/400" at level 3 share a cell.
+    cells = [
+        (*cell[:4], stack_label(parse_stack(cell[4], cell[1] - 1)), *cell[5:]) for cell in cells
+    ]
     lock = source_hashes(REPOSITORY_ROOT)
     manifest = dict(
         cells=[dict(zip(CELL, c)) for c in cells],
@@ -206,7 +207,6 @@ def run_panel(
         beliefs=list(beliefs),
         opponent_beliefs=list(opponent_beliefs),
         nested_beliefs=list(nested_beliefs),
-        modeled_stopping=asdict(modeled_stopping) if modeled_stopping else None,
     )
     (output / "manifest.json").write_text(
         json.dumps(dict(panel=manifest, source_sha256=lock), indent=2)
@@ -216,7 +216,6 @@ def run_panel(
         beliefs=tuple(beliefs),
         opponent_beliefs=tuple(opponent_beliefs),
         nested_beliefs=tuple(nested_beliefs),
-        modeled_stopping=modeled_stopping,
     )
     jobs = {
         i: partial(evaluate_cell, *cell, seed, **problems)
@@ -249,7 +248,12 @@ def main():
     parser.add_argument("--levels", type=int, choices=[2, 3], nargs="+", default=[2])
     parser.add_argument("--horizons", type=int, nargs="+", default=[3, 4])
     parser.add_argument("--budgets", type=int, nargs="+", default=[250, 1000, 4000])
-    parser.add_argument("--modeled", type=int, nargs="+", default=[5, 25, 100, 400])
+    parser.add_argument(
+        "--modeled",
+        nargs="+",
+        default=[EXACT, "100", "400"],
+        help="modeled stacks (modeled_levels): exact, 400, 6400s, 6400s/400",
+    )
     parser.add_argument(
         "--particles", type=int, nargs="+", default=[0], help="0 means exact beliefs"
     )

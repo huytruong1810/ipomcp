@@ -99,9 +99,9 @@ def test_exact_reference_scores_a_finite_opponent_planner_against_the_exact_ipom
     common = dict(level=2, opponent_depth=2, opponent_belief=0.085)
     exact_opponent = evaluate_case("mcts", 2, 100, 3, 0.2, **common)[0]
     finite_vs_exact = evaluate_case(
-        "mcts", 2, 100, 3, 0.2, opponent_budget=5, reference="exact", **common
+        "mcts", 2, 100, 3, 0.2, modeled="5", reference="exact", **common
     )[0]
-    finite_vs_declared = evaluate_case("mcts", 2, 100, 3, 0.2, opponent_budget=5, **common)[0]
+    finite_vs_declared = evaluate_case("mcts", 2, 100, 3, 0.2, modeled="5", **common)[0]
     assert finite_vs_exact["oracle_q"] == pytest.approx(exact_opponent["oracle_q"])
     assert finite_vs_exact["reference"] == "exact"
     assert finite_vs_declared["reference"] == "declared"

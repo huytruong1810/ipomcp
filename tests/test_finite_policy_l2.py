@@ -213,12 +213,12 @@ def test_reference_budget_failure_is_explicit():
 
 
 def test_runner_records_distinct_real_and_modeled_configuration():
-    row = evaluate_case("mcts", 2, 100, 11, 0.5, level=2, opponent_depth=2, opponent_budget=25)[0]
+    row = evaluate_case("mcts", 2, 100, 11, 0.5, level=2, opponent_depth=2, modeled="25")[0]
     assert row["opponent"] == {
         "policy": "same_planner",
         "level": 1,
         "depth": 2,
-        "budget": 25,
+        "modeled": "25",
         "initial_belief_p": 0.5,
     }
     assert row["planner_config"]["simulations"] == 100
@@ -232,6 +232,6 @@ def test_invalid_problems_rejected_before_output(tmp_path):
         )
     with pytest.raises(ValueError, match="no opponent depth or budget"):
         run_oracle_comparison(
-            tmp_path / "l1", budgets=[10], horizons=[1], seeds=1, beliefs=[0.5], opponent_budget=25
+            tmp_path / "l1", budgets=[10], horizons=[1], seeds=1, beliefs=[0.5], modeled="25"
         )
     assert not list(tmp_path.iterdir())

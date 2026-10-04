@@ -6,7 +6,7 @@ from ipomdp.experiments.panel import BELIEFS, OPPONENT_BELIEFS, run_panel
 
 
 def test_panel_rows_cover_every_problem_and_name_their_cell(tmp_path):
-    cells = [("rts", 2, 2, 2, 2, 16, "sampled", 0), ("mcts", 2, 2, 30, 0, 0, "exact", 2)]
+    cells = [("rts", 2, 2, 2, "2", 16, "sampled", 0), ("mcts", 2, 2, 30, "exact", 0, "exact", 2)]
     summary, failures = run_panel(tmp_path / "panel", cells, seeds=[0], workers=2)
     assert failures == []
     assert list(summary["n"]) == [len(BELIEFS) * len(OPPONENT_BELIEFS)] * 2
@@ -21,7 +21,7 @@ def test_panel_rows_cover_every_problem_and_name_their_cell(tmp_path):
         level=2,
         horizon=2,
         budget=2,
-        modeled=2,
+        modeled="2",
         particles=16,
         particle_filter="sampled",
         history=0,
@@ -33,7 +33,7 @@ def test_panel_rows_cover_every_problem_and_name_their_cell(tmp_path):
 
 
 def test_panel_takes_a_belief_grid_and_bounds_each_optimal_rate(tmp_path):
-    cells = [("mcts", 2, 1, 20, 0, 0, "exact", 0)]
+    cells = [("mcts", 2, 1, 20, "exact", 0, "exact", 0)]
     summary, failures = run_panel(
         tmp_path / "panel",
         cells,
@@ -56,7 +56,7 @@ def test_panel_takes_a_belief_grid_and_bounds_each_optimal_rate(tmp_path):
 
 
 def test_level_three_cells_cross_the_nested_beliefs(tmp_path):
-    cells = [("mcts", 3, 1, 20, 0, 0, "exact", 0)]
+    cells = [("mcts", 3, 1, 20, "exact/exact", 0, "exact", 0)]
     summary, failures = run_panel(
         tmp_path / "panel",
         cells,

@@ -141,7 +141,7 @@ def test_l2_complete_tree_matches_the_best_response_to_the_declared_opponent(p):
         p,
         level=2,
         opponent_depth=2,
-        opponent_budget=200,
+        modeled="200",
         opponent_belief=0.3,
         reference="declared",
     )[0]

@@ -21,14 +21,15 @@ Problems
 --------
 - Level 1: agent i against uniform-random L0 j; reference = alpha-vector value
   iteration (``reference.pomdp_exact_vi``).
-- Level 2 with an exact opponent: j is an exact L1 agent replanning at a fixed
-  depth, with a point prior on its private belief. The reference is the exact
-  I-POMDP.
-- Level 2 with a finite opponent: j is solved by the same kind of planner as i
-  with the declared ``opponent_budget`` (I-POMCP simulations, or RTS samples
-  per node, as in IPF + RTS where every level is solved by RTS). The reference
-  is either the exact best response to that declared opponent (``declared``:
-  search error only) or the exact I-POMDP (``exact``: search plus opponent-model
+- Levels 2-3 with exact opponents: every intentional level below i is an
+  exact agent replanning at a fixed depth, with point priors on the private
+  beliefs. The reference is the exact I-POMDP.
+- Levels 2-3 with finite opponents: ``modeled`` names how each level below i
+  is solved (``modeled_levels``: per level, the same kind of planner as i with
+  its own budget and optional stopping rule, or exact; RTS samples per node as
+  in IPF + RTS, where every level is solved by RTS). The reference is either
+  the exact best response to that declared hierarchy (``declared``: search
+  error only) or the exact I-POMDP (``exact``: search plus opponent-model
   error).
 
 Planners: ``mcts`` (I-POMCP; budget = root simulations) and ``rts``
@@ -61,21 +62,24 @@ from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 
-from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments.modeled_levels import (
+    EXACT,
+    make_planner,
+    parse_stack,
+    planner_config,
+    register_levels,
+    stack_label,
+)
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
-from ipomdp.planning.config import PlannerConfig
-from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.policy import greedy_policy
-from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.best_response import BestResponseReference
-from ipomdp.reference.exact_agent import ExactIPOMDPPlanner
 from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 
 
@@ -91,19 +95,21 @@ def evaluate_case(
     level=1,
     opponent_depth=None,
     opponent_belief=0.5,
-    opponent_budget=None,
+    modeled=EXACT,
     reference="declared",
     particles=None,
     particle_filter="compressed",
     history_steps=0,
     nested_belief=0.5,
     opponent_observer=None,
-    opponent_stopping=None,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
+    ``modeled`` (levels 2-3) labels the modeled stack, one solve per level
+    below i, top-down (``modeled_levels``): ``exact``, ``400``, ``6400s/400``.
+
     ``reference`` matters only for a level-2 or level-3 problem with a finite
-    opponent: "declared" scores the planner against the best response to its
+    modeled level: "declared" scores the planner against the best response to its
     own finite opponent models (search error only); "exact" scores it against
     the exact I-POMDP, where every lower level is exact (search plus model
     error).
@@ -117,12 +123,9 @@ def evaluate_case(
     planner requests, with the policy it got. These are the beliefs at which the
     opponent's budget must be qualified (``experiments.modeled_qualification``);
     the bank's policy cache means each distinct model is reported once.
-
-    ``opponent_stopping`` (I-POMCP only) gives every finite modeled level a
-    ``replicates.ModeledStopping`` rule, with ``opponent_budget`` as its cap.
     """
-    _validate_problem(
-        planner_kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
+    stack = _validate_problem(
+        planner_kind, level, opponent_depth, opponent_belief, modeled, reference, particles
     )
     if history_steps and level == 1:
         raise ValueError("The L1 alpha-vector reference is solved at the prior; use level 2")
@@ -134,35 +137,28 @@ def evaluate_case(
     bank = SolverBank(seed, particles=particles, particle_filter=particle_filter)
     key = SolverKey("i", level)
     config = planner_config(planner_kind, budget, horizon, gamma, exploration)
-    planner = _planner(planner_kind, key, model, bank, config)
+    planner = make_planner(planner_kind, key, model, bank, config)
     bank.register_solver(key, planner)
-    # L0 action streams are never drawn in a single root decision; seed them anyway.
-    for agent in ("i", "j"):
-        rng = random.Random(bank.stream_seed("actions", f"{agent}_L0"))
-        bank.register_solver(SolverKey(agent, 0), RandomPlanner(model.get_all_actions(agent), rng))
     best_response = BestResponseReference(model, bank, gamma)
-    # Every intentional level below i: exact, or the same kind of finite planner.
-    for key_below in _modeled_keys(level):
-        if opponent_budget is None:
-            provider = ExactIPOMDPPlanner(key_below, model, bank, best_response, opponent_depth)
-        else:
-            provider = _planner(
-                planner_kind,
-                key_below,
-                model,
-                bank,
-                planner_config(
-                    planner_kind,
-                    opponent_budget,
-                    opponent_depth,
-                    gamma,
-                    exploration,
-                    modeled_stopping=opponent_stopping,
-                ),
-            )
+
+    def observed(key_below, solver):
         if opponent_observer is not None and key_below.level == level - 1:
-            provider = _ObservedSolver(provider, opponent_observer)
-        bank.register_solver(key_below, provider)
+            return _ObservedSolver(solver, opponent_observer)
+        return solver
+
+    register_levels(
+        bank,
+        model,
+        "i",
+        level,
+        stack,
+        opponent_depth,
+        best_response,
+        planner_kind=planner_kind,
+        gamma=gamma,
+        exploration=exploration,
+        wrap=observed,
+    )
     belief = _two_state_belief(model, level, belief_p, opponent_belief, nested_belief)
     planner.set_initial_belief(belief)
     prior_model = planner.model()
@@ -179,7 +175,7 @@ def evaluate_case(
     estimates = dict(planner.recommendation_values)
     if level == 1:
         oracle_q = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
-    elif reference == "exact" or opponent_budget is None:
+    elif reference == "exact" or not any(stack):
         oracle_q = _exact_ipomdp_q(
             model, prior_model, history, seed, gamma, opponent_depth, horizon, level
         )
@@ -211,10 +207,9 @@ def evaluate_case(
             "planner_config": asdict(config),
             "level": level,
             "opponent": _opponent_description(
-                level, opponent_depth, opponent_belief, opponent_budget, nested_belief
-            )
-            | ({"stopping": asdict(opponent_stopping)} if opponent_stopping else {}),
-            "reference": reference if level >= 2 and opponent_budget is not None else "exact",
+                level, opponent_depth, opponent_belief, stack, nested_belief
+            ),
+            "reference": reference if any(stack) else "exact",
             "particles": particles,
             "particle_filter": particle_filter if particles else None,
             "history_steps": history_steps,
@@ -272,27 +267,6 @@ class _ObservedSolver:
         return policy
 
 
-def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stopping=None):
-    """The configuration every oracle problem gives a planner of this kind and budget."""
-    if planner_kind == "mcts":
-        return PlannerConfig(
-            simulations=budget,
-            depth=depth,
-            modeled_simulations=budget,
-            gamma=gamma,
-            exploration=exploration,
-            modeled_stopping=modeled_stopping,
-        )
-    if modeled_stopping is not None:
-        raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
-    return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma)
-
-
-def _planner(planner_kind, key, model, bank, config):
-    planner_class = IPOMCPPlanner if planner_kind == "mcts" else RTSPlanner
-    return planner_class(key, model, bank, config)
-
-
 HISTORY_ACTIONS = (LISTEN, LISTEN, LISTEN, OPEN_LEFT, LISTEN, LISTEN, LISTEN, LISTEN)
 
 
@@ -320,26 +294,11 @@ def sample_history(physics, steps, rng):
 REFERENCE_BRANCHES = 50_000_000
 
 
-def _modeled_keys(level):
-    """Solver keys of the intentional levels below an i-agent of ``level``.
-
-    i at level L models j at L - 1, who models i at L - 2, and so on down to
-    level 1; both level-0 agents are uniform random.
-    """
-    return [SolverKey("j" if (level - lvl) % 2 else "i", lvl) for lvl in range(level - 1, 0, -1)]
-
-
 def _exact_ipomdp_q(model, prior_model, history, seed, gamma, opponent_depth, horizon, level):
     """Q of the exact I-POMDP at the exact posterior after ``history``, every lower level exact."""
     bank = SolverBank(seed)
     best_response = BestResponseReference(model, bank, gamma, max_branches=REFERENCE_BRANCHES)
-    for agent in ("i", "j"):
-        rng = random.Random(bank.stream_seed("actions", f"{agent}_L0"))
-        bank.register_solver(SolverKey(agent, 0), RandomPlanner(model.get_all_actions(agent), rng))
-    for key in _modeled_keys(level):
-        bank.register_solver(
-            key, ExactIPOMDPPlanner(key, model, bank, best_response, opponent_depth)
-        )
+    register_levels(bank, model, "i", level, (None,) * (level - 1), opponent_depth, best_response)
     agent_model = prior_model
     for action, observation in history:
         posterior = bank.filter.update(agent_model, action, observation, terminal=False).belief
@@ -368,35 +327,43 @@ def _point_model(model, agent, level, tiger_beliefs):
     return MentalModel(AgentFrame(agent, level, model), belief)
 
 
-def _opponent_description(level, depth, belief, budget, nested_belief):
+def _opponent_description(level, depth, belief, stack, nested_belief):
     if level == 1:
         return {"policy": "uniform_l0"}
     description = {"level": level - 1, "depth": depth, "initial_belief_p": belief}
     if level == 3:
         description["nested_initial_belief_p"] = nested_belief
-    if budget is None:
+    if not any(stack):
         return {"policy": "exact_fixed_depth", **description}
-    return {"policy": "same_planner", "budget": budget, **description}
+    return {"policy": "same_planner", "modeled": stack_label(stack), **description}
 
 
 def _validate_problem(
-    planner_kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
+    planner_kind, level, opponent_depth, opponent_belief, modeled, reference, particles
 ):
+    """Check one problem's options; returns its modeled stack (empty at level 1)."""
     if planner_kind not in ("mcts", "rts"):
         raise ValueError("Unknown planner")
     if reference not in ("declared", "exact"):
         raise ValueError("reference must be 'declared' or 'exact'")
-    if particles is not None and reference == "declared" and opponent_budget is not None:
-        raise ValueError("A declared reference is not exact with particle beliefs; use 'exact'")
     if level not in (1, 2, 3):
         raise ValueError("Reference level must be 1, 2 or 3")
     if not 0 <= opponent_belief <= 1:
         raise ValueError("Opponent belief must lie in [0,1]")
-    if level == 1 and (opponent_depth is not None or opponent_budget is not None):
-        raise ValueError("Level 1 has a uniform L0 opponent; it takes no opponent depth or budget")
-    if level >= 2:
-        if type(opponent_depth) is not int or opponent_depth < 1:
-            raise ValueError("Levels 2-3 require an explicit positive opponent depth")
+    if level == 1:
+        if opponent_depth is not None or modeled != EXACT:
+            raise ValueError(
+                "Level 1 has a uniform L0 opponent; it takes no opponent depth or budget"
+            )
+        return ()
+    if type(opponent_depth) is not int or opponent_depth < 1:
+        raise ValueError("Levels 2-3 require an explicit positive opponent depth")
+    stack = parse_stack(modeled, level - 1)
+    if particles is not None and reference == "declared" and any(stack):
+        raise ValueError("A declared reference is not exact with particle beliefs; use 'exact'")
+    if planner_kind != "mcts" and any(solve and solve.stopping for solve in stack):
+        raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
+    return stack
 
 
 def run_oracle_comparison(
@@ -413,7 +380,7 @@ def run_oracle_comparison(
     level=1,
     opponent_depth=None,
     opponent_belief=0.5,
-    opponent_budget=None,
+    modeled=EXACT,
     reference="declared",
     particles=None,
     particle_filter="compressed",
@@ -429,7 +396,7 @@ def run_oracle_comparison(
     """
     for kind in planners:
         _validate_problem(
-            kind, level, opponent_depth, opponent_belief, opponent_budget, reference, particles
+            kind, level, opponent_depth, opponent_belief, modeled, reference, particles
         )
     if type(seeds) is not int or seeds < 1 or type(seed_start) is not int or seed_start < 0:
         raise ValueError("Need a positive seed count and a nonnegative first seed")
@@ -452,7 +419,7 @@ def run_oracle_comparison(
         level=level,
         opponent_depth=opponent_depth,
         opponent_belief=opponent_belief,
-        opponent_budget=opponent_budget,
+        modeled=modeled,
         reference=reference,
         particles=particles,
         particle_filter=particle_filter,
@@ -476,7 +443,7 @@ def run_oracle_comparison(
         level=level,
         opponent_depth=opponent_depth,
         opponent_belief=opponent_belief,
-        opponent_budget=opponent_budget,
+        modeled=modeled,
         reference=reference,
         particles=particles,
         particle_filter=particle_filter,
@@ -522,10 +489,10 @@ def main():
     parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts"])
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--exploration", type=float, default=1.0)
-    parser.add_argument("--level", type=int, choices=[1, 2], default=1)
+    parser.add_argument("--level", type=int, choices=[1, 2, 3], default=1)
     parser.add_argument("--opponent-depth", type=int)
     parser.add_argument("--opponent-belief", type=float, default=0.5)
-    parser.add_argument("--opponent-budget", type=int)
+    parser.add_argument("--modeled", default=EXACT, help="modeled stack, e.g. 400 or 6400s")
     parser.add_argument("--reference", choices=["declared", "exact"], default="declared")
     parser.add_argument("--particles", type=int)
     parser.add_argument(

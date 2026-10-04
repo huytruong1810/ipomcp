@@ -48,13 +48,13 @@ def test_level_three_decisions_with_finite_opponents_are_scored_and_described():
         opponent_depth=2,
         opponent_belief=0.7,
         nested_belief=0.4,
-        opponent_budget=50,
+        modeled="50",
         reference="exact",
     )[0]
     assert row["level"] == 3
     assert row["opponent"] == {
         "policy": "same_planner",
-        "budget": 50,
+        "modeled": "50",
         "level": 2,
         "depth": 2,
         "initial_belief_p": 0.7,
