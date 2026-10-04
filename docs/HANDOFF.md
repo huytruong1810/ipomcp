@@ -5,13 +5,13 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 3, 2026 (modeled qualification driver, L3 oracle and panel, sequential modeled stopping; RESULTS.md Sections 12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+Last updated October 4, 2026 (per-level modeled stacks, level-3 modeled qualification, stopping-floor A/B; RESULTS.md Section 12.9). Earlier: October 3 (Sections 12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
 
 ## 0. Start here (fresh agent)
 
-- **State.** `main` is clean at the last commit, with nothing running. 252 tests pass; ruff is clean. Nothing has been pushed.
+- **State.** 261 tests pass; ruff is clean. Nothing has been pushed. **Running (October 4):** the L3 H4 modeled qualification, `results/l3_modeled_qualification_h4_20261004` (27 problems, launcher in `results/l3_mq_h4_launch/`, PID 825831, about 5 h from launch). When it finishes, move the launcher into the output folder and write RESULTS 12.10.
 - **Where the science stands.** Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3). The open problem is the cost of simulating modeled opponents.
-- **Your first task** is next step 1 in Section 4: per-level modeled budgets and rules.
+- **Your first task:** read the L3 H4 qualification (above), then next step 1 in Section 4.
 - **Before running anything:**
   - Read Section 6 (what not to repeat) and the standards in Section 1. The user expects redesign over scaling, and A/B gates with statistics.
   - The machine is shared. Another project (`~/projects/jepa_ipomdp`) runs multi-core jobs here; never touch its processes.
@@ -110,7 +110,7 @@ studies/        tiger_l3_vs_l2.toml
 | L1, H1–H5 | uniform L0 | exact | 220/220 at H5 (12.1) |
 | L2, H3, k ≤ 4 | exact, or I-POMCP 400 (zero-wrong certified, 12.5) | exact or compressed 64 | 373–380/380 (12.3) |
 | L2, H4 | I-POMCP 1,600 flat, or stopping with cap 6,400 (half the CPU) | exact | 380/380 (12.4, 12.8) |
-| L3, H3, k = 0 | I-POMCP 400 flat (reproduces exact) | exact | 162/162 (12.7) |
+| L3, H3, k = 0 | I-POMCP 400 flat (i's decisions = exact); certified zero-wrong stack `6400s/100` | exact | 162/162 (12.7, 12.9) |
 | Wumpus L1 | not validated | exact real, compressed search | Section 10 pilot only |
 
 ## 3. Key results (details and n in RESULTS.md)
@@ -133,6 +133,7 @@ studies/        tiger_l3_vs_l2.toml
 | 12.6 | Near-tie modeled decisions: **no bug, no allocation problem** (UCB splits the contenders evenly); the floor is return variance (about 6.5 per simulation). Sequential Halving would not help and was skipped |
 | 12.7 | **L3 vs the exact L3 I-POMDP** (reference cross-checked against `build_exact_agent`): H3 k = 0 162/162 for exact, 400 and 100 modeled. Exact mid-episode L3 checks are intractable beyond H2 k ≤ 2 |
 | 12.8 | **Sequential replicate searches with stopping** for modeled policies: equal accuracy to flat 1,600 at L2 H4 (380/380) at **0.47× the CPU** (paired, n = 40). At L3 H3, accurate (162/162) but 1.3× the CPU of flat 400, which already matches exact. Opt-in, chosen per level |
+| 12.9 | **Per-level modeled stacks** and the first **L3 modeled qualification** (j-L2 at the beliefs i-L3 queries; 3,294 queries). At H3, flat 400 j-L2 is wrong on 4 near-tie beliefs (harmless to i: 162/162); i-L1's budget inside j-L2 changes no policy (100 = 400). Certified: `6400s/100`, 0 wrong, 0.75× the CPU of flat 1,600. Stopping floor: 4 or 5 replicates cost 29–57% more and fix nothing; keep 3 |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
@@ -155,10 +156,12 @@ studies/        tiger_l3_vs_l2.toml
 
 ### Next steps, in order
 
-0. **Done October 3:** `experiments.modeled_qualification` (12.5); oracle and `panel` (was `l2_panel`) at level 3 (12.7); near-tie diagnosis (12.6); sequential modeled stopping (12.8).
-1. **Per-level modeled solves.** The L3 gate (12.8) shows stopping pays only where the qualified flat budget is far above its 600-simulation floor. Today `oracle`/`panel` apply one rule to every modeled level.
-   - Give each modeled level its own budget and rule, chosen by `modeled_qualification` for that level. This needs a stopping option on the driver's ladder, and an L3 version of the driver (j-L2 queried by i-L3, scored against the exact L2 agent).
-   - Candidate refinement: a lower floor, for example 2 replicates or a batch tied to the cap. Gate it on the 12.6 near-tie set first; 12.8 shows small trees lose depth.
+0. **Done October 3:** `experiments.modeled_qualification` (12.5); oracle and `panel` (was `l2_panel`) at level 3 (12.7); near-tie diagnosis (12.6); sequential modeled stopping (12.8). **October 4:** per-level modeled stacks and level-3 qualification (12.9); the stopping floor stays at 3 (12.9).
+1. **Certify L3 H4** (contribution 1 beyond the exact frontier). The running 27-problem qualification scores `400/100` and `6400s/100`. The pilot (1 problem, 67 queries) had zero wrong on every rung, at 1.8 CPU-h per problem, most of it in i's search and the exact L2 H4 references.
+   - If zero wrong: widen to more seeds (each seed adds planner randomness only at k = 0), then run L3 H4 decisions with the certified stack. i's own decisions cannot be scored exactly at L3 H4; report them as certified by the modeled qualification plus i's root Q stability across seeds.
+   - i-L1 inside j-L2 at H4 was not tested above 100 except in the pilot (`6400s/1600s`, also zero wrong). Check it if any j-L2 query is wrong.
+   - Cost is now the binding constraint at L3 H4: profile i-L3's decision (per-level CPU) before any wider run.
+   - The study runner (`experiments.study`, `HierarchyBuilder`) still takes one `modeled_planner` for every nested level; give it per-level stacks before the episode study.
 2. **Adaptive budgets for real decisions as well.** The same stopping test applies to i's root (stop when the decision is separated), but real decisions also need Q accuracy for contribution 2's error bounds. Design and gate it separately.
 3. **Variance reduction** (12.6: the near-tie floor is return variance). Candidates from the literature, each A/B-gated on the 12.6 near-tie set and the 12.5 queried beliefs:
    - more exact integration below the root (chance scoring already cuts the spread 2.5× at 6,400);
@@ -196,6 +199,13 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 
 Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or reviewed; `git log archive/pre-restructure-20260930..HEAD` has the full record.
 
+**October 4:**
+- new: `experiments/modeled_levels.py` (`ModeledSolve`, stack labels, `modeled_keys`, `planner_config`, `register_levels`); `oracle.planner_config` moved there;
+- `oracle.evaluate_case`: `modeled` (stack label) replaces `opponent_budget` and `opponent_stopping`; `reference="none"` skips scoring;
+- `panel`: the `modeled` cell is a stack label; the panel-wide `modeled_stopping` is gone;
+- `modeled_qualification`: levels 2–3, stack rungs, per-query CPU, cheapest zero-wrong rung, `score_decision`; one job per problem;
+- tests: new `test_modeled_levels.py`; level-3 and unscored qualification tests.
+
 **October 3:**
 - new: `experiments/modeled_qualification.py`, `planning/replicates.py`;
 - renamed: `experiments/l2_panel.py` → `experiments/panel.py`, with `level` in each cell, a `nested_beliefs` grid and a panel-wide `modeled_stopping`;
@@ -220,6 +230,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 - belief accuracy: `ipf_resampling_probe_20261002`, `belief_qualification_compressed_20261002`, `compressed_prototype_20261002`;
 - L2 panels: `l2_baseline_20261002`, `l2_baseline_h4_modeled4000_20261002`, `l2_ipf_miss_20261002`, `l2_mid_episode_20261002`, `l2_compressed_20261002`, `l2_compressed_k6_20261002`, `l2_revalidate_belief_sampling_20261002`;
 - gates and references: `l1_qualification_belief_sampling_20261002`, `reference_scaling_20261002`;
+- October 4: `l3_modeled_qualification_h3_20261003` (first ladder; dated by launch), `l3_modeled_qualification_h3_ladder2_20261004`, `l3_near_tie_probe_20261003`, `stopping_floor_ab_20261004`, `l3_qualification_pilot_20261003` (H3 and H4 timing pilots; the first H4 pilot was killed at 2.4 CPU-h and 10 GB inside i's exact L3 reference);
 - October 3: `modeled_qualification_20261003`, `modeled_qualification_h4_6400_20261003`, `near_tie_diagnosis_20261003`, `l3_panel_20261003`, `sequential_replicates_ab_20261003`, `l2_h4_stopping_gate_20261003` (with `cost_profile.py`, `paired_cpu.py`), `l3_stopping_gate_20261003`;
 - wider n (Section 12): `gap2_belief_sampling_paired_20261002` (before/after/head arms; before and after ran from temporary worktrees, since removed), `q_plateau_diagnosis_20261002`, `l2_wide_n_20261002`, `modeled_budget_probe_20261002`, `l2_h4_modeled_sweep_20261002`;
 - chance scoring: `l1_qualification_chance_scoring_20261002`, `l2_chance_scoring_20261002`;
@@ -247,6 +258,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Scaling simulations to improve long-horizon Q error | All-action max Q error barely moves (L1 H5: 1.57 → 1.35) | It was the metric: report `optimal_q_error` (0.40 → 0.12) |
 | Judging a regression from 3 seeds (L1 H5: 0.88 → 1.46) | Per-seed means range 0.56–2.15; paired n = 220 showed no change | Paired runs over ≥ 20 seeds |
 | Comparing CPU across runs made at different machine load | Flat 1,600 measured 13.7 s on a quiet day and 20.6 s under another project's jobs; the stopping rule looked like no saving | Paired, same-process, alternating-order CPU measurements |
+| Exact L3 reference inside an L3 H4 qualification job | 2.4 CPU-h and 10 GB for one problem before it was killed | `score_decision=False` (`reference="none"`): only the modeled level's reference is needed |
+| Raising the stopping floor (4–5 replicates) | 29–57% more simulations; the remaining near-tie miss is at the cap | Floor 3 (12.9) |
 | A loss tolerance on the modeled agent's own decisions | Harmful mistakes lose 0.66; harmless ones 0.2–1.0 | Zero wrong modeled decisions (12.5) |
 | Replicate searches at an equal budget | Worse on near ties (17/20 vs 20/20 at 1,600): small trees lose depth | Replicates only with adaptive stopping and a higher cap (12.8) |
 | Exact L3 references mid-episode at H3 | One k = 2 problem ran over 30 minutes at 5 GB | Exact L3 checks at H3 k = 0 and H2 k ≤ 2 only |

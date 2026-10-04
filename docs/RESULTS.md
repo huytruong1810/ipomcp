@@ -607,3 +607,35 @@ At an equal 1,600 cap, replicates are worse on near ties (17/20 vs 20/20), becau
 - **Use stopping where the qualified flat budget is well above its 600-simulation floor.** At L2 H4 it halves CPU at equal accuracy, and caps near-tie error at the level flat 6,400 reaches (12.5).
 - **Use a flat budget where a small one already qualifies.** At L3 H3, flat 400 matches exact and the rule costs 1.3×.
 - **It stays opt-in, chosen per modeled level.** It is not a default.
+
+### 12.9 Per-level modeled solves, and the first level-3 modeled qualification (October 3–4, 2026)
+
+**Design change** (commits `2700e7a`, and the oracle's `reference="none"`). `experiments.modeled_levels` names each modeled level's solve, top-down, with one label per level: `400` (one search of 400), `6400s` (sequential stopping, cap 6,400; 12.8), `exact`. At level 3, `6400s/100` solves j-L2 with stopping and the i-L1 that j models with a flat 100. `oracle`, `panel` and `modeled_qualification` build the hierarchy from that label. `modeled_qualification` now also runs at level 3: it scores j-L2 at the beliefs i-L3's search queries, against the exact L2 agent, and each ladder rung is a whole stack. Its qualifying rung is the cheapest one, by mean CPU per query, with zero wrong decisions. Only the modeled level's exact reference is needed, so `score_decision=False` drops i's level-3 reference where it is intractable.
+
+**L3 H3 qualification** (12.7 grid: 9 beliefs of i × 3 of j × 3 of the modeled i-L1 × seeds 0–1, n = 162 problems; root 1,000; in-search stack `400`; 3,294 queried j-L2 models, 183 distinct). `results/l3_modeled_qualification_h3_20261003` and `results/l3_modeled_qualification_h3_ladder2_20261004`.
+
+| j-L2 / i-L1 | Wrong / queries | Distinct beliefs wrong | 95% interval, correct | CPU per query (s) |
+|---|---|---|---|---|
+| 100 / 100 | 63 / 3,294 | 6 | — | 0.65 |
+| 100 / 400 | 63 / 3,294 | 6 | — | 1.09 |
+| 400 / 100 | 36 / 3,294 | 4 | 98.5–99.2% | 1.01 |
+| 400 / 400 | 36 / 3,294 | 4 | 98.5–99.2% | 1.45 |
+| 1,600 / 100 | 9 / 3,294 | 1 | 99.5–99.9% | 1.71 |
+| **6,400 stopping / 100** | **0 / 3,294** | **0** | **99.9–100%** | **1.28** |
+
+CPU is comparable only within a run: rows 1–5 ran in one run, the last two in the second.
+
+- **i's decisions were optimal in every problem (162/162).** All the wrong j-L2 queries are harmless to i. This agrees with 12.7, which scored i's decisions, not j's.
+- **i-L1's budget inside j-L2 does not matter at H3.** At 100 and at 400, every j-L2 policy is identical (3,294 of 3,294 queries), so `/100` is enough and costs about 30% less.
+- **The j-L2 mistakes are near ties.** The 4 beliefs still wrong at 400 have P(tiger left) ≈ 0.03 or 0.97, with exact gaps of 0.08–0.15 between listening and opening the safe door. Re-solved over 10 seeds (`results/l3_near_tie_probe_20261003`), flat 400 is wrong 12/40, while flat 1,600 and flat 6,400 are 0/40, with i-L1 exact or at 400 alike. That is search noise, not a bug.
+- **Certified L3 H3 stack: `6400s/100`.** It has zero wrong queries, and it costs 0.75× flat 1,600, which still has one wrong belief.
+
+**Stopping floor A/B** (`results/stopping_floor_ab_20261004`). With 3 replicates, the stopping test's standard error has 2 degrees of freedom, so a 3-SE separation occurs by chance with two-sided probability ≈ 0.095. Is the floor too low?
+
+| Minimum replicates | L2 H4 (n = 1,175): wrong, mean simulations | L3 H3 near ties (n = 40): wrong, mean simulations |
+|---|---|---|
+| 3 (current) | 0, 695 | 1, 4,570 |
+| 4 | 0, 894 | 1, 4,955 |
+| 5 | 0, 1,091 | 1, 5,245 |
+
+The one wrong case (gap 0.083) reached the 6,400 cap in every arm, so it is a cap limit, not an early stop. Raising the floor costs 29–57% more simulations and corrects nothing, so **the floor stays at 3**. Lowering it to 2 replicates is unsound: the SE has 1 degree of freedom and a 3-SE separation occurs by chance about 20% of the time. It was not run.
