@@ -9,9 +9,9 @@ Last updated October 4, 2026 (per-level modeled stacks, level-3 modeled qualific
 
 ## 0. Start here (fresh agent)
 
-- **State.** 261 tests pass; ruff is clean. Nothing has been pushed. **Running (October 4):** the L3 H4 modeled qualification of the 18 confident-nested problems, `results/l3_modeled_qualification_h4_confident_20261004` (launcher in `results/l3_mq_h4_confident_launch/`, PID 901236, about 7 h). The 9 nested-0.5 problems finished in `results/l3_modeled_qualification_h4_20261004`: 633 queries (211 distinct), 0 wrong at `400/100` and `6400s/100`. When the run ends, move the launcher into the output folder and write RESULTS 12.10 from both folders.
+- **State.** 261 tests pass; ruff is clean. Nothing has been pushed. **Running:** nothing (October 5). L3 H4 qualification and the residual probe are done (RESULTS 12.10).
 - **Where the science stands.** Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3). The open problem is the cost of simulating modeled opponents.
-- **Your first task:** read the L3 H4 qualification (above), then next step 1 in Section 4.
+- **Your first task:** next step 1 in Section 4 (a consistent adaptive modeled solve; RESULTS 12.10).
 - **Before running anything:**
   - Read Section 6 (what not to repeat) and the standards in Section 1. The user expects redesign over scaling, and A/B gates with statistics.
   - The machine is shared. Another project (`~/projects/jepa_ipomdp`) runs multi-core jobs here; never touch its processes.
@@ -157,11 +157,10 @@ studies/        tiger_l3_vs_l2.toml
 ### Next steps, in order
 
 0. **Done October 3:** `experiments.modeled_qualification` (12.5); oracle and `panel` (was `l2_panel`) at level 3 (12.7); near-tie diagnosis (12.6); sequential modeled stopping (12.8). **October 4:** per-level modeled stacks and level-3 qualification (12.9); the stopping floor stays at 3 (12.9).
-1. **Certify L3 H4** (contribution 1 beyond the exact frontier). The running 27-problem qualification scores `400/100` and `6400s/100`. The pilot (1 problem, 67 queries) had zero wrong on every rung, at 1.8 CPU-h per problem, most of it in i's search and the exact L2 H4 references.
-   - If zero wrong: widen to more seeds (each seed adds planner randomness only at k = 0), then run L3 H4 decisions with the certified stack. i's own decisions cannot be scored exactly at L3 H4; report them as certified by the modeled qualification plus i's root Q stability across seeds.
-   - i-L1 inside j-L2 at H4 was not tested above 100 except in the pilot (`6400s/1600s`, also zero wrong). Check it if any j-L2 query is wrong.
-   - Cost is now the binding constraint at L3 H4: profile i-L3's decision (per-level CPU) before any wider run.
-   - The study runner (`experiments.study`, `HierarchyBuilder`) still takes one `modeled_planner` for every nested level; give it per-level stacks before the episode study.
+1. **A consistent adaptive modeled solve** (RESULTS 12.10). The replicate stopping rule of 12.8 is biased for j-L2 at L3 H4. Its 200-simulation replicates are too shallow, so on 0.19-gap beliefs it stays 16–20/30 wrong even with a 25,600 cap, while one search of 6,400 is 0/30. Use it only where it was gated (L2 H4, L3 H3). One flat search of 6,400 per j-L2 query would cost hours per i-L3 H4 decision (about 103 queries × 150 s), so scaling is not the answer. Candidates, each to be A/B-gated on the 12.10 residual beliefs, the 12.8 L2 H4 set and the 12.9 L3 H3 set:
+   - a single growing tree with sequential stopping (best-arm identification on one tree, cf. Kaufmann & Koolen 2017). It is consistent, because the decision always comes from the deepest tree. It needs an honest per-action standard error, which the current backups do not provide; sampled root returns would have to be recorded;
+   - persistent nested trees (R6, the I-NTMCP idea): the j-L2 beliefs i's tree queries are successive updates of each other, so one j-L2 tree can serve many queries. This attacks the cost directly.
+   - L3 H4 has no certified stack until then. Its 9 nested-0.5 problems are 0 wrong at both stacks; the 18 confident ones are not.
 2. **Adaptive budgets for real decisions as well.** The same stopping test applies to i's root (stop when the decision is separated), but real decisions also need Q accuracy for contribution 2's error bounds. Design and gate it separately.
 3. **Variance reduction** (12.6: the near-tie floor is return variance). Candidates from the literature, each A/B-gated on the 12.6 near-tie set and the 12.5 queried beliefs:
    - more exact integration below the root (chance scoring already cuts the spread 2.5× at 6,400);
