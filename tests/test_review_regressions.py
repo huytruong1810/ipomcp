@@ -154,3 +154,32 @@ def test_public_continuation_is_conditioned_in_online_filter():
 
 def _must_not_run(spec, trial):
     raise AssertionError("Completed trials must not run again")
+
+
+def test_pickling_a_belief_keeps_its_masses_and_digest_bit_for_bit():
+    # Renormalizing normalized masses on unpickle moved them by an ulp, which
+    # changed canonical digests and every search seed derived from them.
+    from ipomdp.belief import canonical
+    from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+    from ipomdp.belief.frame import AgentFrame
+    from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+
+    opponent = MentalModel(AgentFrame("j", 0, TigerModel()))
+
+    def two_atoms(left, right):
+        return FiniteBelief(
+            (
+                (InteractiveState(TIGER_LEFT, opponent), left),
+                (InteractiveState(TIGER_RIGHT, opponent), right),
+            )
+        )
+
+    # Masses whose renormalization is not exact, so the old behaviour would show.
+    belief = next(
+        b
+        for b in (two_atoms(k / 97, 1.0) for k in range(1, 97))
+        if FiniteBelief(b.mass).mass != b.mass
+    )
+    restored = pickle.loads(pickle.dumps(belief))
+    assert [w.hex() for _, w in restored.mass] == [w.hex() for _, w in belief.mass]
+    assert canonical.belief_digest(restored) == canonical.belief_digest(belief)

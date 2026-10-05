@@ -97,6 +97,9 @@ class FiniteBelief:
         mass = tuple((atom, weight / total) for atom, weight in totals.items())
         if any(weight <= 0 for _, weight in mass):
             raise FloatingPointError("Positive belief mass underflowed during normalization")
+        self._set_normalized(mass)
+
+    def _set_normalized(self, mass):
         key = frozenset(mass)
         object.__setattr__(self, "mass", mass)
         object.__setattr__(self, "_key", key)
@@ -109,6 +112,16 @@ class FiniteBelief:
         return isinstance(other, FiniteBelief) and self._key == other._key
 
     def __reduce__(self):
-        # Cached hashes include frame/model identities, which change on unpickle.
-        # Reconstruct from values so all derived keys and hashes are recomputed.
-        return type(self), (self.mass,)
+        # Cached hashes include frame/model identities, which change on unpickle,
+        # so keys and hashes are recomputed. The masses are restored bit for bit,
+        # never renormalized: normalizing normalized masses moves them by an ulp,
+        # which changes the canonical digest and hence every search seed derived
+        # from it (504 of 549 queried beliefs changed digest before this).
+        return _restore_belief, (self.mass,)
+
+
+def _restore_belief(mass):
+    """A belief from already-normalized masses, exactly as pickled."""
+    belief = object.__new__(FiniteBelief)
+    belief._set_normalized(mass)
+    return belief

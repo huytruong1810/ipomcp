@@ -29,10 +29,17 @@ at level 3 the private belief of the i-L1 that j models, seed, history k):
    reproduce the policy i used; the driver checks this on every query, which
    guards against the ladder silently solving a different problem.
 
+The driver runs in two supervised phases. Phase 1 runs one job per problem and
+saves every problem's queries to ``queries.pkl``; a later ladder can reuse them
+(``queries_from``). Phase 2 runs one job per *distinct* (horizon, seed, queried
+belief). A modeled solve is a pure function of those, so scoring each one once
+is exact, and it keeps each job's memory to one belief. At L3 H4, 633 queries
+held 211 distinct beliefs, and one shared reference cache per problem grew to
+9.6 GB. Each rung is solved in a fresh bank, so the recorded CPU is the cold
+cost of one modeled solve.
+
 Each row is one (problem, queried model, rung) with the modeled agent's
-first-action loss and the re-solve's process CPU. Each rung keeps one bank per
-problem, so lower-level solves are shared across queries as they are inside
-i's search and the CPU is the amortized cost. The summary gives, per rung, the
+first-action loss and that CPU. The summary gives, per rung, the
 number of wrong modeled decisions with an exact 95% Clopper-Pearson interval
 on the correct rate, split by whether i's own decision was wrong (when it is
 scored: ``score_decision=False`` skips level L's exact reference); the number
@@ -54,6 +61,7 @@ already 380/380 at 1,600). Scope: exact beliefs.
 import argparse
 import itertools
 import json
+import pickle
 import time
 from functools import partial
 from pathlib import Path
@@ -83,14 +91,14 @@ OPPONENT_BELIEFS = (0.085, 0.3, 0.5, 0.7, 0.915)
 NESTED_BELIEFS = (0.5,)
 LADDER = ("100", "400", "1600", "4000")
 GROUP = ("level", "horizon", "budget", "modeled", "history")
+PROBLEM = ("horizon", "history", "seed", "belief_p", "opponent_belief", "nested_belief")
 
 
-def evaluate_problem(
+def collect_queries(
     level,
     horizon,
     budget,
     modeled,
-    ladder,
     history,
     seed,
     belief_p,
@@ -99,17 +107,13 @@ def evaluate_problem(
     score_decision=True,
     gamma=0.95,
 ):
-    """Rows for every queried j-(level-1) model of one problem, at every rung of ``ladder``.
+    """Phase 1 for one problem: i's decision and every j-(level-1) model its search queries.
 
-    ``score_decision=False`` skips the level-L exact reference for i's own
-    decision (``decision_loss`` is None); the modeled level is still scored
-    against its own exact reference, which is the qualification.
+    Returns the problem, i's decision loss (None when ``score_decision`` is
+    False, which skips level L's exact reference) and the queries in request
+    order as (canonical belief digest, model, policy i used).
     """
-    used_stack = parse_stack(modeled, level - 1)
-    rungs = [parse_stack(label, level - 1) for label in ladder]
-    if any(rung[0] is None for rung in rungs):
-        raise ValueError("A rung must solve the queried level by search; exact is the reference")
-    queried = []  # (model, policy) pairs, in request order
+    queried = []
     decision = evaluate_case(
         "mcts",
         horizon,
@@ -124,48 +128,54 @@ def evaluate_problem(
         modeled=modeled,
         reference="exact" if score_decision else "none",
         history_steps=history,
-        opponent_observer=lambda model, policy: queried.append((model, policy)),
+        opponent_observer=lambda model, policy: queried.append(
+            (canonical.belief_digest(model.belief), model, policy)
+        ),
     )[0]
-    if not queried:
-        return []
-    # Frames must carry the very physics instance the banks are built on.
-    physics = queried[0][0].frame.pomdp_model
-    solvers = [_queried_solver(physics, level - 1, rung, horizon, seed, gamma) for rung in rungs]
-    rows = []
-    for index, (model, used) in enumerate(queried):
-        # A fresh reference per query: its caches grew about 370 MB per query at
-        # L3 H4 (to 9.6 GB over 67 queries) while reuse across queries was small.
-        exact = _exact_reference(physics, level - 1, horizon, seed, gamma).q_values(model, horizon)
-        best = max(exact.values())
-        for rung, solver in zip(rungs, solvers):
-            started = time.process_time()
-            policy = solver.policy_for(model, modeled=True)
-            cpu_seconds = time.process_time() - started
-            if rung == used_stack and policy != used:
-                raise RuntimeError("Re-solving did not reproduce the modeled policy i used")
-            rows.append(
-                dict(
-                    level=level,
-                    horizon=horizon,
-                    budget=budget,
-                    modeled=stack_label(used_stack),
-                    history=history,
-                    seed=seed,
-                    belief_p=belief_p,
-                    opponent_belief=opponent_belief,
-                    nested_belief=nested_belief,
-                    decision_loss=decision.get("first_action_loss"),
-                    query=index,
-                    belief_digest=canonical.belief_digest(model.belief),
-                    physical_belief=_physical_marginal(model),
-                    exact_q={str(a): q for a, q in exact.items()},
-                    rung=stack_label(rung),
-                    policy={str(a): w for a, w in policy.items()},
-                    loss=best - sum(w * exact[a] for a, w in policy.items()),
-                    cpu_seconds=cpu_seconds,
-                )
+    return dict(
+        horizon=horizon,
+        history=history,
+        seed=seed,
+        belief_p=belief_p,
+        opponent_belief=opponent_belief,
+        nested_belief=nested_belief,
+        decision_loss=decision.get("first_action_loss"),
+        queries=queried,
+    )
+
+
+def score_belief(level, horizon, seed, model, used_stack, used_policy, ladder, gamma=0.95):
+    """Phase 2 for one distinct queried model: exact Q and every rung's policy, loss and CPU.
+
+    Each rung is solved in its own fresh bank, so the CPU is the cold cost of
+    one modeled solve. The rung equal to ``used_stack`` must reproduce
+    ``used_policy``, the policy i's search got for this model.
+    """
+    physics = model.frame.pomdp_model
+    exact = _exact_reference(physics, level, horizon, seed, gamma).q_values(model, horizon)
+    best = max(exact.values())
+    results = []
+    for label in ladder:
+        rung = parse_stack(label, level)
+        solver = _queried_solver(physics, level, rung, horizon, seed, gamma)
+        started = time.process_time()
+        policy = solver.policy_for(model, modeled=True)
+        cpu_seconds = time.process_time() - started
+        if rung == used_stack and policy != used_policy:
+            raise RuntimeError("Re-solving did not reproduce the modeled policy i used")
+        results.append(
+            dict(
+                rung=stack_label(rung),
+                policy={str(a): w for a, w in policy.items()},
+                loss=best - sum(w * exact[a] for a, w in policy.items()),
+                cpu_seconds=cpu_seconds,
             )
-    return rows
+        )
+    return dict(
+        exact_q={str(a): q for a, q in exact.items()},
+        physical_belief=_physical_marginal(model),
+        rungs=results,
+    )
 
 
 def _exact_reference(physics, level, horizon, seed, gamma):
@@ -258,23 +268,30 @@ def run_qualification(
     opponent_beliefs=OPPONENT_BELIEFS,
     nested_beliefs=NESTED_BELIEFS,
     score_decision=True,
+    queries_from=None,
     workers=4,
     timeout_seconds=7200,
     max_rss_mb=4096,
 ):
-    """One supervised job per problem; write rows, summary and qualifying rungs."""
+    """Search every problem, score each distinct queried model once, then expand to rows.
+
+    ``queries_from`` names an earlier run's ``queries.pkl`` (same settings
+    except the ladder) whose phase 1 is reused, so new rungs cost phase 2 only.
+    """
     if level not in (2, 3):
         raise ValueError("Qualification scores the level below a level-2 or level-3 agent")
+    used_stack = parse_stack(modeled, level - 1)
+    if any(parse_stack(label, level - 1)[0] is None for label in ladder):
+        raise ValueError("A rung must solve the queried level by search; exact is the reference")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     nested = tuple(nested_beliefs) if level == 3 else NESTED_BELIEFS
     lock = source_hashes(REPOSITORY_ROOT)
-    settings = dict(
+    problem_settings = dict(
         level=level,
         horizons=list(horizons),
         budget=budget,
-        modeled=modeled,
-        ladder=list(ladder),
+        modeled=stack_label(used_stack),
         histories=list(histories),
         seeds=list(seeds),
         beliefs=list(beliefs),
@@ -283,44 +300,103 @@ def run_qualification(
         score_decision=score_decision,
     )
     (output / "manifest.json").write_text(
-        json.dumps(dict(settings=settings, source_sha256=lock), indent=2)
-    )
-    problem = ("horizon", "history", "seed", "belief_p", "opponent_belief", "nested_belief")
-    jobs_index = list(
-        itertools.product(horizons, histories, seeds, beliefs, opponent_beliefs, nested)
-    )
-    jobs = {
-        i: partial(
-            evaluate_problem,
-            level,
-            h,
-            budget,
-            modeled,
-            tuple(ladder),
-            k,
-            s,
-            p,
-            p_j,
-            p_n,
-            score_decision,
+        json.dumps(
+            dict(
+                settings=problem_settings | dict(ladder=list(ladder)),
+                queries_from=str(queries_from) if queries_from else None,
+                source_sha256=lock,
+            ),
+            indent=2,
         )
-        for i, (h, k, s, p, p_j, p_n) in enumerate(jobs_index)
-    }
-    rows, failures = [], []
-    for index, outcome in supervise_jobs(
-        jobs,
+    )
+    supervision = dict(
         workers=workers,
         timeout_seconds=timeout_seconds,
         max_rss_mb=max_rss_mb,
-        log_directory=output / "logs",
         source_lock=(REPOSITORY_ROOT, lock),
-    ):
-        if outcome["status"] == "complete":
-            rows.extend(outcome["rows"])
-        else:
-            failures.append(
-                dict(job=dict(zip(problem, jobs_index[index])), reason=outcome["reason"])
+    )
+    failures = []
+    if queries_from:
+        searched = pickle.loads(Path(queries_from).read_bytes())
+        if searched["settings"] != problem_settings:
+            raise ValueError("queries_from was searched with different problem settings")
+        problems = searched["problems"]
+    else:
+        index = list(
+            itertools.product(horizons, histories, seeds, beliefs, opponent_beliefs, nested)
+        )
+        jobs = {
+            i: partial(
+                collect_queries,
+                level,
+                budget=budget,
+                modeled=modeled,
+                score_decision=score_decision,
+                **dict(zip(PROBLEM, values)),
             )
+            for i, values in enumerate(index)
+        }
+        problems = []
+        for i, outcome in supervise_jobs(
+            jobs, log_directory=output / "logs" / "search", **supervision
+        ):
+            if outcome["status"] == "complete":
+                problems.append(outcome["rows"])
+            else:
+                failures.append(dict(job=dict(zip(PROBLEM, index[i])), reason=outcome["reason"]))
+        problems.sort(key=lambda p: tuple(p[k] for k in PROBLEM))
+        (output / "queries.pkl").write_bytes(
+            pickle.dumps(
+                dict(settings=problem_settings, problems=problems), pickle.HIGHEST_PROTOCOL
+            )
+        )
+    # Phase 2: a modeled solve is a pure function of (depth, bank seed, belief),
+    # so each distinct queried model is scored once (L3 H4: 633 queries, 211 distinct).
+    distinct = {}
+    for found in problems:
+        for digest, model, used in found["queries"]:
+            key = (found["horizon"], found["seed"], digest)
+            if key in distinct and distinct[key][1] != used:
+                raise RuntimeError("One belief got two modeled policies inside i's searches")
+            distinct.setdefault(key, (model, used))
+    keys = sorted(distinct)
+    jobs = {
+        i: partial(
+            score_belief,
+            level - 1,
+            h,
+            s,
+            distinct[(h, s, d)][0],
+            used_stack,
+            distinct[(h, s, d)][1],
+            tuple(ladder),
+        )
+        for i, (h, s, d) in enumerate(keys)
+    }
+    scored = {}
+    for i, outcome in supervise_jobs(jobs, log_directory=output / "logs" / "score", **supervision):
+        if outcome["status"] == "complete":
+            scored[keys[i]] = outcome["rows"]
+        else:
+            failures.append(dict(belief=list(keys[i]), reason=outcome["reason"]))
+    rows = [
+        dict(
+            {k: found[k] for k in PROBLEM},
+            level=level,
+            budget=budget,
+            modeled=stack_label(used_stack),
+            decision_loss=found["decision_loss"],
+            query=q,
+            belief_digest=digest,
+            physical_belief=result["physical_belief"],
+            exact_q=result["exact_q"],
+            **rung,
+        )
+        for found in problems
+        for q, (digest, _, _) in enumerate(found["queries"])
+        if (result := scored.get((found["horizon"], found["seed"], digest)))
+        for rung in result["rungs"]
+    ]
     (output / "rows.json").write_text(json.dumps(rows))
     (output / "failures.json").write_text(json.dumps(failures, indent=2))
     summary = summarize(rows) if rows else pd.DataFrame()

@@ -104,3 +104,33 @@ def test_unscored_decisions_skip_the_reference_but_still_qualify(tmp_path):
     assert failures == []
     assert summary.iloc[0]["queries"] > 0
     assert summary["wrong_where_decision_wrong"].isna().all()
+
+
+def test_saved_queries_score_a_new_ladder_without_searching_again(tmp_path):
+    common = dict(
+        horizons=[2],
+        budget=30,
+        modeled="5",
+        seeds=[0],
+        beliefs=(0.1, 0.9),
+        opponent_beliefs=(0.5,),
+        workers=1,
+    )
+    first, _, failures = run_qualification(tmp_path / "a", ladder=("5",), **common)
+    assert failures == []
+    second, _, failures = run_qualification(
+        tmp_path / "b", ladder=("5", "200"), queries_from=tmp_path / "a" / "queries.pkl", **common
+    )
+    assert failures == []
+    assert not (tmp_path / "b" / "logs" / "search").exists()
+    a = json.loads((tmp_path / "a" / "rows.json").read_text())
+    b = [r for r in json.loads((tmp_path / "b" / "rows.json").read_text()) if r["rung"] == "5"]
+    keep = ("belief_p", "query", "belief_digest", "policy", "loss")
+    assert [{k: r[k] for k in keep} for r in a] == [{k: r[k] for k in keep} for r in b]
+    with pytest.raises(ValueError, match="different problem settings"):
+        run_qualification(
+            tmp_path / "c",
+            ladder=("5",),
+            queries_from=tmp_path / "a" / "queries.pkl",
+            **(common | dict(budget=31)),
+        )
