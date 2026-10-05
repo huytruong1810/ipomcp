@@ -639,3 +639,38 @@ CPU is comparable only within a run: rows 1–5 ran in one run, the last two in 
 | 5 | 0, 1,091 | 1, 5,245 |
 
 The one wrong case (gap 0.083) reached the 6,400 cap in every arm, so it is a cap limit, not an early stop. Raising the floor costs 29–57% more simulations and corrects nothing, so **the floor stays at 3**. Lowering it to 2 replicates is unsound: the SE has 1 degree of freedom and a 3-SE separation occurs by chance about 20% of the time. It was not run.
+
+### 12.10 Level-3 horizon-4 qualification: the stopping rule is biased for j-L2 (October 4–5, 2026)
+
+**Design.** `modeled_qualification` at L3 H4 without i's exact L3 reference (`score_decision=False`), which is intractable here. Grid: 3 beliefs of i (0.1, 0.5, 0.9) × 3 of j × 3 of the modeled i-L1 × seed 0, n = 27 problems; root 1,000; in-search stack `400/100`. The 9 problems with nested belief 0.5 are in `results/l3_modeled_qualification_h4_20261004`. The 18 with a confident nested belief (0.085 or 0.915) are in `results/l3_modeled_qualification_h4_confident_20261004`, run with the two-phase driver below.
+
+| Problems | j-L2 / i-L1 | Wrong / queries | Distinct beliefs wrong / queried | Max j loss |
+|---|---|---|---|---|
+| nested 0.5 (9) | 400 / 100 | 0 / 633 | 0 / 211 | 0 |
+| nested 0.5 (9) | 6,400 stopping / 100 | 0 / 633 | 0 / 211 | 0 |
+| nested 0.085, 0.915 (18) | 400 / 100 | 90 / 1,998 | 30 / 666 | 0.98 |
+| nested 0.085, 0.915 (18) | 6,400 stopping / 100 | 24 / 1,998 | 8 / 666 | 0.30 |
+
+Neither stack qualifies at L3 H4. Every wrong query is at a confident j belief (P(tiger left) 0.03–0.07 or 0.93–0.97), where listening and opening the safe door are close (gaps of 0.03–0.30). Confident nested beliefs make i's problem much larger: 103 queries of up to 86 atoms, with i's search taking 2,224 s and the exact L2 reference 140 s per belief, against 67 queries, 50 atoms, 600 s and 50 s at nested 0.5.
+
+**Residual probe** (the 8 beliefs still wrong at `6400s/100`, re-solved over seeds 0–9, n = 80 per row; `results/l3_h4_residual_probe_20261005`):
+
+| j-L2 / i-L1 | Wrong / 80 | Wrong on the three 0.19-gap beliefs / 30 | Mean CPU (s) |
+|---|---|---|---|
+| stopping, cap 6,400 / 100 | 54 | 18 | 112 |
+| stopping, cap 6,400 / exact | 57 | 20 | 93 |
+| stopping, cap 25,600 / exact | 51 | 16 | 149 |
+| one search, 6,400 / exact | 14 | 0 | 157 |
+
+- **The i-L1 budget is not the cause.** An exact i-L1 gives the same error rate as 100 simulations (57 vs 54 of 80).
+- **The stopping rule is biased here, not merely noisy.** On the 0.19-gap beliefs one search of 6,400 is 0/30 wrong, while replicate searches stay 16–20/30 wrong even with a 4× higher cap. Each replicate is a 200-simulation tree, too shallow at depth 4 for j-L2. Averaging many of them converges to the shallow trees' value, and more replicates only make that biased answer more confident. 12.8 noted that small trees lose depth. At L2 H4 (j-L1) and L3 H3 (j-L2) the bias was too small to change a decision, but at L3 H4 it is not.
+- **One search of 6,400 still misses the near ties** (gaps 0.03–0.04, 14/80). These are close to exact ties.
+
+**Consequences.**
+- The 12.8 rule (replicates of 200, cap 6,400) is not a consistent estimator, and must not be used beyond the cells where it was gated (L2 H4, L3 H3).
+- L3 H4 has no certified modeled stack yet. Its j-L2 needs either a consistent adaptive rule or flat budgets above 6,400. Whether any of these j mistakes changes i's decision cannot be checked exactly at L3 H4.
+
+**Engineering for this run** (commits `f2754fa`, `bf0608e` and later):
+- `FiniteBelief` unpickling now restores masses bit for bit. Renormalizing them had changed 504 of 549 canonical digests, and so search seeds, which flipped 5 near-tie policies. Earlier results never sent beliefs between processes, so they are unaffected.
+- `modeled_qualification` runs in two phases: a search per problem, then a job per distinct (horizon, seed, belief). This is exactly equivalent to the old driver (1,098 of 1,098 rows on 27 L3 H3 problems) at a third of the scoring work.
+- The exact reference is built fresh per belief. A shared cache had grown to 9.6 GB.
