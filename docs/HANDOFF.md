@@ -9,7 +9,7 @@ Last updated October 4, 2026 (per-level modeled stacks, level-3 modeled qualific
 
 ## 0. Start here (fresh agent)
 
-- **State.** 261 tests pass; ruff is clean. Nothing has been pushed. **Running (October 4):** the L3 H4 modeled qualification, `results/l3_modeled_qualification_h4_20261004` (27 problems, launcher in `results/l3_mq_h4_launch/`, PID 837829, relaunched October 4 after the first attempt hit the memory cap on all 27 jobs; about 6 h). When it finishes, move the launcher into the output folder and write RESULTS 12.10. The failed attempt is in `results/l3_modeled_qualification_h4_oom_20261004`.
+- **State.** 261 tests pass; ruff is clean. Nothing has been pushed. **Running (October 4):** the L3 H4 modeled qualification of the 18 confident-nested problems, `results/l3_modeled_qualification_h4_confident_20261004` (launcher in `results/l3_mq_h4_confident_launch/`, PID 901236, about 7 h). The 9 nested-0.5 problems finished in `results/l3_modeled_qualification_h4_20261004`: 633 queries (211 distinct), 0 wrong at `400/100` and `6400s/100`. When the run ends, move the launcher into the output folder and write RESULTS 12.10 from both folders.
 - **Where the science stands.** Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3). The open problem is the cost of simulating modeled opponents.
 - **Your first task:** read the L3 H4 qualification (above), then next step 1 in Section 4.
 - **Before running anything:**
@@ -203,7 +203,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 - new: `experiments/modeled_levels.py` (`ModeledSolve`, stack labels, `modeled_keys`, `planner_config`, `register_levels`); `oracle.planner_config` moved there;
 - `oracle.evaluate_case`: `modeled` (stack label) replaces `opponent_budget` and `opponent_stopping`; `reference="none"` skips scoring;
 - `panel`: the `modeled` cell is a stack label; the panel-wide `modeled_stopping` is gone;
-- `modeled_qualification`: levels 2–3, stack rungs, per-query CPU, cheapest zero-wrong rung, `score_decision`; one job per problem;
+- `modeled_qualification`: levels 2–3, stack rungs, cheapest zero-wrong rung, `score_decision`; two phases (search per problem → `queries.pkl`, reusable with `queries_from`; one scoring job per distinct belief, cold CPU);
+- `belief/finite_belief.py`: exact unpickling (masses restored bit for bit);
 - tests: new `test_modeled_levels.py`; level-3 and unscored qualification tests.
 
 **October 3:**
@@ -260,6 +261,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Comparing CPU across runs made at different machine load | Flat 1,600 measured 13.7 s on a quiet day and 20.6 s under another project's jobs; the stopping rule looked like no saving | Paired, same-process, alternating-order CPU measurements |
 | Exact L3 reference inside an L3 H4 qualification job | 2.4 CPU-h and 10 GB for one problem before it was killed | `score_decision=False` (`reference="none"`): only the modeled level's reference is needed |
 | One exact L2 reference (shared LRU cache) across an L3 H4 qualification job | Grew about 370 MB per query to 9.6 GB; all 27 jobs exceeded 2.5 GB | A fresh reference per query: 1.3 GB peak, about 30% more reference CPU |
+| Passing beliefs between processes by pickle (before the October 4 fix) | `FiniteBelief.__reduce__` renormalized masses: 504 of 549 digests (and search seeds) changed, flipping 5 near-tie policies | Exact restore (`_restore_belief`), with a regression test; earlier results never pickled beliefs |
+| One qualification job per problem at L3 H4 | Confident nested beliefs need 103 queries of up to 86 atoms; jobs exceeded 3 GB and repeated work | Two phases: search per problem, then one job per distinct belief (exactly equivalent: 1,098/1,098 rows) |
 | Raising the stopping floor (4–5 replicates) | 29–57% more simulations; the remaining near-tie miss is at the cap | Floor 3 (12.9) |
 | A loss tolerance on the modeled agent's own decisions | Harmful mistakes lose 0.66; harmless ones 0.2–1.0 | Zero wrong modeled decisions (12.5) |
 | Replicate searches at an equal budget | Worse on near ties (17/20 vs 20/20 at 1,600): small trees lose depth | Replicates only with adaptive stopping and a higher cap (12.8) |
