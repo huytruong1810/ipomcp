@@ -731,3 +731,40 @@ Paired CPU, measured in one process with alternating order and fresh banks:
 - Memoizing the hashes of frames, models and atoms gives bit-identical results but costs 8% more CPU. Most of these objects are hashed only once or twice.
 - A larger exact-reference cache changes nothing: every one of a solve's 173k i-L1 reference nodes is a distinct belief.
 - Persistent nested trees (R6) cannot be reused exactly. Every modeled query is a fresh receding-horizon problem of depth H, while a subtree of an earlier j tree has fewer steps left.
+
+### 12.12 Simulating minds, 2.2× faster in situ with outputs bit-identical (October 5, 2026)
+
+**Profile first** (`results/w1_profile_20261005`, cProfile of one confident-nested L3 H4 problem's j-L2 queries in one bank, stack `1600/exact`). In situ, the exact i-L1 best response is 19% of CPU, not the 60% measured earlier on one cold solve. j-L2's own belief updates take 64%. On the later queries (21–40), one function took 33% on its own: `MentalModel` validation, which re-scanned the whole support on every one of 67M constructions.
+
+**Changes** (commits `e17ab33`, `dd56728`, `5454665`):
+- `AgentFrame` and `MentalModel` cache their hashes. The pickled state stays the declared fields, and hashes are recomputed on load.
+- `FiniteBelief` summarizes its opponents once, so `MentalModel` validation is O(1).
+- `InteractiveFilter.advance` memoizes successor models. Atoms built on one successor share it and compare by identity.
+- `FiniteBelief` validation is one pass, and equality has an identity shortcut. Frozenset equality walks the support even for the same object.
+- The enumerating filter groups rows by atom as it builds them (`FiniteBelief.from_groups`). This is bit-identical because `fsum` is correctly rounded.
+
+Kept out: grouping inside the exact reference (no measurable gain), and memoizing Tiger's kernels (a lookup costs as much as the kernel).
+
+**Gate** (`gate_w1.py`): every chance-scored tree's values, compared with `repr`. The old and new code ran concurrently under the same load.
+
+| Set | n | Identical | CPU, new / old | Wilcoxon p |
+|---|---|---|---|---|
+| L3 H4 in situ, first 40 queries of problem 0, `1600/exact` | 40 queries | 40/40 | **0.45** (median 0.46; last 20 queries 0.43) | 2×10⁻¹² |
+| L3 H3 cold, the 183 queried j-L2 beliefs, `6400s/100` | 183 (26,673 trees) | 183/183 | 0.84 (median 0.84) | 4×10⁻²⁷ |
+
+The speedup grows with belief size, because the removed costs scaled with the support. An i-L3 H4 decision at `6400s/exact` should fall from about 2.5 CPU-hours to about 1.1. That figure is extrapolated from the per-query ratio, not measured on a whole decision.
+
+### 12.13 Are near-tie mistakes of the modeled opponent harmful to i? (October 5, 2026)
+
+**Design** (`results/w2_near_tie_harm_20261005/harm.py`). In i's exact I-POMDP, the directly modeled j level is perturbed adversarially: at every queried belief whose exact gap lies in (tie, ε), j plays its second-best action. i's exact decision under this hierarchy is then scored against i's true exact Q. Problems: L2 H4, the 95 distinct k = 0 problems of the wide grid; L3 H3, the 81 distinct problems of 12.7. ε ∈ {0.05, 0.15, 0.3}. A perturbed run is skipped, exactly, when no queried gap is below ε, since nothing can flip. 0.8 CPU-h.
+
+| Problems | ε | Problems with a flip | Flipped j beliefs | i's decision changed | i's loss |
+|---|---|---|---|---|---|
+| L2 H4 (95) | 0.05, 0.15 | 0 | 0 | — | — |
+| L2 H4 (95) | 0.3 | 38 | 38 | 0 | 0 |
+| L3 H3 (81) | 0.05 | 0 | 0 | — | — |
+| L3 H3 (81) | 0.15, 0.3 | 36 | 72 | 0 | 0 |
+
+- **No flip of a j decision with gap up to 0.3 changed i's decision**, in 74 problems with 110 flipped beliefs. This holds even with all of a problem's near ties flipped at once.
+- **Limit:** these exact hierarchies have no j gaps below 0.05. The 0.03–0.04 ties of L3 H4 (12.11) lie below anything tested here, so calling them harmless would extrapolate.
+- **For the certification standard** (HANDOFF 0.1): the evidence supports a PAC-style standard with ε up to 0.3 at L2 H4 and L3 H3. Adopting it is the user's decision. 12.14 attacks the near ties directly.
