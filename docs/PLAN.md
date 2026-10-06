@@ -1,5 +1,15 @@
 # Plan: the next phase (October 5, 2026)
 
+## Status (October 6, 2026)
+
+| Workstream | Status | Result |
+|---|---|---|
+| W1 | done | bit-identical; 0.45× CPU in situ at L3 H4, 0.84× cold at L3 H3 (RESULTS 12.12) |
+| W2 | done (evidence) | flips of j near ties (gaps 0.15–0.3) never changed i's exact decision; no gap below 0.05 testable (12.13). Standard: the user's call |
+| W3 | A0, A0b and the scoring change done; A1–A3 not needed yet | the floor was whole-action fallbacks; exact scoring with two steps left: L3 H4 residual 14 → 4 of 80 (12.14) |
+| W3 follow-up | next | the stopping rule's sqrt(200/n) calibration is now conservative; use exactness or certified intervals (with W6) |
+| W4–W8 | not started | — |
+
 ## Context
 HANDOFF Section 0.1 asks for a written, committed plan (`docs/PLAN.md`) before any experiment runs.
 

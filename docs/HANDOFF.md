@@ -5,15 +5,20 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 5, 2026, evening (a consistent stopping rule replaces replicate averaging; RESULTS.md Section 12.11). Earlier on October 5: L3 H4 qualification and the old rule's bias (12.10). October 4 (12.9), October 3 (12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+Last updated October 6, 2026 (PLAN.md W1–W3: bit-identical 2.2× speedup in situ, near-tie harm study, exact scoring with two steps left; RESULTS.md 12.12–12.14). Before that, October 5, evening (a consistent stopping rule replaces replicate averaging; RESULTS.md Section 12.11). Earlier on October 5: L3 H4 qualification and the old rule's bias (12.10). October 4 (12.9), October 3 (12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
 
 ## 0. Start here (fresh agent)
 
-- **State.** `main` is clean; 266 tests pass; ruff is clean. Nothing has been pushed. Nothing is running.
+- **State.** `main` is clean; 269 tests pass; ruff is clean. Nothing has been pushed. Nothing is running.
+- **Since PLAN.md (October 6):**
+  - W1: simulating minds is 2.2× faster in situ at L3 H4, with bit-identical outputs (12.12).
+  - W2: flipping j's near-tie decisions (gaps 0.15–0.3) never changed i's exact decision; no exact gap below 0.05 was available to test (12.13).
+  - W3: the near-tie floor was the chance-scoring fallback. Exact scoring with two steps left cuts the L3 H4 residual misses from 14 to 4 of 80 (12.14).
+  - Next: the stopping-rule follow-up in 12.14, then W4 (episodes).
 - **Where the science stands.**
   - Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3).
   - The modeled stopping rule is consistent (12.11): one growing tree, calibrated by pilot trees. It matches flat 6,400 at L3 H4 at half the CPU, and was re-gated at L2 H4 and L3 H3.
-  - L3 H4 still has no zero-wrong stack. Its few misses are flat 6,400's: near-exact ties (gaps 0.03–0.04) and one 0.14 gap. An i-L3 H4 decision costs about 2.5 CPU-hours (about 100 queries × 92 s).
+  - L3 H4 still has no zero-wrong stack, but since 12.14 its residual misses are only at 0.03-gap beliefs (4 of 80, loss ≤ 0.030). An i-L3 H4 decision costs about 1.1 CPU-hours after 12.12; this is extrapolated, not measured.
 - **The plan for this phase is [PLAN.md](PLAN.md)** (written October 5 per Section 0.1): W1 bit-identical speedups of simulating minds, W2 the harm of near-tie modeled mistakes (certification standard), W3 variance reduction, W4 the episode study at H3, then W5–W8. Follow its order and gates; the autonomy rule in Section 1 applies.
 - **Before running anything:**
   - Read Section 6 (what not to repeat) and the standards in Section 1. The user expects redesign over scaling, and A/B gates with statistics.
@@ -148,7 +153,7 @@ studies/        tiger_l3_vs_l2.toml
 ### Estimator, as validated (do not change without re-running the gates)
 
 - **Search.** I-POMCP over private histories, with empirical chance-weighted Bellman backups and horizon-bounded UCB from the declared reward bounds.
-- **Recommendation.** After search, the tree is rescored with exact chance probabilities (`planning.chance_scoring`). The scored values decide, for real and modeled agents.
+- **Recommendation.** After search, the tree is rescored with exact chance probabilities (`planning.chance_scoring`); actions with two steps left are scored exactly over every branch, sampled or not (12.14). The scored values decide, for real and modeled agents.
 - **Exact pieces.** E[R | b_h, a] at every history, and Q_1(b_h, a) at the last step, integrated over the agent's posterior b_h.
 - **State sampling.** Since `f793712`, each tree and rollout step draws its state from b_h, instead of carrying one root particle. The two are equal in distribution when b_h is exact; with bounded b_h only the new form is consistent. It was re-validated in RESULTS.md Section 9.
 - **Beliefs.** `SolverBank(seed, particles=N, particle_filter="compressed" | "sampled", search_particles=M)`:
