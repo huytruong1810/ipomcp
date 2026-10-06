@@ -119,14 +119,32 @@ class FiniteBelief:
             raise ValueError("A belief must have positive total mass")
         grouped = {}
         for atom, weight in entries:
-            if weight:
-                grouped.setdefault(atom, []).append(weight / scale)
-        totals = {atom: math.fsum(weights) for atom, weights in grouped.items()}
-        total = math.fsum(totals.values())
-        mass = tuple((atom, weight / total) for atom, weight in totals.items())
-        if any(weight <= 0 for _, weight in mass):
-            raise FloatingPointError("Positive belief mass underflowed during normalization")
-        self._set_normalized(mass)
+            grouped.setdefault(atom, []).append(weight)
+        self._set_normalized(_normalized(grouped, scale))
+
+    @classmethod
+    def from_groups(cls, groups):
+        """The belief of every ``(atom, weight)`` row, given as ``{atom: [weights]}``.
+
+        Equal to ``FiniteBelief`` over the listed rows, bit for bit (the same
+        scale, and ``fsum`` is correctly rounded, so grouping order cannot
+        matter). An enumerating filter groups its rows as it builds them, which
+        builds each distinct atom once instead of once per row.
+        """
+        scale = 0.0
+        for atom, weights in groups.items():
+            if not isinstance(atom, InteractiveState):
+                raise TypeError("Belief support must contain InteractiveState values")
+            for w in weights:
+                if not math.isfinite(w) or w < 0:
+                    raise ValueError("Belief masses must be finite and nonnegative")
+                if w > scale:
+                    scale = w
+        if scale == 0:
+            raise ValueError("A belief must have positive total mass")
+        belief = object.__new__(cls)
+        belief._set_normalized(_normalized(groups, scale))
+        return belief
 
     def _set_normalized(self, mass):
         key = frozenset(mass)
@@ -155,6 +173,21 @@ class FiniteBelief:
         # which changes the canonical digest and hence every search seed derived
         # from it (504 of 549 queried beliefs changed digest before this).
         return _restore_belief, (self.mass,)
+
+
+def _normalized(groups, scale):
+    """Normalized masses from {atom: [weights]}, dividing by ``scale`` (the largest
+    weight) first so that otherwise valid relative weights cannot overflow."""
+    totals = {}
+    for atom, weights in groups.items():
+        scaled = [w / scale for w in weights if w]
+        if scaled:
+            totals[atom] = math.fsum(scaled)
+    total = math.fsum(totals.values())
+    mass = tuple((atom, weight / total) for atom, weight in totals.items())
+    if any(weight <= 0 for _, weight in mass):
+        raise FloatingPointError("Positive belief mass underflowed during normalization")
+    return mass
 
 
 def _restore_belief(mass):

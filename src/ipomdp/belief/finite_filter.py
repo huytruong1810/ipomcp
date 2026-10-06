@@ -161,14 +161,17 @@ class FiniteInteractiveFilter(InteractiveFilter):
             raise ValueError("Uniform-random L0 has no belief to update")
         frame = model.frame
         physics = frame.pomdp_model
-        rows = []
+        # Rows are grouped by (s', successor model) as they are enumerated, so
+        # each distinct atom is built once, not once per (a_j, o_j) path.
+        groups, weights = {}, []
 
-        def append(row):
-            if len(rows) >= self.max_branches:
+        def append(following, opponent, weight):
+            if len(weights) >= self.max_branches:
                 raise InferenceBudgetExceeded(
                     f"{frame!r}: enumerated branch budget {self.max_branches} exceeded"
                 )
-            rows.append(row)
+            weights.append(weight)
+            groups.setdefault((following, opponent), []).append(weight)
 
         for atom, prior_mass in model.belief.mass:
             opponent = atom.opponent
@@ -195,7 +198,7 @@ class FiniteInteractiveFilter(InteractiveFilter):
                         continue
                     weight = prior_mass * action_mass * transition_mass * likelihood
                     if opponent.frame.level == 0:
-                        append((InteractiveState(following, opponent), weight))
+                        append(following, opponent, weight)
                         continue
                     # Private sensors describe the actual generative event; subjective
                     # filtering inside update uses the opponent frame's own dynamics.
@@ -212,11 +215,14 @@ class FiniteInteractiveFilter(InteractiveFilter):
                                 f"action={other_action!r}, observation={private!r}; "
                                 "its subjective support contradicts a positive outer event"
                             ) from exc
-                        append((InteractiveState(following, advanced), weight * private_mass))
-        evidence = math.fsum(weight for _, weight in rows)
+                        append(following, advanced, weight * private_mass)
+        evidence = math.fsum(weights)
         if evidence <= 0:
             raise UnsupportedObservation(
                 f"{frame!r}: zero finite-support evidence for "
                 f"action={action!r}, observation={observation!r}"
             )
-        return Posterior(FiniteBelief(tuple(rows)), evidence)
+        belief = FiniteBelief.from_groups(
+            {InteractiveState(s, m): ws for (s, m), ws in groups.items()}
+        )
+        return Posterior(belief, evidence)
