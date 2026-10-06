@@ -68,7 +68,6 @@ from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.planner import Planner
 from ipomdp.planning.policy import greedy_policy, sample_policy
-from ipomdp.planning.replicates import mean_values
 
 
 class IPOMCPPlanner(Planner):
@@ -132,7 +131,7 @@ class IPOMCPPlanner(Planner):
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
         if modeled and self.config.modeled_stopping is not None:
-            return greedy_policy(self._replicate_values(model))
+            return greedy_policy(self._stopped_values(model))
         simulations = self.config.modeled_simulations if modeled else self.config.simulations
         node, scores = self._search(model, simulations)
         policy = greedy_policy(scores.values)
@@ -143,48 +142,54 @@ class IPOMCPPlanner(Planner):
             self.scores = scores
         return policy
 
-    def _replicate_values(self, model):
-        """Replicate-mean scored values of a modeled solve (``replicates``)."""
-        rule = self.config.modeled_stopping
-        samples = []
-        for replicate in range(max(1, self.config.modeled_simulations // rule.batch)):
-            samples.append(self._search(model, rule.batch, replicate)[1].values)
-            if rule.separated(samples):
-                break
-        return mean_values(samples)
+    def _stopped_values(self, model):
+        """Scored values of a modeled solve by sequential stopping (``stopping``).
+
+        The main tree is seeded as a flat search of the cap, so a solve that
+        never separates returns exactly that search's values. Pilot trees are
+        grown only once the main tree reaches its first checkpoint.
+        """
+        rule, cap = self.config.modeled_stopping, self.config.modeled_simulations
+        checkpoints = rule.checkpoints(cap)
+        main = self._tree(model, cap)
+        calibration = None
+        for simulations in checkpoints:
+            values = main.grow(simulations).values
+            if calibration is None:
+                calibration = [values] + [
+                    self._tree(model, cap, pilot).grow(rule.pilot).values
+                    for pilot in range(1, rule.trees)
+                ]
+            if simulations == cap or rule.separated(
+                values, calibration, simulations, len(checkpoints)
+            ):
+                return values
 
     # ------------------------------------------------------------------ #
     # Search
     # ------------------------------------------------------------------ #
 
-    def _search(self, model, simulations, replicate=None):
-        """One seeded search of ``simulations`` from ``model``; returns (tree, scores).
+    def _search(self, model, simulations):
+        """One seeded search of ``simulations`` from ``model``; returns (tree, scores)."""
+        tree = self._tree(model, simulations)
+        return tree.root, tree.grow(simulations)
 
-        The seed keys on the configuration without ``modeled_stopping``: the
-        rule only decides how many replicate searches run, each keyed by its
-        index, so every single-search solve keeps the stream it always had.
+    def _tree(self, model, simulations, replicate=None):
+        """An empty search tree at ``model``, seeded as a search of ``simulations``.
+
+        The seed keys on the configuration without ``modeled_stopping``, so a
+        flat search keeps its stream whether or not a rule is configured, and a
+        stopping rule's main tree is a prefix of the flat search of its cap.
+        Pilot trees add their index as ``replicate``.
         """
-        if simulations < len(self.actions):
-            raise ValueError("Search budget must evaluate every action")
         config = {k: v for k, v in asdict(self.config).items() if k != "modeled_stopping"}
         settings = {"planner": "I-POMCP", "config": config, "simulations": simulations}
         if replicate is not None:
             settings["replicate"] = replicate
         model = self.solver_bank.search_model(model)
-        rng = random.Random(self.solver_bank.search_seed(model, settings))
-        node = POMCPNode()
-        memory = self._physical_marginal(model)
-        for _ in range(simulations):
-            self._simulate(node, 0, memory, model, rng)
-        scores = score_tree(
-            node,
-            model,
-            self.config.depth,
-            self.solver_bank,
-            self._history_successor,
-            self.config.gamma,
+        return _GrowingSearch(
+            self, model, random.Random(self.solver_bank.search_seed(model, settings))
         )
-        return node, scores
 
     def _simulate(self, node, depth, memory, history_model, rng):
         """One descent; returns the sampled-continuation Q estimate at ``node``."""
@@ -291,3 +296,36 @@ class IPOMCPPlanner(Planner):
             "fallback_actions": self.scores.fallback_actions if self.scores else None,
             "frontiers": self.scores.frontiers if self.scores else None,
         }
+
+
+class _GrowingSearch:
+    """One search tree that grows in stages and is chance-scored at each stage.
+
+    Growing a tree from n to m simulations continues the same random stream,
+    so the tree at m equals a search of m simulations with this seed.
+    """
+
+    def __init__(self, planner, model, rng):
+        self.planner, self.model, self.rng = planner, model, rng
+        self.root = POMCPNode()
+        self.memory = planner._physical_marginal(model)
+        self.simulations = 0
+
+    def grow(self, simulations):
+        """Run simulations until the tree has ``simulations``; return its chance scores."""
+        if simulations < len(self.planner.actions):
+            raise ValueError("Search budget must evaluate every action")
+        if simulations < self.simulations:
+            raise ValueError("A search tree cannot shrink")
+        planner = self.planner
+        for _ in range(simulations - self.simulations):
+            planner._simulate(self.root, 0, self.memory, self.model, self.rng)
+        self.simulations = simulations
+        return score_tree(
+            self.root,
+            self.model,
+            planner.config.depth,
+            planner.solver_bank,
+            planner._history_successor,
+            planner.config.gamma,
+        )

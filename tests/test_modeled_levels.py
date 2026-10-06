@@ -11,9 +11,9 @@ from ipomdp.experiments.modeled_levels import (
     stack_label,
 )
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
-from ipomdp.planning.replicates import ModeledStopping
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
+from ipomdp.planning.stopping import ModeledStopping
 from ipomdp.reference.best_response import BestResponseReference
 from ipomdp.reference.exact_agent import ExactIPOMDPPlanner
 
@@ -21,9 +21,9 @@ from ipomdp.reference.exact_agent import ExactIPOMDPPlanner
 def test_labels_parse_per_level_and_round_trip():
     assert parse_stack("400", 2) == (ModeledSolve(400), ModeledSolve(400))
     assert parse_stack("6400s/exact", 2) == (ModeledSolve(6400, ModeledStopping()), None)
-    custom = parse_stack("800s[100,2,2.5]", 1)[0]
-    assert custom.stopping == ModeledStopping(batch=100, min_replicates=2, z=2.5)
-    for label in ("400", "exact", "6400s/400", "800s[100,2,2.5]", "exact/400"):
+    custom = parse_stack("800s[100,3,0.05]", 1)[0]
+    assert custom.stopping == ModeledStopping(pilot=100, trees=3, alpha=0.05)
+    for label in ("400", "exact", "6400s/400", "800s[100,3,0.05]", "exact/400"):
         assert stack_label(parse_stack(label, len(label.split("/")))) == label
     assert stack_label(parse_stack("400/400", 2)) == "400"
 

@@ -53,7 +53,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 
   These components are fixed rather than configurable. They are the estimator shown to converge against exact references; the alternatives that did not converge were removed.
 
-  One budget policy is configurable: `PlannerConfig.modeled_stopping` (`replicates.ModeledStopping`). When set, a *modeled* policy is solved by independent replicate searches that stop once the two best actions are separated, capped at `modeled_simulations`. It pays where the qualified flat budget is well above its 600-simulation floor (RESULTS.md 12.8).
+  One budget policy is configurable: `PlannerConfig.modeled_stopping` (`stopping.ModeledStopping`). When set, a *modeled* policy is solved by one main tree, seeded as the flat search of the cap (`modeled_simulations`) and grown by doubling from a pilot size. It stops once its leading gap exceeds a t critical value times the spread that 3 small pilot trees measure, scaled by sqrt(pilot / n). The decision always comes from the main tree, so at the cap the rule is the flat search, and it is consistent. It replaced averaging 200-simulation replicates, which converged to a shallow tree's biased value (RESULTS.md 12.10–12.11).
 - **`SolverBank`** is one agent's registry of nested models. It holds:
   - the domain prior;
   - the belief update (exact or particle);

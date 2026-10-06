@@ -18,10 +18,10 @@ level below the agent, top-down. Its label, used on the command line and as
 the panel's ``modeled`` cell value, joins the levels' labels with "/":
 
 - ``400``: one flat search of 400 simulations;
-- ``6400s``: sequential replicate searches with the default
+- ``6400s``: one tree grown until its decision separates, with the default
   ``ModeledStopping`` rule and a cap of 6,400;
-- ``6400s[200,2,3.0]``: the same with a non-default rule (batch,
-  min_replicates, z);
+- ``6400s[400,3,0.05]``: the same with a non-default rule (pilot, trees,
+  alpha);
 - ``exact``: the exact best response to the levels below it
   (``reference.exact_agent``).
 
@@ -38,8 +38,8 @@ from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.random_planner import RandomPlanner
-from ipomdp.planning.replicates import ModeledStopping
 from ipomdp.planning.solver_types import SolverKey
+from ipomdp.planning.stopping import ModeledStopping
 from ipomdp.reference.exact_agent import ExactIPOMDPPlanner
 
 EXACT = "exact"
@@ -53,8 +53,8 @@ class ModeledSolve:
     Attributes:
         budget: I-POMCP simulations (the cap when ``stopping`` is set), or RTS
             observation samples per node.
-        stopping: Sequential replicate searches (``planning.replicates``);
-            None for one search of ``budget``. I-POMCP only.
+        stopping: Sequential stopping (``planning.stopping``); None for one
+            search of ``budget``. I-POMCP only.
     """
 
     budget: int
@@ -71,7 +71,7 @@ class ModeledSolve:
         if self.stopping == ModeledStopping():
             return f"{self.budget}s"
         rule = self.stopping
-        return f"{self.budget}s[{rule.batch},{rule.min_replicates},{rule.z}]"
+        return f"{self.budget}s[{rule.pilot},{rule.trees},{rule.alpha}]"
 
 
 def parse_stack(label, levels):
@@ -102,11 +102,13 @@ def _parse_solve(text):
     match = _SOLVE.match(text)
     if match is None:
         raise ValueError(f"Not a modeled solve: {text!r} (e.g. 400, 6400s, exact)")
-    budget, stopping, batch, minimum, z = match.groups()
+    budget, stopping, pilot, trees, alpha = match.groups()
     if stopping is None:
         return ModeledSolve(int(budget))
     rule = (
-        ModeledStopping() if batch is None else ModeledStopping(int(batch), int(minimum), float(z))
+        ModeledStopping()
+        if pilot is None
+        else ModeledStopping(int(pilot), int(trees), float(alpha))
     )
     return ModeledSolve(int(budget), rule)
 

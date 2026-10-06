@@ -22,14 +22,14 @@ beyond Tiger. A switch that selects a non-convergent estimator is a way to
 produce wrong results, not a feature.
 
 What remains are computational budgets, an optional rule for spending the
-modeled budget adaptively (``replicates.ModeledStopping``), and two scalars of
+modeled budget adaptively (``stopping.ModeledStopping``), and two scalars of
 the decision problem.
 """
 
 import math
 from dataclasses import dataclass
 
-from ipomdp.planning.replicates import ModeledStopping
+from ipomdp.planning.stopping import ModeledStopping
 
 
 @dataclass(frozen=True)
@@ -47,10 +47,10 @@ class PlannerConfig:
         gamma: Discount factor of the planning objective.
         exploration: Dimensionless UCB constant multiplying the horizon-scaled
             reward width (see ``exploration.HorizonBoundUCB``).
-        modeled_stopping: When set, a modeled policy is solved by sequential
-            replicate searches that stop once the decision is separated, with
-            ``modeled_simulations`` as the cap (``replicates``). When None, one
-            search of ``modeled_simulations``.
+        modeled_stopping: When set, a modeled policy is solved by one tree
+            grown until its decision is separated, with ``modeled_simulations``
+            as the cap (``stopping``). When None, one search of
+            ``modeled_simulations``.
     """
 
     simulations: int
@@ -72,5 +72,4 @@ class PlannerConfig:
         if self.modeled_stopping is not None:
             if type(self.modeled_stopping) is not ModeledStopping:
                 raise TypeError("modeled_stopping must be a ModeledStopping")
-            if self.modeled_stopping.batch > self.modeled_simulations:
-                raise ValueError("A replicate batch cannot exceed the modeled cap")
+            self.modeled_stopping.checkpoints(self.modeled_simulations)
