@@ -14,7 +14,7 @@ Last updated October 5, 2026, evening (a consistent stopping rule replaces repli
   - Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3).
   - The modeled stopping rule is consistent (12.11): one growing tree, calibrated by pilot trees. It matches flat 6,400 at L3 H4 at half the CPU, and was re-gated at L2 H4 and L3 H3.
   - L3 H4 still has no zero-wrong stack. Its few misses are flat 6,400's: near-exact ties (gaps 0.03–0.04) and one 0.14 gap. An i-L3 H4 decision costs about 2.5 CPU-hours (about 100 queries × 92 s).
-- **Your first task: plan the next phase, extensively, before running any experiment.** The user asked for this on October 5. Section 0.1 is the planning brief. Write the plan to `docs/PLAN.md` (new) and commit it. Then give the user a short summary: the chosen order, the first three gates and their CPU cost. Start executing unless they redirect; the autonomy rule in Section 1 applies.
+- **The plan for this phase is [PLAN.md](PLAN.md)** (written October 5 per Section 0.1): W1 bit-identical speedups of simulating minds, W2 the harm of near-tie modeled mistakes (certification standard), W3 variance reduction, W4 the episode study at H3, then W5–W8. Follow its order and gates; the autonomy rule in Section 1 applies.
 - **Before running anything:**
   - Read Section 6 (what not to repeat) and the standards in Section 1. The user expects redesign over scaling, and A/B gates with statistics.
   - The machine is shared. Another project (`~/projects/jepa_ipomdp`) runs multi-core jobs here and uses up to 8–10 GB; never touch its processes.
