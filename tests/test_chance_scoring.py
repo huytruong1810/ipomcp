@@ -74,6 +74,20 @@ def test_a_complete_tree_scores_to_the_exact_bellman_values(p):
         assert math.isclose(scores.values[action], value, rel_tol=0, abs_tol=1e-9)
 
 
+@pytest.mark.parametrize("p", [0.08, 0.5, 0.85])
+def test_two_steps_left_are_exact_with_branches_never_sampled(p):
+    # One simulation per action samples one branch of six; the rest are still
+    # exact, because each child is the last decision.
+    planner = make_planner(depth=2, simulations=3, p=p)
+    planner.policy_for(planner.model())
+    scores = planner.scores
+    assert scores.exact and scores.fallback_actions == 0
+    reference = BestResponseReference(planner.pomdp_model, planner.solver_bank, 0.95)
+    exact = reference.q_values(planner.model(), 2)
+    for action, value in exact.items():
+        assert math.isclose(scores.values[action], value, rel_tol=0, abs_tol=1e-9)
+
+
 def test_missing_branches_keep_the_whole_search_value():
     planner = make_planner(depth=3, simulations=12)
     planner.policy_for(planner.model())

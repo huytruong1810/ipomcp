@@ -57,8 +57,12 @@ None of these exact pieces use the sampled hidden state or the opponent's actual
 
     Q*(h, a) = E[R | b_h, a] + γ Σ_o P(o, alive | b_h, a) V*(h a o),   V*(h) = max_{evaluated a} Q*(h, a)
 
-with V* at the last decision equal to max_a E[R | b_h, a]. Terminal mass contributes zero and is not renormalized away. What stays approximate:
-- an action with a positive-probability observation that search never sampled keeps its search Q as a whole (weighting only the sampled branches would bias it toward zero);
+with V* at the last decision equal to max_a E[R | b_h, a]. Terminal mass contributes zero and is not renormalized away.
+
+With two steps left, every child of (h, a) is the last decision, whose exact value needs only the child's posterior. Such an action is therefore scored over all its positive branches, sampled or not, and is exact given b_h. These whole-action fallbacks, not rollout noise, set the near-tie floor of modeled solves (RESULTS.md 12.14).
+
+What stays approximate:
+- with three or more steps left, an action with a positive-probability observation that search never sampled keeps its search Q as a whole (weighting only the sampled branches would bias it toward zero);
 - a child reached once enters with its rollout estimate;
 - actions search never tried are not maximized over.
 

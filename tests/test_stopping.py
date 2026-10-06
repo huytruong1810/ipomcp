@@ -105,9 +105,11 @@ def test_clear_beliefs_stop_at_the_pilot_and_solves_are_pure_functions(monkeypat
 
 def test_an_unseparated_solve_returns_the_flat_search_of_the_cap(monkeypatch):
     # An unreachable alpha keeps the test from passing while the pilots disagree.
+    # Depth 4: at depth 3 every root branch has two steps left and is scored
+    # exactly, so the pilots agree and the rule rightly stops at once.
     rule = ModeledStopping(pilot=100, trees=2, alpha=1e-12)
-    ruled, physics = j_planner(6, rule, simulations=800)
-    plain, _ = j_planner(6, None, simulations=800)
+    ruled, physics = j_planner(6, rule, simulations=800, depth=4)
+    plain, _ = j_planner(6, None, simulations=800, depth=4)
     model = _point_model(physics, "j", 1, (0.5,))
     sizes = counting(monkeypatch)
     values = ruled._stopped_values(model)

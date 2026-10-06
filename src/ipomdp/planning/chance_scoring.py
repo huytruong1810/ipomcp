@@ -18,12 +18,27 @@ At the last decision (one step remaining) V* is the exact
 max_a E[R | b_h, a], as during search. Terminal mass contributes zero
 continuation and is never renormalized away.
 
+Two steps left: every branch is exact
+-------------------------------------
+With two steps remaining, every child of (h, a) is the last decision, whose
+exact value max_a' E[R | b_hao, a'] needs only the child's posterior. Such an
+action is therefore scored over *all* its positive branches, sampled or not,
+and is exact given b_h. Evidence (results/w3_variance_20261005, a0b): j-L1 at
+L2 H4 near ties (gaps 0.2-1.0, 30 seeds each), where trees keep ~500
+whole-action fallbacks at 1,600 simulations, almost all with two steps left.
+Valuing those branches cut the spread of the scored gap 0.25 -> 0.03 at
+1,600 (wrong decisions 18 -> 0 of 240; optimal-action Q error 0.15 -> 0.00),
+and made every scored root exact at 6,400. Valuing rollout frontiers exactly
+instead changed nothing at 1,600+ (a0): the near-tie floor of 12.6 was these
+fallbacks' search Q, not rollout noise.
+
 What stays approximate
 ----------------------
-- **Missing branches.** If any positive-probability observation of (h, a)
-  was never sampled, there is no child value to weight, so the action keeps
-  its search Q as a whole. Mixing exact weights for sampled branches with
-  nothing for unsampled ones would bias Q toward zero.
+- **Missing branches, three or more steps left.** If a positive-probability
+  observation of (h, a) was never sampled, there is no child value to weight,
+  so the action keeps its search Q as a whole. Mixing exact weights for
+  sampled branches with nothing for unsampled ones would bias Q toward zero
+  (and renormalizing over the sampled ones biased it upward, RESULTS.md 6).
 - **Rollout frontiers.** A child reached once has only its rollout estimate.
 - **Unevaluated actions.** V* maximizes over the actions search tried; one
   never tried is not given a fictitious value.
@@ -125,22 +140,24 @@ def _action_values(node, model, remaining, bank, successor, gamma, tally):
         children = node.children.get(action, {})
         if not set(children) <= {o for o, _ in law}:
             raise ValueError("Search reached an observation with zero probability under b_h")
-        if any(o not in children for o, _ in law):
+        if remaining > 2 and any(o not in children for o, _ in law):
             tally.fallback_actions += 1
             values[action] = search_q
             exact = False
             continue
         terms = []
         for observation, probability in law:
-            child_value, child_exact = _value(
-                children[observation],
-                successor(model, action, observation),
-                remaining - 1,
-                bank,
-                successor,
-                gamma,
-                tally,
-            )
+            following = successor(model, action, observation)
+            if remaining == 2:
+                # The child is the last decision: exact whether sampled or not.
+                child_value, child_exact = (
+                    max(dict(bank.expected_rewards(following)).values()),
+                    True,
+                )
+            else:
+                child_value, child_exact = _value(
+                    children[observation], following, remaining - 1, bank, successor, gamma, tally
+                )
             terms.append(probability * child_value)
             exact = exact and child_exact
         values[action] = rewards[action] + gamma * math.fsum(terms)

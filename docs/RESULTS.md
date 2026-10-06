@@ -768,3 +768,43 @@ The speedup grows with belief size, because the removed costs scaled with the su
 - **No flip of a j decision with gap up to 0.3 changed i's decision**, in 74 problems with 110 flipped beliefs. This holds even with all of a problem's near ties flipped at once.
 - **Limit:** these exact hierarchies have no j gaps below 0.05. The 0.03–0.04 ties of L3 H4 (12.11) lie below anything tested here, so calling them harmless would extrapolate.
 - **For the certification standard** (HANDOFF 0.1): the evidence supports a PAC-style standard with ε up to 0.3 at L2 H4 and L3 H3. Adopting it is the user's decision. 12.14 attacks the near ties directly.
+
+### 12.14 The near-tie floor was the chance-scoring fallback: exact scoring with two steps left (October 5–6, 2026)
+
+**Question** (PLAN W3). 12.6 attributed the near-tie floor of modeled solves to return variance and suggested variance reduction. Which part of a scored value's spread is it?
+
+**Diagnosis on fixed trees** (`results/w3_variance_20261005`, `a0_frontiers.py`, `a0b_fallbacks.py`). j-L1 at L2 H4 (depth 4) at the 8 queried beliefs with exact gaps 0.2–1.0, seeds 0–29 (n = 60 per gap band). One tree per (belief, seed) at 400, 1,600 and 6,400 simulations. Each tree is scored several ways, so the comparison is exactly paired.
+
+| Gap | Simulations | Spread of the scored gap: planner | frontiers exact | missing branches exact at two steps left | all missing branches exact (oracle) | Wrong: planner / two steps left |
+|---|---|---|---|---|---|---|
+| 0.205 | 400 | 0.61 | 0.55 | 0.55 | 0.36 | 18 / 13 of 60 |
+| 0.205 | 1,600 | 0.25 | 0.25 | **0.03** | 0.02 | 15 / **0** of 60 |
+| 0.205 | 6,400 | 0.053 | 0.053 | **0.000** | 0.000 | 0 / 0 of 60 |
+| 0.320 | 1,600 | 0.25 | 0.26 | 0.02 | 0.02 | 3 / 0 of 60 |
+| 0.656 | 1,600 | 0.26 | 0.26 | 0.02 | 0.02 | 0 / 0 of 60 |
+| 1.008 | 1,600 | 0.23 | 0.23 | 0.02 | 0.01 | 0 / 0 of 60 |
+
+- **Rollout noise is not the floor.** Valuing every frontier exactly leaves the spread unchanged from 1,600 simulations on.
+- **The floor is whole-action fallbacks.** A tree keeps about 500 fallback (history, action) pairs at 1,600 simulations, nearly all with two steps left. An action falls back when one of its 6 observations was never sampled, and it then keeps its noisy search Q.
+- With two steps left, every child is the last decision, whose exact value max_a E[R | b, a] needs only the child's posterior. Valuing those branches exactly cuts the spread 8.5× at 1,600, and the optimal-action Q error falls from 0.15 to 0.00. It is exact backward induction, so it adds no bias. This is unlike renormalizing over the sampled branches (Section 6).
+
+**Design change** (`planning.chance_scoring`): an action with two steps left is scored over all its positive branches, sampled or not. Fallback remains only with three or more steps left. Search, UCB and random streams are unchanged.
+
+**Gates** (new code against the code of 12.12):
+
+| Set | n | Before | After |
+|---|---|---|---|
+| **L3 H4 residual beliefs × seeds 0–9, `6400s/exact`** (12.10) | 80 | 14 wrong (11/30 at gap 0.03, 3/10 at 0.039) | **4 wrong** (4/30 at gap 0.03, 0/10 at 0.039); 12 fixed, 2 broken, exact McNemar p = 0.013; max loss 0.030 |
+| L3 H4 residual, flat `1600/exact` | 80 | — | 24 wrong |
+| L2 H4 j-L1 beliefs × seeds 0–4 (12.8), every arm | 1,175 | 0 wrong | 0 wrong |
+| L3 H3 j-L2 near ties × seeds 0–9 (12.9), every arm | 40 | 0 wrong | 0 wrong |
+| L3 H3 183 queried j-L2 beliefs, `6400s/100`, cold | 183 | 0 wrong | 0 wrong, every policy unchanged |
+| i's decisions, L2 H4, root 1,000, modeled `6400s` (`g3_decisions`) | 380 | 380/380; optimal-action Q error 0.155 | **380/380** (99.0–100%); optimal-action Q error **0.117** |
+| i's decisions, L3 H3, root 1,000, stack `6400s/100` | 162 | 162/162; optimal-action Q error 0.06 | **162/162** (97.7–100%); optimal-action Q error **0.0006**; 83% of i's scored roots exact |
+
+**Cost.** Scoring now needs posteriors for branches search never sampled. At L3 those posteriors bring new nested i-L1 beliefs to solve. Paired on the 183 L3 H3 beliefs (cold, same load): 1.18× CPU (median 1.20, Wilcoxon p = 5×10⁻²⁸). The residual set ran at 114 s per solve, unpaired, against 146 s before 12.12's speedups.
+
+**Verdict.**
+- **Kept as the planner's scoring.** It roughly halves L3 H4's residual misses (14 → 4 of 80, p = 0.013) and leaves no regression on any certified set. Q errors at i's root fall, at L3 H3 by 100×.
+- **What remains at L3 H4:** misses only at the 0.03-gap beliefs, with loss ≤ 0.030. Every exact check (12.13) found such mistakes harmless to i, but those checks never contained a gap that small.
+- **Follow-up: the stopping rule is now conservative.** Its pilots (200 simulations) calibrate σ and scale it as sqrt(200/n). Scored spreads now collapse much faster than 1/n, so near-tie solves still run to the cap (L2 H4 near ties: 6,760 simulations on average). A rule that also uses the scored values' exactness, or certified intervals (PLAN W6), could stop them far earlier.
