@@ -30,8 +30,12 @@ class MentalModel:
 
     frame: AgentFrame
     belief: "FiniteBelief | None" = None
+    _hash: int = field(init=False, repr=False, compare=False)
 
     def __post_init__(self):
+        # Successor models are shared (``InteractiveFilter.advance``) and hashed
+        # inside every atom built on them, so the hash is computed once.
+        object.__setattr__(self, "_hash", hash((self.frame, self.belief)))
         if type(self.frame.level) is not int or self.frame.level < 0:
             raise ValueError("Reasoning level must be a nonnegative integer")
         if self.frame.level == 0:
@@ -49,6 +53,19 @@ class MentalModel:
             raise ValueError("Opponent nesting must change agent and strictly decrease level")
         if len(identities) != 1:
             raise ValueError("A two-agent belief must refer to one opponent identity")
+
+    def __hash__(self):
+        return self._hash
+
+    # The pickled state is the declared fields; the hash depends on object
+    # identities that change on unpickle, so it is recomputed on load.
+    def __getstate__(self):
+        return [self.frame, self.belief]
+
+    def __setstate__(self, state):
+        object.__setattr__(self, "frame", state[0])
+        object.__setattr__(self, "belief", state[1])
+        object.__setattr__(self, "_hash", hash((self.frame, self.belief)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,11 +100,21 @@ class FiniteBelief:
         entries = tuple(self.mass)
         if not entries:
             raise ValueError("A belief cannot be empty")
-        if any(not isinstance(atom, InteractiveState) for atom, _ in entries):
+        # One pass validates and finds the scale; beliefs are built hundreds of
+        # thousands of times per nested solve (results/w1_profile_20261005).
+        # A type error is reported before a mass error, as before.
+        typed, valid, scale = True, True, 0.0
+        for atom, w in entries:
+            if not isinstance(atom, InteractiveState):
+                typed = False
+            elif not math.isfinite(w) or w < 0:
+                valid = False
+            elif w > scale:
+                scale = w
+        if not typed:
             raise TypeError("Belief support must contain InteractiveState values")
-        if any(not math.isfinite(w) or w < 0 for _, w in entries):
+        if not valid:
             raise ValueError("Belief masses must be finite and nonnegative")
-        scale = max(w for _, w in entries)
         if scale == 0:
             raise ValueError("A belief must have positive total mass")
         grouped = {}
@@ -118,7 +145,8 @@ class FiniteBelief:
         return self._hash
 
     def __eq__(self, other):
-        return isinstance(other, FiniteBelief) and self._key == other._key
+        # Frozenset equality has no identity shortcut and walks the support.
+        return self is other or (isinstance(other, FiniteBelief) and self._key == other._key)
 
     def __reduce__(self):
         # Cached hashes include frame/model identities, which change on unpickle,
