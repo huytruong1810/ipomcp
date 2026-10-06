@@ -5,18 +5,18 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 5, 2026 (L3 H4 qualification and the stopping rule's bias, two-phase qualification, exact belief pickling; RESULTS.md Section 12.10). Earlier: October 4 (12.9), October 3 (12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+Last updated October 5, 2026, evening (a consistent stopping rule replaces replicate averaging; RESULTS.md Section 12.11). Earlier on October 5: L3 H4 qualification and the old rule's bias (12.10). October 4 (12.9), October 3 (12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
 
 ## 0. Start here (fresh agent)
 
-- **State.** `main` is clean; 263 tests pass; ruff is clean. Nothing has been pushed. Nothing is running.
-- **Where the science stands.** Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3). L3 H4 is beyond exact checking and has no certified modeled stack: the replicate stopping rule is biased there (12.10), and flat budgets that work cost hours per decision. The open problem is the cost of simulating modeled opponents.
-- **Your first task:** next step 1 in Section 4 (a consistent adaptive modeled solve; RESULTS 12.10).
+- **State.** `main` is clean; 266 tests pass; ruff is clean. Nothing has been pushed. Nothing is running.
+- **Where the science stands.** Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3). The modeled stopping rule is now consistent (12.11): one growing tree, calibrated by pilot trees. It matches flat 6,400 at L3 H4 at half the CPU, and was re-gated at L2 H4 and L3 H3. L3 H4 still has no zero-wrong stack: its few misses are flat 6,400's, on near-exact ties (gaps 0.03–0.04) and one 0.14 gap. An i-L3 H4 decision costs about 2.5 CPU-hours (about 100 queries × 92 s).
+- **Your first task:** next step 1 in Section 4 (the near-tie floor at L3 H4: variance reduction, gated on the 12.10–12.11 residual beliefs).
 - **Before running anything:**
   - Read Section 6 (what not to repeat) and the standards in Section 1. The user expects redesign over scaling, and A/B gates with statistics.
   - The machine is shared. Another project (`~/projects/jepa_ipomdp`) runs multi-core jobs here; never touch its processes.
   - Compare CPU only within paired, same-process runs.
-- **Results** go in a new dated folder under `results/`, with the launcher or script copied inside. Numbers go into `docs/RESULTS.md` (next free section: 12.11 or 13). Update this file and the reviewer report (Section 4) when results land.
+- **Results** go in a new dated folder under `results/`, with the launcher or script copied inside. Numbers go into `docs/RESULTS.md` (next free section: 12.12 or 13). Update this file and the reviewer report (Section 4) when results land.
 
 ## 1. Goals
 
@@ -54,7 +54,7 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 
 ## 2. Current state
 
-- **Tests.** 263 pass in about 45 s on a quiet machine (about 170 s while another project's jobs load it) on `main`; `ruff check` and `ruff format --check` are clean.
+- **Tests.** 266 pass in about 65 s on a quiet machine (about 170 s while another project's jobs load it) on `main`; `ruff check` and `ruff format --check` are clean.
 - **Running jobs.** None.
 - **Archives.**
   - Tag `archive/pre-restructure-20260930`: the pre-restructure code.
@@ -74,7 +74,7 @@ src/ipomdp/
                 resampling (systematic draws, shared)
   planning/     IPOMCPPlanner, HorizonBoundUCB, POMCPNode (Bellman backups), SolverBank,
                 chance_scoring (post-search exact chance weights),
-                replicates (opt-in sequential replicate searches for modeled policies)
+                stopping (opt-in sequential stopping for modeled policies: one growing tree)
   reference/    BestResponseReference (exact, any level/domain), ExactIPOMDPPlanner, alpha vectors (L1)
   baselines/    RTSPlanner (reachability-tree sampling)
   experiments/  study (TOML StudySpec), episodes, runner, bootstrapper,
@@ -99,7 +99,11 @@ studies/        tiger_l3_vs_l2.toml
 
   Exact real beliefs with a compressed search is the Wumpus configuration.
 - **Exact reference budget.** The oracle's exact I-POMDP uses `oracle.REFERENCE_BRANCHES = 50M`. At history 6 it completes in 146 s for one problem.
-- **Modeled solves.** One search of `modeled_simulations` by default. `PlannerConfig(modeled_stopping=ModeledStopping())` switches to sequential replicate searches capped at `modeled_simulations` (12.8). Search seeds exclude the rule, so single-search results are unchanged. **The replicate rule is biased when its 200-simulation replicates are too shallow** (j-L2 at L3 H4, 12.10). Use it only where it was gated: L2 H4 and L3 H3.
+- **Modeled solves.** One search of `modeled_simulations` by default. `PlannerConfig(modeled_stopping=ModeledStopping())` switches to sequential stopping capped at `modeled_simulations` (`planning.stopping`, 12.11):
+  - one main tree, seeded as the flat search of the cap and grown by doubling from 200, so at the cap it is the flat search;
+  - 3 pilot trees of 200 calibrate a t-test on the main tree's leading gap, scaled by sqrt(200/n), with α = 0.01 over all checkpoints.
+
+  Search seeds exclude the rule, so flat results are unchanged. It replaced 12.8's replicate averaging, which was biased (12.10). The `6400s` results in 12.8–12.10 are the old rule.
 - **Per-level modeled stacks** (`experiments.modeled_levels`, October 3). The drivers name each modeled level's solve, top-down: `400` flat, `6400s` stopping with cap 6,400, `exact`; `6400s/400` at level 3 is j-L2 with stopping over i-L1 flat 400. One label applies to every level. This replaced `opponent_budget`/`opponent_stopping` (oracle) and the panel-wide `modeled_stopping`; the panel's `modeled` cell is now this label (`exact` instead of 0).
 - **Metrics.** Rows record `first_action_loss`, `max_abs_q_error` and `optimal_q_error`, for both search and scored values. Use `optimal_q_error` for error bounds (12.2), and Clopper–Pearson intervals (`analysis.statistics.clopper_pearson`) for optimal rates.
 
@@ -109,9 +113,9 @@ studies/        tiger_l3_vs_l2.toml
 |---|---|---|---|
 | L1, H1–H5 | uniform L0 | exact | 220/220 at H5 (12.1) |
 | L2, H3, k ≤ 4 | exact, or I-POMCP 400 (zero-wrong certified, 12.5) | exact or compressed 64 | 373–380/380 (12.3) |
-| L2, H4 | I-POMCP 1,600 flat, or stopping with cap 6,400 (half the CPU) | exact | 380/380 (12.4, 12.8) |
-| L3, H3, k = 0 | I-POMCP 400 flat (i's decisions = exact); certified zero-wrong stack `6400s/100` | exact | 162/162 (12.7, 12.9) |
-| L3, H4, k = 0 | **none certified**: `400/100` and `6400s/100` are 0 wrong with nested 0.5 but 90 and 24 wrong of 1,998 queries with confident nested beliefs | exact | 12.10 |
+| L2, H4 | I-POMCP 1,600 flat, or `6400s` (stopping, cap 6,400; 0.85× flat 1,600's CPU) | exact | 380/380 (12.4, 12.11) |
+| L3, H3, k = 0 | I-POMCP 400 flat (i's decisions = exact); certified zero-wrong stack `6400s/100` | exact | 162/162 (12.7, 12.11) |
+| L3, H4, k = 0 | **none zero-wrong.** `6400s/exact` (or `/100`) makes flat 6,400's decisions at 0.52× its CPU: 6 of 666 distinct beliefs wrong, 5 of them gaps 0.03–0.04 | exact | 12.10, 12.11 |
 | Wumpus L1 | not validated | exact real, compressed search | Section 10 pilot only |
 
 ## 3. Key results (details and n in RESULTS.md)
@@ -136,6 +140,7 @@ studies/        tiger_l3_vs_l2.toml
 | 12.8 | **Sequential replicate searches with stopping** for modeled policies: equal accuracy to flat 1,600 at L2 H4 (380/380) at **0.47× the CPU** (paired, n = 40). At L3 H3, accurate (162/162) but 1.3× the CPU of flat 400, which already matches exact. Opt-in, chosen per level |
 | 12.9 | **Per-level modeled stacks** and the first **L3 modeled qualification** (j-L2 at the beliefs i-L3 queries; 3,294 queries). At H3, flat 400 j-L2 is wrong on 4 near-tie beliefs (harmless to i: 162/162); i-L1's budget inside j-L2 changes no policy (100 = 400). Certified: `6400s/100`, 0 wrong, 0.75× the CPU of flat 1,600. Stopping floor: 4 or 5 replicates cost 29–57% more and fix nothing; keep 3 |
 | 12.10 | **L3 H4 qualification** (27 problems, 2,631 queries): no stack qualifies. The misses are confident j beliefs. The replicate stopping rule is **biased** there: on 0.19-gap beliefs it is 16–20/30 wrong even at a 25,600 cap, while one 6,400 search is 0/30. i-L1 at 100 vs exact makes no difference |
+| 12.11 | **Consistent stopping:** one growing tree (seeded as the flat cap search) with a pilot-calibrated t-test. L3 H4, 666 beliefs: the same 6 wrong as flat 6,400 at 0.52× the in-situ CPU; residual beliefs 14/80 wrong (old rule 57/80, flat 6,400 14/80). Re-gated: L2 H4 380/380, L3 H3 162/162 and 0/3,294 queries. A single tree's spread falls as about n^-0.8; replicate averaging only as k^-0.5 |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
@@ -159,10 +164,11 @@ studies/        tiger_l3_vs_l2.toml
 ### Next steps, in order
 
 0. **Done October 3:** `experiments.modeled_qualification` (12.5); oracle and `panel` (was `l2_panel`) at level 3 (12.7); near-tie diagnosis (12.6); sequential modeled stopping (12.8). **October 4:** per-level modeled stacks and level-3 qualification (12.9); the stopping floor stays at 3 (12.9).
-1. **A consistent adaptive modeled solve** (RESULTS 12.10). The replicate stopping rule of 12.8 is biased for j-L2 at L3 H4. Its 200-simulation replicates are too shallow, so on 0.19-gap beliefs it stays 16–20/30 wrong even with a 25,600 cap, while one search of 6,400 is 0/30. Use it only where it was gated (L2 H4, L3 H3). One flat search of 6,400 per j-L2 query would cost hours per i-L3 H4 decision (about 103 queries × 150 s), so scaling is not the answer. Candidates, each to be A/B-gated on the 12.10 residual beliefs, the 12.8 L2 H4 set and the 12.9 L3 H3 set:
-   - a single growing tree with sequential stopping (best-arm identification on one tree, cf. Kaufmann & Koolen 2017). It is consistent, because the decision always comes from the deepest tree. It needs an honest per-action standard error, which the current backups do not provide; sampled root returns would have to be recorded;
-   - persistent nested trees (R6, the I-NTMCP idea): the j-L2 beliefs i's tree queries are successive updates of each other, so one j-L2 tree can serve many queries. This attacks the cost directly.
-   - L3 H4 has no certified stack until then. Its 9 nested-0.5 problems are 0 wrong at both stacks; the 18 confident ones are not.
+1. **The near-tie floor and the cost at L3 H4** (RESULTS 12.11). The consistent stopping rule is done (October 5). L3 H4's remaining j-L2 misses are flat 6,400's: 5 near-exact ties (gaps 0.03–0.04) and one 0.14 gap, all at the cap.
+   - **Variance reduction** is the lever for the misses (step 3). Gate on the 8 residual beliefs × 10 seeds (`results/stopping_redesign_gates_20261005/residual_l3h4.py`) and offline on the 666-belief replay dataset (`results/l3_h4_tree_trajectories_20261005`, `replay.py`). Both the main tree's and the pilots' spread shrink, so it also makes stopping cheaper.
+   - **Cost.** An i-L3 H4 decision costs about 2.5 CPU-hours: about 100 queries × 92 s in situ. About 60% of a j-L2 search is exact i-L1 best-response enumeration over distinct nested beliefs (173k reference nodes per 1,600-simulation solve, none repeated). Cutting that cost is the next efficiency target. An i-L1 facing uniform L0 is a POMDP: alpha vectors would make it a dot product, but only for 2-state Tiger, so check generality first.
+   - **Settled:** persistent nested trees (R6) cannot be reused exactly. Every modeled query is a fresh receding-horizon problem of depth H, while a subtree of an earlier tree has fewer steps left.
+   - Whether L3 H4's few wrong j decisions change i's decisions cannot be checked exactly. Its 9 nested-0.5 problems are 0 wrong.
 2. **Adaptive budgets for real decisions as well.** The same stopping test applies to i's root (stop when the decision is separated), but real decisions also need Q accuracy for contribution 2's error bounds. Design and gate it separately.
 3. **Variance reduction** (12.6: the near-tie floor is return variance). Candidates from the literature, each A/B-gated on the 12.6 near-tie set and the 12.5 queried beliefs:
    - more exact integration below the root (chance scoring already cuts the spread 2.5× at 6,400);
@@ -195,11 +201,17 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Allocation, belief and baseline sections** predate the last two estimator revisions. The doc says so; their key cells reproduced in Sections 9 and 11.
 - **Updated October 2 with Section 12:** lead, an optimal-action Q error metric row, the L1 plateau finding, a 380-problem L2 table (with the modeled 400/1,600 sweep) and the allocation rule (1,600 at depth 4). The IPF + RTS comparison (97% vs 80–83%) is still from the 15-problem grid; next step 6 re-runs it.
 - **Updated October 4–5:** the Level 3 section has the H3 qualification table and an H4 paragraph (no certified stack; the adaptive rule's bias); the adaptive-budget bullet says per-level solves.
+- **Updated October 5, evening (12.11):** the adaptive-budget bullet describes the growing-tree rule, and the L3 H4 paragraph gives its result (flat 6,400's decisions at half the CPU; near-tie misses remain).
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
 ## 5. What changed, and where (since `archive/pre-restructure-20260930`)
 
 Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or reviewed; `git log archive/pre-restructure-20260930..HEAD` has the full record.
+
+**October 5 (evening):**
+- `planning/replicates.py` → `planning/stopping.py`: `ModeledStopping(pilot, trees, alpha)` is the growing-tree rule; labels `6400s[pilot,trees,alpha]`;
+- `planning/i_pomcp.py`: `_GrowingSearch` (one tree grown in stages, scored at each), `_tree`, `_stopped_values`; `_search` is a full growth, with unchanged seeds;
+- tests: `test_replicates.py` → `test_stopping.py`.
 
 **October 4:**
 - new: `experiments/modeled_levels.py` (`ModeledSolve`, stack labels, `modeled_keys`, `planner_config`, `register_levels`); `oracle.planner_config` moved there;
@@ -233,6 +245,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 - belief accuracy: `ipf_resampling_probe_20261002`, `belief_qualification_compressed_20261002`, `compressed_prototype_20261002`;
 - L2 panels: `l2_baseline_20261002`, `l2_baseline_h4_modeled4000_20261002`, `l2_ipf_miss_20261002`, `l2_mid_episode_20261002`, `l2_compressed_20261002`, `l2_compressed_k6_20261002`, `l2_revalidate_belief_sampling_20261002`;
 - gates and references: `l1_qualification_belief_sampling_20261002`, `reference_scaling_20261002`;
+- October 5, evening (12.11): `single_tree_bias_20261005` (one tree's convergence on the residual beliefs), `shared_bank_cost_20261005` (first 24 queries in one bank), `l3_h4_tree_trajectories_20261005` (main trees to 6,400 and 3 pilots at 666 beliefs; `replay.py` replays any rule offline; `src_snapshot/` is the frozen code the pilots ran on), `stopping_redesign_gate_20261005` (L2 H4 and L3 H3 near-tie sets, paired CPU), `stopping_redesign_gates_20261005` (i's decisions at L2 H4 and L3 H3, L3 H3 qualification, paired CPU, the residual check);
 - October 5: `l3_modeled_qualification_h4_20261004` (9 nested-0.5 problems, old driver), `l3_modeled_qualification_h4_confident_20261004` (18 problems, two-phase driver, with `queries.pkl` reusable via `queries_from`), `l3_modeled_qualification_h4_oom_20261004` (the run that exceeded memory), `qualification_dedup_equivalence_20261004` and `..._prefix_20261004` (before and after the pickling fix), `purity_diagnosis_20261004`, `l3_h4_residual_probe_20261005`; memory profiles in `l3_qualification_pilot_20261003`;
 - October 4: `l3_modeled_qualification_h3_20261003` (first ladder; dated by launch), `l3_modeled_qualification_h3_ladder2_20261004`, `l3_near_tie_probe_20261003`, `stopping_floor_ab_20261004`, `l3_qualification_pilot_20261003` (H3 and H4 timing pilots; the first H4 pilot was killed at 2.4 CPU-h and 10 GB inside i's exact L3 reference);
 - October 3: `modeled_qualification_20261003`, `modeled_qualification_h4_6400_20261003`, `near_tie_diagnosis_20261003`, `l3_panel_20261003`, `sequential_replicates_ab_20261003`, `l2_h4_stopping_gate_20261003` (with `cost_profile.py`, `paired_cpu.py`), `l3_stopping_gate_20261003`;
@@ -267,6 +280,12 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | One exact L2 reference (shared LRU cache) across an L3 H4 qualification job | Grew about 370 MB per query to 9.6 GB; all 27 jobs exceeded 2.5 GB | A fresh reference per query: 1.3 GB peak, about 30% more reference CPU |
 | Passing beliefs between processes by pickle (before the October 4 fix) | `FiniteBelief.__reduce__` renormalized masses: 504 of 549 digests (and search seeds) changed, flipping 5 near-tie policies | Exact restore (`_restore_belief`), with a regression test; earlier results never pickled beliefs |
 | One qualification job per problem at L3 H4 | Confident nested beliefs need 103 queries of up to 86 atoms; jobs exceeded 3 GB and repeated work | Two phases: search per problem, then one job per distinct belief (exactly equivalent: 1,098/1,098 rows) |
+| Averaging replicate searches of 200 (12.8's rule) | Converges to a 200-simulation tree's value; biased for j-L2 at L3 H4 (16–20/30 wrong at 0.19 gaps even at a 25,600 cap) | One growing tree with a pilot-calibrated test (12.11) |
+| k = 2–4 independent trees grown in lockstep (honest standard error) | Hard beliefs run to the cap and each tree is k times shallower: worse than one tree at equal budget | One main tree; pilots only calibrate (12.11) |
+| Memoizing the hashes of `AgentFrame`, `MentalModel`, `InteractiveState` | Bit-identical, but 8% more CPU: most objects are hashed once or twice | Left as is |
+| A larger exact-reference LRU cache | No change: a solve's 173k i-L1 reference nodes are all distinct | Left at 4,096 |
+| Estimating in-situ cost from the first queries of a problem | The first 24 queries cost 16–20 s each; later ones 180–340 s at 6,400 | Measure over a whole problem |
+| A pool job that writes its output only at the end (5-hour jobs) | No progress visible, nothing resumable | Append a row per query (JSON lines) and skip done rows on restart |
 | Raising the stopping floor (4–5 replicates) | 29–57% more simulations; the remaining near-tie miss is at the cap | Floor 3 (12.9) |
 | A loss tolerance on the modeled agent's own decisions | Harmful mistakes lose 0.66; harmless ones 0.2–1.0 | Zero wrong modeled decisions (12.5) |
 | Replicate searches at an equal budget | Worse on near ties (17/20 vs 20/20 at 1,600): small trees lose depth | Replicates only with adaptive stopping and a higher cap (12.8) |

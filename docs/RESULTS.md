@@ -580,6 +580,8 @@ All 10 wrong decisions at 100 fall in the problems where i's decision was wrong.
 
 ### 12.8 Sequential replicate searches for modeled policies (October 3, 2026)
 
+*Superseded by 12.11: this rule is biased for j-L2 at L3 H4 (12.10) and was replaced by a growing-tree rule. The `6400s` stacks of 12.8–12.10 are this old rule.*
+
 **Design change** (commit `c0cba21`, `planning.replicates`, opt-in through `PlannerConfig.modeled_stopping`). A modeled policy is solved by independent replicate searches of 200 simulations, a form of root parallelization (Chaslot et al. 2008). After at least 3 replicates, the solve stops once the two best mean scored values are 3 standard errors apart, which is fixed-confidence best-arm identification (cf. LUCB, Kalyanakrishnan et al. 2012). The cap is `modeled_simulations`. Search seeds exclude the rule, so single-search streams and all earlier results are unchanged. Motivation: 12.6 shows the near-tie floor is return variance, so spending adaptively is the lever.
 
 **Offline A/B** (235 distinct j-L1 beliefs queried at L2 H4 × seeds 0–4, n = 1,175; `results/sequential_replicates_ab_20261003`):
@@ -674,3 +676,58 @@ Neither stack qualifies at L3 H4. Every wrong query is at a confident j belief (
 - `FiniteBelief` unpickling now restores masses bit for bit. Renormalizing them had changed 504 of 549 canonical digests, and so search seeds, which flipped 5 near-tie policies. Earlier results never sent beliefs between processes, so they are unaffected.
 - `modeled_qualification` runs in two phases: a search per problem, then a job per distinct (horizon, seed, belief). This is exactly equivalent to the old driver (1,098 of 1,098 rows on 27 L3 H3 problems) at a third of the scoring work.
 - The exact reference is built fresh per belief. A shared cache had grown to 9.6 GB.
+
+### 12.11 A consistent stopping rule: one growing tree, calibrated by pilot trees (October 5, 2026)
+
+**Question.** 12.10 showed that averaging 200-simulation replicates converges to a shallow tree's biased value. Can an adaptive modeled solve be consistent, as accurate as flat 6,400 at L3 H4, and cheaper?
+
+**Diagnosis first** (`results/single_tree_bias_20261005`; the 8 residual beliefs of 12.10 × seeds 0–9, n = 80 per checkpoint). One j-L2 tree over an exact i-L1 was grown to 6,400 and chance-scored at 200, 400, …, 6,400:
+- On the three 0.19-gap beliefs, wrong decisions fall 13/30 → 13/30 → 8/30 → 9/30 → 5/30 → 0/30.
+- The spread of the scored gap across seeds falls from about 1.0 at 200 to about 0.06 at 6,400, roughly n^-0.8. Averaging k replicates reduces spread only as k^-0.5, so depth beats replication on both bias and variance.
+- Replaying k = 2–4 independent growing trees on these beliefs: at an equal total budget they are worse than one tree (gap 0.19: 3–4% wrong with three trees of 3,200, against 0/30 with one tree of 6,400).
+
+**Design change** (commit `f5287f5`, `planning.stopping`, which replaces `planning.replicates`):
+- **One main tree.** It is seeded exactly as the flat search of the cap and grown by doubling from a pilot size `b`. The decision is always the main tree's, so at the cap the rule *is* the flat search, and it is consistent.
+- **A calibrated test.** A tree with Bellman backups has no honest standard error, so `m − 1` independent pilot trees of `b` simulations measure one. With the main tree's checkpoint at `b`, they give σ, the spread over `m` trees of the scored difference between the main tree's two leading actions. At checkpoint n the main tree stops when its gap exceeds t(1 − α/2K, m − 1) · σ · sqrt(b/n). K is the number of checkpoints (Bonferroni). sqrt(b/n) assumes variance falls at least as 1/n (measured: about n^-1.6), so the test is conservative.
+- **Defaults:** b = 200, m = 4, α = 0.01. Labels keep their form: `6400s` (default) or `6400s[200,4,0.01]`.
+
+**Offline replay at L3 H4** (`results/l3_h4_tree_trajectories_20261005`). All 666 distinct j-L2 beliefs queried in the 18 confident-nested problems of 12.10 come from the 6 problems with i's belief 0.1, since i's own belief does not change which j beliefs it queries. Each belief has one main tree grown to 6,400 and 3 pilot trees of 200 and 400. Each problem's queries were solved in query order in one bank, as inside i's search, so CPU is the in-situ marginal cost. Rules replayed from these checkpoints give exactly the decisions they would make online with these seeds. n = 666; gap bands are exact gaps between the two best actions.
+
+| Rule | Wrong | gap < 0.05 (8) | 0.05–0.3 (34) | 0.3–1 (68) | ≥ 1 (556) | Mean simulations | In-situ CPU per query (s) |
+|---|---|---|---|---|---|---|---|
+| flat 400 | 30 | 4 | 12 | 13 | 1 | 400 | 33 |
+| flat 1,600 | 15 | 3 | 7 | 5 | 0 | 1,600 | 76 |
+| flat 6,400 | 6 | 5 | 1 | 0 | 0 | 6,400 | 178 |
+| **stopping, b 200, m 4, α 0.01** | **6** | 5 | 1 | 0 | 0 | 2,584 | **92** |
+| stopping, b 200, m 4, α 0.05 | 6 | 5 | 1 | 0 | 0 | 2,211 | 83 |
+| stopping, b 400, m 4, α 0.01 | 6 | 5 | 1 | 0 | 0 | 3,162 | 122 |
+| stopping, b 200, m 3, α 0.01 | 6 | 5 | 1 | 0 | 0 | 3,189 | 109 |
+
+- **Same decisions as flat 6,400 at 0.52× its CPU.** Every remaining miss runs to the cap, where the rule is flat 6,400. Five are near-exact ties (gaps 0.03–0.04); one has a gap of 0.14.
+- **Where the main tree stops:** 334 beliefs at 200, 63 at 400, 47 at 800, 29 at 1,600, 28 at 3,200, and 165 at the cap.
+- **CPU is front-loaded.** In situ, a query's first 200 simulations cost about 19 s, while its new nested i-L1 beliefs are solved. Flat 6,400 costs 178 s per query on average and up to 340 s, so it is about 5 CPU-hours per i decision at L3 H4 (about 100 queries). The earlier estimate of "hours" stands; a probe of the first 24 queries (16–20 s each, `results/shared_bank_cost_20261005`) had understated the later ones.
+
+**Online checks of the implementation** (`results/stopping_redesign_gate_20261005`, `results/stopping_redesign_gates_20261005`):
+
+| Set | n | New rule | Reference |
+|---|---|---|---|
+| L3 H4 residual beliefs × seeds 0–9 (12.10) | 80 | **14 wrong; 0/30 on the 0.19-gap beliefs** | old rule 57 (20/30); flat 6,400 14 (0/30), the same per belief |
+| L2 H4 j-L1 beliefs × seeds 0–4 (12.8) | 1,175 | 0 wrong | flat 1,600 0 wrong |
+| L3 H3 j-L2 near ties × seeds 0–9 (12.9) | 40 | 0 wrong | flat 1,600 0; old rule 1 |
+| L3 H3 qualification, rung `6400s/100` (12.9 grid) | 3,294 queries (183 beliefs) | **0 wrong** (99.89–100%) | old rule 0 wrong |
+| i's decisions, L2 H4, root 1,000, modeled `6400s` | 380 | **380/380** (99.0–100%); optimal-action Q error 0.155 | flat 1,600 380/380, 0.19 |
+| i's decisions, L3 H3, root 1,000, stack `6400s/100` | 162 | **162/162** (97.7–100%); optimal-action Q error 0.06 | exact opponents 0.06 |
+
+Paired CPU, measured in one process with alternating order and fresh banks:
+- **L2 H4 j-L1** (n = 1,175): 0.37 s per solve against 0.44 s for flat 1,600, with 1,127 simulations on average. With α = 0.05 it is 0.28 s.
+- **L3 H3 j-L2** (n = 183 beliefs, cold banks): 3.67 s against 3.77 s for flat 1,600/100 (median ratio 0.93, Wilcoxon p = 1×10⁻⁸) and 3.28 s for flat 400/100 (1.08×). In this cold setting flat 1,600/100 has 1 wrong belief and flat 400/100 has 3.
+
+**Verdict.**
+- **The rule replaces 12.8's.** It is consistent and as accurate as flat 6,400 wherever it was checked, and it costs 0.5× flat 6,400 in situ at L3 H4 and about 0.9× flat 1,600 at L2 H4 and L3 H3. It is still opt-in, chosen per level.
+- **Certified stacks:** `6400s` at L2 H4 and `6400s/100` at L3 H3 (re-gated above).
+- **L3 H4 still has no zero-wrong stack.** Its remaining misses are flat 6,400's misses: near-exact ties (gaps 0.03–0.04) and one 0.14 gap. Fixing them takes a larger cap or variance reduction (HANDOFF step 3), not a different stopping rule.
+
+**Also measured, kept out of the code:**
+- Memoizing the hashes of frames, models and atoms gives bit-identical results but costs 8% more CPU. Most of these objects are hashed only once or twice.
+- A larger exact-reference cache changes nothing: every one of a solve's 173k i-L1 reference nodes is a distinct belief.
+- Persistent nested trees (R6) cannot be reused exactly. Every modeled query is a fresh receding-horizon problem of depth H, while a subtree of an earlier j tree has fewer steps left.
