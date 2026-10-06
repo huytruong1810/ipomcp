@@ -80,6 +80,7 @@ class InteractiveFilter:
             raise ValueError("cache_size must be a nonnegative integer")
         self._policy = policy
         self.update = lru_cache(maxsize=cache_size)(self._update)
+        self.advance = lru_cache(maxsize=cache_size)(self._advance)
         self._intentional_distribution = lru_cache(maxsize=cache_size)(self._validate_policy)
 
     def action_distribution(self, opponent):
@@ -100,7 +101,20 @@ class InteractiveFilter:
 
     def clear_caches(self):
         self.update.cache_clear()
+        self.advance.cache_clear()
         self._intentional_distribution.cache_clear()
+
+    def _advance(self, model, action, observation, terminal):
+        """The successor mental model ``(frame, update(...).belief)``.
+
+        Memoized separately from ``update`` so that every nested update with
+        the same arguments shares one successor object: atoms built from it
+        hash and compare by identity instead of rebuilding an equal model
+        (millions of times per L3 H4 modeled solve).
+        """
+        return MentalModel(
+            model.frame, self.update(model, action, observation, terminal=terminal).belief
+        )
 
     def _validate_policy(self, opponent):
         """Validate once per immutable model."""
@@ -191,16 +205,13 @@ class FiniteInteractiveFilter(InteractiveFilter):
                     )
                     for private, private_mass in private_obs:
                         try:
-                            belief = self.update(
-                                opponent, other_action, private, terminal=ended
-                            ).belief
+                            advanced = self.advance(opponent, other_action, private, terminal=ended)
                         except UnsupportedObservation as exc:
                             raise UnsupportedObservation(
                                 f"Nested {opponent.frame!r} cannot condition on "
                                 f"action={other_action!r}, observation={private!r}; "
                                 "its subjective support contradicts a positive outer event"
                             ) from exc
-                        advanced = MentalModel(opponent.frame, belief)
                         append((InteractiveState(following, advanced), weight * private_mass))
         evidence = math.fsum(weight for _, weight in rows)
         if evidence <= 0:

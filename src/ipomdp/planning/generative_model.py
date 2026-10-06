@@ -15,7 +15,7 @@ likelihood is not multiplied in again, because the subjective update already
 marginalises everything the opponent cannot see.
 """
 
-from ipomdp.belief.finite_belief import InteractiveState, MentalModel
+from ipomdp.belief.finite_belief import InteractiveState
 
 
 class InteractiveGenerativeModel:
@@ -37,8 +37,7 @@ class InteractiveGenerativeModel:
         # No future decision follows termination, so no private model needs advancing.
         if opponent.frame.level > 0 and not terminal:
             private = physics.sample_observation(following, joint, other, rng)
-            posterior = self.solver_bank.search_filter.update(
+            opponent = self.solver_bank.search_filter.advance(
                 opponent, joint[other], private, terminal=False
             )
-            opponent = MentalModel(opponent.frame, posterior.belief)
         return InteractiveState(following, opponent), joint, reward, terminal

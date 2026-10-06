@@ -265,10 +265,7 @@ class IPOMCPPlanner(Planner):
 
     def _history_successor(self, model, action, observation):
         """The agent's exact posterior after its own action and observation."""
-        posterior = self.solver_bank.search_filter.update(
-            model, action, observation, terminal=False
-        )
-        return MentalModel(model.frame, posterior.belief)
+        return self.solver_bank.search_filter.advance(model, action, observation, terminal=False)
 
     def _leaf_values(self, model):
         """Q_1(b, a) = E[R | b, a] over the full joint belief; maximize afterwards."""

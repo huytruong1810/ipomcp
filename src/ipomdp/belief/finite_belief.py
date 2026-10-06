@@ -40,13 +40,14 @@ class MentalModel:
             return
         if not isinstance(self.belief, FiniteBelief):
             raise TypeError("An intentional model requires an immutable FiniteBelief")
-        opponents = set()
-        for atom, _ in self.belief.mass:
-            other = atom.opponent.frame
-            opponents.add(other.agent_id)
-            if other.agent_id == self.frame.agent_id or other.level >= self.frame.level:
-                raise ValueError("Opponent nesting must change agent and strictly decrease level")
-        if len(opponents) != 1:
+        # The belief summarizes its opponents once (``FiniteBelief.opponents``):
+        # models are built millions of times per nested solve from a few
+        # thousand beliefs, and scanning the support each time was 14% of an
+        # L3 H4 modeled solve's CPU (results/w1_profile_20261005).
+        identities, top_level = self.belief.opponents
+        if self.frame.agent_id in identities or top_level >= self.frame.level:
+            raise ValueError("Opponent nesting must change agent and strictly decrease level")
+        if len(identities) != 1:
             raise ValueError("A two-agent belief must refer to one opponent identity")
 
 
@@ -76,6 +77,7 @@ class FiniteBelief:
     mass: tuple[tuple[InteractiveState, float], ...]
     _key: frozenset = field(init=False, repr=False)
     _hash: int = field(init=False, repr=False)
+    opponents: tuple = field(init=False, repr=False)
 
     def __post_init__(self):
         entries = tuple(self.mass)
@@ -101,9 +103,16 @@ class FiniteBelief:
 
     def _set_normalized(self, mass):
         key = frozenset(mass)
+        frames = {atom.opponent.frame for atom, _ in mass}
         object.__setattr__(self, "mass", mass)
         object.__setattr__(self, "_key", key)
         object.__setattr__(self, "_hash", hash(key))
+        # (opponent identities, highest opponent level): what MentalModel checks.
+        object.__setattr__(
+            self,
+            "opponents",
+            (frozenset(f.agent_id for f in frames), max(f.level for f in frames)),
+        )
 
     def __hash__(self):
         return self._hash

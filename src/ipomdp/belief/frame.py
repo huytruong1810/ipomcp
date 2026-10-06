@@ -1,6 +1,6 @@
 """Fixed agent identity, reasoning level and subjective physics for one experiment."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ipomdp.model.pomdp import AgentID, POMDPModel
 
@@ -22,6 +22,12 @@ class AgentFrame:
     agent_id: AgentID
     level: int
     pomdp_model: POMDPModel
+    _hash: int = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        # Frames are few and long-lived but hashed inside every atom hash
+        # (20M times in 10 L3 H4 queries), so the hash is computed once.
+        object.__setattr__(self, "_hash", hash((self.agent_id, self.level, id(self.pomdp_model))))
 
     def __repr__(self) -> str:
         return f"<Frame {self.agent_id} L{self.level}>"
@@ -36,4 +42,14 @@ class AgentFrame:
         )
 
     def __hash__(self) -> int:
-        return hash((self.agent_id, self.level, id(self.pomdp_model)))
+        return self._hash
+
+    # The pickled state is the three declared fields; the hash holds
+    # id(pomdp_model), which changes on unpickle, so it is recomputed on load.
+    def __getstate__(self):
+        return [self.agent_id, self.level, self.pomdp_model]
+
+    def __setstate__(self, state):
+        for name, value in zip(("agent_id", "level", "pomdp_model"), state):
+            object.__setattr__(self, name, value)
+        self.__post_init__()

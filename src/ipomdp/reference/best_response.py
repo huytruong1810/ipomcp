@@ -120,10 +120,7 @@ class BestResponseReference:
         other = opponent.frame.agent_id
         return tuple(
             (
-                MentalModel(
-                    opponent.frame,
-                    self.bank.filter.update(opponent, other_action, private, terminal=False).belief,
-                ),
+                self.bank.filter.advance(opponent, other_action, private, terminal=False),
                 private_mass,
             )
             for private, private_mass in checked_distribution(
