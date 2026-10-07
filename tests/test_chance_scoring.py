@@ -41,7 +41,7 @@ def make_planner(depth, simulations, p=0.5, gamma=0.95):
     return planner
 
 
-def rescore(planner):
+def rescore(planner, bounds=False):
     return score_tree(
         planner.root,
         planner.model(),
@@ -49,6 +49,7 @@ def rescore(planner):
         planner.solver_bank,
         planner._history_successor,
         planner.config.gamma,
+        bounds,
     )
 
 
@@ -103,7 +104,7 @@ def test_scoring_reads_the_tree_without_changing_it():
     planner = make_planner(depth=3, simulations=200)
     planner.policy_for(planner.model())
     before = copy.deepcopy(planner.root.to_dict(max_depth=10))
-    again = rescore(planner)
+    again = rescore(planner, bounds=True)
     assert planner.root.to_dict(max_depth=10) == before
     assert again == planner.scores
     assert planner.search_values == planner.root.action_values
@@ -161,3 +162,28 @@ def test_l2_complete_tree_matches_the_best_response_to_the_declared_opponent(p):
     )[0]
     assert row["scores_exact"]
     assert row["max_abs_q_error"] < 1e-9 < row["search_max_abs_q_error"]
+
+
+@pytest.mark.parametrize("depth, simulations", [(2, 3), (3, 12), (3, 200), (4, 50), (4, 800)])
+@pytest.mark.parametrize("p", [0.08, 0.5, 0.85])
+def test_certified_bounds_contain_the_exact_values(depth, simulations, p):
+    # Small budgets leave fallbacks, frontiers and untried actions; the bounds
+    # must still contain the exact best response, and be tight where exact.
+    planner = make_planner(depth=depth, simulations=simulations, p=p)
+    planner.policy_for(planner.model())
+    scores = planner.scores
+    reference = BestResponseReference(planner.pomdp_model, planner.solver_bank, 0.95)
+    exact = reference.q_values(planner.model(), depth)
+    for action, (lo, hi) in scores.bounds.items():
+        assert lo - 1e-9 <= exact[action] <= hi + 1e-9
+        assert lo - 1e-12 <= scores.values[action] <= hi + 1e-12 or not scores.exact
+    if scores.exact:
+        assert all(math.isclose(lo, hi, abs_tol=1e-12) for lo, hi in scores.bounds.values())
+
+
+def test_modeled_solves_skip_bounds_and_keep_their_values():
+    planner = make_planner(depth=4, simulations=300)
+    planner.policy_for(planner.model())
+    assert planner.scores.bounds is not None
+    assert rescore(planner).bounds is None
+    assert rescore(planner).values == planner.scores.values

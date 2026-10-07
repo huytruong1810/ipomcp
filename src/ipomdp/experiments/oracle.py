@@ -229,6 +229,14 @@ def evaluate_case(
             "search_optimal_q_error": optimal_q_error(planner.search_values, oracle_q),
             "scores_exact": planner.scores.exact,
             "fallback_actions": planner.scores.fallback_actions,
+            # Certified for the searched model (chance_scoring); they contain
+            # oracle_q whenever the reference is that model: level 1, a
+            # declared reference, or exact opponents, with exact beliefs.
+            "bound_width": max(hi - lo for lo, hi in planner.scores.bounds.values()),
+            "bounds_contain_reference": all(
+                lo - 1e-9 <= oracle_q[a] <= hi + 1e-9
+                for a, (lo, hi) in planner.scores.bounds.items()
+            ),
         }
     return [
         row

@@ -82,9 +82,9 @@ def counting(monkeypatch):
     sizes = []
     original = _GrowingSearch.grow
 
-    def grow(self, simulations):
+    def grow(self, simulations, bounds=False):
         sizes.append(simulations)
-        return original(self, simulations)
+        return original(self, simulations, bounds)
 
     monkeypatch.setattr(_GrowingSearch, "grow", grow)
     return sizes

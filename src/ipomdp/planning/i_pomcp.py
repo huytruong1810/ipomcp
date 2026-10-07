@@ -133,7 +133,7 @@ class IPOMCPPlanner(Planner):
         if modeled and self.config.modeled_stopping is not None:
             return greedy_policy(self._stopped_values(model))
         simulations = self.config.modeled_simulations if modeled else self.config.simulations
-        node, scores = self._search(model, simulations)
+        node, scores = self._search(model, simulations, bounds=not modeled)
         policy = greedy_policy(scores.values)
         if not modeled:
             self.root = node
@@ -169,10 +169,14 @@ class IPOMCPPlanner(Planner):
     # Search
     # ------------------------------------------------------------------ #
 
-    def _search(self, model, simulations):
-        """One seeded search of ``simulations`` from ``model``; returns (tree, scores)."""
+    def _search(self, model, simulations, bounds=False):
+        """One seeded search of ``simulations`` from ``model``; returns (tree, scores).
+
+        ``bounds`` adds certified intervals to the scores (``chance_scoring``);
+        real decisions request them, modeled solves do not need them.
+        """
         tree = self._tree(model, simulations)
-        return tree.root, tree.grow(simulations)
+        return tree.root, tree.grow(simulations, bounds)
 
     def _tree(self, model, simulations, replicate=None):
         """An empty search tree at ``model``, seeded as a search of ``simulations``.
@@ -292,6 +296,7 @@ class IPOMCPPlanner(Planner):
             "scores_exact": self.scores.exact if self.scores else None,
             "fallback_actions": self.scores.fallback_actions if self.scores else None,
             "frontiers": self.scores.frontiers if self.scores else None,
+            "bounds": ({str(a): b for a, b in self.scores.bounds.items()} if self.scores else None),
         }
 
 
@@ -308,7 +313,7 @@ class _GrowingSearch:
         self.memory = planner._physical_marginal(model)
         self.simulations = 0
 
-    def grow(self, simulations):
+    def grow(self, simulations, bounds=False):
         """Run simulations until the tree has ``simulations``; return its chance scores."""
         if simulations < len(self.planner.actions):
             raise ValueError("Search budget must evaluate every action")
@@ -325,4 +330,5 @@ class _GrowingSearch:
             planner.solver_bank,
             planner._history_successor,
             planner.config.gamma,
+            bounds,
         )

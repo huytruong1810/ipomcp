@@ -32,6 +32,27 @@ and made every scored root exact at 6,400. Valuing rollout frontiers exactly
 instead changed nothing at 1,600+ (a0): the near-tie floor of 12.6 was these
 fallbacks' search Q, not rollout noise.
 
+Certified bounds (optional)
+---------------------------
+With ``bounds=True`` the same pass also returns, for every root action, an
+interval [lo, hi] that contains the exact finite-horizon value Q*(root, a) of
+the searched model (the exact best response to the modeled opponents at the
+searched belief), whatever the budget. Exact pieces enter exactly; whatever
+search left unknown is bounded by the declared reward bounds
+(``POMDPModel.reward_bounds``), with V_r in [lo_r, hi_r]:
+
+    lo_r = r_min + gamma * min(0, lo_{r-1}),  hi_r = r_max + gamma * max(0, hi_{r-1})
+
+(zero included because an episode may end): a rollout frontier with r steps
+left is [lo_r, hi_r]; an unsampled branch of probability p adds p [lo, hi] of
+its remaining horizon; an action search never tried at a history is
+E[R | b_h, a] + gamma [min(0, lo_{r-1}), max(0, hi_{r-1})]. V*'s interval
+maximizes over every legal action, tried or not, so it bounds the true optimum,
+not the searched one. Width measures what the tree leaves unknown (contribution
+2's error bound); it is zero for an exact root. Bounds need the subtrees of
+fallback actions too, so they cost more, and real decisions request them while
+modeled solves, scored at every stopping checkpoint, do not.
+
 What stays approximate
 ----------------------
 - **Missing branches, three or more steps left.** If a positive-probability
@@ -79,12 +100,15 @@ class ChanceScores:
         fallback_actions: (history, action) pairs that kept their search Q
             because a positive-probability branch was never sampled.
         frontiers: Rollout frontiers whose estimate entered a rescored value.
+        bounds: {a: (lo, hi)} certified to contain the exact Q*(root, a) of the
+            searched model, when requested; else None.
     """
 
     values: dict
     exact: bool
     fallback_actions: int
     frontiers: int
+    bounds: dict | None = None
 
 
 @dataclass
@@ -93,7 +117,17 @@ class _Tally:
     frontiers: int = 0
 
 
-def score_tree(root, model, depth, bank, successor, gamma):
+class _Span:
+    """Bounds [lo_r, hi_r] on any value with r decisions left (module docstring)."""
+
+    def __init__(self, r_min, r_max, gamma, depth):
+        self.lo, self.hi = [0.0], [0.0]
+        for _ in range(depth):
+            self.lo.append(r_min + gamma * min(0.0, self.lo[-1]))
+            self.hi.append(r_max + gamma * max(0.0, self.hi[-1]))
+
+
+def score_tree(root, model, depth, bank, successor, gamma, bounds=False):
     """Rescore a searched tree with exact chance probabilities (see module docstring).
 
     Args:
@@ -104,61 +138,103 @@ def score_tree(root, model, depth, bank, successor, gamma):
         successor: ``(model, action, observation) -> model``, the same belief
             update the search used, so scored and searched beliefs agree.
         gamma: Discount factor.
+        bounds: Also return certified intervals for the root actions.
     """
     tally = _Tally()
-    values, exact = _action_values(root, model, depth, bank, successor, gamma, tally)
-    return ChanceScores(values, exact, tally.fallback_actions, tally.frontiers)
+    span = None
+    if bounds:
+        r_min, r_max = model.frame.pomdp_model.reward_bounds(model.frame.agent_id)
+        span = _Span(r_min, r_max, gamma, depth)
+    values, exact, intervals = _action_values(
+        root, model, depth, bank, successor, gamma, tally, span
+    )
+    return ChanceScores(values, exact, tally.fallback_actions, tally.frontiers, intervals)
 
 
-def _value(node, model, remaining, bank, successor, gamma, tally):
-    """(V*(h), exact) at a child history."""
+def _value(node, model, remaining, bank, successor, gamma, tally, span):
+    """(V*(h), exact, interval or None) at a child history."""
     if remaining == 1:
-        return max(dict(bank.expected_rewards(model)).values()), True
+        value = max(dict(bank.expected_rewards(model)).values())
+        return value, True, (value, value)
     if not node.action_values:
         if node.rollout_value is None:
             raise ValueError("History node has neither action nor rollout estimates")
         tally.frontiers += 1
-        return node.rollout_value, False
-    values, exact = _action_values(node, model, remaining, bank, successor, gamma, tally)
-    return max(values.values()), exact
+        interval = None if span is None else (span.lo[remaining], span.hi[remaining])
+        return node.rollout_value, False, interval
+    values, exact, intervals = _action_values(
+        node, model, remaining, bank, successor, gamma, tally, span
+    )
+    interval = None
+    if span is not None:
+        lows, highs = [lo for lo, _ in intervals.values()], [hi for _, hi in intervals.values()]
+        for action, reward in bank.expected_rewards(model):
+            if action not in intervals:
+                lows.append(reward + gamma * min(0.0, span.lo[remaining - 1]))
+                highs.append(reward + gamma * max(0.0, span.hi[remaining - 1]))
+        interval = (max(lows), max(highs))
+    return max(values.values()), exact, interval
 
 
-def _action_values(node, model, remaining, bank, successor, gamma, tally):
-    """({a: Q*(h, a)} over evaluated actions, exact) at an expanded history."""
+def _action_values(node, model, remaining, bank, successor, gamma, tally, span):
+    """({a: Q*(h, a)} over evaluated actions, exact, {a: interval} or None) at an expanded history."""
     rewards = dict(bank.expected_rewards(model))
     if remaining == 1:
-        return rewards, True
+        return rewards, True, None if span is None else {a: (r, r) for a, r in rewards.items()}
     if not set(node.action_values) <= set(rewards):
         raise ValueError("Search evaluated an action the model does not declare")
-    values = {}
+    values, intervals = {}, None if span is None else {}
     exact = set(node.action_values) == set(rewards)
     for action, search_q in node.action_values.items():
         if gamma == 0:
             values[action] = rewards[action]
+            if span is not None:
+                intervals[action] = (rewards[action], rewards[action])
             continue
         law = bank.continuation_law(model, action)
         children = node.children.get(action, {})
         if not set(children) <= {o for o, _ in law}:
             raise ValueError("Search reached an observation with zero probability under b_h")
-        if remaining > 2 and any(o not in children for o, _ in law):
+        fallback = remaining > 2 and any(o not in children for o, _ in law)
+        if fallback:
             tally.fallback_actions += 1
             values[action] = search_q
             exact = False
-            continue
-        terms = []
+            if span is None:
+                continue
+        terms, lows, highs = [], [], []
         for observation, probability in law:
+            if fallback and observation not in children:
+                lows.append(probability * span.lo[remaining - 1])
+                highs.append(probability * span.hi[remaining - 1])
+                continue
             following = successor(model, action, observation)
             if remaining == 2:
                 # The child is the last decision: exact whether sampled or not.
-                child_value, child_exact = (
-                    max(dict(bank.expected_rewards(following)).values()),
-                    True,
-                )
+                child_value = max(dict(bank.expected_rewards(following)).values())
+                child_exact, child_interval = True, (child_value, child_value)
             else:
-                child_value, child_exact = _value(
-                    children[observation], following, remaining - 1, bank, successor, gamma, tally
+                # A fallback's subtrees feed only its bounds, never the tally.
+                child_value, child_exact, child_interval = _value(
+                    children[observation],
+                    following,
+                    remaining - 1,
+                    bank,
+                    successor,
+                    gamma,
+                    _Tally() if fallback else tally,
+                    span,
                 )
             terms.append(probability * child_value)
             exact = exact and child_exact
-        values[action] = rewards[action] + gamma * math.fsum(terms)
-    return values, exact
+            if span is not None:
+                lows.append(probability * child_interval[0])
+                highs.append(probability * child_interval[1])
+        if not fallback:
+            values[action] = rewards[action] + gamma * math.fsum(terms)
+        if span is not None:
+            intervals[action] = (
+                rewards[action] + gamma * math.fsum(lows),
+                rewards[action] + gamma * math.fsum(highs),
+            )
+    return values, exact, intervals
