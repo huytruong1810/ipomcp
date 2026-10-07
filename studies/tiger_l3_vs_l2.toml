@@ -14,9 +14,9 @@ domain = "tiger"
 trials = 100
 steps = 20
 record_hierarchies = true
-workers = 12
+workers = 6
 trial_timeout_seconds = 14400.0
-max_trial_rss_mb = 3072.0
+max_trial_rss_mb = 4096.0
 
 [agents.i]
 level = 3

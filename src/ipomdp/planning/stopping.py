@@ -32,13 +32,18 @@ sigma, the standard deviation over ``trees`` trees of the scored difference
 between the main tree's two leading actions. At checkpoint n the main tree
 stops when its own leading gap exceeds
 
-    t(1 - alpha / (2 K), trees - 1) * sigma * sqrt(pilot / n),
+    t(1 - alpha / (2 K), trees - 1) * sigma * (pilot / n),
 
 with K the number of checkpoints up to the cap (Bonferroni over the tests).
-sqrt(pilot / n) assumes a tree's scored values have variance falling at least
-as 1 / n, the Monte Carlo rate; measured, it falls about as n^-1.6, so the
-test is conservative at larger n. Pilots cost (trees - 1) * pilot simulations
-once per solve.
+(pilot / n) is the measured rate at which the spread of a tree's scored gap
+falls under exact two-steps-left scoring (12.14): across 10 seeds at the 8
+hardest L3 H4 beliefs, the standard deviation fell as n^-1.0 (median; range
+0.76-1.15) from 200 to 3,200 simulations (results/stopping_v2_20261006). The
+earlier sqrt(pilot / n), the Monte Carlo rate, became over-conservative once
+scoring removed the fallback noise: replayed on 2,016 solves, (pilot / n)
+makes the same decisions on every set with 14-23% fewer simulations, while
+steeper assumed rates (n^-1.5 and beyond) start adding mistakes at L3 H4.
+Pilots cost (trees - 1) * pilot simulations once per solve.
 """
 
 import math
@@ -100,6 +105,4 @@ class ModeledStopping:
         mean = math.fsum(differences) / len(differences)
         spread = math.sqrt(math.fsum((d - mean) ** 2 for d in differences) / (len(differences) - 1))
         critical = student.ppf(1 - self.alpha / (2 * tests), self.trees - 1)
-        return bool(
-            values[first] - values[second] > critical * spread * math.sqrt(self.pilot / simulations)
-        )
+        return bool(values[first] - values[second] > critical * spread * self.pilot / simulations)

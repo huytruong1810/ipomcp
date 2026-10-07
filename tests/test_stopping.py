@@ -28,11 +28,11 @@ def test_separation_scales_the_pilot_spread_by_the_main_tree_size():
     # Leading-pair differences over the calibration trees: sd sqrt(2 / 3).
     calibration = [{"a": d, "b": 0.0} for d in (0.0, 1.0, 1.0, 2.0)]
     # t(1 - 0.01 / 8, 3) = 9.46, so the threshold is 7.73 at the pilot and
-    # 7.73 * sqrt(100 / 1600) = 1.93 at 1,600 simulations.
+    # 7.73 * 100 / 1600 = 0.483 at 1,600 simulations (spread falling as 1 / n).
     assert not rule.separated({"a": 7.5, "b": 0.0}, calibration, 100, 4)
     assert rule.separated({"a": 8.0, "b": 0.0}, calibration, 100, 4)
-    assert not rule.separated({"a": 1.9, "b": 0.0}, calibration, 1600, 4)
-    assert rule.separated({"a": 2.0, "b": 0.0}, calibration, 1600, 4)
+    assert not rule.separated({"a": 0.48, "b": 0.0}, calibration, 1600, 4)
+    assert rule.separated({"a": 0.49, "b": 0.0}, calibration, 1600, 4)
     assert rule.separated({"a": 1.0}, calibration, 100, 4)
 
 
