@@ -900,3 +900,33 @@ The study (`studies/tiger_l3_vs_l2.toml`) now runs at horizon 3 with root 1,000 
 - At 3,000 simulations or more, every scored root at H3 is exact for its searched belief (certified bound width 0, 12.17). The remaining Q error is therefore all compression error.
 - **Qualified Wumpus L1 H3 configuration: N = 1,024, 3,000 simulations** (9/9, optimal-action Q error 0.63, 41 s). N = 4,096 cuts the Q error to 0.16 at 3.5× the CPU.
 - **Limit:** 3 distinct beliefs. A wider set of histories is needed before scaling.
+
+### 12.18 Episode study: level 3 vs level 2 in Tiger, with level-2 and level-1 controls (October 6–7, 2026)
+
+**Design** (`studies/tiger_l3_vs_l2.toml`; controls in `results/w4_controls_20261006/l{1,2}/study.toml`):
+- **Agents:** j is level 2 in every condition. i is level 3 (prior over j: L1 0.8, L2 0.1, L0 0.1), level 2 (L1 0.89, L0 0.11) or level 1 (j uniform L0).
+- **Planning:** horizon 3, root 1,000 simulations, compressed 64-atom beliefs; modeled stacks `6400s/100` for i-L3, `400` for i-L2 and for j.
+- **Trials:** 100 trials of 20 steps per condition. The same trial seeds are used throughout, so the environment and j's streams are paired across conditions.
+- **Gates:** 12.16.
+- **Intervals:** trial-bootstrap 95%. Paired differences of j's reward also get Bonferroni intervals over the three pairs (98.3%).
+- **Data:** `results/w4_episodes_20261006`, `results/w4_controls_20261006`; analysis in `results/w4_report_20261007`.
+- **Reviewer page:** https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB
+
+| Condition | Trials | i's reward | j's reward | i's prediction log-loss | i's hit rate | Doors opened per trial | Safe-door rate | Exact decisions | i's CPU per step (s) |
+|---|---|---|---|---|---|---|---|---|---|
+| Level 3 i | 100 | 17.1 [9.7, 23.9] | 10.8 [2.3, 18.5] | 0.462 [0.418, 0.515] | 0.83 [0.81, 0.84] | 4.4 | 98% | 98% | 90.7 |
+| Level 2 i | 100 | 15.6 [7.4, 22.8] | 13.6 [5.1, 20.8] | 0.452 [0.416, 0.499] | 0.82 [0.80, 0.84] | 4.3 | 97% | 97% | 4.9 |
+| Level 1 i | 100 | 18.9 [10.2, 26.4] | 8.5 [-0.4, 16.5] | 1.099 [1.099, 1.099] | 0.80 [0.79, 0.81] | 4.7 | 97% | 98% | 0.2 |
+
+| Paired difference (same trials) | n | i's reward | j's reward | i's prediction log-loss |
+|---|---|---|---|---|
+| L3 − L2 | 100 | 1.4 [-2.4, 5.3] | -2.8 [-6.2, -0.1] | 0.010 [-0.045, 0.069] |
+
+- **Modeling j is what predicts j.** i's log-loss on j's next action is 0.46 at level 3 and 0.45 at level 2, against 1.10 (uniform) at level 1 (−0.64 paired, [−0.68, −0.58]). **Level 3 adds nothing over level 2 here:** paired difference +0.010 [−0.045, 0.069].
+- **i's level is weakly identified.** Level 3 i's belief that j is level 2, the truth, moves only from 0.10 to 0.18 by step 20; level 1 keeps 0.82. In Tiger, level-1 and level-2 agents both listen until confident and then open, so j's actions carry little evidence about its level. j rules out a random i by step 5 in every condition (P(i is L1) 0.89–0.90 at step 5, 0.99 at step 20).
+- **No robust reward effect, for either agent.**
+  - **i's reward:** level 3 − level 2 is +1.4 [−2.4, 5.3], level 3 − level 1 is −1.9 [−6.5, 3.3]. i's reward depends only on its own door choice.
+  - **j's reward:** two of three paired differences narrowly exclude zero at 95%: level 3 − level 2 −2.8 [−6.2, −0.1], level 2 − level 1 +5.1 [0.8, 9.6]. Neither survives Bonferroni: 98.3% intervals [−7.2, 0.2] and [−0.3, 10.8].
+  - **The interim effect did not hold.** At n = 77 an apparent effect of i's level on j's reward looked significant. A tested mechanism (i's openings resetting the tiger and erasing j's information) was not supported: a level-1 i causes fewer such resets (3.8 per trial against 4.0–4.1), and per-trial reset differences barely track j's reward differences (correlation 0.12).
+- **Decisions were almost always exact for the searched model:** 97–98% had certified bound width 0 (12.17).
+- **Cost:** level 3 i spends 91 s of planning CPU per step, against 4.9 s at level 2 and 0.2 s at level 1, about 50 CPU-h per 100 trials.

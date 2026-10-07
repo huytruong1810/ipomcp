@@ -8,8 +8,8 @@
 | W2 | done (evidence) | flips of j near ties (gaps 0.15–0.3) never changed i's exact decision; no gap below 0.05 testable (12.13). Standard: the user's call |
 | W3 | A0, A0b and the scoring change done; A1–A3 not needed yet | the floor was whole-action fallbacks; exact scoring with two steps left: L3 H4 residual 14 → 4 of 80 (12.14) |
 | W3 follow-up | done | the stopping rule now scales the pilot spread as 1/n, the measured rate: the same decisions with 14–23% fewer simulations; in situ, CPU 0.88× (not significant) (12.15) |
-| W4 | running | gates passed (12.16); 100 trials in `results/w4_episodes_20261006` |
-| W5 | waiting for memory | launcher with pilot mode in `results/w5_rts_baseline_20261006` |
+| W4 | done | 100 trials per condition, with level-2 and level-1 controls (12.18). Modeling j cuts prediction loss 1.10 → 0.45; level 3 adds nothing over level 2; no robust reward effect. Reviewer page: https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB |
+| W5 | running | pilot done (10 problems per cell; RTS horizon-4 K = 8 takes 168 s per decision); the full 380-problem run is in `results/w5_rts_baseline_20261006/full` |
 | W6 | bounds done | certified intervals on every real decision (12.17); error attribution at L2/L3 not yet |
 | W7 | done (3 beliefs) | qualified Wumpus L1 H3 configuration: N = 1,024, 3,000 simulations (9/9); the pilot's losses were the budget (12.19) |
 | W8 | equilibria design done | `docs/EQUILIBRIA.md`; predictions recorded per step. Level 4 and UAV not started |
