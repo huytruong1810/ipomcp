@@ -808,3 +808,68 @@ The speedup grows with belief size, because the removed costs scaled with the su
 - **Kept as the planner's scoring.** It roughly halves L3 H4's residual misses (14 → 4 of 80, p = 0.013) and leaves no regression on any certified set. Q errors at i's root fall, at L3 H3 by 100×.
 - **What remains at L3 H4:** misses only at the 0.03-gap beliefs, with loss ≤ 0.030. Every exact check (12.13) found such mistakes harmless to i, but those checks never contained a gap that small.
 - **Follow-up: the stopping rule is now conservative.** Its pilots (200 simulations) calibrate σ and scale it as sqrt(200/n). Scored spreads now collapse much faster than 1/n, so near-tie solves still run to the cap (L2 H4 near ties: 6,760 simulations on average). A rule that also uses the scored values' exactness, or certified intervals (PLAN W6), could stop them far earlier.
+
+### 12.15 The stopping rule scales with the measured rate, 1/n (October 6, 2026)
+
+**Question.** After 12.14, near-tie modeled solves still ran to the cap. The rule scales the pilots' spread at 200 simulations to the main tree's size n as sqrt(200/n), the Monte Carlo rate. Is that still the right rate?
+
+**Dataset** (`results/stopping_v2_20261006/dataset.py`). 2,016 solves, each in a fresh bank:
+- L3 H4: all 110 queried j-L2 beliefs with exact gaps below 1, 110 clear ones, and the 8 residual beliefs × seeds 0–9;
+- L3 H3: the 183 j-L2 beliefs × seeds 0–2;
+- L2 H4: the 235 j-L1 beliefs × seeds 0–4.
+
+Each solve has a main tree scored at 200–6,400 simulations, plus pilot trees. A rule replayed from these checkpoints (`replay.py`) decides exactly as it would online with these seeds.
+
+**Measured rate.** Across 10 seeds at each of the 8 residual beliefs, the spread (sd) of the main tree's scored gap fell as n^−1.0 between 200 and 3,200 simulations (median; range 0.76–1.15).
+
+**Replay** (wrong decisions / mean simulations; the threshold scales as (200/n)^β):
+
+| Rule | L3 H4 (n = 292) | L2 H4 (n = 1,175) | L3 H3 (n = 549) |
+|---|---|---|---|
+| flat 6,400 | 4 / 6,400 | 0 / 6,400 | 0 / 6,400 |
+| β = 0.5 (12.11's rule) | 4 / 5,081 | 0 / 1,424 | 0 / 1,283 |
+| **β = 1.0 (measured)** | **4 / 4,332** | **0 / 1,103** | **0 / 1,107** |
+| β = 1.25 | 4 / 3,622 | 0 / 1,033 | 0 / 1,000 |
+| β = 1.5 | 7 / 2,971 | 0 / 980 | 0 / 937 |
+| β = 2.0 | 22 / 2,000 | 0 / 934 | 0 / 879 |
+| flat 1,600 | 37 / 1,600 | 0 / 1,600 | 0 / 1,600 |
+
+The 4 L3 H4 misses are flat 6,400's own, all at exact gaps below 0.05. β = 1.25 is the steepest rate with no added mistakes, but choosing it would tune on the test data. The measured rate, β = 1.0, is adopted (commit `d7ba56c`).
+
+**Online.**
+- In situ, the first 40 queries of L3 H4 problem 0 (`6400s/exact`, the old and new rules run concurrently): 40/40 policies equal; CPU 0.88× in total, median 0.95 per query, Wilcoxon p = 0.09. In situ, CPU is dominated by solving new nested beliefs, so 15% fewer simulations save little CPU.
+- The 12.11 near-tie sets, online (`gate/near_ties.py`): `6400s` is 0 wrong on the L2 H4 j-L1 set (n = 1,175) and on the L3 H3 near ties (n = 40), as in the replay. Mean simulations at L2 H4 fell from 1,199 (12.14) to 882, a 26% cut (23% in the replay). This harness counts simulations by tree `id()`, which freed pilot trees can reuse, so its absolute counts run about 220 below the replay's for both rules.
+
+**Verdict:** same decisions, 14–23% fewer simulations, and a modest in-situ CPU saving that is not significant.
+
+### 12.16 Gates for the episode study (October 6, 2026)
+
+The study (`studies/tiger_l3_vs_l2.toml`) now runs at horizon 3 with root 1,000 and compressed 64-atom beliefs. Modeled levels are named per level (`AgentSpec.modeled`): `6400s/100` for i and `400` for j. Its mixed-level priors had never been gated.
+
+- **Mixed priors vs the exact I-POMDP** (`results/w4_mixed_prior_gate_20261006`, seeds 0–19):
+  - **Problems:** i-L3 at its prior; j-L2 at its prior and after 2 steps (4 histories).
+  - **Result:** 120/120 optimal, with optimal-action Q error 0–0.09.
+  - **Limit:** every exact gap here is at least 1.6, so this checks the hierarchy's construction, not near-tie accuracy.
+- **Compressed beliefs at level 3** (`results/w4_belief_l3_20261006`, `belief_qualification --steps 5`): 12 histories under the study's priors, against exact beliefs whose supports reach 4,328 atoms by step 5.
+
+  | N | Level TV, mean | Level TV, max | Steps above 0.2 | Nested TV, mean | Physical error, mean |
+  |---|---|---|---|---|---|
+  | 64 | 0.012 | 0.061 | 0 of 60 | 0.010 | 0.002 |
+  | 256 | 0.003 | 0.017 | 0 of 60 | 0.003 | 0.0001 |
+
+  At step 8, the exact L3 belief outgrew memory (stopped at 3.3 GB), so exact checks end at step 5.
+- **Pilot** (`results/w4_episode_pilot_20261006`, 2 trials × 20 steps):
+  - **CPU:** i's planning took 3,063 s and 480 s per trial, j's about 90 s. i's first steps cost 30–240 s each, while later steps reuse cached nested policies.
+  - **Memory:** peak RSS 1.8 GB.
+  - **Implication:** the full run (100 trials, 6 workers) needs about 50 CPU-h, within 3× of the plan's estimate.
+  - **Bug found:** episode rows had empty `action_values`, because rows were written after the belief update cleared them. Fixed in commit `14ac0e2`, with a regression test.
+- **Also recorded per step** (W6, W8): each decision's certified bounds, and each agent's predicted distribution of the opponent's next action (`docs/EQUILIBRIA.md`).
+
+### 12.17 Certified bounds on every real decision (October 6, 2026)
+
+`planning.chance_scoring(..., bounds=True)` returns, for each root action, an interval that contains the exact Q of the searched model, whatever the budget. Exact pieces enter exactly. Rollout frontiers, unsampled branches and untried actions are bounded by the declared reward bounds (THEORY's chance-scoring section; commit `95d11d5`).
+
+- **Checks:** containment and tightness in 15 cases (L1 Tiger, depths 2–4, 3–800 simulations, 3 beliefs).
+- **Where recorded:** `oracle` rows (`bound_width`, `bounds_contain_reference`) and episode rows (`bounds_<agent>`).
+- **Scored values are unchanged,** and the cost is negligible, because successors are already cached.
+- **What the bounds certify:** search error relative to the searched model. When the reference includes opponent-model or belief error, containment is not guaranteed and is reported as measured.

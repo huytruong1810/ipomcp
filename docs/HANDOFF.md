@@ -14,7 +14,7 @@ Last updated October 6, 2026 (PLAN.md W1–W3: bit-identical 2.2× speedup in si
   - W1: simulating minds is 2.2× faster in situ at L3 H4, with bit-identical outputs (12.12).
   - W2: flipping j's near-tie decisions (gaps 0.15–0.3) never changed i's exact decision; no exact gap below 0.05 was available to test (12.13).
   - W3: the near-tie floor was the chance-scoring fallback. Exact scoring with two steps left cuts the L3 H4 residual misses from 14 to 4 of 80 (12.14).
-  - Next: the stopping-rule follow-up in 12.14, then W4 (episodes).
+  - October 6, later: the stopping rule scales as 1/n (12.15). The episode study's gates passed and it is running (12.16). Certified bounds on real decisions (12.17). Equilibria design (`docs/EQUILIBRIA.md`). The Wumpus grid is running. PLAN.md's status table lists what is running and what is next.
 - **Where the science stands.**
   - Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3).
   - The modeled stopping rule is consistent (12.11): one growing tree, calibrated by pilot trees. It matches flat 6,400 at L3 H4 at half the CPU, and was re-gated at L2 H4 and L3 H3.

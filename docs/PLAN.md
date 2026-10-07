@@ -7,8 +7,12 @@
 | W1 | done | bit-identical; 0.45× CPU in situ at L3 H4, 0.84× cold at L3 H3 (RESULTS 12.12) |
 | W2 | done (evidence) | flips of j near ties (gaps 0.15–0.3) never changed i's exact decision; no gap below 0.05 testable (12.13). Standard: the user's call |
 | W3 | A0, A0b and the scoring change done; A1–A3 not needed yet | the floor was whole-action fallbacks; exact scoring with two steps left: L3 H4 residual 14 → 4 of 80 (12.14) |
-| W3 follow-up | next | the stopping rule's sqrt(200/n) calibration is now conservative; use exactness or certified intervals (with W6) |
-| W4–W8 | not started | — |
+| W3 follow-up | done | the stopping rule now scales the pilot spread as 1/n, the measured rate: the same decisions with 14–23% fewer simulations; in situ, CPU 0.88× (not significant) (12.15) |
+| W4 | running | gates passed (12.16); 100 trials in `results/w4_episodes_20261006` |
+| W5 | waiting for memory | launcher with pilot mode in `results/w5_rts_baseline_20261006` |
+| W6 | bounds done | certified intervals on every real decision (12.17); error attribution at L2/L3 not yet |
+| W7 | running | `experiments.wumpus_qualification` grid in `results/w7_wumpus_20261006` |
+| W8 | equilibria design done | `docs/EQUILIBRIA.md`; predictions recorded per step. Level 4 and UAV not started |
 
 ## Context
 HANDOFF Section 0.1 asks for a written, committed plan (`docs/PLAN.md`) before any experiment runs.

@@ -61,6 +61,8 @@ with V* at the last decision equal to max_a E[R | b_h, a]. Terminal mass contrib
 
 With two steps left, every child of (h, a) is the last decision, whose exact value needs only the child's posterior. Such an action is therefore scored over all its positive branches, sampled or not, and is exact given b_h. These whole-action fallbacks, not rollout noise, set the near-tie floor of modeled solves (RESULTS.md 12.14).
 
+**Certified bounds** (real decisions). The same pass returns, for each root action, an interval that contains the exact Q of the searched model. Exact pieces enter exactly. A rollout frontier with r steps left is bounded by [lo_r, hi_r], where lo_r = r_min + γ min(0, lo_{r−1}) and hi_r = r_max + γ max(0, hi_{r−1}), from the declared reward bounds. An unsampled branch of probability p adds p times its horizon's interval. An untried action is E[R | b_h, a] plus γ times its horizon's interval, with zero included. The width is the search error that the tree leaves unresolved. It does not cover opponent-model or belief error (RESULTS.md 12.17).
+
 What stays approximate:
 - with three or more steps left, an action with a positive-probability observation that search never sampled keeps its search Q as a whole (weighting only the sampled branches would bias it toward zero);
 - a child reached once enters with its rollout estimate;
