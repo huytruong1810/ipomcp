@@ -12,6 +12,7 @@
 | W5 | running | pilot done (10 problems per cell; RTS horizon-4 K = 8 takes 168 s per decision); the full 380-problem run is in `results/w5_rts_baseline_20261006/full` |
 | W6 | bounds done | certified intervals on every real decision (12.17); error attribution at L2/L3 not yet |
 | W7 | done (3 beliefs) | qualified Wumpus L1 H3 configuration: N = 1,024, 3,000 simulations (9/9); the pilot's losses were the budget (12.19) |
+| W8b | done | level grid, i and j at levels 1–4 (12.21): prediction separates level 1 from levels ≥ 2; identification weakens with level; no consistent reward effect |
 | W8 | equilibria design done | `docs/EQUILIBRIA.md`; predictions recorded per step. Level 4 and UAV not started |
 
 ## Context

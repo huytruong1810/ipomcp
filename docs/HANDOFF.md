@@ -15,7 +15,7 @@ Last updated October 6, 2026 (PLAN.md W1–W3: bit-identical 2.2× speedup in si
   - W2: flipping j's near-tie decisions (gaps 0.15–0.3) never changed i's exact decision; no exact gap below 0.05 was available to test (12.13).
   - W3: the near-tie floor was the chance-scoring fallback. Exact scoring with two steps left cuts the L3 H4 residual misses from 14 to 4 of 80 (12.14).
   - October 6, later: the stopping rule scales as 1/n (12.15). The episode study's gates passed and it is running (12.16). Certified bounds on real decisions (12.17). Equilibria design (`docs/EQUILIBRIA.md`). The Wumpus grid is running. PLAN.md's status table lists what is running and what is next.
-  - October 7: the episode study and its controls are complete (12.18), with a reviewer page at https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (built by `results/w4_report_20261007/{analyze,build_report}.py`). Wumpus L1 is qualified (12.19). The W5 full run is in progress.
+  - October 7: the episode study and its controls are complete (12.18), with a reviewer page at https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (built by `results/w4_report_20261007/{analyze,build_report}.py`). Wumpus L1 is qualified (12.19). I-POMCP vs IPF + RTS at scale (12.20). Level grid, levels 1–4 × 1–4 (12.21). All are on the reviewer page.
 - **Where the science stands.**
   - Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3).
   - The modeled stopping rule is consistent (12.11): one growing tree, calibrated by pilot trees. It matches flat 6,400 at L3 H4 at half the CPU, and was re-gated at L2 H4 and L3 H3.

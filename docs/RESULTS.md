@@ -958,3 +958,47 @@ The study (`studies/tiger_l3_vs_l2.toml`) now runs at horizon 3 with root 1,000 
 - **At H3, IPF + RTS at K = 2 is slightly cheaper** (1.0 s against 1.5 s), but not exact.
 - **The ablation separates belief from search error.** RTS on compressed beliefs makes about the same decisions as on the IPF, at 1/14–1/40 of the CPU. Its misses are search error (K samples per node), not belief error.
 - **This replaces Section 6's 15-problem comparison,** whose I-POMCP cells predated the last estimator revisions.
+
+### 12.21 Level grid: i at levels 1–4 against j at levels 1–4 (October 7, 2026)
+
+**Design** (`results/w9_level_grid_20261007/grid.py`; analysis `analyze_grid.py`):
+- **Priors:** every agent holds a uniform prior over the opponent's lower levels (0 … L−1), and so does every nested model.
+- **Planning:** both agents plan with I-POMCP at horizon 2. With two steps left, chance scoring (12.14) makes each decision the exact best response to the agent's modeled opponents for its searched belief, at any budget (100 simulations).
+- **Beliefs:** compressed to N = 32. At N = 64, a level-4 decision grew to 65 s per step by step 8, against 1–2 s at N = 16 (probe logs in the same folder).
+- **Trials:** 20 steps. All 16 cells share trial seeds. Trials were scheduled round-robin and the run was stopped at 13:29, leaving n = 39–42 per cell.
+- **Intervals:** trial bootstrap, 95%.
+
+| i | j | n | i's reward | j's reward | Joint welfare | i's log-loss of j | j's log-loss of i | i's belief in j's level | j's belief in i's level | CPU per step (s) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | 42 | 13.0 [-2.5, 25.3] | 12.5 [-0.6, 23.5] | 25.5 [5.0, 43.0] | 1.10 [1.10, 1.10] | 1.10 [1.10, 1.10] | — | — | 0.0 |
+| 1 | 2 | 42 | 13.0 [-3.0, 26.4] | 14.6 [4.1, 23.2] | 27.6 [7.9, 44.1] | 1.10 [1.10, 1.10] | 0.55 [0.47, 0.66] | — | 0.99 [0.98, 1.00] | 0.2 |
+| 1 | 3 | 42 | 17.2 [2.5, 29.8] | 15.9 [4.9, 24.8] | 33.1 [14.7, 49.3] | 1.10 [1.10, 1.10] | 0.59 [0.45, 0.78] | — | 0.50 [0.40, 0.60] | 3.0 |
+| 1 | 4 | 42 | 19.0 [4.4, 31.1] | 18.2 [8.5, 26.4] | 37.3 [20.8, 51.7] | 1.10 [1.10, 1.10] | 0.72 [0.51, 0.95] | — | 0.42 [0.31, 0.53] | 25.1 |
+| 2 | 1 | 42 | 13.3 [1.7, 23.5] | 19.5 [9.1, 28.5] | 32.8 [17.4, 46.7] | 0.61 [0.50, 0.74] | 1.10 [1.10, 1.10] | 0.97 [0.93, 1.00] | — | 0.2 |
+| 2 | 2 | 42 | 14.8 [2.5, 25.3] | 20.3 [12.5, 26.9] | 35.2 [21.0, 48.5] | 0.58 [0.49, 0.69] | 0.55 [0.47, 0.66] | — | — | 0.4 |
+| 2 | 3 | 42 | 16.9 [2.5, 28.7] | 22.7 [14.3, 29.2] | 39.6 [23.9, 53.5] | 0.54 [0.46, 0.64] | 0.50 [0.42, 0.60] | — | 0.49 [0.39, 0.58] | 3.4 |
+| 2 | 4 | 41 | 18.9 [3.9, 30.7] | 19.7 [10.3, 27.8] | 38.6 [22.2, 52.6] | 0.57 [0.47, 0.69] | 0.63 [0.45, 0.83] | — | 0.43 [0.33, 0.52] | 26.7 |
+| 3 | 1 | 42 | 10.4 [-4.3, 22.4] | 17.7 [6.2, 27.9] | 28.1 [10.0, 45.1] | 0.50 [0.45, 0.57] | 1.10 [1.10, 1.10] | 0.65 [0.54, 0.75] | — | 2.5 |
+| 3 | 2 | 42 | 9.6 [-6.6, 23.2] | 18.2 [8.8, 26.1] | 27.8 [9.5, 44.1] | 0.48 [0.43, 0.56] | 0.56 [0.45, 0.68] | 0.53 [0.42, 0.64] | — | 3.3 |
+| 3 | 3 | 42 | 13.8 [-0.9, 26.4] | 21.9 [12.0, 29.8] | 35.7 [17.6, 51.9] | 0.46 [0.40, 0.54] | 0.54 [0.41, 0.71] | — | — | 6.6 |
+| 3 | 4 | 40 | 19.3 [5.8, 29.5] | 21.8 [11.6, 30.1] | 41.1 [26.0, 54.0] | 0.51 [0.43, 0.62] | 0.55 [0.40, 0.74] | — | 0.25 [0.18, 0.34] | 32.5 |
+| 4 | 1 | 40 | 11.3 [-2.4, 22.9] | 23.4 [13.6, 31.4] | 34.8 [17.5, 50.2] | 0.56 [0.45, 0.68] | 1.10 [1.10, 1.10] | 0.47 [0.37, 0.59] | — | 26.3 |
+| 4 | 2 | 40 | 12.2 [-1.9, 24.3] | 19.9 [10.5, 27.6] | 32.0 [13.6, 47.5] | 0.49 [0.41, 0.59] | 0.51 [0.45, 0.60] | 0.34 [0.25, 0.43] | — | 30.4 |
+| 4 | 3 | 41 | 11.1 [-5.2, 25.1] | 24.0 [13.5, 32.0] | 35.1 [16.9, 51.8] | 0.47 [0.39, 0.57] | 0.54 [0.40, 0.73] | 0.32 [0.24, 0.40] | — | 35.4 |
+| 4 | 4 | 39 | 16.1 [-0.3, 28.8] | 20.3 [10.7, 28.2] | 36.4 [18.9, 51.9] | 0.51 [0.40, 0.63] | 0.50 [0.39, 0.63] | — | — | 61.8 |
+
+- **Modeling the opponent is what predicts it.**
+  - Every agent at level ≥ 2 predicts its opponent's next action with log-loss 0.46–0.72, whatever the opponent's level.
+  - A level-1 agent sits at 1.10 (a uniform guess) by construction.
+  - Prediction does not keep improving with level: level 4 is no better than level 2.
+- **Identifying the opponent's level gets harder with level.** At step 20, against an opponent whose level is in its prior:
+  - level 2 identifies level 1 almost surely (0.97–0.99);
+  - level 3 reaches 0.65 for level 1 and 0.53 for level 2, against a prior of 1/3;
+  - level 4 reaches 0.47, 0.34 and 0.32 for levels 1–3, against a prior of 1/4.
+
+  Agents at levels 1–3 act alike in Tiger (listen until confident, then open), so their actions carry little evidence about their level. This is consistent with 12.18.
+- **No consistent effect of an agent's own level on its reward.**
+  - Per-cell reward intervals are about ±20.
+  - Paired by seeds, the agent at level k minus the same agent at level 1 against the same opponent: 2 of 24 comparisons exclude zero, both small and negative, for j facing a level-4 i (−3.6 and −3.5). About 1 would by chance.
+  - Comparing i with j inside a cell is confounded by each agent's growl luck, which the shared seeds repeat across cells. For example, i's tiger hits at n = 19 were 5 distinct events counted 67 times.
+- **Cost:** CPU per step, both agents, ranges from 0.0 s (level 1 vs level 1) to 62 s (level 4 vs level 4). A level-4 agent costs 25–35 s per step against lower levels.
