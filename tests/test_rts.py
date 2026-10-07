@@ -31,7 +31,7 @@ def test_rts_hierarchies_build_and_act(modeled):
         rts if modeled == "rts" else PlannerConfig(simulations=20, depth=2, modeled_simulations=20)
     )
     planner = HierarchyBuilder(SolverBank(1, particles=32)).build(
-        "i", 2, TigerModel(), "j", config=rts, modeled_config=modeled_config
+        "i", 2, TigerModel(), "j", config=rts, modeled_configs={1: modeled_config}
     )
     assert isinstance(planner, RTSPlanner)
     assert planner.get_action() in planner.actions

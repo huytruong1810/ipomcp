@@ -18,6 +18,7 @@ Specifications load from TOML:
     [agents.i]
     level = 2
     planner = { kind = "ipomcp", simulations = 1000, depth = 4, modeled_simulations = 100 }
+    modeled = "6400s"
     level_weights = { 1 = 0.8, 0 = 0.2 }
 
     [agents.j]
@@ -41,6 +42,7 @@ from ipomdp.domains.tiger import TigerModel
 from ipomdp.domains.uav import UAVModel
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.experiments.modeled_levels import parse_stack, planner_config
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
@@ -57,8 +59,13 @@ class AgentSpec:
         level: Reasoning level (0 = uniform random).
         planner: ``{"kind": "ipomcp", ...PlannerConfig fields}`` or
             ``{"kind": "rts", ...RTSConfig fields}``; unused at level 0.
-        modeled_planner: The same form, for every nested intentional model;
-            defaults to ``planner``.
+        modeled: How each intentional level below this agent is solved, as a
+            stack label of ``experiments.modeled_levels`` (top-down, e.g.
+            ``"6400s/100"`` at level 3: every level-2 model with stopping capped
+            at 6,400, every level-1 model with a flat 100), for both agents at
+            each level. The modeled levels share the planner's kind, depth,
+            discount and exploration. None: every level uses ``planner``.
+            Exact levels are not allowed: their cost is unbounded in an episode.
         particles: None for exact beliefs, or the bound N on belief supports.
         particle_filter: ``"compressed"`` (exact updates compressed to N
             atoms; the planner's default) or ``"sampled"`` (the published IPF).
@@ -71,7 +78,7 @@ class AgentSpec:
 
     level: int
     planner: Optional[Dict] = None
-    modeled_planner: Optional[Dict] = None
+    modeled: Optional[str] = None
     particles: Optional[int] = None
     particle_filter: str = "compressed"
     search_particles: Optional[int] = None
@@ -85,8 +92,8 @@ class AgentSpec:
             raise ValueError(f"particle_filter must be one of {sorted(FILTERS)}")
         if self.level > 0:
             _planner_config(self.planner)
-            if self.modeled_planner is not None:
-                _planner_config(self.modeled_planner)
+            if self.modeled is not None:
+                _modeled_configs(self)
 
 
 @dataclass(frozen=True)
@@ -131,7 +138,7 @@ class StudySpec:
             agent: AgentSpec(
                 level=entry["level"],
                 planner=entry.get("planner"),
-                modeled_planner=entry.get("modeled_planner"),
+                modeled=entry.get("modeled"),
                 particles=entry.get("particles"),
                 particle_filter=entry.get("particle_filter", "compressed"),
                 search_particles=entry.get("search_particles"),
@@ -171,9 +178,7 @@ def build_agents(spec: StudySpec, seed: int):
             physics,
             other,
             config=_planner_config(agent_spec.planner),
-            modeled_config=(
-                _planner_config(agent_spec.modeled_planner) if agent_spec.modeled_planner else None
-            ),
+            modeled_configs=_modeled_configs(agent_spec),
             level_weights=agent_spec.level_weights,
             nested_level_weights=agent_spec.nested_level_weights,
         )
@@ -189,6 +194,31 @@ def _planner_config(entry):
     if entry["kind"] == "rts":
         return RTSConfig(**options)
     raise ValueError(f"Unknown planner kind {entry['kind']!r}")
+
+
+def _modeled_configs(agent_spec):
+    """{level: configuration} of the intentional levels below the agent, from its stack label."""
+    if agent_spec.modeled is None:
+        return None
+    levels = agent_spec.level - 1
+    if levels < 1:
+        raise ValueError("A level-1 agent models no intentional level; drop 'modeled'")
+    stack = parse_stack(agent_spec.modeled, levels)
+    if any(solve is None for solve in stack):
+        raise ValueError("Exact modeled levels are not supported in episode studies")
+    base = _planner_config(agent_spec.planner)
+    kind = "mcts" if isinstance(base, PlannerConfig) else "rts"
+    return {
+        level: planner_config(
+            kind,
+            solve.budget,
+            base.depth,
+            base.gamma,
+            getattr(base, "exploration", None),
+            solve.stopping,
+        )
+        for level, solve in zip(range(levels, 0, -1), stack)
+    }
 
 
 def _int_keys(mapping):

@@ -48,7 +48,7 @@ class HierarchyBuilder:
         opponent_id,
         *,
         config=None,
-        modeled_config=None,
+        modeled_configs=None,
         level_weights=None,
         nested_level_weights=None,
     ):
@@ -57,9 +57,12 @@ class HierarchyBuilder:
         Args:
             config: PlannerConfig (I-POMCP) or RTSConfig (IPF + RTS baseline) of
                 this agent. Required for level > 0.
-            modeled_config: Configuration of every lower intentional model;
-                defaults to ``config``, so a hierarchy is homogeneous unless a
-                study states otherwise.
+            modeled_configs: {level: configuration} of the lower intentional
+                models, one per level for both agents (levels are queried at
+                different beliefs and need different budgets, RESULTS.md 12.9;
+                ``experiments.modeled_levels`` names such stacks). A level not
+                listed uses the configuration of the level that models it, so a
+                hierarchy is homogeneous unless a study states otherwise.
             level_weights: Prior over the opponent's levels for this agent.
             nested_level_weights: {level: weights} for nested models.
         """
@@ -77,7 +80,7 @@ class HierarchyBuilder:
             raise ValueError("Exactly one distinct opponent is supported")
         if not isinstance(config, (PlannerConfig, RTSConfig)):
             raise TypeError("An intentional agent needs a PlannerConfig or RTSConfig")
-        modeled_config = modeled_config or config
+        modeled_configs = modeled_configs or {}
         nested = nested_level_weights or {}
         for who, other in ((agent_id, opponent_id), (opponent_id, agent_id)):
             for lower in range(level):
@@ -86,7 +89,8 @@ class HierarchyBuilder:
                     lower,
                     model,
                     other,
-                    config=modeled_config,
+                    config=modeled_configs.get(lower, config),
+                    modeled_configs=modeled_configs,
                     level_weights=nested.get(lower),
                     nested_level_weights=nested,
                 )
