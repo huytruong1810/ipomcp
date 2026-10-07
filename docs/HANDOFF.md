@@ -5,76 +5,128 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 6, 2026 (PLAN.md W1–W3: bit-identical 2.2× speedup in situ, near-tie harm study, exact scoring with two steps left; RESULTS.md 12.12–12.14). Before that, October 5, evening (a consistent stopping rule replaces replicate averaging; RESULTS.md Section 12.11). Earlier on October 5: L3 H4 qualification and the old rule's bias (12.10). October 4 (12.9), October 3 (12.5–12.8). `main` holds the restructured package (merge `f40c525`); Claude is the sole owner. Codex and Antigravity have finished, and there are no other agents.
+Last updated October 7, 2026, after the reviewer meeting. The reviewers liked the episode-study page. The October 5 plan (PLAN.md, W1–W8) is mostly done: RESULTS.md 12.12–12.21. `main` holds the restructured package (merge `f40c525`); Claude is the sole owner, and there are no other agents.
 
 ## 0. Start here (fresh agent)
 
-- **State.** `main` is clean; 269 tests pass; ruff is clean. Nothing has been pushed. Nothing is running.
-- **Since PLAN.md (October 6):**
-  - W1: simulating minds is 2.2× faster in situ at L3 H4, with bit-identical outputs (12.12).
-  - W2: flipping j's near-tie decisions (gaps 0.15–0.3) never changed i's exact decision; no exact gap below 0.05 was available to test (12.13).
-  - W3: the near-tie floor was the chance-scoring fallback. Exact scoring with two steps left cuts the L3 H4 residual misses from 14 to 4 of 80 (12.14).
-  - October 6, later: the stopping rule scales as 1/n (12.15). The episode study's gates passed and it is running (12.16). Certified bounds on real decisions (12.17). Equilibria design (`docs/EQUILIBRIA.md`). The Wumpus grid is running. PLAN.md's status table lists what is running and what is next.
-  - October 7: the episode study and its controls are complete (12.18), with a reviewer page at https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (built by `results/w4_report_20261007/{analyze,build_report}.py`). Wumpus L1 is qualified (12.19). I-POMCP vs IPF + RTS at scale (12.20). Level grid, levels 1–4 × 1–4 (12.21). All are on the reviewer page.
-- **Where the science stands.**
-  - Every Tiger decision checked against an exact reference is optimal at the validated configurations below (L1 H5, L2 H3–H4, L3 H3).
-  - The modeled stopping rule is consistent (12.11): one growing tree, calibrated by pilot trees. It matches flat 6,400 at L3 H4 at half the CPU, and was re-gated at L2 H4 and L3 H3.
-  - L3 H4 still has no zero-wrong stack, but since 12.14 its residual misses are only at 0.03-gap beliefs (4 of 80, loss ≤ 0.030). An i-L3 H4 decision costs about 1.1 CPU-hours after 12.12; this is extrapolated, not measured.
-- **The plan for this phase is [PLAN.md](PLAN.md)** (written October 5 per Section 0.1): W1 bit-identical speedups of simulating minds, W2 the harm of near-tie modeled mistakes (certification standard), W3 variance reduction, W4 the episode study at H3, then W5–W8. Follow its order and gates; the autonomy rule in Section 1 applies.
+- **State.**
+  - `main` is clean; 292 tests pass in about 90 s; ruff is clean.
+  - Nothing has been pushed, and nothing is running.
+  - The last commits are the RESULTS 12.18–12.21 write-ups and this file.
+- **Back to the normal schedule.** The October 7 reviewer deadline is over. Resume the mandate in Section 1: rigorous, gated progress on the three contributions, with redesign over scaling and A/B gates with statistics. The user wants autonomy: take the recommended option, state it in one line, and keep going.
 - **Before running anything:**
-  - Read Section 6 (what not to repeat) and the standards in Section 1. The user expects redesign over scaling, and A/B gates with statistics.
-  - The machine is shared. Another project (`~/projects/jepa_ipomdp`) runs multi-core jobs here and uses up to 8–10 GB; never touch its processes.
+  - Read Section 6 (what not to repeat) and the standards in Section 1.
+  - The machine is shared: `~/projects/jepa_ipomdp` runs multi-core jobs using up to about 12 GB. Never touch its processes.
   - Compare CPU only within paired, same-process runs.
-- **Results** go in a new dated folder under `results/`, with the launcher or script copied inside. Numbers go into `docs/RESULTS.md` (next free section: 12.12 or 13). Update this file and the reviewer report (Section 4) when results land.
+- **Results** go in a new dated folder under `results/`, with the script copied inside. Numbers go into `docs/RESULTS.md`; the next free section is 12.22. Update this file, and the Claude Doc report (Section 4), when results land.
+- **First task for the new session:** write the next plan, appended to PLAN.md as a new phase, from Section 0.2 below. Order it by value per CPU-hour, then start executing.
 
-### 0.1 Planning brief
+### 0.1 What happened October 5–7 (PLAN.md W1–W8)
 
-**What the plan must contain.** For each workstream it takes on:
-- the hypothesis or engineering goal, and which of the three contributions (Section 1) it serves;
-- the gate: problem sets, n, the metric, the pass criterion, and the reference it is scored against;
-- a CPU and memory estimate built from the measured costs below, not from guesses;
-- a kill criterion: what result stops it;
-- the evidence it reuses (datasets, probes, launchers).
+| Work | Result | RESULTS |
+|---|---|---|
+| W1 speed up simulating minds | 2.2× faster in situ at L3 H4 with **bit-identical** outputs (O(1) model validation, cached hashes, shared successor models, atoms grouped as built) | 12.12 |
+| W2 harm of near-tie j mistakes | Flipping j's exact near-tie decisions (gaps 0.15–0.3) never changed i's exact decision. No gap below 0.05 existed to test | 12.13 |
+| W3 the near-tie floor | It was the chance-scoring **fallback**, not rollout noise. Actions with two steps left are now scored exactly over every branch. L3 H4 residual misses fell from 14 to 4 of 80 (p = 0.013); i's Q error at L3 H3 fell from 0.06 to 0.0006 | 12.14 |
+| Stopping rule | Rescaled to the measured rate 1/n (was 1/√n): same decisions on 2,016 replayed solves, 14–23% fewer simulations | 12.15 |
+| Certified bounds (W6) | Every real decision returns per-action intervals that contain the exact Q of the searched model | 12.17 |
+| Episode study (W4) | L3 i vs L2 j, plus L2 and L1 controls, n = 100 each, paired. Modeling j cuts prediction log-loss from 1.10 to 0.45; **L3 adds nothing over L2**; no robust reward effect | 12.16, 12.18 |
+| Wumpus L1 (W7) | The pilot's losses were the simulation budget. Qualified at search N = 1,024 with 3,000 simulations (9/9, **3 distinct beliefs only**) | 12.19 |
+| I-POMCP vs IPF + RTS (W5) | I-POMCP is 380/380 at L2 H3 and H4; IPF + RTS is 95–99.5%, and 3–5× slower at H4 | 12.20 |
+| Level grid | i and j at levels 1–4 each (16 cells, n = 39–42, H2, paired seeds). Prediction separates L1 from L≥2; identifying the opponent's level weakens as levels rise; no consistent reward effect | 12.21 |
+| Equilibria (W8) | Design note `docs/EQUILIBRIA.md` (subjective equilibrium, i.e. prediction merging). Episodes record each agent's predicted opponent action | — |
 
-Order the workstreams by value to the contributions per CPU-hour, and say why. Check the literature where a design choice is open; the user wants state-of-the-art MCTS/UCB methods, A/B-gated.
+**Reviewer page (presented October 7):** https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB. It is linked from the Claude Doc report.
 
-**Open workstreams.** Details are in Section 4; the plan may reorder, merge or drop them, with reasons.
+- To rebuild: `cd results/w4_report_20261007 && ../../.venv/bin/python analyze.py && ../../.venv/bin/python build_report.py`, then republish `report.html` with the Artifact tool (pass the `url` from a new session).
+- Grid data comes from `results/w9_level_grid_20261007/analyze_grid.py`.
+- The page text, lead included, is generated from the data. Edit `template.html` and `build_report.py`, not `report.html`.
 
-| # | Workstream | Contribution | Status and evidence |
-|---|---|---|---|
-| A | **Near-tie floor of modeled solves** (variance reduction): common random numbers between sibling actions, control variates on rollouts, more exact integration below the root, a better rollout policy | 1 | The floor is return variance (12.6). L3 H4's remaining misses are near-exact ties (12.11). Offline replay data and a residual set exist. Check `archive/pre-restructure-20260930` for why the "two-step exact tail" was removed before proposing exact integration again |
-| B | **Cost of simulating minds**: about 60% of a j-L2 search is exact i-L1 best-response enumeration over distinct nested beliefs; `FiniteBelief` construction is a large share of that | 1, 2 | Measured by one cProfile of a cold 1,600-simulation j-L2 search (not saved; redo it in a results folder, in situ). 12.11 lists what did not help: hash memoization and a bigger cache. Alpha vectors fit only 2-state Tiger; a general speedup is preferred |
-| C | **Root budget allocation**: adaptive stopping for real decisions, and the futures-vs-minds balance that contribution 1 claims | 1 | Not started. Real decisions also need Q accuracy for error bounds (`optimal_q_error`) |
-| D | **I-POMCP vs IPF + RTS at scale** with the current estimator and stopping | 2 | Section 6's comparison is from a 15-problem grid and predates two estimator revisions |
-| E | **Wumpus L1 qualification**: `search_particles` × simulations grid | 1, 3 | Pilot only (Section 10): losses of 1.8–7.7 in 13 of 18 decisions |
-| F | **Scale ladder**: Tiger L4, then UAV and Wumpus; then the L3-vs-L2 episode study | 1–3 | Each rung needs its gate first; L3 H4 already costs hours per decision |
-| G | **Equilibria** | 3 | No code and no design |
-| H | **Chance-scoring fallback** on partially sampled branches | 1 | +0.11 Q error on clearly wrong actions (12.1) |
+### 0.2 Goals and next steps (input to the next plan)
 
-**Questions the plan should answer** (and say which ones need the user):
-- Is "zero wrong modeled decisions" the right certification standard where exact near-ties exist (L3 H4 gaps of 0.03)? The alternative is a PAC-style standard (correct with probability ≥ 1 − δ whenever the gap ≥ ε, loss ≤ ε otherwise). 12.5 rejected a loss tolerance because j's loss did not predict harm to i. Any new standard needs evidence that it is harmless to i's decisions, and that can only be checked where i's exact reference is tractable (L2 H4, L3 H3).
-- How far must Tiger go (L4? H5?) before UAV and Wumpus, given contribution 3's sunbursts at high levels?
-- Which results does the reviewer report still lack (its "Not yet measured" table)?
+The science so far:
+- The solver is accurate wherever exact references exist.
+- It beats the published baseline.
+- Its stopping and scoring are consistent.
 
-**Measured costs** (CPU per unit; the machine has 24 cores and about 14–19 GB free while the other project runs):
+The weak point the reviewers saw is that **Tiger does not reward deeper reasoning**: an agent's payoff depends only on its own door, so level 3 cannot beat level 2 on reward (12.18, 12.21). The next phase should show where higher levels pay off, and finish what the plan left open.
+
+Recommended order (re-check costs before committing):
+
+1. **A domain where opponent modeling pays (contributions 1 and 3).**
+   - **Option A:** a Tiger variant with joint-action payoffs, e.g. a bonus for opening the same safe door together, or a penalty for opening when the other listens. Cheap, and every gate and tool works unchanged.
+   - **Option B:** UAV pursuit (`domains/uav.py`), where the opponent's moves are the point. Needs an oracle and panel path (both are Tiger-specific: `_two_state_belief`, `_point_model`).
+   - **Recommendation:** start with A and a small L1–L3 grid, using `results/w9_level_grid_20261007/grid.py` and `studies/`. Gate decisions at H2 and H3 against the exact I-POMDP first.
+2. **Level 4 in the drivers (W8):**
+   - `oracle.py:359` rejects level > 3;
+   - `_two_state_belief` supplies only 3 nested beliefs;
+   - `panel.py` allows levels 2–3.
+
+   `modeled_levels` and `HierarchyBuilder` are already generic. Exact L4 is tractable at H2 (0.2 s per solve) but not at H3 (more than 10 minutes, killed).
+3. **Wumpus beyond 3 beliefs:** the three seeds of `wumpus_qualification` produced the same observations. Vary the scripted history (or sample it per seed) to get distinct beliefs, then attempt L2 Wumpus.
+4. **Root budget allocation (C, contribution 1):** adaptive stopping for real decisions, using the certified bounds (12.17) or the 1/n-calibrated test (12.15). Real decisions also need Q accuracy for error bounds.
+5. **Error attribution at L2 and L3:** `analysis.error_attribution.trace_margin`, the last "Not yet measured" row in the Claude Doc report besides equilibria.
+6. **L3 H4 residual:** 4 of 80 misses, all at 0.03-gap beliefs. A PAC-style certification standard (12.13) is the user's decision and has not been asked. Exact integration deeper than two steps is not recommended (Section 6).
+7. **Cost at high levels:**
+   - Level-4 planning grows with belief size: at N = 64 it reached 65 s per step by step 8, against 1–2 s at N = 16.
+   - Nested belief solving dominates in-situ CPU (12.12, 12.15). The 1/n stopping rule saved simulations but not in-situ CPU (0.88×, p = 0.09).
+
+Housekeeping, still the user's call (Section 1):
+- about 12 GB of legacy `results/` and stale branches;
+- `results/` is git-ignored and not backed up since September 30. It includes the reviewer-page generator (`results/w4_report_20261007`) and every October dataset, so copy it off the machine.
+
+### 0.3 Files touched October 5–7
+
+- **`src/ipomdp/belief/`:**
+  - `frame.py`: cached hash, explicit pickle state;
+  - `finite_belief.py`: `opponents` summary, O(1) `MentalModel` validation, cached model hash, one-pass validation, identity shortcut in `__eq__`, `FiniteBelief.from_groups`;
+  - `finite_filter.py`: `advance` (memoized successor models), rows grouped as built.
+- **`src/ipomdp/planning/`:**
+  - `chance_scoring.py`: exact two-steps-left scoring, `bounds=True` certified intervals, `_Span`;
+  - `i_pomcp.py`: `_search(..., bounds)`, `grow(..., bounds)`, bounds in stats, `advance` in `_history_successor`;
+  - `generative_model.py`: `advance`;
+  - `stopping.py`: 1/n scaling.
+- **`src/ipomdp/reference/best_response.py`:** uses `advance`.
+- **`src/ipomdp/experiments/`:**
+  - `bootstrapper.py`: `modeled_configs` per level, replacing `modeled_config`;
+  - `study.py`: `AgentSpec.modeled` stack label, replacing `modeled_planner`;
+  - `episodes.py`: decision values, bounds and predictions recorded before `update_root`; `_prediction`;
+  - `oracle.py`: `bound_width`, `bounds_contain_reference`;
+  - `belief_qualification.py`: exact belief once per history, `--steps`;
+  - new `wumpus_qualification.py`.
+- **Tests:**
+  - new `test_study_spec.py`, `test_wumpus_qualification.py`;
+  - bound and two-steps-left tests in `test_chance_scoring.py`;
+  - `test_stopping.py` (depth 4; 1/n thresholds);
+  - `test_rts.py` (`modeled_configs`).
+- **Docs:**
+  - new `PLAN.md`, `EQUILIBRIA.md`;
+  - `THEORY.md` (two-steps-left scoring, bounds);
+  - `RESULTS.md` 12.12–12.21;
+  - `studies/tiger_l3_vs_l2.toml` (H3, root 1,000, compressed 64, stacks `6400s/100` and `400`, 6 workers).
+
+**Measured costs** (CPU per unit; 24 cores; the other project uses up to about 12 GB at times):
 
 | Unit | Cost | Source |
 |---|---|---|
-| j-L1 modeled solve, L2 H4, cold bank | 0.44 s flat 1,600; 0.37 s `6400s` | 12.11 |
-| i decision, L2 H4, root 1,000, `6400s` | about 10–16 s (unpaired, under load) | 12.8, 12.11 |
-| j-L2 query, L3 H3, cold bank | 3.3 s flat 400/100; 3.7 s `6400s/100` | 12.11 |
-| i decision, L3 H3, root 1,000, `6400s/100` | about 18 s, under load | 12.11 |
-| j-L2 query, L3 H4, in situ (shared bank) | 19 s for the first 200 simulations; 178 s flat 6,400 (up to 340 s); 92 s `6400s/exact` | 12.11 |
-| i search, L3 H4, confident nested beliefs | 2,224 s at `400/100` (103 queries); about 2.5 h with `6400s/exact` | 12.10, 12.11 |
-| Exact L2 reference, one belief, H4 | 50–140 s | 12.10 |
-| Exact L3 reference, H4 | intractable (killed at 2.4 CPU-h, 10 GB) | 12.10 |
-| Exact L2 reference, one problem, k = 6 | 146 s | Section 2 |
+| j-L1 modeled solve, L2 H4, cold bank | about 0.37 s `6400s` (fewer simulations since 12.15) | 12.11, 12.15 |
+| i decision, L2 H4, root 1,000, `6400s` | about 11–17 s | 12.18, 12.20 |
+| j-L2 query, L3 H3, cold bank, `6400s/100` | about 4–5 s (1.18× after 12.14) | 12.14 |
+| j-L2 query, L3 H4, in situ, `1600/exact` | 0.45× of 12.11's cost (12.12); first 40 queries about 16 s each | 12.12, 12.15 |
+| Episode, L3 i vs L2 j, H3, 20 steps | about 30 CPU-min (i plans about 91 s per step); L2 i about 5 s per step | 12.18 |
+| Episode at H2, N = 32 | 0 s (L1 vs L1) to 62 s per step (L4 vs L4); about 20–30 min for an L4 episode | 12.21 |
+| Exact best response, Wumpus L1 H3 | 1,034 s at the prior; about 190 s after 2–4 steps | 12.19 |
+| Exact I-POMDP, Tiger, H2 | under 2 s up to level 5 | probe, October 7 |
+| Exact I-POMDP, Tiger, L4 H3 | over 10 minutes for one solve (killed) | probe, October 7 |
 
-**Reusable tools and data:**
-- **Offline replay at L3 H4** (`results/l3_h4_tree_trajectories_20261005`): 666 distinct j-L2 beliefs, each with a main tree checkpointed at 200–6,400 and 3 pilot trees at 200 and 400, plus the exact Q. `replay.py` scores any rule that reads checkpoint scores in seconds. A variance-reduction change alters the trees themselves, so it needs a new dataset; the existing one took about 33 CPU-hours for the main trees (`trajectories.py`, 6 jobs of 4.7–7 h) and about 8 for the pilots (`pilots.py`). Restrict a new dataset to the beliefs that matter (the 110 with gaps below 1, plus a sample of clear ones for cost) to cut that several-fold.
-- **The residual set** (8 L3 H4 beliefs × 10 seeds, about 3 CPU-h): `results/stopping_redesign_gates_20261005/residual_l3h4.py`.
-- **Gate scripts:** the L2 H4 and L3 H3 near-tie sets (`results/stopping_redesign_gate_20261005/gate.py`); i-decision panels and the L3 H3 qualification (`results/stopping_redesign_gates_20261005/launch.py`); paired CPU (`paired_cpu_l3h3.py`).
-- **Drivers** in Section 8: `panel`, `oracle`, `modeled_qualification` (two-phase, `queries_from` reuses a search phase), `l1_qualification`, `belief_qualification`.
+**Reusable tools and data** (each folder holds its script):
+- `results/stopping_v2_20261006`: 2,016 solves with checkpointed main and pilot trees under the current scoring; `replay.py` replays any stopping rule offline.
+- `results/w1_profile_20261005`: in-situ cProfile and the bit-identity bench (`bench.py`, `gate_w1.py`). Use these for any refactor that must keep outputs identical.
+- `results/w3_variance_20261005`: fixed-tree scoring diagnostics (`a0_frontiers.py`, `a0b_fallbacks.py`): score the same trees several ways for exactly paired comparisons.
+- `results/w2_near_tie_harm_20261005/harm.py`: flips modeled decisions inside the exact hierarchy (wrapping a level via `register_levels(wrap=...)`).
+- `results/w9_level_grid_20261007/grid.py`: any level × level episode grid, round-robin, paired seeds, resumable.
+- `results/w4_report_20261007`: the reviewer page generator.
+- Older: the L3 H4 offline replay (`l3_h4_tree_trajectories_20261005`, scores from before 12.14), the residual set (`stopping_redesign_gates_20261005/residual_l3h4.py`), and the gate scripts in `stopping_redesign_gate(s)_20261005`.
 
 **Run hygiene learned the hard way** (details in Section 6):
 - Jobs append a row per unit of work (JSON lines) and skip finished rows on restart. A job that writes only at the end ran 5 hours with no visible progress.
@@ -118,7 +170,7 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 
 ## 2. Current state
 
-- **Tests.** 266 pass in about 65 s on a quiet machine (about 170 s while another project's jobs load it) on `main`; `ruff check` and `ruff format --check` are clean.
+- **Tests.** 292 pass in about 90 s on `main`; `ruff check` and `ruff format --check` are clean.
 - **Running jobs.** None.
 - **Archives.**
   - Tag `archive/pre-restructure-20260930`: the pre-restructure code.
@@ -165,10 +217,11 @@ studies/        tiger_l3_vs_l2.toml
 - **Exact reference budget.** The oracle's exact I-POMDP uses `oracle.REFERENCE_BRANCHES = 50M`. At history 6 it completes in 146 s for one problem.
 - **Modeled solves.** One search of `modeled_simulations` by default. `PlannerConfig(modeled_stopping=ModeledStopping())` switches to sequential stopping capped at `modeled_simulations` (`planning.stopping`, 12.11):
   - one main tree, seeded as the flat search of the cap and grown by doubling from 200, so at the cap it is the flat search;
-  - 3 pilot trees of 200 calibrate a t-test on the main tree's leading gap, scaled by sqrt(200/n), with α = 0.01 over all checkpoints.
+  - 3 pilot trees of 200 calibrate a t-test on the main tree's leading gap, scaled by 200/n (the measured rate since 12.15; it was sqrt(200/n)), with α = 0.01 over all checkpoints.
 
   Search seeds exclude the rule, so flat results are unchanged. It replaced 12.8's replicate averaging, which was biased (12.10). The `6400s` results in 12.8–12.10 are the old rule.
 - **Per-level modeled stacks** (`experiments.modeled_levels`, October 3). The drivers name each modeled level's solve, top-down: `400` flat, `6400s` stopping with cap 6,400, `exact`; `6400s/400` at level 3 is j-L2 with stopping over i-L1 flat 400. One label applies to every level. This replaced `opponent_budget`/`opponent_stopping` (oracle) and the panel-wide `modeled_stopping`; the panel's `modeled` cell is now this label (`exact` instead of 0).
+- **Certified bounds.** Real decisions get per-action intervals containing the exact Q of the searched model (`chance_scoring(..., bounds=True)`, 12.17); modeled solves skip them.
 - **Metrics.** Rows record `first_action_loss`, `max_abs_q_error` and `optimal_q_error`, for both search and scored values. Use `optimal_q_error` for error bounds (12.2), and Clopper–Pearson intervals (`analysis.statistics.clopper_pearson`) for optimal rates.
 
 ### Validated configurations (Tiger; root 1,000 simulations unless noted)
@@ -179,8 +232,10 @@ studies/        tiger_l3_vs_l2.toml
 | L2, H3, k ≤ 4 | exact, or I-POMCP 400 (zero-wrong certified, 12.5) | exact or compressed 64 | 373–380/380 (12.3) |
 | L2, H4 | I-POMCP 1,600 flat, or `6400s` (stopping, cap 6,400; 0.85× flat 1,600's CPU) | exact | 380/380 (12.4, 12.11) |
 | L3, H3, k = 0 | I-POMCP 400 flat (i's decisions = exact); certified zero-wrong stack `6400s/100` | exact | 162/162 (12.7, 12.11) |
-| L3, H4, k = 0 | **none zero-wrong.** `6400s/exact` (or `/100`) makes flat 6,400's decisions at 0.52× its CPU: 6 of 666 distinct beliefs wrong, 5 of them gaps 0.03–0.04 | exact | 12.10, 12.11 |
-| Wumpus L1 | not validated | exact real, compressed search | Section 10 pilot only |
+| L3, H4, k = 0 | **none zero-wrong.** `6400s/exact`: residual set 4/80 wrong after 12.14, all at 0.03-gap beliefs (loss ≤ 0.03) | exact | 12.10, 12.11, 12.14 |
+| L3 vs L2 episodes, H3 | `6400s/100` for i, `400` for j, mixed level priors (gated 120/120) | compressed 64 (level TV ≤ 0.061 to step 5) | 12.16, 12.18 |
+| Levels 1–4 × 1–4, H2 | decisions exact for the searched model at any budget (two steps left) | compressed 32 | 12.21 |
+| Wumpus L1, H3 | search N = 1,024, 3,000 simulations: 9/9 (3 distinct beliefs) | exact real, compressed search | 12.19 |
 
 ## 3. Key results (details and n in RESULTS.md)
 
@@ -205,49 +260,24 @@ studies/        tiger_l3_vs_l2.toml
 | 12.9 | **Per-level modeled stacks** and the first **L3 modeled qualification** (j-L2 at the beliefs i-L3 queries; 3,294 queries). At H3, flat 400 j-L2 is wrong on 4 near-tie beliefs (harmless to i: 162/162); i-L1's budget inside j-L2 changes no policy (100 = 400). Certified: `6400s/100`, 0 wrong, 0.75× the CPU of flat 1,600. Stopping floor: 4 or 5 replicates cost 29–57% more and fix nothing; keep 3 |
 | 12.10 | **L3 H4 qualification** (27 problems, 2,631 queries): no stack qualifies. The misses are confident j beliefs. The replicate stopping rule is **biased** there: on 0.19-gap beliefs it is 16–20/30 wrong even at a 25,600 cap, while one 6,400 search is 0/30. i-L1 at 100 vs exact makes no difference |
 | 12.11 | **Consistent stopping:** one growing tree (seeded as the flat cap search) with a pilot-calibrated t-test. L3 H4, 666 beliefs: the same 6 wrong as flat 6,400 at 0.52× the in-situ CPU; residual beliefs 14/80 wrong (old rule 57/80, flat 6,400 14/80). Re-gated: L2 H4 380/380, L3 H3 162/162 and 0/3,294 queries. A single tree's spread falls as about n^-0.8; replicate averaging only as k^-0.5 |
+| 12.12 | Simulating minds **2.2× faster in situ**, bit-identical (40/40 L3 H4 queries, 183/183 L3 H3 beliefs) |
+| 12.13 | Flipping j's exact near-tie decisions (gaps 0.15–0.3; 110 beliefs, 74 problems) never changed i's exact decision |
+| 12.14 | **The near-tie floor was the fallback:** exact scoring with two steps left; L3 H4 residual 14 → 4/80; i's L3 H3 Q error 0.06 → 0.0006; 1.18× CPU |
+| 12.15 | Stopping scaled at the measured 1/n: same decisions, 14–23% fewer simulations; in situ CPU 0.88× (not significant) |
+| 12.16 | Episode-study gates: mixed priors 120/120; compressed 64 at L3 level TV ≤ 0.061 to step 5 |
+| 12.17 | Certified bounds on every real decision (containment tested in 15 cases) |
+| 12.18 | **Episodes, L3 vs L2 with L2 and L1 controls (n = 100 each):** prediction log-loss 0.46/0.45 vs 1.10; L3 = L2; no robust reward effect for i or j |
+| 12.19 | Wumpus L1 qualified at N = 1,024, 3,000 simulations (9/9; 3 distinct beliefs) |
+| 12.20 | I-POMCP 380/380 at L2 H3 and H4 vs IPF + RTS 95.3–99.5%; RTS 3–5× slower at H4 |
+| 12.21 | **Level grid 1–4 × 1–4 (n = 39–42):** prediction separates L1 from L≥2; identification weakens with level; 2/24 own-level reward effects exclude zero (about chance) |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
 ## 4. Where Tiger stands, and next steps
 
-### Assessment (updated October 5)
+### Assessment and next steps
 
-**Every decision checked against an exact reference is optimal at the budgets below, including level 3. The modeled-opponent solve is now adaptive and consistent (12.11). What remains is the near-tie floor and the cost of simulating minds at L3 H4.**
-
-- **Decisions** (95% Clopper–Pearson):
-  - L1 H5: 220/220 [98.3, 100];
-  - L2 H3: 373–380/380 up to k = 4;
-  - L2 H4: 380/380 [99.0, 100] with modeled 1,600 flat, or with `6400s` (12.11);
-  - L3 H3, k = 0: 162/162 [97.7, 100] with exact, 400, 100 and `6400s/100` modeled;
-  - L3 H4: not checkable exactly; j-L2 under `6400s/exact` makes flat 6,400's decisions (6 of 666 beliefs wrong, 12.11).
-- **Limits:**
-  - Exact L3 references are tractable only at H3 k = 0 and H2 k ≤ 2 (12.7). Compressed-belief error at L3 must be measured as belief error.
-  - Rates over a belief grid depend on the grid; report hard regions separately (12.3).
-  - Chance-scoring fallbacks add Q error on clearly wrong actions (+0.11 at L1 H5), not on the optimal action or decisions.
-  - No episode-level results on the current code.
-
-### Next steps, in order (input to the planning phase; Section 0.1)
-
-0. **Done October 3:** `experiments.modeled_qualification` (12.5); oracle and `panel` (was `l2_panel`) at level 3 (12.7); near-tie diagnosis (12.6); sequential modeled stopping (12.8). **October 4:** per-level modeled stacks and level-3 qualification (12.9); the stopping floor stays at 3 (12.9). **October 5:** L3 H4 qualification (12.10); the consistent growing-tree stopping rule, gated (12.11).
-1. **The near-tie floor and the cost at L3 H4** (RESULTS 12.11). The consistent stopping rule is done (October 5). L3 H4's remaining j-L2 misses are flat 6,400's: 5 near-exact ties (gaps 0.03–0.04) and one 0.14 gap, all at the cap.
-   - **Variance reduction** is the lever for the misses (step 3). Gate on the 8 residual beliefs × 10 seeds (`results/stopping_redesign_gates_20261005/residual_l3h4.py`) and offline on the 666-belief replay dataset (`results/l3_h4_tree_trajectories_20261005`, `replay.py`). Both the main tree's and the pilots' spread shrink, so it also makes stopping cheaper.
-   - **Cost.** An i-L3 H4 decision costs about 2.5 CPU-hours: about 100 queries × 92 s in situ. About 60% of a j-L2 search is exact i-L1 best-response enumeration over distinct nested beliefs (173k reference nodes per 1,600-simulation solve, none repeated). Cutting that cost is the next efficiency target. An i-L1 facing uniform L0 is a POMDP: alpha vectors would make it a dot product, but only for 2-state Tiger, so check generality first.
-   - **Settled:** persistent nested trees (R6) cannot be reused exactly. Every modeled query is a fresh receding-horizon problem of depth H, while a subtree of an earlier tree has fewer steps left.
-   - Whether L3 H4's few wrong j decisions change i's decisions cannot be checked exactly. Its 9 nested-0.5 problems are 0 wrong.
-2. **Adaptive budgets for real decisions as well.** The same stopping test applies to i's root (stop when the decision is separated), but real decisions also need Q accuracy for contribution 2's error bounds. Design and gate it separately.
-3. **Variance reduction** (12.6: the near-tie floor is return variance). Candidates from the literature, each A/B-gated on the 12.6 near-tie set and the 12.5 queried beliefs:
-   - more exact integration below the root (chance scoring already cuts the spread 2.5× at 6,400);
-   - common random numbers between sibling actions;
-   - control variates on rollout returns.
-4. **Chance-scoring fallback:** score sampled branches and bound the unsampled mass by the declared reward bounds; or score only complete subtrees. Gate on 12.1's paired design.
-5. **Wumpus qualification** (Section 10). Run a grid over `search_particles` (64 → 4,096) × simulations (1k → 10k) at L1 H3 against the exact best response, separating the root-compression and simulation-budget causes. Pilot: `results/wumpus_split_pilot_20261002/wumpus_split.py`.
-6. **Contribution 2 at scale.**
-   - I-POMCP (compressed) vs IPF + RTS (sampled, as published) on the wide grid and at L3 H3, scored with `optimal_q_error` as well as decisions. Section 6's 97% vs 80–83% is from the 15-problem grid.
-   - Report RTS with compressed beliefs as an ablation.
-   - Compare CPU only within paired, same-process runs (12.8).
-7. **R9 scale-up ladder:** Tiger L1 → L4, then UAV, then Wumpus. Each rung passes its gate first.
-   - Then run the L3-vs-L2 episode study (`studies/tiger_l3_vs_l2.toml`, compressed beliefs, stopping for modeled solves) for the pending report metrics: episode rewards with bootstrap CIs, per-step costs, level posteriors and sunbursts over time.
-8. **Equilibria** (contribution 3): no code yet; needs a design.
+Superseded by Sections 0.1–0.2 (October 7). Section 2's validated configurations and Section 3 hold the evidence.
 
 ### Reviewer report
 
@@ -267,11 +297,14 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Updated October 2 with Section 12:** lead, an optimal-action Q error metric row, the L1 plateau finding, a 380-problem L2 table (with the modeled 400/1,600 sweep) and the allocation rule (1,600 at depth 4). The IPF + RTS comparison (97% vs 80–83%) is still from the 15-problem grid; next step 6 re-runs it.
 - **Updated October 4–5:** the Level 3 section has the H3 qualification table and an H4 paragraph (no certified stack; the adaptive rule's bias); the adaptive-budget bullet says per-level solves.
 - **Updated October 5, evening (12.11):** the adaptive-budget bullet describes the growing-tree rule, and the L3 H4 paragraph gives its result (flat 6,400's decisions at half the CPU; near-tie misses remain).
+- **Updated October 6–7:** an L3 H4 update paragraph (12.14); an "Episode study" paragraph and a "Level grid" paragraph, both linking the reviewer page https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB; the episode-metric rows of "Not yet measured" are marked measured. Still open there: error attribution at L2/L3 and equilibria beyond the design note.
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
 ## 5. What changed, and where (since `archive/pre-restructure-20260930`)
 
 Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or reviewed; `git log archive/pre-restructure-20260930..HEAD` has the full record.
+
+**October 6–7** (full list in Section 0.3): W1 speedups in `belief/`; exact two-steps-left scoring and certified bounds in `planning/chance_scoring.py`; 1/n stopping; per-level `modeled_configs` and `AgentSpec.modeled`; episode rows record values, bounds and predictions; `wumpus_qualification`; `belief_qualification --steps`. Results folders: `w1_profile_20261005`, `w2_near_tie_harm_20261005`, `w3_variance_20261005` (A0, A0b and gates g1–g4), `stopping_v2_20261006`, `w4_mixed_prior_gate_20261006`, `w4_belief_l3_20261006`, `w4_episode_pilot_20261006`, `w4_episodes_20261006`, `w4_controls_20261006`, `w4_report_20261007`, `w5_rts_baseline_20261006` (pilot and full), `w7_wumpus_20261006`, `w9_level_grid_20261007` (with probes).
 
 **October 5 (evening):**
 - `planning/replicates.py` → `planning/stopping.py`: `ModeledStopping(pilot, trees, alpha)` is the growing-tree rule; labels `6400s[pilot,trees,alpha]`;
@@ -359,6 +392,23 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Renormalizing exact chance weights over sampled branches | Same decisions, more upward bias (listen at L1 H4: +0.04 → +0.13) | Keep the whole-action fallback |
 | Editing `src/` (including formatting) while supervised jobs run | The source lock fails, or workers import mixed code | Wait for runs to finish |
 | `sleep N` chained in foreground tool calls | Blocked by the harness | Background job plus an `until …; do sleep 30; done` waiter |
+
+| Assuming rollout noise sets the near-tie floor (12.6) | Valuing every frontier exactly left the spread unchanged from 1,600 simulations on | Fixed-tree diagnosis found the fallbacks (12.14) |
+| A two-step exact tail inside search (archive) | Failed its zero-violation gate (1/3,360); the error came from chance error at depths 3–8 | Exact scoring only where two steps are left, at scoring time (12.14) |
+| Choosing the stopping exponent from the replay data (β = 1.25) | It is the edge before mistakes appear: tuning on the test set | The measured decay exponent, 1/n (12.15) |
+| Grouping rows inside the exact reference; memoizing Tiger's kernels | No measurable gain (a kernel lookup costs as much as the kernel) | Reverted; changes below 3% of CPU are skipped (12.12) |
+| Reading an interim effect as a finding (j's reward at n = 77) | It vanished at n = 100 under a correction for 3 comparisons | Final n only, with multiple-comparison correction |
+| Comparing conditions on different trial sets (prediction loss, n = 12 vs 51) | Looked like a 0.07 gap; paired on the same trials it was −0.006 | Paired, same-trial differences |
+| Comparing i with j inside a cell of a seed-paired grid | Each agent's growl luck repeats across all cells (5 tiger hits counted 67 times) | Compare cells along a row or column; paired own-level differences |
+| Level-5 episodes; exact L4 at H3 | L4 at H3 took over 10 minutes per exact solve; L3 → L4 planning about 18× per step; level 5 would take hours per step | H2 for level grids (exact for the searched model); levels ≤ 4 |
+| N = 64 beliefs for level-4 episodes | Planning grew to 65 s per step by step 8 | N = 32 |
+| Exact L3 belief qualification to step 8 | 3.3 GB and rising (stopped) | `belief_qualification --steps 5` |
+| Episode rows built after `update_root` | `action_values` were always empty (it clears the decision's statistics) | Read `get_detailed_stats()` right after `get_action` |
+| Running `analyze.py` from another directory | Relative paths found no trials and the report rendered empty | Paths anchored to the repository root |
+| Monkeypatching `_GrowingSearch.grow` with a fixed signature | Broke when `grow` gained `bounds` (a gate crashed) | Accept `*args`/the full signature in harness wrappers |
+| A panel run from a snapshot not laid out as `<run>/src/ipomdp` | The source lock found no files and refused to start | Snapshot to `<run>/src/ipomdp` and `PYTHONPATH=<run>/src` |
+| Restarting a runner to add workers | Discards the trials in progress (up to 30 CPU-min each) | Restart only when it saves over an hour |
+| `pgrep -f` inside a waiter loop (again, October 6) | Matched its own command line | Wait on a PID or an output file |
 
 ## 7. Merge record
 
