@@ -50,8 +50,19 @@ def left(belief):
 
 
 def evaluate(
-    level, particles, history_seed, particle_filter="compressed", modeled_simulations=50, depth=2
+    level,
+    particles,
+    history_seed,
+    particle_filter="compressed",
+    modeled_simulations=50,
+    depth=2,
+    steps=len(HISTORY_ACTIONS),
 ):
+    """Rows for one history: every bound N in ``particles`` against one exact belief.
+
+    The exact belief is a pure function of the history, so it is updated once
+    and every bounded agent is compared with it at each step.
+    """
     physics = TigerModel()
     config = PlannerConfig(
         simulations=modeled_simulations, depth=depth, modeled_simulations=modeled_simulations
@@ -69,35 +80,39 @@ def evaluate(
         )
 
     exact = agent(SolverBank(history_seed))
-    approximate = agent(
-        SolverBank(history_seed, particles=particles, particle_filter=particle_filter)
-    )
+    bounded = {
+        n: agent(SolverBank(history_seed, particles=n, particle_filter=particle_filter))
+        for n in particles
+    }
+    # The first ``steps`` of the same 8-step history, so shorter runs are prefixes
+    # (exact L3 supports outgrow memory before step 8).
     history = sample_history(
         physics, len(HISTORY_ACTIONS), random.Random(f"history/{history_seed}")
-    )
+    )[:steps]
     rows = []
     for step, (action, observation) in enumerate(history, 1):
         exact.update_root(action, observation)
-        approximate.update_root(action, observation)
-        rows.append(
-            dict(
-                level=level,
-                particles=particles,
-                particle_filter=particle_filter,
-                history=history_seed,
-                step=step,
-                level_tv=total_variation(
-                    level_posterior(exact.belief), level_posterior(approximate.belief)
-                ),
-                physical_error=abs(left(exact.belief) - left(approximate.belief)),
-                nested_tv=hierarchy_error(
-                    nested_hierarchy(approximate.belief, "i", level, depth=2),
-                    nested_hierarchy(exact.belief, "i", level, depth=2),
-                )[2]["mass_tv"],
-                exact_support=len(exact.belief.mass),
-                particle_support=len(approximate.belief.mass),
+        for n, approximate in bounded.items():
+            approximate.update_root(action, observation)
+            rows.append(
+                dict(
+                    level=level,
+                    particles=n,
+                    particle_filter=particle_filter,
+                    history=history_seed,
+                    step=step,
+                    level_tv=total_variation(
+                        level_posterior(exact.belief), level_posterior(approximate.belief)
+                    ),
+                    physical_error=abs(left(exact.belief) - left(approximate.belief)),
+                    nested_tv=hierarchy_error(
+                        nested_hierarchy(approximate.belief, "i", level, depth=2),
+                        nested_hierarchy(exact.belief, "i", level, depth=2),
+                    )[2]["mass_tv"],
+                    exact_support=len(exact.belief.mass),
+                    particle_support=len(approximate.belief.mass),
+                )
             )
-        )
     return rows
 
 
@@ -126,15 +141,16 @@ def main():
         "--particle-filters", choices=["compressed", "sampled"], nargs="+", default=["compressed"]
     )
     parser.add_argument("--histories", type=int, default=12)
+    parser.add_argument("--steps", type=int, default=len(HISTORY_ACTIONS))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     rows = [
         row
-        for level, particle_filter, particles, history in itertools.product(
-            args.levels, args.particle_filters, args.particles, range(args.histories)
+        for level, particle_filter, history in itertools.product(
+            args.levels, args.particle_filters, range(args.histories)
         )
-        for row in evaluate(level, particles, history, particle_filter)
+        for row in evaluate(level, args.particles, history, particle_filter, steps=args.steps)
     ]
     (args.output / "rows.json").write_text(json.dumps(rows))
     summary = summarize(rows)
