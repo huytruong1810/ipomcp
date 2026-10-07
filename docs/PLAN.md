@@ -11,7 +11,7 @@
 | W4 | running | gates passed (12.16); 100 trials in `results/w4_episodes_20261006` |
 | W5 | waiting for memory | launcher with pilot mode in `results/w5_rts_baseline_20261006` |
 | W6 | bounds done | certified intervals on every real decision (12.17); error attribution at L2/L3 not yet |
-| W7 | running | `experiments.wumpus_qualification` grid in `results/w7_wumpus_20261006` |
+| W7 | done (3 beliefs) | qualified Wumpus L1 H3 configuration: N = 1,024, 3,000 simulations (9/9); the pilot's losses were the budget (12.19) |
 | W8 | equilibria design done | `docs/EQUILIBRIA.md`; predictions recorded per step. Level 4 and UAV not started |
 
 ## Context

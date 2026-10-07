@@ -873,3 +873,30 @@ The study (`studies/tiger_l3_vs_l2.toml`) now runs at horizon 3 with root 1,000 
 - **Where recorded:** `oracle` rows (`bound_width`, `bounds_contain_reference`) and episode rows (`bounds_<agent>`).
 - **Scored values are unchanged,** and the cost is negligible, because successors are already cached.
 - **What the bounds certify:** search error relative to the searched model. When the reference includes opponent-model or belief error, containment is not guaranteed and is reported as measured.
+
+### 12.19 Wumpus L1 qualification: the simulation budget, not compression, was the pilot's problem (October 7, 2026)
+
+**Design** (`experiments.wumpus_qualification`, `results/w7_wumpus_20261006`):
+- **Agents:** the human (L1) against a uniform-random wumpus.
+- **Beliefs:** exact real beliefs; each search starts from the belief compressed to N atoms.
+- **Problems:** a scripted history cut after 0, 2 or 4 steps. The three seeds produced the same observations, so there are 3 distinct beliefs (94,500, 25,920 and 25,920 atoms), each decided with 3 planner seeds: n = 9 decisions per cell.
+- **Reference:** the exact H3 best response at the exact belief, computed once per problem (1,034 s at the prior, 178–195 s after 2–4 steps).
+- **Exact gaps:** 7.74 at the prior, 1.82 and 1.83 later. All rows use 12.14's scoring.
+
+| N (search atoms) | Simulations | Optimal / 9 | Max loss | Optimal-action Q error | CPU per decision (s) |
+|---|---|---|---|---|---|
+| 64 | 1,000 | 5 | 7.74 | 9.44 | 10 |
+| 64 | 3,000 / 10,000 | 9 / 9 | 0 | 9.43 | 10–11 |
+| 256 | 1,000 | 3 | 7.74 | 3.54 | 17 |
+| 256 | 3,000 / 10,000 | 7 / 7 | 7.74 | 1.98 | 17–18 |
+| 1,024 | 1,000 | 6 | 1.83 | 4.13 | 41 |
+| **1,024** | **3,000** | **9** | **0** | **0.63** | **41** |
+| 1,024 | 10,000 | 9 | 0 | 0.63 | 42 |
+| 4,096 | 1,000 | 4 | 1.83 | 4.34 | 144 |
+| 4,096 | 3,000 / 10,000 | 9 / 9 | 0 | 0.16 | 146–147 |
+
+- **The simulation budget caused the Section 10 pilot's losses.** At 1,000 simulations every N misses, and the misses fall at all three history lengths.
+- **Compression sets the Q error,** and at N = 256 the decision too. N = 256 is wrong on 2 of 9 decisions at every budget, losing the full 7.74 gap at the prior. N = 64 decides right but misvalues by 9.4.
+- At 3,000 simulations or more, every scored root at H3 is exact for its searched belief (certified bound width 0, 12.17). The remaining Q error is therefore all compression error.
+- **Qualified Wumpus L1 H3 configuration: N = 1,024, 3,000 simulations** (9/9, optimal-action Q error 0.63, 41 s). N = 4,096 cuts the Q error to 0.16 at 3.5× the CPU.
+- **Limit:** 3 distinct beliefs. A wider set of histories is needed before scaling.
