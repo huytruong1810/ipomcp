@@ -54,3 +54,24 @@ def test_a_stack_label_loads_from_toml(tmp_path):
 def test_invalid_modeled_stacks_are_rejected(modeled, level, message):
     with pytest.raises(ValueError, match=message):
         spec(modeled, level)
+
+
+def test_episode_rows_record_each_decision_and_its_bounds():
+    # Rows are written after update_root, which clears a planner's statistics;
+    # the decision must be captured when it is made.
+    import json
+
+    from ipomdp.experiments.episodes import run_episode
+
+    study = StudySpec(
+        name="rows",
+        domain="tiger",
+        trials=1,
+        steps=2,
+        agents={"i": AgentSpec(level=1, planner=PLANNER), "j": AgentSpec(level=0)},
+    )
+    rows = run_episode(study, 0)
+    for row in rows[1:]:
+        values, bounds = json.loads(row["action_values_i"]), json.loads(row["bounds_i"])
+        assert set(values) == set(bounds) == {"L", "OL", "OR"}
+        assert all(lo <= hi for lo, hi in bounds.values())

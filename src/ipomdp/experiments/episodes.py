@@ -48,9 +48,15 @@ def run_episode(spec, trial_id):
         if terminal:
             rows.append(_padding(rows[-1], step))
             continue
-        timings, joint = {}, {}
+        timings, joint, decisions = {}, {}, {}
         for agent in AGENTS:
             joint[agent] = _timed(planners[agent].get_action, timings, "planning", agent)
+            # Read before update_root, which clears the decision's statistics.
+            stats = planners[agent].get_detailed_stats()
+            decisions[f"action_values_{agent}"] = json.dumps(
+                stats.get("action_values", {}), sort_keys=True
+            )
+            decisions[f"bounds_{agent}"] = json.dumps(stats.get("bounds"), sort_keys=True)
         following = physics.sample_transition(state, joint, env_transition)
         rewards = {a: physics.get_reward(state, joint, following, a) for a in AGENTS}
         for agent in AGENTS:
@@ -82,6 +88,7 @@ def run_episode(spec, trial_id):
             )
             row[f"reward_{agent}"] = rewards[agent]
         row.update(timings)
+        row.update(decisions)
         rows.append(row)
         state = following
     return rows
@@ -121,9 +128,9 @@ def _row(trial_id, step, state, status, planners, spec, cumulative):
             for atom, weight in belief.mass:
                 physical[str(atom.state)] = physical.get(str(atom.state), 0.0) + weight
             row[f"physical_{agent}"] = json.dumps(physical, sort_keys=True)
-            row[f"action_values_{agent}"] = json.dumps(
-                {str(a): q for a, q in planner.recommendation_values.items()}, sort_keys=True
-            )
+            # The decision taken at this step, recorded by run_episode (step 0: none).
+            row[f"action_values_{agent}"] = json.dumps({})
+            row[f"bounds_{agent}"] = json.dumps(None)
             if spec.record_hierarchies:
                 nodes = nested_hierarchy(belief, agent, planner.key.level)
                 row[f"hierarchy_{agent}"] = json.dumps([node.to_dict() for node in nodes])
