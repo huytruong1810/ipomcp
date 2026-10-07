@@ -75,3 +75,7 @@ def test_episode_rows_record_each_decision_and_its_bounds():
         values, bounds = json.loads(row["action_values_i"]), json.loads(row["bounds_i"])
         assert set(values) == set(bounds) == {"L", "OL", "OR"}
         assert all(lo <= hi for lo, hi in bounds.values())
+        # i-L1 faces uniform L0 only, so it predicts uniform play.
+        prediction = json.loads(row["prediction_i"])
+        assert prediction == pytest.approx(dict.fromkeys(["L", "OL", "OR"], 1 / 3))
+        assert json.loads(row["prediction_j"]) is None

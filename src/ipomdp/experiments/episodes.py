@@ -57,6 +57,9 @@ def run_episode(spec, trial_id):
                 stats.get("action_values", {}), sort_keys=True
             )
             decisions[f"bounds_{agent}"] = json.dumps(stats.get("bounds"), sort_keys=True)
+            decisions[f"prediction_{agent}"] = json.dumps(
+                _prediction(planners[agent]), sort_keys=True
+            )
         following = physics.sample_transition(state, joint, env_transition)
         rewards = {a: physics.get_reward(state, joint, following, a) for a in AGENTS}
         for agent in AGENTS:
@@ -92,6 +95,25 @@ def run_episode(spec, trial_id):
         rows.append(row)
         state = following
     return rows
+
+
+def _prediction(planner):
+    """The agent's predicted distribution of the opponent's next action, or None at level 0.
+
+    sum over (s, m_j) of b(s, m_j) pi_j(a_j | m_j), with the same modeled policies
+    the agent plans against. Compared with the opponent's actual action along the
+    realized path, it measures whether predictions merge with play, the
+    subjective-equilibrium criterion (Kalai & Lehrer 1993; Doshi & Gmytrasiewicz
+    2006); see docs/EQUILIBRIA.md.
+    """
+    belief = getattr(planner, "belief", None)
+    if belief is None:
+        return None
+    predicted = {}
+    for atom, mass in belief.mass:
+        for action, probability in planner.solver_bank.filter.action_distribution(atom.opponent):
+            predicted[str(action)] = predicted.get(str(action), 0.0) + mass * probability
+    return predicted
 
 
 def _row(trial_id, step, state, status, planners, spec, cumulative):
@@ -131,6 +153,7 @@ def _row(trial_id, step, state, status, planners, spec, cumulative):
             # The decision taken at this step, recorded by run_episode (step 0: none).
             row[f"action_values_{agent}"] = json.dumps({})
             row[f"bounds_{agent}"] = json.dumps(None)
+            row[f"prediction_{agent}"] = json.dumps(None)
             if spec.record_hierarchies:
                 nodes = nested_hierarchy(belief, agent, planner.key.level)
                 row[f"hierarchy_{agent}"] = json.dumps([node.to_dict() for node in nodes])
