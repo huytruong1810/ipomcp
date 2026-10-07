@@ -1,3 +1,74 @@
+# Plan: the next phase (October 8, 2026)
+
+## Context
+The October 5 phase (W1–W8, below) is complete (RESULTS 12.12–12.21). The reviewers' weak point is that
+**Tiger does not reward deeper reasoning**: an agent's payoff depends only on its own door, so level 3
+cannot beat level 2 on reward (12.18, 12.21). This phase shows where higher levels pay off (HANDOFF 0.2,
+Option A) and finishes level 4 in the drivers.
+
+Every reward consumer is already joint-action aware (`reference/best_response.py`,
+`planning/solver_bank.py`, `planning/generative_model.py`, `experiments/episodes.py`), and UCB and the
+certified bounds read `reward_bounds`. Only the drivers hard-code the published game and levels ≤ 3:
+`oracle.py` (`TigerModel()`, `_validate_problem`, `_point_model`'s three beliefs) and `panel.py` (levels 2–3).
+
+## Summary, in order of value per CPU-hour
+
+| Order | Workstream | Contribution | CPU | Kill criterion |
+|---|---|---|---|---|
+| P1 | Joint-payoff Tiger; oracle and panel generic in physics and in level (≤ 4) | 1, 3 | tests only | — |
+| P2 | Exact design screen: which payoff makes one more level pay | 3 | ~1 CPU-h | no variant separates L3 from L2 → Option B (UAV) |
+| P3 | Gate the chosen variant at L2 H3, L3 H3 k = 0, and L4 H2 against the exact I-POMDP | 1, 2 | ~3–6 CPU-h | any miss → `modeled_qualification` before episodes |
+| P4 | Level grid 1–4 × 1–4 on the variant at H2; an L3-vs-L2 H3 study if H2 shows an effect | 3 | sized by a 2-trial pilot | pilot > 3× estimate → halve n |
+| P5 | Error attribution at L2 and L3 (`trace_margin`), alongside P4 | 2, 3 | < 1 CPU-h | — |
+| P6 | Write-up: RESULTS 12.22+, reviewer page section, Claude Doc, HANDOFF | — | — | — |
+
+**Deferred, with reasons:**
+- Wumpus beyond three beliefs (HANDOFF 0.2 item 3): new domain evidence, but no reviewer question waits on it.
+- Root adaptive budgets (item 4): matter for cost only beyond H3.
+- L3 H4 residual (item 6): needs the user's decision on a PAC-style standard (12.13), not yet asked.
+- Cost at high levels (item 7): H2 grids are affordable at N = 32.
+
+## Workstreams
+
+**P1. Engineering (no CPU).**
+- `domains/tiger.py`: one subclass of `TigerModel` with joint-payoff parameters, overriding `get_reward`
+  and `reward_bounds`. The physics and observations stay the published spec. Registered in `study.DOMAINS`.
+- Candidate payoffs, screened in P2:
+  - a **coordination bonus** b to each agent when both open the same safe door in the same step;
+  - a **shared prize**: the +10 is split when both open the safe door together (a race);
+  - a **penalty c for opening while the other listens**.
+- `experiments/oracle.py`: a `domain` argument; `_point_model` over a chain of any length; levels 1–4.
+- `experiments/panel.py`: `domain` and levels 2–4.
+- Tests: the variant's rewards and tight bounds; the level-4 oracle reference against `build_exact_agent`
+  at H2; a panel cell on the variant. The published Tiger stays the default; no shims.
+
+**P2. Exact design screen.** For each candidate (and the published Tiger as the control), over the oracle's
+point-belief grid: exact policies at levels 1–4 (H2; H3 up to level 3) and the **value of one more level**,
+the exact Q loss under the level-(k+1) model of taking level k's action. Report the share of beliefs with
+a positive loss and its mean and max for k = 1→2, 2→3, 3→4. Choose the variant with the largest minimum
+over 1→2 and 2→3.
+
+**P3. Gates against the exact I-POMDP (chosen variant).**
+- Panel L2 H3 (380 problems) and L3 H3 k = 0 (162), with the certified stacks (`400`, `6400s/100`),
+  Clopper–Pearson intervals. Payoffs move the near ties, so any miss sends the variant through
+  `modeled_qualification` first.
+- L4 at H2 over a point-belief grid (exact L4 H2 costs about 0.2 s per solve).
+
+**P4. Episodes.**
+- The 12.21 grid launcher with a `domain` argument: same seeds, round-robin, resumable, on a source snapshot.
+- **Primary endpoint (fixed before the run):** paired own-level reward differences along rows (i at level
+  k + 1 vs level k against each fixed j), Holm-corrected. Secondary: prediction log-loss, level
+  identification. The published-Tiger grid (12.21) is the control.
+- If H2 shows level 3 beating level 2 against j at level 2: an H3 L3-vs-L2 study, n = 100, paired.
+
+**P5. Error attribution.** `analysis.error_attribution.trace_margin` on L2 H3 and L3 H3 trees; it closes the
+report's last open row besides equilibria.
+
+**P6. Write-up.** RESULTS 12.22+; a reviewer-page section (edit `template.html` and `build_report.py`,
+republish to the same URL); the Claude Doc; HANDOFF.
+
+Run hygiene and verification as in the October 5 plan below.
+
 # Plan: the next phase (October 5, 2026)
 
 ## Status (October 7, 2026): phase complete
