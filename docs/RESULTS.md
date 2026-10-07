@@ -930,3 +930,31 @@ The study (`studies/tiger_l3_vs_l2.toml`) now runs at horizon 3 with root 1,000 
   - **The interim effect did not hold.** At n = 77 an apparent effect of i's level on j's reward looked significant. A tested mechanism (i's openings resetting the tiger and erasing j's information) was not supported: a level-1 i causes fewer such resets (3.8 per trial against 4.0–4.1), and per-trial reset differences barely track j's reward differences (correlation 0.12).
 - **Decisions were almost always exact for the searched model:** 97–98% had certified bound width 0 (12.17).
 - **Cost:** level 3 i spends 91 s of planning CPU per step, against 4.9 s at level 2 and 0.2 s at level 1, about 50 CPU-h per 100 trials.
+
+### 12.20 I-POMCP vs IPF + RTS at scale, on the current estimator (October 7, 2026)
+
+**Design** (`results/w5_rts_baseline_20261006`, `launch.py full`):
+- **Problems:** L2 Tiger, the wide grid of 12.3 (19 beliefs of i × 5 of j × seeds 0–3, n = 380 per cell), scored against the exact I-POMDP.
+- **I-POMCP:** root 1,000 simulations, compressed beliefs N = 64, the gated modeled solve (H3 flat 400, H4 `6400s`).
+- **IPF + RTS:** K observation samples per node at every level, with the published sampled IPF (N = 64).
+- **Ablation:** RTS on compressed beliefs.
+- **CPU:** per root decision, nested solves included. All cells ran in one run under the same load, so CPU is comparable, though not paired in-process.
+
+| Planner | H | K (RTS) | Optimal (95% interval) | Mean loss | Max loss | Optimal-action Q error | CPU (s) |
+|---|---|---|---|---|---|---|---|
+| **I-POMCP, compressed 64** | 3 | — | **380/380 (99.0–100%)** | 0 | 0 | **0.000** | 1.5 |
+| IPF + RTS | 3 | 2 | 98.4% (96.6–99.4) | 0.051 | 6.58 | 1.83 | 1.0 |
+| IPF + RTS | 3 | 4 | 98.9% (97.3–99.7) | 0.029 | 3.08 | 1.37 | 2.2 |
+| IPF + RTS | 3 | 8 | 99.5% (98.1–99.9) | 0.013 | 2.87 | 0.94 | 4.0 |
+| RTS, compressed 64 | 3 | 4 | 98.4% (96.6–99.4) | 0.043 | 3.08 | 1.30 | 0.15 |
+| **I-POMCP, compressed 64** | 4 | — | **380/380 (99.0–100%)** | 0 | 0 | **0.127** | 16.7 |
+| IPF + RTS | 4 | 2 | 95.3% (92.6–97.2) | 0.102 | 6.14 | 1.49 | 12.1 |
+| IPF + RTS | 4 | 4 | 95.3% (92.6–97.2) | 0.090 | 6.04 | 0.93 | 49.7 |
+| IPF + RTS | 4 | 8 | 96.8% (94.5–98.4) | 0.053 | 1.86 | 0.62 | 91.8 |
+| RTS, compressed 64 | 4 | 4 | 95.5% (92.9–97.4) | 0.109 | 6.14 | 0.87 | 1.2 |
+
+- **I-POMCP is exact-optimal on every problem at both horizons.** IPF + RTS misses 0.5–1.6% of decisions at H3 and 3.2–4.7% at H4, at every K.
+- **At H4, I-POMCP is more accurate and cheaper:** 16.7 s, against 49.7–91.8 s for IPF + RTS at K = 4–8. Its optimal-action Q error is 0.13, against 0.62–1.49.
+- **At H3, IPF + RTS at K = 2 is slightly cheaper** (1.0 s against 1.5 s), but not exact.
+- **The ablation separates belief from search error.** RTS on compressed beliefs makes about the same decisions as on the IPF, at 1/14–1/40 of the CPU. Its misses are search error (K samples per node), not belief error.
+- **This replaces Section 6's 15-problem comparison,** whose I-POMCP cells predated the last estimator revisions.
