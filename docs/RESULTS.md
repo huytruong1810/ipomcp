@@ -1066,3 +1066,38 @@ The parts sum to the search error with a residual below 1e-14 on every action.
 (Shares are of the summed absolute parts.)
 - **At H3, search error is almost all sampling noise in observation frequencies,** which chance scoring replaces by exact probabilities. This is why scoring brought i's L3 H3 Q error from 0.06 to 0.0006 (12.14).
 - **At H4, a fifth of the error is in choices deeper in the tree,** plus rollouts below it. Scoring is exact only where two steps are left, so 0.13 remains on the optimal action. This is where variance reduction or adaptive root budgets would act (HANDOFF 0.2 item 4).
+
+### 12.25 Level grid on the coordination Tiger: levels 1–3 (October 7, 2026)
+
+**Design** (`results/p4_joint_level_grid_20261008/grid.py`): 12.21's grid unchanged except for the payoffs (`together_safe = 40`, 12.22). Uniform level priors at every level, H2 (each decision exact for the searched model), compressed 32, 20 steps, the same trial seeds in every cell. Levels 1–3: **n = 100 per cell, final.** The level-4 cells are running to n = 40 and will be reported separately.
+
+**Primary endpoint** (fixed in PLAN.md before the run; `endpoint.py`): the same agent one level higher, against the same opponent and seeds, difference in 20-step reward; paired t-test, Holm over the family of 12 one-level steps among levels 1–3; 95% trial-bootstrap intervals. The published-Tiger grid (12.21, n = 42) is the control, restricted to the same 12 steps.
+
+| Step | Opponent level | i: difference [95%] | Holm p | j: difference [95%] | Holm p |
+|---|---|---|---|---|---|
+| 1 → 2 | 1 | **+25.5 [13.6, 37.9]** | 0.001 | **+28.7 [16.1, 41.4]** | < 0.001 |
+| 1 → 2 | 2 | +13.6 [3.7, 23.8] | 0.10 | +5.1 [−5.0, 15.0] | 1 |
+| 1 → 2 | 3 | +13.4 [2.6, 23.8] | 0.13 | +12.9 [2.7, 23.7] | 0.13 |
+| 2 → 3 | 1 | −13.3 [−25.4, −2.4] | 0.14 | −2.7 [−11.4, 5.9] | 1 |
+| 2 → 3 | 2 | −6.4 [−15.9, 2.4] | 0.90 | +1.3 [−6.2, 9.0] | 1 |
+| 2 → 3 | 3 | +1.0 [−7.0, 9.2] | 1 | +8.1 [2.1, 14.7] | 0.13 |
+
+Control (published Tiger, same 12 steps): 0 of 12 survive (smallest Holm p = 0.14).
+
+**Per cell** (mean 20-step reward; joint safe openings = steps in which both open the same safe door):
+
+| i | j | i's reward | j's reward | Welfare [95%] | Joint safe openings | i's log-loss of j | i's belief in j's level |
+|---|---|---|---|---|---|---|---|
+| 1 | 1 | 63.9 | 53.9 | 117.8 [95.6, 140.6] | 1.7 | 1.10 | — |
+| 1 | 2 | 92.8 | 82.6 | 175.4 [150.5, 200.1] | 2.6 | 1.10 | — |
+| 1 | 3 | 92.4 | 80.0 | 172.3 [145.1, 198.8] | 2.6 | 1.10 | — |
+| 2 | 1 | 89.4 | 93.6 | 183.1 [158.6, 207.2] | 2.7 | 0.58 | 0.99 |
+| 2 | 2 | 106.4 | 98.7 | 205.1 [181.4, 228.3] | 3.1 | 0.54 | — |
+| 2 | 3 | 105.8 | 100.0 | 205.7 [179.4, 231.4] | 3.2 | 0.61 | — |
+| 3 | 1 | 76.1 | 82.5 | 158.7 [132.2, 185.8] | 2.5 | 0.63 | 0.62 |
+| 3 | 2 | 99.9 | 95.4 | 195.4 [169.3, 220.9] | 3.0 | 0.55 | 0.65 |
+| 3 | 3 | 106.8 | 103.5 | 210.3 [184.6, 235.5] | 3.3 | 0.55 | — |
+
+- **With joint payoffs, modeling the opponent pays in reward.** Against a level-1 opponent, a level-2 agent earns 25–29 more over 20 steps than a level-1 agent (both agents, Holm p ≤ 0.001), where the published game shows nothing. Welfare rises from 118 (both level 1) to 205–210 (both at level 2 or 3), and joint safe openings from 1.7 to 3.1–3.3 per episode.
+- **A third level does not pay here.** No 2 → 3 step survives the correction, and against a level-1 opponent the direction is negative (i: −13.3, nominal p = 0.02). The exact screen (12.22) valued level 3 at point beliefs where its model of the opponent is right. In these episodes a level-3 agent holds a uniform prior over levels 0–2, so it must first identify the opponent. By step 20 it puts only 0.62–0.65 on the true level, against 0.99 for a level-2 agent facing level 1, whose prior has only two candidates.
+- **Implication:** what pays is a correct model, not depth. The test of depth alone is a level-3 agent with a correct (or concentrated) prior. That is the next run, alongside the level-4 cells.
