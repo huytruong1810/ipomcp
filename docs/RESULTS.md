@@ -1071,7 +1071,7 @@ The parts sum to the search error with a residual below 1e-14 on every action.
 
 ### 12.25 Level grid on the coordination Tiger: levels 1–3 (October 7, 2026)
 
-> **Caveat (12.26):** at N = 32, beliefs dropped the opponent's realized history in 3–20% of trials above level 1. The grid is being rerun at N = 64 with the same seeds; read the level-3 rows below as provisional.
+> **Caveat (12.26):** at N = 32, beliefs dropped the opponent's realized history in 3–20% of trials above level 1. The grid is being rerun at N = 64 with the same seeds; read the level-3 rows below as provisional. **Superseded by 12.27** (N = 64).
 
 **Design** (`results/p4_joint_level_grid_20261007/grid.py`): 12.21's grid unchanged except for the payoffs (`together_safe = 40`, 12.22). Uniform level priors at every level, H2 (each decision exact for the searched model), compressed 32, 20 steps, the same trial seeds in every cell. Levels 1–3: **n = 100 per cell, final.** The level-4 cells are running to n = 40 and will be reported separately.
 
@@ -1122,3 +1122,48 @@ Control (published Tiger, same 12 steps): 0 of 12 survive (smallest Holm p = 0.1
 - **In the N = 32 coordination grid,** trials with at least one zero-probability prediction: 0% at level 1 vs level 1; 3–9% with level 2 only; 8–20% where level 3 is involved. Level 4 cells (n = 14–15): 0–7 of 15.
 - **Why the gate missed it.** 12.16 qualified compressed beliefs by the total-variation distance of the level posterior (≤ 0.061 at N = 64). Dropping a branch of mass about 0.05 barely moves that distance but removes the realized history. The gate for a bounded belief should include the probability it assigns to what actually happens.
 - **Consequences.** The prediction and identification numbers of 12.21 (published Tiger, N = 32) and 12.25 are affected, most at level 3. The levels 1–3 coordination grid and the correct-prior check are being rerun at N = 64 with the same seeds (`results/p4c_joint_level_grid_n64_20261007`). Level 4 at N = 64 costs about 7× more per step (12.21's probes) and is deferred.
+
+### 12.27 The coordination grid and the correct-prior check at N = 64 (October 8, 2026)
+
+**Design:** 12.25 and its correct-prior check rerun at N = 64 with the same trial seeds (`results/p4c_joint_level_grid_n64_20261007`, `results/p4b_correct_prior_20261007/trials_n64`), n = 100 per cell, levels 1–3, H2. Endpoint, family and control as in 12.25.
+
+**Compression misses** (trials in which some prediction gave the opponent's actual action probability 0): 0–6 per 100 per cell, against 0–20 at N = 32. Lower, not zero.
+
+**Primary endpoint** (one level higher, same opponent and seeds; Holm over 12):
+
+| Step | Opponent level | i: difference [95%] | Holm p | j: difference [95%] | Holm p |
+|---|---|---|---|---|---|
+| 1 → 2 | 1 | **+27.2 [15.8, 38.4]** | < 0.001 | **+29.8 [16.5, 43.5]** | < 0.001 |
+| 1 → 2 | 2 | +10.4 [1.1, 19.9] | 0.25 | +6.2 [−5.3, 17.2] | 1 |
+| 1 → 2 | 3 | **+15.5 [5.5, 25.7]** | 0.031 | **+14.7 [5.8, 23.8]** | 0.021 |
+| 2 → 3 | 1 | −3.1 [−9.5, 3.3] | 1 | −1.0 [−7.5, 5.5] | 1 |
+| 2 → 3 | 2 | +6.8 [1.8, 12.1] | 0.10 | +5.0 [0.2, 9.5] | 0.25 |
+| 2 → 3 | 3 | +6.2 [0.1, 12.3] | 0.25 | +1.7 [−3.5, 6.2] | 1 |
+
+**Per cell:**
+
+| i | j | i's reward | j's reward | Welfare | i's log-loss of j | j's log-loss of i | CPU per step (s) |
+|---|---|---|---|---|---|---|---|
+| 1 | 1 | 63.9 | 53.9 | 117.8 | 1.10 | 1.10 | 0.0 |
+| 1 | 2 | 93.2 | 83.7 | 176.9 | 1.10 | 0.53 | 0.3 |
+| 1 | 3 | 91.1 | 82.7 | 173.8 | 1.10 | 0.54 | 7.7 |
+| 2 | 1 | 91.1 | 94.2 | 185.3 | 0.54 | 1.10 | 0.3 |
+| 2 | 2 | 103.6 | 100.4 | 204.0 | 0.50 | 0.46 | 0.5 |
+| 2 | 3 | 106.6 | 105.4 | 211.9 | 0.49 | 0.39 | 11.4 |
+| 3 | 1 | 88.0 | 89.4 | 177.3 | 0.56 | 1.10 | 7.6 |
+| 3 | 2 | 110.4 | 104.1 | 214.5 | 0.43 | 0.50 | 11.1 |
+| 3 | 3 | 112.8 | 105.8 | 218.6 | 0.41 | 0.40 | 22.3 |
+
+**Correct prior** (paired with the N = 64 grid):
+
+| i | Against | i's reward | Grid comparison | Difference [95%] | Holm p | i's log-loss |
+|---|---|---|---|---|---|---|
+| level 3, all prior on j at level 2 | j at level 2 | 105.3 | i at level 2 (103.6) | +1.7 [−5.5, 7.9] | 0.63 | 0.39 |
+| | | | i at level 3, uniform prior (110.4) | −5.1 [−11.7, 0.3] | 0.31 | |
+| level 2, all prior on j at level 1 | j at level 1 | 93.9 | i at level 1 (63.9) | **+30.0 [18.6, 41.5]** | < 0.001 | 0.48 |
+| | | | i at level 2, uniform prior (91.1) | +2.8 [−2.1, 7.8] | 0.50 | |
+
+- **Modeling the opponent pays, robustly.** One level of modeling (level 1 → 2) gains 27–30 against a level-1 opponent and 15 against a level-3 opponent, for both agents. The published game shows none of this (12.21, 12.25).
+- **With fewer compression errors, a third level predicts better** (log-loss 0.41–0.43 against 0.49–0.50 for level 2; 0.39 with a correct prior). **Its reward gain is small at horizon 2:** +5 to +7 against opponents at levels 2–3 (nominal p 0.01–0.05), none surviving the correction at n = 100. The exact screen predicts this: a third level is worth 0.63 on 10% of beliefs at H2, against 2.10 on 16% at H3 (12.22).
+- **The N = 32 results changed direction for level 3** (12.25: i 2 → 3 against level 1 was −13.3, now −3.1; against level 2, −6.4 now +6.8). Bounded-belief error was large enough to reverse level-3 conclusions; 12.25's level-3 rows are superseded.
+- **Next, if the depth question is pursued:** a horizon-3 study of level 3 against level 2 on the coordination Tiger at N = 64, where the screen puts the value of a third level. 12.18's cost (about 30 CPU-min per episode for level 3 at H3) gives about 100 CPU-h for n = 100 in two conditions. PLAN's gate for it (an H2 effect against j at level 2) was not met (Holm p = 0.10), so it was not launched.
