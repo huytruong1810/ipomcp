@@ -1002,3 +1002,67 @@ The study (`studies/tiger_l3_vs_l2.toml`) now runs at horizon 3 with root 1,000 
   - Paired by seeds, the agent at level k minus the same agent at level 1 against the same opponent: 2 of 24 comparisons exclude zero, both small and negative, for j facing a level-4 i (−3.6 and −3.5). About 1 would by chance.
   - Comparing i with j inside a cell is confounded by each agent's growl luck, which the shared seeds repeat across cells. For example, i's tiger hits at n = 19 were 5 distinct events counted 67 times.
 - **Cost:** CPU per step, both agents, ranges from 0.0 s (level 1 vs level 1) to 62 s (level 4 vs level 4). A level-4 agent costs 25–35 s per step against lower levels.
+
+### 12.22 Which payoff makes one more level of reasoning pay? An exact screen (October 8, 2026)
+
+**Why.** In the published Tiger an agent's reward depends only on its own door, so a deeper model of the opponent cannot pay in reward (12.18, 12.21). `JointTigerModel` (DOMAINS.md) keeps the published states, transitions and observations and changes only the payoff for opening a door: `together_safe` is each agent's reward for opening the safe door when the other opens the same door in the same step (published: 10), and `solo_penalty` is subtracted from an agent that opens while the other listens (published: 0).
+
+**Design** (`results/p2_payoff_screen_20261008/screen.py`, `analyze.py`):
+- Exact I-POMDP Q of i at point-belief chains: i's tiger belief in {0.05, 0.2, …, 0.95} (7 values), and each nested model's in {0.085, 0.5, 0.915}, down to a uniform level 0.
+- Levels 1–4 at H2, 1–3 at H3, 1–2 at H4. Every lower level is exact at the same depth.
+- **Value of one more level:** at each chain, the exact loss, under the level-(k+1) model, of the action the level-k agent chooses at the same beliefs (ties played uniformly). A positive value means i gains by modeling one more level, if the deeper model is right.
+- Cost: 2,793 exact solves, about 1 CPU-h.
+
+**Result** (mean loss over chains; share of chains with a positive loss in parentheses):
+
+| Payoffs | H | 1→2 | 2→3 | 3→4 |
+|---|---|---|---|---|
+| published (together 10) | 2 | 0.64 (29%) | 0 | 0 |
+| published | 3 | 0.78 (29%) | 0.009 (10%) | — |
+| together 20 | 3 | 0.75 (10%) | 0.53 (13%) | — |
+| **together 40** | 2 | 1.45 (19%) | 0.63 (10%) | 0.81 (6%) |
+| **together 40** | 3 | 1.59 (19%) | **2.10 (16%)** | — |
+| race (together 0) | 3 | 0.50 (19%) | 0.30 (6%) | — |
+| race (together 5) | 3 | 0.53 (19%) | 0 | — |
+| solo penalty 10 | 3 | 2.44 (29%) | 0 | — |
+| solo penalty 30 | 3 | 0 | 0 | — |
+
+- **The published game confirms 12.18 and 12.21 exactly:** level 3 changes no decision at H2, and is worth 0.009 on average at H3.
+- **A coordination bonus makes every level count.** With `together_safe = 40`, a third level is worth 2.10 at H3 and a fourth 0.81 at H2. Penalizing solo openings separates level 1 from level 2 only.
+- **Chosen:** `together_safe = 40`, the largest minimum over 1→2 and 2→3 (the rule fixed in PLAN.md). It is the "coordination Tiger" from here on.
+
+### 12.23 Gates on the coordination Tiger against the exact I-POMDP (October 8, 2026)
+
+**Design** (`results/p3_joint_gates_20261008/gates.py`): the configurations the episode studies use, on the problem grids of 12.3 and 12.7. Losses are first-action losses against the exact I-POMDP (every lower level exact); intervals are Clopper–Pearson 95%.
+
+| Gate | Configuration | Optimal | Interval |
+|---|---|---|---|
+| L2 H3 | root 1,000, modeled `400`, exact beliefs; 19 × 5 beliefs × 4 seeds | 380/380 | [0.990, 1] |
+| L3 H3, k = 0 | root 1,000, modeled `6400s/100`; 9 × 3 × 3 beliefs × 2 seeds | 162/162 | [0.977, 1] |
+| L2 H2 | root 100, modeled `100`, compressed 32 (12.21's configuration) | 54/54 | [0.934, 1] |
+| L3 H2 | the same | 162/162 | [0.977, 1] |
+| **L4 H2** | the same; 9 × 3 × 3 × 3 beliefs × 2 seeds | **486/486** | [0.992, 1] |
+
+- The certified configurations carry over to the new payoffs unchanged; no modeled re-qualification was needed. Mean optimal-action Q error is 0.002 at L2 H3 and 0 elsewhere.
+- **First level-4 gate against the exact I-POMDP.** The drivers now run levels up to 4 (`oracle`, `panel`; the level-4 reference is cross-checked against `build_exact_agent` in `tests/test_l4_oracle.py`).
+- Planner CPU per decision: 0.9 s at L2 H3, 8.4 s at L3 H3, 0.8 s at L4 H2.
+
+### 12.24 Where search error comes from, at L2 and L3 (October 8, 2026)
+
+**Design** (`results/p5_error_attribution_20261008/attribution.py`, `analyze.py`): published Tiger, root 1,000, the certified modeled stacks (L2 H3 `400`, L2 H4 `6400s`, L3 H3 `6400s/100`), one seed, the grids of 12.3 (95 problems) and 12.7 (81). Each root action's search value (empirical Bellman backups) is split exactly, against the exact best response to i's own modeled hierarchy (search error only), into:
+- **chance error at depth d:** sampled minus exact observation frequencies, weighted by exact values;
+- **local action loss:** the exact loss of the greedy choice at a deeper node;
+- **frontier:** the error of a rollout below the tree;
+- the immediate-reward error, which is zero by construction (the planner uses the exact E[R | b_h, a]).
+
+The parts sum to the search error with a residual below 1e-14 on every action.
+
+| Problems | Search error, optimal action (mean) | Chance error | Local action loss | Frontier | Error after chance scoring |
+|---|---|---|---|---|---|
+| L2 H3 | 0.141 | 98% (depth 1: 45%, depth 2: 53%) | 2% | 0 | 0 |
+| L3 H3 | 0.146 | 98% (39%, 58%) | 2% | 0 | 0.0006 |
+| L2 H4 | 0.164 | 69% (12%, 26%, 32%) | 22% | 9% | 0.132 |
+
+(Shares are of the summed absolute parts.)
+- **At H3, search error is almost all sampling noise in observation frequencies,** which chance scoring replaces by exact probabilities. This is why scoring brought i's L3 H3 Q error from 0.06 to 0.0006 (12.14).
+- **At H4, a fifth of the error is in choices deeper in the tree,** plus rollouts below it. Scoring is exact only where two steps are left, so 0.13 remains on the optimal action. This is where variance reduction or adaptive root budgets would act (HANDOFF 0.2 item 4).
