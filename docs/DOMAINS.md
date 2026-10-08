@@ -28,7 +28,7 @@ A declared variant for this project. In the published game an agent's reward dep
 | `together_safe` | each agent's reward for opening the safe door when the other opens the same door in the same step | 10 |
 | `solo_penalty` | subtracted from an agent that opens a door while the other listens | 0 |
 
-The coordination game used from RESULTS.md 12.22 on is `together_safe = 40`: it was chosen by an exact screen of the value of one more level of reasoning (`results/p2_payoff_screen_20261008`).
+The coordination game used from RESULTS.md 12.22 on is `together_safe = 40`: it was chosen by an exact screen of the value of one more level of reasoning (`results/p2_payoff_screen_20261007`).
 
 ## UAV pursuit (`domains/uav.py`)
 

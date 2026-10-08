@@ -1,6 +1,6 @@
-# Plan: the next phase (October 8, 2026)
+# Plan: the next phase (October 7, 2026, evening)
 
-## Status (October 8, 2026)
+## Status (October 7, 2026, evening)
 P1 done; P2 done (RESULTS 12.22: `together_safe = 40`); P3 done (12.23: 1,244/1,244, L4 486/486); P5 done (12.24); P4 running; P6 after P4.
 
 ## Context
