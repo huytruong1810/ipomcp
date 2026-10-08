@@ -19,6 +19,17 @@ summarises them and records their sources.
 
 A listening opponent therefore causes a false creak with probability 0.1.
 
+### Joint-payoff Tiger (`JointTigerModel`, study domain `tiger-joint`)
+
+A declared variant for this project. In the published game an agent's reward depends only on its own door, so a deeper level of reasoning cannot pay in reward (RESULTS.md 12.18, 12.21). The variant keeps the states, transitions and observations above and changes only the payoff of opening a door:
+
+| Parameter | Meaning | Published value |
+|---|---|---|
+| `together_safe` | each agent's reward for opening the safe door when the other opens the same door in the same step | 10 |
+| `solo_penalty` | subtracted from an agent that opens a door while the other listens | 0 |
+
+The coordination game used from RESULTS.md 12.22 on is `together_safe = 40`: it was chosen by an exact screen of the value of one more level of reasoning (`results/p2_payoff_screen_20261008`).
+
 ## UAV pursuit (`domains/uav.py`)
 
 This is a declared specification for this project.

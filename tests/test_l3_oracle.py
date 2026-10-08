@@ -27,7 +27,7 @@ def test_level_three_reference_matches_the_independently_built_exact_hierarchy()
 
 def test_level_three_point_belief_nests_three_private_beliefs():
     physics = TigerModel()
-    belief = _two_state_belief(physics, 3, 0.2, 0.3, 0.4)
+    belief = _two_state_belief(physics, 3, 0.2, 0.3, (0.4,))
     (atom, p), _ = sorted(belief.mass, key=lambda item: -item[1])
     j = atom.opponent
     assert (p, j.frame.agent_id, j.frame.level) == (0.8, "j", 2)
@@ -47,7 +47,7 @@ def test_level_three_decisions_with_finite_opponents_are_scored_and_described():
         level=3,
         opponent_depth=2,
         opponent_belief=0.7,
-        nested_belief=0.4,
+        nested_beliefs=(0.4,),
         modeled="50",
         reference="exact",
     )[0]
@@ -58,7 +58,7 @@ def test_level_three_decisions_with_finite_opponents_are_scored_and_described():
         "level": 2,
         "depth": 2,
         "initial_belief_p": 0.7,
-        "nested_initial_belief_p": 0.4,
+        "nested_initial_beliefs_p": [0.4],
     }
     assert row["first_action_loss"] >= 0
     assert set(row["oracle_q"]) == set(row["estimated_q"])

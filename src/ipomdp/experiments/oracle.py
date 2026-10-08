@@ -21,16 +21,20 @@ Problems
 --------
 - Level 1: agent i against uniform-random L0 j; reference = alpha-vector value
   iteration (``reference.pomdp_exact_vi``).
-- Levels 2-3 with exact opponents: every intentional level below i is an
+- Levels 2-4 with exact opponents: every intentional level below i is an
   exact agent replanning at a fixed depth, with point priors on the private
   beliefs. The reference is the exact I-POMDP.
-- Levels 2-3 with finite opponents: ``modeled`` names how each level below i
+- Levels 2-4 with finite opponents: ``modeled`` names how each level below i
   is solved (``modeled_levels``: per level, the same kind of planner as i with
   its own budget and optional stopping rule, or exact; RTS samples per node as
   in IPF + RTS, where every level is solved by RTS). The reference is either
   the exact best response to that declared hierarchy (``declared``: search
   error only) or the exact I-POMDP (``exact``: search plus opponent-model
   error).
+
+Physics: the published Tiger (``domains.tiger.TigerModel``) by default, or
+any of its payoff variants (``JointTigerModel``); the problems' two-state point
+beliefs and fixed history need Tiger's states and actions.
 
 Planners: ``mcts`` (I-POMCP; budget = root simulations) and ``rts``
 (reachability-tree sampling; budget = sampled observations per node). The units
@@ -100,12 +104,13 @@ def evaluate_case(
     particles=None,
     particle_filter="compressed",
     history_steps=0,
-    nested_belief=0.5,
+    nested_beliefs=None,
     opponent_observer=None,
+    physics=None,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
-    ``modeled`` (levels 2-3) labels the modeled stack, one solve per level
+    ``modeled`` (levels 2-4) labels the modeled stack, one solve per level
     below i, top-down (``modeled_levels``): ``exact``, ``400``, ``6400s/400``.
 
     ``reference="none"`` returns the planner's decision, values and CPU without
@@ -113,17 +118,21 @@ def evaluate_case(
     where the exact reference is intractable (``modeled_qualification`` at L3
     beyond H3; RESULTS.md Section 12.7).
 
-    Otherwise ``reference`` matters only for a level-2 or level-3 problem with a finite
+    Otherwise ``reference`` matters only for a level-2 to level-4 problem with a finite
     modeled level: "declared" scores the planner against the best response to its
     own finite opponent models (search error only); "exact" scores it against
     the exact I-POMDP, where every lower level is exact (search plus model
     error).
 
-    At level 3, j is a level-2 agent whose private point belief is
-    ``opponent_belief`` and who models i as a level-1 agent with private point
-    belief ``nested_belief`` (against uniform L0 j).
+    At level L >= 3, j is a level-(L-1) agent whose private point belief is
+    ``opponent_belief``; ``nested_beliefs`` gives the private point beliefs of
+    the L - 2 models below j, top-down (at level 3, the level-1 i that j models
+    against uniform L0 j). None puts 0.5 at every nested level.
 
-    ``opponent_observer`` (levels 2-3) is called as ``observer(model, policy)``
+    ``physics`` is the Tiger model every agent shares (None: the published
+    game); a payoff variant changes only rewards, so the problems are the same.
+
+    ``opponent_observer`` (levels 2-4) is called as ``observer(model, policy)``
     for every model of the opponent (j at level - 1) whose modeled policy the
     planner requests, with the policy it got. These are the beliefs at which the
     opponent's budget must be qualified (``experiments.modeled_qualification``);
@@ -136,9 +145,8 @@ def evaluate_case(
         raise ValueError("The L1 alpha-vector reference is solved at the prior; use level 2")
     if opponent_observer is not None and level == 1:
         raise ValueError("Level 1 has a uniform L0 opponent; there is no modeled policy to observe")
-    if not 0 <= nested_belief <= 1:
-        raise ValueError("Nested belief must lie in [0,1]")
-    model = TigerModel()
+    nested_beliefs = _nested_chain(level, nested_beliefs)
+    model = TigerModel() if physics is None else physics
     bank = SolverBank(seed, particles=particles, particle_filter=particle_filter)
     key = SolverKey("i", level)
     config = planner_config(planner_kind, budget, horizon, gamma, exploration)
@@ -164,7 +172,7 @@ def evaluate_case(
         exploration=exploration,
         wrap=observed,
     )
-    belief = _two_state_belief(model, level, belief_p, opponent_belief, nested_belief)
+    belief = _two_state_belief(model, level, belief_p, opponent_belief, nested_beliefs)
     planner.set_initial_belief(belief)
     prior_model = planner.model()
     history = sample_history(
@@ -183,7 +191,7 @@ def evaluate_case(
         "planner_config": asdict(config),
         "level": level,
         "opponent": _opponent_description(
-            level, opponent_depth, opponent_belief, stack, nested_belief
+            level, opponent_depth, opponent_belief, stack, nested_beliefs
         ),
         "reference": reference if any(stack) else "exact",
         "particles": particles,
@@ -324,13 +332,25 @@ def _exact_ipomdp_q(model, prior_model, history, seed, gamma, opponent_depth, ho
     return best_response.q_values(agent_model, horizon)
 
 
-def _two_state_belief(model, level, belief_p, opponent_belief, nested_belief=0.5):
+def _nested_chain(level, nested_beliefs):
+    """The private beliefs of the models below j, top-down: one per level 1 .. level - 2."""
+    depth = max(level - 2, 0)
+    chain = (0.5,) * depth if nested_beliefs is None else tuple(nested_beliefs)
+    if len(chain) != depth:
+        raise ValueError(f"Level {level} takes {depth} nested beliefs, got {len(chain)}")
+    if not all(0 <= p <= 1 for p in chain):
+        raise ValueError("Nested beliefs must lie in [0,1]")
+    return chain
+
+
+def _two_state_belief(model, level, belief_p, opponent_belief, nested_beliefs=()):
     """i's exact two-state prior over a chain of point models, down to uniform L0.
 
     The chain's tiger beliefs are i's ``belief_p``, then j's ``opponent_belief``
-    (level >= 2), then the modeled i's ``nested_belief`` (level 3).
+    (level >= 2), then ``nested_beliefs`` for the models below j (level >= 3).
     """
-    return _point_model(model, "i", level, (belief_p, opponent_belief, nested_belief)).belief
+    chain = (belief_p, opponent_belief, *nested_beliefs)
+    return _point_model(model, "i", level, chain).belief
 
 
 def _point_model(model, agent, level, tiger_beliefs):
@@ -345,12 +365,12 @@ def _point_model(model, agent, level, tiger_beliefs):
     return MentalModel(AgentFrame(agent, level, model), belief)
 
 
-def _opponent_description(level, depth, belief, stack, nested_belief):
+def _opponent_description(level, depth, belief, stack, nested_beliefs):
     if level == 1:
         return {"policy": "uniform_l0"}
     description = {"level": level - 1, "depth": depth, "initial_belief_p": belief}
-    if level == 3:
-        description["nested_initial_belief_p"] = nested_belief
+    if nested_beliefs:
+        description["nested_initial_beliefs_p"] = list(nested_beliefs)
     if not any(stack):
         return {"policy": "exact_fixed_depth", **description}
     return {"policy": "same_planner", "modeled": stack_label(stack), **description}
@@ -364,8 +384,8 @@ def _validate_problem(
         raise ValueError("Unknown planner")
     if reference not in ("declared", "exact", "none"):
         raise ValueError("reference must be 'declared', 'exact' or 'none'")
-    if level not in (1, 2, 3):
-        raise ValueError("Reference level must be 1, 2 or 3")
+    if level not in (1, 2, 3, 4):
+        raise ValueError("Reference level must be 1, 2, 3 or 4")
     if not 0 <= opponent_belief <= 1:
         raise ValueError("Opponent belief must lie in [0,1]")
     if level == 1:
@@ -375,7 +395,7 @@ def _validate_problem(
             )
         return ()
     if type(opponent_depth) is not int or opponent_depth < 1:
-        raise ValueError("Levels 2-3 require an explicit positive opponent depth")
+        raise ValueError("Levels 2-4 require an explicit positive opponent depth")
     stack = parse_stack(modeled, level - 1)
     if particles is not None and reference == "declared" and any(stack):
         raise ValueError("A declared reference is not exact with particle beliefs; use 'exact'")
@@ -507,7 +527,7 @@ def main():
     parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts"])
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--exploration", type=float, default=1.0)
-    parser.add_argument("--level", type=int, choices=[1, 2, 3], default=1)
+    parser.add_argument("--level", type=int, choices=[1, 2, 3, 4], default=1)
     parser.add_argument("--opponent-depth", type=int)
     parser.add_argument("--opponent-belief", type=float, default=0.5)
     parser.add_argument("--modeled", default=EXACT, help="modeled stack, e.g. 400 or 6400s")

@@ -153,3 +153,49 @@ def _observation_law(state, own_action, other_action, growl_accuracy, creak_accu
         if p_growl * p_creak > 0:
             law.append(((growl, creak), p_growl * p_creak))
     return tuple(law)
+
+
+class JointTigerModel(TigerModel):
+    """Two-agent Tiger whose door payoffs depend on what the other agent does.
+
+    Why
+    ---
+    In the published game an agent's reward depends only on its own door, so
+    the other agent matters only through resets and creaks, and a deeper level
+    of reasoning cannot pay off in reward (RESULTS.md 12.18, 12.21). These
+    variants keep the published states, transitions and observations and change
+    only the payoff of opening a door, so every exact reference, gate and tool
+    applies unchanged:
+
+    - ``together_safe``: each agent's reward for opening the safe door when the
+      other opens the same door in the same step (published: 10). Above 10 it
+      is a coordination bonus; below 10 the agents split a prize (a race).
+    - ``solo_penalty``: subtracted from an agent that opens a door while the
+      other listens (published: 0); opening is rewarded only in step.
+
+    Opening the tiger's door costs -100 (minus ``solo_penalty`` when alone) and
+    listening -1, as published.
+    """
+
+    def __init__(self, together_safe=10.0, solo_penalty=0.0, **sensors):
+        super().__init__(**sensors)
+        if not math.isfinite(together_safe) or not math.isfinite(solo_penalty) or solo_penalty < 0:
+            raise ValueError("Joint payoffs must be finite, with a nonnegative solo penalty")
+        self.together_safe = float(together_safe)
+        self.solo_penalty = float(solo_penalty)
+
+    def get_reward(self, state, joint_action, next_state, agent_id):
+        action = joint_action[agent_id]
+        if action == LISTEN:
+            return -1.0
+        other_action = next(a for agent, a in joint_action.items() if agent != agent_id)
+        tiger_door = OPEN_LEFT if state == TIGER_LEFT else OPEN_RIGHT
+        reward = -100.0 if action == tiger_door else 10.0
+        if action != tiger_door and other_action == action:
+            reward = self.together_safe
+        return reward - self.solo_penalty if other_action == LISTEN else reward
+
+    def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
+        # Both are reached: the tiger's door opened alone; the safe door opened
+        # beside an opener of the other door (10) or of the same door.
+        return (-100.0 - self.solo_penalty, max(10.0, self.together_safe))

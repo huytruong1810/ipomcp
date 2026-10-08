@@ -38,7 +38,7 @@ from typing import Dict, Optional
 
 from ipomdp.baselines.rts import RTSConfig
 from ipomdp.belief import canonical
-from ipomdp.domains.tiger import TigerModel
+from ipomdp.domains.tiger import JointTigerModel, TigerModel
 from ipomdp.domains.uav import UAVModel
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
@@ -47,7 +47,12 @@ from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
 
-DOMAINS = {"tiger": TigerModel, "uav": UAVModel, "wumpus": WumpusModel}
+DOMAINS = {
+    "tiger": TigerModel,
+    "tiger-joint": JointTigerModel,
+    "uav": UAVModel,
+    "wumpus": WumpusModel,
+}
 AGENTS = ("i", "j")
 
 

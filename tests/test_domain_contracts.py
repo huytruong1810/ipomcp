@@ -11,12 +11,14 @@ import random
 
 import pytest
 
-from ipomdp.domains.tiger import TigerModel
+from ipomdp.domains.tiger import JointTigerModel, TigerModel
 from ipomdp.domains.uav import UAVModel
 from ipomdp.domains.wumpus.model import WumpusModel
 
 DOMAINS = {
     "tiger": TigerModel(),
+    "tiger-coordination": JointTigerModel(together_safe=40.0),
+    "tiger-race": JointTigerModel(together_safe=0.0, solo_penalty=10.0),
     "uav": UAVModel(),
     "wumpus": WumpusModel(width=3, height=3, n_pits=1),
 }

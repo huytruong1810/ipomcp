@@ -3,6 +3,7 @@
 import pytest
 
 from ipomdp.domains.tiger import (
+    ACTIONS,
     CREAK_LEFT,
     CREAK_RIGHT,
     GROWL_LEFT,
@@ -14,6 +15,7 @@ from ipomdp.domains.tiger import (
     SILENCE,
     TIGER_LEFT,
     TIGER_RIGHT,
+    JointTigerModel,
     TigerModel,
 )
 from ipomdp.domains.uav import MOVE_E, MOVE_N, MOVE_S, NONE, SENSE, UAVModel
@@ -68,6 +70,46 @@ def test_tiger_transition_and_rewards_match_table_1():
         assert model.get_reward(TIGER_LEFT, joint, TIGER_RIGHT, "i") == -100
         assert model.get_reward(TIGER_RIGHT, joint, TIGER_LEFT, "i") == 10
         assert model.get_reward(TIGER_RIGHT, {"i": LISTEN, "j": other}, TIGER_RIGHT, "i") == -1
+
+
+def test_joint_tiger_pays_for_opening_together_and_penalizes_opening_alone():
+    model = JointTigerModel(together_safe=40.0, solo_penalty=5.0)
+
+    def reward(state, mine, other):
+        return model.get_reward(state, {"i": mine, "j": other}, state, "i")
+
+    assert reward(TIGER_LEFT, OPEN_RIGHT, OPEN_RIGHT) == 40  # same safe door
+    assert reward(TIGER_LEFT, OPEN_RIGHT, OPEN_LEFT) == 10  # the other opened the tiger
+    assert reward(TIGER_LEFT, OPEN_RIGHT, LISTEN) == 5  # alone
+    assert reward(TIGER_LEFT, OPEN_LEFT, OPEN_LEFT) == -100  # together on the tiger
+    assert reward(TIGER_LEFT, OPEN_LEFT, LISTEN) == -105
+    assert reward(TIGER_LEFT, LISTEN, OPEN_RIGHT) == -1
+
+
+@pytest.mark.parametrize(
+    "options", [{}, {"together_safe": 40.0}, {"together_safe": 0.0, "solo_penalty": 30.0}]
+)
+def test_joint_tiger_bounds_are_attained_and_published_payoffs_reproduce_tiger(options):
+    model, published = JointTigerModel(**options), TigerModel()
+    rewards = [
+        model.get_reward(state, {"i": a, "j": b}, state, "i")
+        for state in (TIGER_LEFT, TIGER_RIGHT)
+        for a in ACTIONS
+        for b in ACTIONS
+    ]
+    assert (min(rewards), max(rewards)) == model.reward_bounds("i")
+    if not options:
+        assert rewards == [
+            published.get_reward(state, {"i": a, "j": b}, state, "i")
+            for state in (TIGER_LEFT, TIGER_RIGHT)
+            for a in ACTIONS
+            for b in ACTIONS
+        ]
+
+
+def test_joint_tiger_rejects_a_negative_solo_penalty():
+    with pytest.raises(ValueError):
+        JointTigerModel(solo_penalty=-1.0)
 
 
 def test_tiger_rollout_memory_marginalises_a_uniform_opponent():

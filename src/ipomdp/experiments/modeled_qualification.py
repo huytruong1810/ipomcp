@@ -124,7 +124,7 @@ def collect_queries(
         level=level,
         opponent_depth=horizon,
         opponent_belief=opponent_belief,
-        nested_belief=nested_belief,
+        nested_beliefs=(nested_belief,) if level == 3 else (),
         modeled=modeled,
         reference="exact" if score_decision else "none",
         history_steps=history,

@@ -70,7 +70,7 @@ def test_level_three_cells_cross_the_nested_beliefs(tmp_path):
     assert summary.iloc[0]["n"] == 4
     assert summary.iloc[0]["optimal_rate"] == 1.0  # horizon 1 is exact
     rows = json.loads((tmp_path / "panel" / "rows.json").read_text())
-    assert {(r["opponent_belief"], r["nested_belief"]) for r in rows} == {
+    assert {(r["opponent_belief"], *r["nested_beliefs"]) for r in rows} == {
         (0.3, 0.4),
         (0.3, 0.6),
         (0.7, 0.4),

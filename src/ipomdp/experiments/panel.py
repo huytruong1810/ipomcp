@@ -1,7 +1,7 @@
 """Panel: planners scored against the exact I-POMDP on a grid of budgets.
 
 Contributions 1 and 2 both rest on one measurement: how good is a level-2 or
-level-3 Tiger decision, and what did it cost, compared with the exact I-POMDP.
+level-4 Tiger decision, and what did it cost, compared with the exact I-POMDP.
 This driver runs that measurement over a grid of cells
 
     (planner, level, horizon, budget, modeled stack, particles, particle filter, history)
@@ -10,8 +10,8 @@ where
 
 - ``planner`` is ``mcts`` (I-POMCP; budget = root simulations) or ``rts``
   (reachability-tree sampling; budget = sampled observations per node);
-- ``level`` is i's level, 2 or 3: i models j at level - 1, who (at level 3)
-  models i at level 1;
+- ``level`` is i's level, 2 to 4: i models j at level - 1, who models i at
+  level - 2, and so on down to uniform L0;
 - ``modeled`` labels how each modeled intentional level below i is solved, at
   depth equal to the horizon (``modeled_levels``): the same kind of planner
   with its own budget (I-POMCP simulations, or RTS samples as in IPF + RTS
@@ -28,12 +28,13 @@ where
 
 Every cell is evaluated on the same problems: beliefs of i x private beliefs of
 j x the seeds (by default 5 x 3; ``beliefs`` and ``opponent_beliefs`` widen the
-grid), and at level 3 also x the private beliefs of the level-1 i that j
-models (``nested_beliefs``). With ``history`` > 0 the seed also draws the history's states, j's
+grid), and at level L >= 3 also x the private beliefs of the L - 2 models
+below j (``nested_beliefs``, crossed at every nested level). With ``history`` > 0 the seed also draws the history's states, j's
 actions and i's observations, so seeds add problems, not only planner
 randomness; at ``history`` 0 they add planner randomness only. The reference
 is the exact I-POMDP (every lower level exact at the same depth, all beliefs
-exact), solved in its own exact bank, so each loss includes search error,
+exact), solved in its own exact bank on the panel's physics (the published
+Tiger, or a payoff variant such as ``JointTigerModel``), so each loss includes search error,
 opponent-model error and, with particles, belief error.
 
 Three questions read off the same rows:
@@ -60,6 +61,8 @@ from pathlib import Path
 import pandas as pd
 
 from ipomdp.analysis.statistics import clopper_pearson
+from ipomdp.belief import canonical
+from ipomdp.domains.tiger import JointTigerModel, TigerModel
 from ipomdp.experiments.modeled_levels import EXACT, parse_stack, stack_label
 from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, evaluate_case
 from ipomdp.infra.paths import REPOSITORY_ROOT
@@ -94,11 +97,12 @@ def evaluate_cell(
     beliefs=BELIEFS,
     opponent_beliefs=OPPONENT_BELIEFS,
     nested_beliefs=NESTED_BELIEFS,
+    physics=None,
 ):
-    """Every (belief of i, belief of j[, belief of the modeled i]) problem of one cell and seed."""
-    if level not in (2, 3):
-        raise ValueError("The panel scores levels 2 and 3")
-    nested = nested_beliefs if level == 3 else (NESTED_BELIEFS[0],)
+    """Every (belief of i, belief of j[, beliefs of the models below j]) problem of one cell and seed."""
+    if level not in (2, 3, 4):
+        raise ValueError("The panel scores levels 2 to 4")
+    chains = list(itertools.product(nested_beliefs, repeat=level - 2))
     return [
         dict(
             evaluate_case(
@@ -115,18 +119,19 @@ def evaluate_cell(
                 particles=particles or None,
                 particle_filter=particle_filter if particles else "compressed",
                 history_steps=history,
-                nested_belief=p_n,
+                nested_beliefs=chain,
+                physics=physics,
             )[0],
             modeled=modeled,
             particles=particles,
             particle_filter=particle_filter if particles else "exact",
             history=history,
             opponent_belief=p_j,
-            nested_belief=p_n,
+            nested_beliefs=list(chain),
         )
         for p in beliefs
         for p_j in opponent_beliefs
-        for p_n in nested
+        for chain in chains
     ]
 
 
@@ -192,8 +197,12 @@ def run_panel(
     nested_beliefs=NESTED_BELIEFS,
     timeout_seconds=7200,
     max_rss_mb=4096,
+    physics=None,
 ):
-    """Run every (cell, seed) job under supervision; write rows, failures and summary."""
+    """Run every (cell, seed) job under supervision; write rows, failures and summary.
+
+    ``physics`` is the Tiger model of every problem (None: the published game).
+    """
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     # One label per configuration, so "400" and "400/400" at level 3 share a cell.
@@ -207,6 +216,7 @@ def run_panel(
         beliefs=list(beliefs),
         opponent_beliefs=list(opponent_beliefs),
         nested_beliefs=list(nested_beliefs),
+        physics=canonical.physics_identity(TigerModel() if physics is None else physics),
     )
     (output / "manifest.json").write_text(
         json.dumps(dict(panel=manifest, source_sha256=lock), indent=2)
@@ -216,6 +226,7 @@ def run_panel(
         beliefs=tuple(beliefs),
         opponent_beliefs=tuple(opponent_beliefs),
         nested_beliefs=tuple(nested_beliefs),
+        physics=physics,
     )
     jobs = {
         i: partial(evaluate_cell, *cell, seed, **problems)
@@ -245,7 +256,7 @@ def run_panel(
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--planners", choices=["mcts", "rts"], nargs="+", default=["mcts"])
-    parser.add_argument("--levels", type=int, choices=[2, 3], nargs="+", default=[2])
+    parser.add_argument("--levels", type=int, choices=[2, 3, 4], nargs="+", default=[2])
     parser.add_argument("--horizons", type=int, nargs="+", default=[3, 4])
     parser.add_argument("--budgets", type=int, nargs="+", default=[250, 1000, 4000])
     parser.add_argument(
@@ -269,7 +280,12 @@ def main():
         type=float,
         nargs="+",
         default=list(NESTED_BELIEFS),
-        help="private beliefs of the level-1 i that j models (level 3 only)",
+        help="private beliefs of the models below j, crossed at each nested level (levels 3-4)",
+    )
+    parser.add_argument(
+        "--together-safe",
+        type=float,
+        help="JointTigerModel's reward for opening the safe door together (unset: published Tiger)",
     )
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
@@ -298,6 +314,7 @@ def main():
         args.beliefs,
         args.opponent_beliefs,
         args.nested_beliefs,
+        physics=None if args.together_safe is None else JointTigerModel(args.together_safe),
     )
     print(summary.round(4).to_string(index=False))
     if failures:
