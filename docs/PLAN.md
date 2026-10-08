@@ -1,7 +1,7 @@
 # Plan: the next phase (October 7, 2026, evening)
 
 ## Status (October 7, 2026, evening)
-P1 done; P2 done (RESULTS 12.22: `together_safe = 40`); P3 done (12.23: 1,244/1,244, L4 486/486); P5 done (12.24); P4 running; P6 after P4.
+Phase complete. P1 done; P2 (12.22: `together_safe = 40`); P3 (12.23: 1,244/1,244, L4 486/486); P5 (12.24); P4 (12.25 at N = 32, superseded by 12.27 at N = 64 after the compression finding, 12.26); P6 (reviewer page, Claude Doc). Next phase: HANDOFF Section 00.
 
 ## Context
 The October 5 phase (W1–W8, below) is complete (RESULTS 12.12–12.21). The reviewers' weak point is that
