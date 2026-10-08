@@ -14,9 +14,17 @@ The October 7 (evening) phase is in PLAN.md (top). Done so far:
 - **P2** exact payoff screen (RESULTS 12.22): the published game gives level 3 nothing; **`together_safe = 40` (the coordination Tiger)** makes each level count (2→3 worth 2.10 at H3, 3→4 0.81 at H2).
 - **P3** gates on the coordination Tiger (12.23): 1,244/1,244 optimal, including the first L4 gate (486/486 at H2).
 - **P5** search-error attribution (12.24): at H3, 98% chance error (removed by scoring); at L2 H4, 22% deeper greedy choices and 9% frontiers remain.
-- **P4 running:** the level grid on the coordination Tiger, `results/p4_joint_level_grid_20261008` (`grid.py`, on `src/` snapshot). Two launchers: levels 1–3 to n = 100 (`run_l123.log`) and the level-4 cells (`run_l4.log`, `grid.py . 32 100 8 1234 4`), both resumable (rerun the same command). Primary endpoint fixed before the run: `endpoint.py <folder>` (paired consecutive-level reward differences, Holm-corrected; on 12.21's grid as the control none survives). Per-cell table: `analyze_grid.py`.
-- Remaining: P4 analysis → RESULTS 12.25; P6 (reviewer page section, Claude Doc, this file).
+- **P4 (12.25, provisional):** levels 1–3 at N = 32, n = 100: level 2 beats level 1 by 25–29 against a level-1 opponent (Holm p ≤ 0.001); no 2 → 3 step survives. The level-4 cells reached n = 14–15 at N = 32 and were stopped (memory peaked near the limit with 16 workers; the watchdog never had to act).
+- **Correct-prior check** (`results/p4b_correct_prior_20261007`): level 3 with a correct prior did not beat level 2 at N = 32, but predicted j *worse*. Diagnosis (**12.26**): N = 32 compression drops the opponent's realized branch (zero-probability predictions in 3–20% of trials above level 1). N = 64 removes it in a 10-trial probe; N = 128 adds nothing at 4.3× the CPU.
+- **Running now (October 7, ~23:00):**
+  - `results/p4c_joint_level_grid_n64_20261007`: levels 1–3 grid at N = 64, same seeds, `grid.py . 64 100 10 123` (log `run_l123.log`), resumable.
+  - `results/p4b_correct_prior_20261007`: conditions A and B at N = 64, `PARTICLES=64 probe_n.py 100 4 AB` (log `run_n64.log`, rows in `trials_n64/`), resumable.
+  - Both on their own `src/` snapshots. A memory watchdog in the scratchpad kills the youngest grid worker if MemAvailable < 1.5 GB.
+- **Next:** endpoint (`endpoint.py . endpoint.csv 123`, control as before) and per-cell table on the N = 64 grid; `analyze.py` for the correct-prior pairs, pointed at `trials_n64` and the N = 64 grid; check zero-probability misses ≈ 0; RESULTS 12.27; then the reviewer page (section built in `results/w4_report_20261007`, pointing at the p4 folder: repoint to p4c) and the Claude Doc.
+- **Open design point:** belief gates (12.16) measure level-posterior TV, which misses dropped low-mass branches. A gate on the predicted probability of realized events, or a compression that keeps every opponent-observation branch above a floor, would catch this. Level 4 at N = 64 costs about 7× N = 32 per step; deferred.
+- **Date note:** the folder `results/p4_joint_level_grid_20261008` is misdated (it ran October 7); rename it to `_20261007` and fix references in RESULTS 12.25, `build_report.py` and `p4b_correct_prior_20261007/analyze.py` once nothing runs from it.
 
+## 0. Start here (fresh agent)
 
 - **State.**
   - `main` is clean; 292 tests pass in about 90 s; ruff is clean.
