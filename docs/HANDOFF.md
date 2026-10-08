@@ -22,7 +22,6 @@ The October 7 (evening) phase is in PLAN.md (top). Done so far:
   - Both on their own `src/` snapshots. A memory watchdog in the scratchpad kills the youngest grid worker if MemAvailable < 1.5 GB.
 - **Next:** endpoint (`endpoint.py . endpoint.csv 123`, control as before) and per-cell table on the N = 64 grid; `analyze.py` for the correct-prior pairs, pointed at `trials_n64` and the N = 64 grid; check zero-probability misses ≈ 0; RESULTS 12.27; then the reviewer page (section built in `results/w4_report_20261007`, pointing at the p4 folder: repoint to p4c) and the Claude Doc.
 - **Open design point:** belief gates (12.16) measure level-posterior TV, which misses dropped low-mass branches. A gate on the predicted probability of realized events, or a compression that keeps every opponent-observation branch above a floor, would catch this. Level 4 at N = 64 costs about 7× N = 32 per step; deferred.
-- **Date note:** the folder `results/p4_joint_level_grid_20261008` is misdated (it ran October 7); rename it to `_20261007` and fix references in RESULTS 12.25, `build_report.py` and `p4b_correct_prior_20261007/analyze.py` once nothing runs from it.
 
 ## 0. Start here (fresh agent)
 

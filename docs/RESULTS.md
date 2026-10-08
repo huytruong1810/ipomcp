@@ -1073,7 +1073,7 @@ The parts sum to the search error with a residual below 1e-14 on every action.
 
 > **Caveat (12.26):** at N = 32, beliefs dropped the opponent's realized history in 3–20% of trials above level 1. The grid is being rerun at N = 64 with the same seeds; read the level-3 rows below as provisional.
 
-**Design** (`results/p4_joint_level_grid_20261008/grid.py`): 12.21's grid unchanged except for the payoffs (`together_safe = 40`, 12.22). Uniform level priors at every level, H2 (each decision exact for the searched model), compressed 32, 20 steps, the same trial seeds in every cell. Levels 1–3: **n = 100 per cell, final.** The level-4 cells are running to n = 40 and will be reported separately.
+**Design** (`results/p4_joint_level_grid_20261007/grid.py`): 12.21's grid unchanged except for the payoffs (`together_safe = 40`, 12.22). Uniform level priors at every level, H2 (each decision exact for the searched model), compressed 32, 20 steps, the same trial seeds in every cell. Levels 1–3: **n = 100 per cell, final.** The level-4 cells are running to n = 40 and will be reported separately.
 
 **Primary endpoint** (fixed in PLAN.md before the run; `endpoint.py`): the same agent one level higher, against the same opponent and seeds, difference in 20-step reward; paired t-test, Holm over the family of 12 one-level steps among levels 1–3; 95% trial-bootstrap intervals. The published-Tiger grid (12.21, n = 42) is the control, restricted to the same 12 steps.
 
