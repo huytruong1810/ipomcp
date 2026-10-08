@@ -961,6 +961,8 @@ The study (`studies/tiger_l3_vs_l2.toml`) now runs at horizon 3 with root 1,000 
 
 ### 12.21 Level grid: i at levels 1–4 against j at levels 1–4 (October 7, 2026)
 
+> **Caveat (12.26):** N = 32 drops low-probability branches of the opponent's history (for example after a false creak), which gives the opponent's actual action zero predicted probability. Prediction log-loss and level identification here are affected; see 12.26.
+
 **Design** (`results/w9_level_grid_20261007/grid.py`; analysis `analyze_grid.py`):
 - **Priors:** every agent holds a uniform prior over the opponent's lower levels (0 … L−1), and so does every nested model.
 - **Planning:** both agents plan with I-POMCP at horizon 2. With two steps left, chance scoring (12.14) makes each decision the exact best response to the agent's modeled opponents for its searched belief, at any budget (100 simulations).
@@ -1069,6 +1071,8 @@ The parts sum to the search error with a residual below 1e-14 on every action.
 
 ### 12.25 Level grid on the coordination Tiger: levels 1–3 (October 7, 2026)
 
+> **Caveat (12.26):** at N = 32, beliefs dropped the opponent's realized history in 3–20% of trials above level 1. The grid is being rerun at N = 64 with the same seeds; read the level-3 rows below as provisional.
+
 **Design** (`results/p4_joint_level_grid_20261008/grid.py`): 12.21's grid unchanged except for the payoffs (`together_safe = 40`, 12.22). Uniform level priors at every level, H2 (each decision exact for the searched model), compressed 32, 20 steps, the same trial seeds in every cell. Levels 1–3: **n = 100 per cell, final.** The level-4 cells are running to n = 40 and will be reported separately.
 
 **Primary endpoint** (fixed in PLAN.md before the run; `endpoint.py`): the same agent one level higher, against the same opponent and seeds, difference in 20-step reward; paired t-test, Holm over the family of 12 one-level steps among levels 1–3; 95% trial-bootstrap intervals. The published-Tiger grid (12.21, n = 42) is the control, restricted to the same 12 steps.
@@ -1101,3 +1105,20 @@ Control (published Tiger, same 12 steps): 0 of 12 survive (smallest Holm p = 0.1
 - **With joint payoffs, modeling the opponent pays in reward.** Against a level-1 opponent, a level-2 agent earns 25–29 more over 20 steps than a level-1 agent (both agents, Holm p ≤ 0.001), where the published game shows nothing. Welfare rises from 118 (both level 1) to 205–210 (both at level 2 or 3), and joint safe openings from 1.7 to 3.1–3.3 per episode.
 - **A third level does not pay here.** No 2 → 3 step survives the correction, and against a level-1 opponent the direction is negative (i: −13.3, nominal p = 0.02). The exact screen (12.22) valued level 3 at point beliefs where its model of the opponent is right. In these episodes a level-3 agent holds a uniform prior over levels 0–2, so it must first identify the opponent. By step 20 it puts only 0.62–0.65 on the true level, against 0.99 for a level-2 agent facing level 1, whose prior has only two candidates.
 - **Implication:** what pays is a correct model, not depth. The test of depth alone is a level-3 agent with a correct (or concentrated) prior. That is the next run, alongside the level-4 cells.
+
+### 12.26 Belief compression at N = 32 drops the opponent's real history (October 7, 2026)
+
+**How it was found.** In a check of 12.25 (`results/p4b_correct_prior_20261007`), a level-3 i given a *correct* prior (all mass on j at level 2, with j's true nested prior) predicted j worse than a level-2 i (log-loss 0.64 vs 0.54), which a correct model should not do. Tracing one trial: j heard a false creak (probability 0.05) and so did not register a reset; i's belief, compressed to 32 atoms, had dropped every j-model on that branch; at the next steps i gave j's actual action probability 0, and all later updates rested on wrong models.
+
+**Probe** (same 10 trial seeds, condition above; `probe_n.py`, `compare_n.py`):
+
+| Support bound N | Zero-probability predictions of j's action | Mean log-loss | Mean 20-step reward of i | i's CPU per episode |
+|---|---|---|---|---|
+| 32 | 8 (in 3 of 10 trials) | 1.38 | 125.4 | 146 s |
+| 64 | 0 | 0.34 | 142.4 | 235 s |
+| 128 | 0 | 0.33 | 139.4 | 1,007 s |
+
+- **N = 64 removes every miss; N = 128 changes nothing more** at 4.3× the CPU. The reward changed in 1 of 10 trials (a tiger hit after the misses: −155 at N = 32, +15 at N = 64).
+- **In the N = 32 coordination grid,** trials with at least one zero-probability prediction: 0% at level 1 vs level 1; 3–9% with level 2 only; 8–20% where level 3 is involved. Level 4 cells (n = 14–15): 0–7 of 15.
+- **Why the gate missed it.** 12.16 qualified compressed beliefs by the total-variation distance of the level posterior (≤ 0.061 at N = 64). Dropping a branch of mass about 0.05 barely moves that distance but removes the realized history. The gate for a bounded belief should include the probability it assigns to what actually happens.
+- **Consequences.** The prediction and identification numbers of 12.21 (published Tiger, N = 32) and 12.25 are affected, most at level 3. The levels 1–3 coordination grid and the correct-prior check are being rerun at N = 64 with the same seeds (`results/p4c_joint_level_grid_n64_20261007`). Level 4 at N = 64 costs about 7× more per step (12.21's probes) and is deferred.
