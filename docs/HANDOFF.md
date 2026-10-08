@@ -7,7 +7,16 @@ Read this first. Then read, in order:
 
 Last updated October 7, 2026, after the reviewer meeting. The reviewers liked the episode-study page. The October 5 plan (PLAN.md, W1–W8) is mostly done: RESULTS.md 12.12–12.21. `main` holds the restructured package (merge `f40c525`); Claude is the sole owner, and there are no other agents.
 
-## 0. Start here (fresh agent)
+## 00. October 8 session (newest; read before Section 0)
+
+The October 8 phase is in PLAN.md (top). Done so far:
+- **P1** `JointTigerModel` (`domains/tiger.py`, study domain `tiger-joint`); `oracle` and `panel` take a `physics` and levels up to 4; `nested_beliefs` (one point belief per level below j) replaced `nested_belief`. 309 tests pass.
+- **P2** exact payoff screen (RESULTS 12.22): the published game gives level 3 nothing; **`together_safe = 40` (the coordination Tiger)** makes each level count (2→3 worth 2.10 at H3, 3→4 0.81 at H2).
+- **P3** gates on the coordination Tiger (12.23): 1,244/1,244 optimal, including the first L4 gate (486/486 at H2).
+- **P5** search-error attribution (12.24): at H3, 98% chance error (removed by scoring); at L2 H4, 22% deeper greedy choices and 9% frontiers remain.
+- **P4 running:** the level grid on the coordination Tiger, `results/p4_joint_level_grid_20261008` (`grid.py`, on `src/` snapshot). Two launchers: levels 1–3 to n = 100 (`run_l123.log`) and the level-4 cells (`run_l4.log`, `grid.py . 32 100 8 1234 4`), both resumable (rerun the same command). Primary endpoint fixed before the run: `endpoint.py <folder>` (paired consecutive-level reward differences, Holm-corrected; on 12.21's grid as the control none survives). Per-cell table: `analyze_grid.py`.
+- Remaining: P4 analysis → RESULTS 12.25; P6 (reviewer page section, Claude Doc, this file).
+
 
 - **State.**
   - `main` is clean; 292 tests pass in about 90 s; ruff is clean.
