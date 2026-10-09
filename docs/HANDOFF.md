@@ -5,44 +5,77 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 7, 2026, after the reviewer meeting. The reviewers liked the episode-study page. The October 5 plan (PLAN.md, W1–W8) is mostly done: RESULTS.md 12.12–12.21. `main` holds the restructured package (merge `f40c525`); Claude is the sole owner, and there are no other agents.
-
-## 00. October 7 evening session (newest; read before Section 0)
-
-The October 7 (evening) phase is in PLAN.md (top). Done so far:
-- **P1** `JointTigerModel` (`domains/tiger.py`, study domain `tiger-joint`); `oracle` and `panel` take a `physics` and levels up to 4; `nested_beliefs` (one point belief per level below j) replaced `nested_belief`. 309 tests pass.
-- **P2** exact payoff screen (RESULTS 12.22): the published game gives level 3 nothing; **`together_safe = 40` (the coordination Tiger)** makes each level count (2→3 worth 2.10 at H3, 3→4 0.81 at H2).
-- **P3** gates on the coordination Tiger (12.23): 1,244/1,244 optimal, including the first L4 gate (486/486 at H2).
-- **P5** search-error attribution (12.24): at H3, 98% chance error (removed by scoring); at L2 H4, 22% deeper greedy choices and 9% frontiers remain.
-- **P4 (12.25, provisional):** levels 1–3 at N = 32, n = 100: level 2 beats level 1 by 25–29 against a level-1 opponent (Holm p ≤ 0.001); no 2 → 3 step survives. The level-4 cells reached n = 14–15 at N = 32 and were stopped (memory peaked near the limit with 16 workers; the watchdog never had to act).
-- **Correct-prior check** (`results/p4b_correct_prior_20261007`): level 3 with a correct prior did not beat level 2 at N = 32, but predicted j *worse*. Diagnosis (**12.26**): N = 32 compression drops the opponent's realized branch (zero-probability predictions in 3–20% of trials above level 1). N = 64 removes it in a 10-trial probe; N = 128 adds nothing at 4.3× the CPU.
-- **N = 64 reruns, done (12.27):** grid levels 1–3 (`results/p4c_joint_level_grid_n64_20261007`) and the correct-prior check (`results/p4b_correct_prior_20261007/trials_n64`), n = 100, same seeds. Level 1 → 2 gains 27–30 against a level-1 opponent and about 15 against level 3 (Holm p ≤ 0.03); level 3 predicts best (log-loss 0.41 vs 0.50) but its reward gain at H2 is +5 to +7, none surviving correction. Compression misses fell to 0–6% of trials per cell.
-- **P6 done:** reviewer page republished with a "coordination Tiger" section (version 18, https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB; generator `results/w4_report_20261007`, now reading `p4c` and `p2`); Claude Doc report has a coordination paragraph, a bounded-belief caveat, and the error-attribution row marked measured.
-- **October 8–9 (user approved the H3 study):**
-  - **Optimal resampling A/B (12.28):** Fearnhead–Clifford compression, 6–160× lower belief error per atom, but 1.3–5× CPU at equal N; no win at matched CPU at the operating point (old N = 64). Not adopted; on branch `resampling/optimal-fc` (code + 5 tests). Gate data: `results/p8_resampling_gate_20261008`.
-  - **H3 depth study (12.29):** `results/p7_h3_depth_20261008`, n = 50 (kill criterion: level-3 episodes took 138 CPU-min, > 3× 32). Level 3 with a correct model vs level 2: −9.6 [−26.8, 4.2], p = 0.24. Exploratory: the deficit is the 5 trials where level 3's N = 64 belief dropped the realized branch (−101 each); +0.6 in the other 45. Its first launch ran on live code (snapshot layout bug, Section 6) and was discarded; 5 quarantined episodes in `trials_quarantine/`.
-  - Reviewer page version 19 (H3 paragraph, data-driven from `p7…/h3_summary.json`); Claude Doc coordination paragraph updated.
-- **Nothing is running.** `main` is clean; branch `resampling/optimal-fc` holds the unadopted compressor.
-- **Next, in order of value per CPU-hour:**
-  1. **Bounded belief that keeps the realized branch at level 3** (contributions 1, 3): the binding constraint in 12.26–12.29. Compare compressors at matched *distinct-atom* counts, or adapt N to the belief's spread (for example, optimal resampling with N set by a coverage target); gate on G1–G3 of 12.28 plus the level-3 zero-probability rate. Cheap: G2 episodes take 1.5–7 CPU-min at H2.
-  2. Then, if a compressor removes level-3 misses at acceptable cost, re-run the H3 depth test (about 2.3 CPU-h per level-3 episode at N = 64).
-  3. HANDOFF 0.2 items 3–4 (Wumpus beyond 3 beliefs; root adaptive budgets, which 12.24 shows would act on the 22% deeper-choice error at H4). Level 4 on the coordination Tiger stays deferred.
+Last updated October 9, 2026. Claude is the sole owner of `main`; there are no other agents. The reviewers saw the episode-study page on October 7; since then the "coordination Tiger" phase (PLAN.md, top) is complete: RESULTS.md 12.22–12.29.
 
 ## 0. Start here (fresh agent)
 
 - **State.**
-  - `main` is clean; 292 tests pass in about 90 s; ruff is clean.
-  - Nothing has been pushed, and nothing is running.
-  - The last commits are the RESULTS 12.18–12.21 write-ups and this file.
-- **Back to the normal schedule.** The October 7 reviewer deadline is over. Resume the mandate in Section 1: rigorous, gated progress on the three contributions, with redesign over scaling and A/B gates with statistics. The user wants autonomy: take the recommended option, state it in one line, and keep going.
+  - `main` is clean at the last HANDOFF commit; 309 tests pass in about 80 s; `ruff check` and `ruff format --check` are clean.
+  - Nothing is running and nothing has been pushed (`main` is about 120 commits ahead of `origin/main`).
+  - Branch `resampling/optimal-fc` holds an A/B candidate that was **not** adopted (12.28): optimal resampling in the compressed filter, with 5 tests. Do not merge it without a new gate.
+- **Mandate** (Section 1): rigorous, gated progress on the three contributions; redesign over scaling; A/B gates with paired statistics; fix the analysis before the run. The user wants autonomy: take the recommended option, say it in one line, keep going. Ask only for decisions that are genuinely theirs (the user approved the H3 study on October 8 when asked).
 - **Before running anything:**
-  - Read Section 6 (what not to repeat) and the standards in Section 1.
-  - The machine is shared: `~/projects/jepa_ipomdp` runs multi-core jobs using up to about 12 GB. Never touch its processes.
+  - Read Section 6 (do not repeat). Two new rows matter most: the **snapshot layout** (`mkdir -p <run>/src && cp -r src/ipomdp <run>/src/`, then check `PYTHONPATH=<run>/src python -c 'import ipomdp; print(ipomdp.__file__)'` prints the snapshot path) and **memory** (level-3/4 episode workers grow to 1–2 GB each; 16 such workers nearly exhausted the 23 GB machine).
+  - The machine is shared: `~/projects/jepa_ipomdp` sometimes runs multi-core jobs using up to about 12 GB. Never touch its processes. Check `free -g` before sizing workers.
+  - A memory watchdog helped: a loop that kills the youngest worker of a named run when `MemAvailable` falls below 1.5 GB (scripts were in the session scratchpad, not kept; rewrite as needed). Workers that write their own CSVs survive their parent being stopped by PID.
   - Compare CPU only within paired, same-process runs.
-- **Results** go in a new dated folder under `results/`, with the script copied inside. Numbers go into `docs/RESULTS.md`; the next free section is 12.22. Update this file, and the Claude Doc report (Section 4), when results land.
-- **First task for the new session:** write the next plan, appended to PLAN.md as a new phase, from Section 0.2 below. Order it by value per CPU-hour, then start executing.
+- **Results** go in a new dated folder under `results/` with the script inside (the run date in the name). Numbers go into `docs/RESULTS.md`; **the next free section is 12.30**. When results land, update this file, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.2).
+- **First task for the new session:** write the next plan, prepended to PLAN.md as a new phase, from 0.1 below. Order it by value per CPU-hour, then execute.
 
-### 0.1 What happened October 5–7 (PLAN.md W1–W8)
+### 0.1 Next steps (input to the next plan)
+
+What the October 7–9 phase established:
+- With joint payoffs (the coordination Tiger), **modeling the opponent pays in reward**: level 2 beats level 1 by 27–30 over 20 steps against a level-1 opponent (Holm p < 0.001); the published Tiger shows nothing (12.27).
+- **A third level does not pay in episodes**, at H2 (+5 to +7, not significant, 12.27) or H3 (−9.6 [−26.8, 4.2], n = 50, 12.29), although the exact screen values it (2.10 per decision at H3, 12.22).
+- **The binding constraint at level 3 is the bounded belief.** Compression to N atoms drops light branches of the opponent's real history; the agent then gives the opponent's actual action probability 0. At H3, level 3's whole deficit sat in the 5 of 50 trials with such a miss (−101 each; +0.6 elsewhere; exploratory). The old gate (level-posterior TV, 12.16) cannot see this.
+
+Recommended order:
+1. **A bounded belief that keeps the realized branch at level 3** (contributions 1 and 3). Options, cheapest first:
+   - compare the systematic and optimal compressors at matched **distinct-atom** counts, not matched N (12.28 showed per-atom accuracy strongly favors optimal resampling, per-N CPU favors systematic);
+   - adapt N to the belief: for example optimal resampling with N chosen to keep a coverage target (tail mass dropped ≤ ε);
+   - make the zero-probability rate a standard metric (`analysis.metrics`) and part of the belief gate, next to level TV.
+
+   Gate with 12.28's G1–G3 (`results/p8_resampling_gate_20261008`) plus the level-3 zero-probability rate on the 12.29 seeds; G2 episodes at H2 cost 1.5–7 CPU-min each.
+2. **If (1) removes level-3 misses at acceptable cost,** re-run the H3 depth test (`results/p7_h3_depth_20261008/h3_depth.py`, about 2.3 CPU-h per level-3 episode at N = 64), with the pre-registered endpoint unchanged.
+3. **Root adaptive budgets** (contribution 1): 12.24 shows that at L2 H4, 22% of the remaining search error is deeper greedy choices and 9% rollouts, which chance scoring cannot fix.
+4. **Wumpus beyond 3 beliefs** (HANDOFF 0.6 item 3) and **level 4 on the coordination Tiger** (about 7× N = 32's cost per step at N = 64): deferred.
+5. Still the user's call, not asked: a PAC-style certification standard for L3 H4 (12.13), and housekeeping (legacy `results/`, stale branches; Section 1).
+
+### 0.2 What happened October 7–9 (PLAN.md, "October 7 evening" phase)
+
+| Work | Result | RESULTS |
+|---|---|---|
+| Joint payoffs | `JointTigerModel` (`domains/tiger.py`, study domain `tiger-joint`): published physics, payoffs `together_safe` and `solo_penalty`. `oracle` and `panel` take a `physics` and levels up to 4 | — |
+| Exact screen | Value of one more level, exactly, over point-belief chains. Published Tiger: 2→3 worth 0 at H2, 0.009 at H3. **`together_safe = 40`** (the coordination Tiger): 2.10 at H3, 3→4 0.81 at H2 | 12.22 |
+| Gates | Coordination Tiger vs the exact I-POMDP: 1,244/1,244 optimal, including the **first level-4 gate** (486/486 at H2) | 12.23 |
+| Error attribution | Exact recursive split of search error: at H3, 98% chance error (removed by scoring); at L2 H4, 22% deeper choices, 9% rollouts | 12.24 |
+| Level grid, N = 32 | Superseded (compression misses) | 12.25 |
+| Compression misses | N = 32 drops the realized branch in 3–20% of trials above level 1; caveat on 12.21 and 12.25 | 12.26 |
+| Level grid, N = 64 | Level 1→2 pays (27–30, Holm p < 0.001); 2→3 not significant at H2; level 3 predicts best | 12.27 |
+| Optimal resampling A/B | 6–160× lower belief error per atom, 1.3–5× CPU at equal N; no win at matched CPU; on branch `resampling/optimal-fc` | 12.28 |
+| H3 depth study | n = 50 (cut by kill criterion): level 3 with a correct model −9.6 [−26.8, 4.2] vs level 2; deficit in the 5 miss trials | 12.29 |
+
+**Reviewer page** (version 19): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB, with a "coordination Tiger" section (screen table, N = 64 grid heatmaps, one-level paired forest plot with the published control, H3 paragraph). Rebuild: `cd results/w4_report_20261007 && ../../.venv/bin/python analyze.py && ../../.venv/bin/python build_report.py`, then republish `report.html` with the Artifact tool, passing that `url` (read it first from a new session). It reads `p2_payoff_screen_20261007`, `p4c_joint_level_grid_n64_20261007` (grid_data.json, endpoint.csv, endpoint_control.csv) and `p7_h3_depth_20261008/h3_summary.json`. All page text is generated; edit `template.html` and `build_report.py` only. `*_20261007.bak` files there are the pre-phase versions.
+
+**Claude Doc report** (Section 4): the "Coordination Tiger" and "Bounded-belief caveat" paragraphs after "Level grid"; the error-attribution row of "Not yet measured" is now measured.
+
+### 0.3 Reusable tools and data from October 7–9 (each folder holds its scripts)
+
+- `results/p2_payoff_screen_20261007/screen.py`, `analyze.py`: the exact value of one more level for any payoff variant (add a variant to `VARIANTS`).
+- `results/p3_joint_gates_20261007/gates.py`: one job per (gate, seed, belief of i) panel launcher with JSONL rows; reuse for any physics.
+- `results/p5_error_attribution_20261007/attribution.py`: exact recursive split (`split`) of root search error into chance error per depth, local action loss, frontier and exact tail; zero residual.
+- `results/p4c_joint_level_grid_n64_20261007/`: `grid.py` (any level grid; args: out, N, trials, workers, levels, required level), `endpoint.py <grid> <out.csv> [levels]` (the pre-registered one-level paired endpoint, Holm), `analyze_grid.py` (per-cell table + joint safe openings).
+- `results/p4b_correct_prior_20261007/`: `correct_prior.py`, `probe_n.py` (N from `PARTICLES`), `compare_n.py`, `analyze.py [trials dir] [grid dir]`: the zero-probability (compression miss) diagnosis.
+- `results/p8_resampling_gate_20261008/`: the compressor A/B (G1 `belief_qualification` outputs, `g2_probe.py`, `g2_compare.py`, `g3.py`; arm chosen by `PYTHONPATH`, old arm = `p4b_correct_prior_20261007/src`).
+- `results/p7_h3_depth_20261008/`: `h3_depth.py` (pre-registered H3 study), `analyze.py`, `KILL_CRITERION.txt`, `trials_quarantine/` (5 episodes of the discarded first launch; unknown code).
+- Zero-probability check: for each step, `json.loads(prediction_i).get(action_j, 0) < 1e-9` on episode rows (see `compare_n.py`); not yet a library function.
+
+### 0.4 Files touched October 7–9
+
+- `main`: `domains/tiger.py` (`JointTigerModel`), `experiments/oracle.py` (`physics`, levels 1–4, `nested_beliefs`, `_nested_chain`), `experiments/panel.py` (`physics`, levels 2–4, `--together-safe`), `experiments/modeled_qualification.py` (call site), `experiments/study.py` (`tiger-joint`); tests `test_l4_oracle.py` (new), `test_domains.py`, `test_domain_contracts.py`, `test_l3_oracle.py`, `test_panel.py`; docs `DOMAINS.md`, `ARCHITECTURE.md`, `RESULTS.md` 12.22–12.29, `PLAN.md`, this file.
+- Branch `resampling/optimal-fc` only: `belief/resampling.py` (`optimal_resampling`), `belief/compressed_filter.py`, `tests/test_optimal_resampling.py`.
+
+### 0.5 What happened October 5–7 (PLAN.md W1–W8)
 
 | Work | Result | RESULTS |
 |---|---|---|
@@ -63,7 +96,7 @@ The October 7 (evening) phase is in PLAN.md (top). Done so far:
 - Grid data comes from `results/w9_level_grid_20261007/analyze_grid.py`.
 - The page text, lead included, is generated from the data. Edit `template.html` and `build_report.py`, not `report.html`.
 
-### 0.2 Goals and next steps (input to the next plan)
+### 0.6 Goals as of October 7 (superseded by 0.1; items 1, 2 and 5 done)
 
 The science so far:
 - The solver is accurate wherever exact references exist.
@@ -96,7 +129,7 @@ Housekeeping, still the user's call (Section 1):
 - about 12 GB of legacy `results/` and stale branches;
 - `results/` is git-ignored and not backed up since September 30. It includes the reviewer-page generator (`results/w4_report_20261007`) and every October dataset, so copy it off the machine.
 
-### 0.3 Files touched October 5–7
+### 0.7 Files touched October 5–7
 
 - **`src/ipomdp/belief/`:**
   - `frame.py`: cached hash, explicit pickle state;
@@ -191,7 +224,7 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 
 ## 2. Current state
 
-- **Tests.** 292 pass in about 90 s on `main`; `ruff check` and `ruff format --check` are clean.
+- **Tests.** 309 pass in about 80 s on `main`; `ruff check` and `ruff format --check` are clean.
 - **Running jobs.** None.
 - **Archives.**
   - Tag `archive/pre-restructure-20260930`: the pre-restructure code.
@@ -255,7 +288,9 @@ studies/        tiger_l3_vs_l2.toml
 | L3, H3, k = 0 | I-POMCP 400 flat (i's decisions = exact); certified zero-wrong stack `6400s/100` | exact | 162/162 (12.7, 12.11) |
 | L3, H4, k = 0 | **none zero-wrong.** `6400s/exact`: residual set 4/80 wrong after 12.14, all at 0.03-gap beliefs (loss ≤ 0.03) | exact | 12.10, 12.11, 12.14 |
 | L3 vs L2 episodes, H3 | `6400s/100` for i, `400` for j, mixed level priors (gated 120/120) | compressed 64 (level TV ≤ 0.061 to step 5) | 12.16, 12.18 |
-| Levels 1–4 × 1–4, H2 | decisions exact for the searched model at any budget (two steps left) | compressed 32 | 12.21 |
+| Levels 1–4 × 1–4, H2 | decisions exact for the searched model at any budget (two steps left) | compressed 32 (drops realized branches above level 1: use 64) | 12.21, 12.26 |
+| Coordination Tiger (`together_safe = 40`): L2 H3, L3 H3 k = 0, L2–L4 H2 | as for the published Tiger (`400`, `6400s/100`; `100` at H2): 1,244/1,244 | exact; compressed 32 at H2 | 12.23 |
+| Coordination Tiger episodes, levels 1–3, H2 and H3 | as above, root 100 (H2) or 1,000 (H3) | compressed 64; level 3 still misses the realized branch in about 10% of H3 trials | 12.27, 12.29 |
 | Wumpus L1, H3 | search N = 1,024, 3,000 simulations: 9/9 (3 distinct beliefs) | exact real, compressed search | 12.19 |
 
 ## 3. Key results (details and n in RESULTS.md)
@@ -291,6 +326,13 @@ studies/        tiger_l3_vs_l2.toml
 | 12.19 | Wumpus L1 qualified at N = 1,024, 3,000 simulations (9/9; 3 distinct beliefs) |
 | 12.20 | I-POMCP 380/380 at L2 H3 and H4 vs IPF + RTS 95.3–99.5%; RTS 3–5× slower at H4 |
 | 12.21 | **Level grid 1–4 × 1–4 (n = 39–42):** prediction separates L1 from L≥2; identification weakens with level; 2/24 own-level reward effects exclude zero (about chance) |
+| 12.22 | **Exact screen:** a third level is worth 0.009 per decision in the published Tiger at H3, 2.10 with `together_safe = 40` (the coordination Tiger) |
+| 12.23 | Coordination Tiger gates 1,244/1,244, including the first level-4 gate (486/486, H2) |
+| 12.24 | **Search error at H3 is 98% chance error** (scoring removes it); at L2 H4, 22% deeper choices and 9% rollouts remain |
+| 12.25–12.26 | **N = 32 compression drops the opponent's realized branch** (3–20% of trials above level 1); 12.25 superseded |
+| 12.27 | Coordination grid at N = 64 (n = 100): **level 1→2 gains 27–30** (Holm p < 0.001); 2→3 not significant; level 3 predicts best |
+| 12.28 | Optimal resampling: far more accurate per atom, no win at matched CPU; not adopted (branch `resampling/optimal-fc`) |
+| 12.29 | **H3 depth study (n = 50):** level 3 with a correct model −9.6 [−26.8, 4.2] vs level 2; the deficit is the 5 compression-miss trials |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
@@ -431,6 +473,10 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Restarting a runner to add workers | Discards the trials in progress (up to 30 CPU-min each) | Restart only when it saves over an hour |
 | `pgrep -f` inside a waiter loop (again, October 6) | Matched its own command line | Wait on a PID or an output file |
 | `cp -r src/ipomdp <run>/src/` when `<run>/src` does not exist yet (October 7–8) | cp copies the package's contents *as* `<run>/src`, so `PYTHONPATH=<run>/src` finds no `ipomdp` and silently imports the live editable install. Two runs used live code; one (the H3 study) was hit by a mid-run source change and was stopped | `mkdir -p <run>/src && cp -r src/ipomdp <run>/src/`, then check `python -c 'import ipomdp; print(ipomdp.__file__)'` under that PYTHONPATH before launching |
+| Bounded beliefs at N = 32 for level ≥ 3 episodes (October 7) | Dropped the opponent's realized history in up to 20% of trials; the agent then predicted the real action with probability 0, which reversed level-3 conclusions (12.25 → 12.27) | N = 64, and check the zero-probability rate of every bounded-belief run |
+| Qualifying bounded beliefs by level-posterior TV alone (12.16) | Blind to a dropped light branch (mass about 0.05 moves TV little but removes what happened) | Also measure the probability given to realized opponent actions |
+| Comparing compressors at equal N (12.28) | The systematic compressor keeps far fewer than N distinct atoms, so equal N is not equal cost | Compare at matched CPU or matched distinct atoms |
+| 16 workers of level-4 episodes on the shared machine (October 7) | Workers grew to 1–1.5 GB each; available memory fell to 4 GB | 8 workers for level ≥ 3 episodes, plus a memory watchdog |
 
 ## 7. Merge record
 
