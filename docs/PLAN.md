@@ -1,7 +1,72 @@
+# Plan: the bounded-belief phase (October 9, 2026)
+
+## Status (October 9, 2026)
+Started. Q0 done.
+
+## Context
+The coordination-Tiger phase (below; RESULTS 12.22–12.29) found the binding constraint at level 3: **the bounded
+belief drops the opponent's realized branch.** Compression to N atoms sometimes removes every j-model on the branch
+that happened; i then gives j's real action probability 0, and the 5 of 50 H3 trials with such a miss carry level 3's
+whole deficit (12.29). Optimal resampling (12.28, branch `resampling/optimal-fc`) is far more accurate per atom but
+lost at matched N and CPU. The belief gate (level-posterior TV, 12.16) cannot see these misses.
+
+This phase builds a bounded belief that keeps the realized branch at acceptable cost, makes the zero-probability
+rate a standard metric and part of the belief gate, and re-runs the H3 depth test only if that works.
+
+## Summary, in order of value per CPU-hour
+
+| Order | Workstream | Contribution | CPU | Kill criterion |
+|---|---|---|---|---|
+| Q1 | Diagnose the misses: replay i's filter along logged histories; realized-branch mass at the dropping step vs 1/N | 1, 3 | ~1–2 CPU-h | replay does not reproduce logged support sizes → fix the replay first |
+| Q2 | `analysis.metrics.zero_probability`; compressor as a strategy (systematic, optimal, coverage-ε, and stratified by j-model if Q1 calls for it) | 1, 3 | tests only | — |
+| Q3 | A/B at matched cost: zero-probability trial rate on the 12.26 probe (pilot 20 seeds per arm; main 200 paired seeds), plus G1/G3 non-inferiority | 1, 2 | pilot ~8, main ≤ ~40 CPU-h | no pilot arm has fewer misses at ≤ 1.2× the control's CPU → keep systematic N = 64, go to Q5 |
+| Q4 | H3 depth test re-run with the adopted compressor, pre-registered endpoint unchanged | 3 | ~115 CPU-h (n = 50) | Q3 adopts nothing; 4-episode pilot > 3× estimate → halve n |
+| Q5 | Root adaptive budgets (12.24) | 1 | planned after Q3 | — |
+
+**Deferred, with reasons:** Wumpus beyond three beliefs and level 4 on the coordination Tiger (no reviewer question
+waits on them; level 4 needs the bounded belief fixed first); a PAC-style certification standard for L3 H4 and
+housekeeping (the user's call, not asked).
+
+## Workstreams
+
+**Q1. Miss diagnosis** (`results/q1_miss_diagnosis_20261009/`). Replay i's `CompressedInteractiveFilter` along
+the logged (a_i, o_i) of each miss trial (12.29's 5; 12.26's 3 at N = 32; the 12.27 N = 64 grid misses), with the
+same seed; the filter is a pure function of (belief, seed), checked against the logged `belief_support_i`. At each
+compression: atoms before and after, distinct atoms kept, the j-model marginal, and the mass of the j-models that
+predict j's later realized action. Question: was the dropped branch lighter than 1/N (any N-bounded compressor
+loses it sometimes) or heavier (lost to draw luck and slots spent on heavy atoms, which optimal resampling fixes)?
+
+**Q2. Engineering.**
+- `analysis.metrics.zero_probability(frame)`: per-row miss flag (`prediction.get(action) < 1e-9`), per-trial miss
+  rate, and the minimum probability given to the realized opponent action; replaces the check in `compare_n.py`.
+- A compressor strategy passed to `CompressedInteractiveFilter`, so A/B arms run paired in one process:
+  `systematic` (control); `optimal` (only `optimal_resampling` and its tests ported from `resampling/optimal-fc`,
+  whose docs are stale); `coverage(ε, N_min, N_max)`, optimal resampling with the smallest count whose expected
+  dropped mass Σ_light w(1 − c·w) is ≤ ε, which bounds the per-update probability of dropping the realized branch
+  under a correct prior by ε; and, if Q1 finds the branch spread over many tiny atoms, `stratified` (compress the
+  j-model marginal, keep each surviving model's state conditional exact).
+- Losing strategies are deleted after Q3. Tests: unbiasedness (Monte Carlo), exact counts, the ε bound,
+  determinism given (belief, seed), pickling.
+
+**Q3. Gate** (`results/q3_compressor_gate_20261009/`, one snapshot, JSONL rows, ≤ 8 workers, memory watchdog).
+- **Endpoint (fixed before the run):** zero-probability trial rate on the 12.26 probe condition (level-3 i with a
+  correct prior, coordination Tiger, H2, 20 steps). Secondary: realized-action log-loss, minimum realized
+  probability, i's CPU per episode (paired, same process).
+- Pilot: 20 seeds × {systematic N = 64, 96; optimal N = 32, 48; coverage ε = 0.01, 0.003}. Main: 200 paired
+  seeds for the control and the 1–2 candidates with pilot CPU ≤ 1.2× the control.
+- Non-inferiority for the chosen arm: G1 (`belief_qualification`, levels 2–3) and G3 (12.28's `g3.py`, 190/190).
+- Adopt if fewer misses (one-sided paired test, α = 0.05) at ≤ 1.2× CPU and G1/G3 pass.
+
+**Q4. H3 depth re-run** (only if Q3 adopts): `results/p7_h3_depth_20261008/h3_depth.py` with the new compressor,
+endpoint and kill criterion unchanged; report the zero-probability rate per condition.
+
+**Write-up:** RESULTS 12.30 (diagnosis), 12.31 (gate), 12.32 (H3, if run); HANDOFF Sections 0 and 6; the Claude Doc
+report's "Bounded-belief caveat"; the reviewer page only if Q4 runs.
+
 # Plan: the next phase (October 7, 2026, evening)
 
 ## Status (October 7, 2026, evening)
-Phase complete. P1 done; P2 (12.22: `together_safe = 40`); P3 (12.23: 1,244/1,244, L4 486/486); P5 (12.24); P4 (12.25 at N = 32, superseded by 12.27 at N = 64 after the compression finding, 12.26); P6 (reviewer page, Claude Doc). Next phase: HANDOFF Section 0.1.
+Phase complete (next: the bounded-belief phase, above). P1 done; P2 (12.22: `together_safe = 40`); P3 (12.23: 1,244/1,244, L4 486/486); P5 (12.24); P4 (12.25 at N = 32, superseded by 12.27 at N = 64 after the compression finding, 12.26); P6 (reviewer page, Claude Doc). Next phase: HANDOFF Section 0.1.
 
 ## Context
 The October 5 phase (W1–W8, below) is complete (RESULTS 12.12–12.21). The reviewers' weak point is that
