@@ -1167,3 +1167,38 @@ Control (published Tiger, same 12 steps): 0 of 12 survive (smallest Holm p = 0.1
 - **With fewer compression errors, a third level predicts better** (log-loss 0.41–0.43 against 0.49–0.50 for level 2; 0.39 with a correct prior). **Its reward gain is small at horizon 2:** +5 to +7 against opponents at levels 2–3 (nominal p 0.01–0.05), none surviving the correction at n = 100. The exact screen predicts this: a third level is worth 0.63 on 10% of beliefs at H2, against 2.10 on 16% at H3 (12.22).
 - **The N = 32 results changed direction for level 3** (12.25: i 2 → 3 against level 1 was −13.3, now −3.1; against level 2, −6.4 now +6.8). Bounded-belief error was large enough to reverse level-3 conclusions; 12.25's level-3 rows are superseded.
 - **Next, if the depth question is pursued:** a horizon-3 study of level 3 against level 2 on the coordination Tiger at N = 64, where the screen puts the value of a third level. 12.18's cost (about 30 CPU-min per episode for level 3 at H3) gives about 100 CPU-h for n = 100 in two conditions. PLAN's gate for it (an H2 effect against j at level 2) was not met (Holm p = 0.10), so it was not launched.
+
+### 12.28 Optimal resampling for the compressed filter: an A/B, not adopted (October 8, 2026)
+
+**Why.** 12.26 found that compression to N atoms dropped light branches of the opponent's history. The compressor draws N systematic samples and merges identical ones. A heavy atom then spends many of the N draws, so the belief keeps fewer than N distinct atoms (17 of 32 at k = 4 below). The candidate is Fearnhead & Clifford's (2003) optimal resampling: atoms heavier than a threshold 1/c keep their exact mass, and the light tail is resampled without bias into the remaining slots at mass 1/c each, so all N slots hold distinct atoms.
+
+**Design** (`results/p8_resampling_gate_20261008`; old and new arms each on a frozen source, import paths checked; same seeds):
+- **G1, belief accuracy:** `belief_qualification`, levels 2–3, N ∈ {16, 32, 64}, 12 histories × 5 steps, against exact beliefs.
+- **G2, realized-branch coverage:** the 12.26 probe (level-3 i with a correct prior, coordination Tiger, H2, 10 seeds); zero-probability predictions of j's action, log-loss, i's CPU per episode.
+- **G3, decisions:** published Tiger, L2 H3, root 1,000, modeled 400, compressed beliefs after k = 2 and 4 real steps, 190 problems per k, against the exact I-POMDP.
+
+**G1** (mean level-posterior TV against exact; worst in parentheses):
+
+| Level | N | Systematic (old) | Optimal (new) |
+|---|---|---|---|
+| 2 | 16 | 0.033 (0.17) | 0.0012 (0.059) |
+| 2 | 32 | 0.0075 (0.031) | 0.0007 (0.031) |
+| 3 | 16 | 0.088 (0.55) | 0.013 (0.079) |
+| 3 | 32 | 0.051 (0.27) | 0.0032 (0.037) |
+| 3 | 64 | 0.012 (0.061) | 0.0018 (0.044) |
+
+**G2 and G3** (CPU is i's per episode, or per decision):
+
+| Arm, N | G2 zero-probability predictions | G2 log-loss | G2 CPU | G3 optimal, k = 2 | G3 optimal-action Q error, k = 2 / 4 | G3 CPU, k = 2 / 4 |
+|---|---|---|---|---|---|---|
+| new, 16 | 3 | 0.69 | 82 s | 184/190 (max loss 0.61) | 0.15 / 0.25 | 5.3 / 6.1 s |
+| old, 32 | 8 | 1.38 | 146 s | 184/190 (max loss 0.11) | 0.24 / 0.23 | 8.0 / 9.2 s |
+| new, 32 | 2 | 0.60 | 414 s | 190/190 | 0.024 / 0.082 | 10.4 / 18.1 s |
+| old, 64 | 0 | 0.34 | 235 s | — | — | — |
+| new, 64 | 0 | 0.35 | 1,244 s | — | — | — |
+
+(G3 at k = 4 was 190/190 in every arm.)
+
+- **Per atom, optimal resampling is far more accurate:** belief error is 6–160× lower at equal N, Q error 3–10× lower, and at N = 32 the six k = 2 misses disappear.
+- **Per CPU-second it does not dominate.** Holding N distinct atoms costs 1.3–5× more at equal N. At the low end it wins: new N = 16 is cheaper than old N = 32 and has fewer misses. At the operating point used for episodes it loses: old N = 64 has no misses at 235 s, against 414 s and 2 misses for new N = 32. Merged systematic draws act as an adaptive support, small when the belief is concentrated.
+- **Decision:** not adopted, under the rule that a redesign must win at matched cost. The implementation and its tests are on branch `resampling/optimal-fc`. A fair next comparison would match the number of distinct atoms rather than N, or adapt N to the belief's spread. Episodes keep the systematic compressor at N = 64 (12.27, and the H3 study now running).
