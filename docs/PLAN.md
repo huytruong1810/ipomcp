@@ -1,7 +1,11 @@
 # Plan: the bounded-belief phase (October 9, 2026)
 
 ## Status (October 9, 2026)
-Started. Q0 done.
+Q0 done. Q1 done (12.30): 17 of 19 misses are young, light branches lost at the last one or two compressions
+(14 below 1/N); 2 H3 misses were a nested-budget mismatch (i modeled j's model of i with 100 simulations, the
+real j uses 400), and those 2 trials carry almost all of 12.29's deficit. So Q4 must match j's configuration.
+Q2 done on branch `bounded-belief/compressors` (coverage arms set to eps 0.1 and 0.03 from Q1's profiles).
+Q3 pilot running (`results/q3_compressor_gate_20261009`; arms sys64, sys96, opt48, opt64, cov10, cov03).
 
 ## Context
 The coordination-Tiger phase (below; RESULTS 12.22–12.29) found the binding constraint at level 3: **the bounded

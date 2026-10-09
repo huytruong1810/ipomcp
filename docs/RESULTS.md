@@ -1225,3 +1225,45 @@ Control (published Tiger, same 12 steps): 0 of 12 survive (smallest Holm p = 0.1
 - **What limits level 3 here is the bounded belief, not reasoning depth.** A level-3 belief holds j-models that carry their own beliefs about i, so 64 atoms still drop a realized branch in 1 trial in 10. When it holds, level 3 earns what level 2 earns.
 - **The screen's 2.10 per decision does not appear in episodes.** That value assumed exact beliefs at point priors. In play, beliefs spread over many histories, and the decisions where a third level differs are rare.
 - **Next:** a bounded belief that never drops the realized branch at level 3 at acceptable cost. The optimal-resampling candidate (12.28, branch `resampling/optimal-fc`) is far more accurate per atom; an adaptive N or a matched-distinct-atom comparison is the open design question. A larger H3 study is not worth its CPU (about 2.3 CPU-h per level-3 episode) until then.
+
+**Correction (12.30):** two of the five "compression" trials (t016, t018) were not compression misses but a nested-budget mismatch in the L3 condition, and they carry almost all of the deficit. The bullets above are revised there.
+
+### 12.30 Why bounded beliefs lose the realized branch, and a correction to 12.29 (October 9, 2026)
+
+**Design** (`results/q1_miss_diagnosis_20261009/replay.py`, `budget_check.py`). For every trial with a zero-probability prediction (i gave j's actual action probability 0), i's real belief updates were replayed along the logged (a_i, o_i). The filter and the modeled policies are pure functions of their arguments, so the replay is exact: it matched the logged support size at every step and the logged prediction at every miss. For a miss at step t, the atoms dropped at each earlier compression were grouped by j-model, propagated exactly through the remaining logged updates, and tested for predicting j's actual action. The first such compression is where the realized branch was lost. Trials: 12.26's N = 32 probe (3 trials, 8 misses), 12.27's N = 64 probe (5 trials, 5 misses), and 12.29's five H3 trials (6 misses).
+
+**Where and why** (17 of 19 misses):
+
+| Run | Misses | Lost at | Branch mass × N: range (median) | At least 1/N | Atoms in the branch | Mass dropped by that compression |
+|---|---|---|---|---|---|---|
+| N = 32 probe | 8 | last or second-to-last compression | 0.04–1.6 (0.22) | 2 | 1–18 | 0.13–0.43 |
+| N = 64 probe | 5 | last or second-to-last | 0.17–1.25 (0.39) | 1 | 1–32 | 0.17–0.41 |
+| H3, N = 64 | 4 | last or second-to-last | 0.03–0.37 (0.23) | 0 | 2–26 | 0.09–0.39 |
+
+- **A lost branch is young and light.** It is lost at the last or second-to-last compression before the miss, typically right after j hears something unlikely. In 14 of 17 cases its mass is below 1/N, so any compressor bounded by N atoms loses it with some probability. In 3 cases it weighs 1.2–1.6/N but is spread over 16–32 atoms, each below 1/N. Systematic draws can then drop all of them.
+- **Systematic compression discards a quarter of the belief per update.** At N = 64 it keeps a median of 47 distinct atoms of a 246-atom posterior and drops 25% of the mass (27% at N = 32). Most dropped mass is harmless: other atoms predict the same opponent actions. That explains why misses are rare (about 5% of trials) despite the large dropped mass.
+- **Optimal resampling at the same N would usually still lose them.** Its expected number of surviving branch atoms is a median of about 0.3 at N, and 1.3–2.4 at 2N. Removing most misses therefore needs roughly twice the distinct atoms, which is about twice the CPU at these sizes.
+- **The coverage target needs more atoms than N.** To hold the expected dropped mass to ε, optimal resampling needs a median of 90, 129 and 169 atoms at ε = 0.1, 0.03 and 0.01, on posteriors produced by an N = 64 belief. The count grows further once more atoms are kept.
+
+**Two H3 misses were not compression.** In trials 16 and 18, the miss is at step 3 and no compressed-away atom predicts j's action. With i's uncompressed posterior, j's action (OR, preferred by j's own search by a gap of 5.5 and 17.0) still has probability 0.
+
+- **Cause:** the L3 condition modeled j with the stack `6400s/100`, i.e. j's model of i at level 1 solved with 100 simulations. The real j uses 400 (`modeled = 400`).
+- **Check:** replaying with i's stack set to `6400s/400` gives OR probability 0.37 in both trials; the original stack reproduces the logged prediction exactly.
+- **Why it matters:** with joint payoffs, j's choice depends on what it predicts i will do. So the "correct model" of 12.29 was correct in prior but not in j's computation.
+
+**12.29's deficit, split by cause** (L3 − L2, i's 20-step reward):
+
+| Trials | n | Mean difference |
+|---|---|---|
+| Nested-budget mismatch (t016, t018) | 2 | **−234.5** (−211, −258) |
+| Compression miss (t004, t014, t017) | 3 | −12.7 (0, −79, +41) |
+| No miss | 45 | +0.6 |
+
+- **Revised reading of 12.29:**
+  - At H3, almost the whole deficit (−469 of −481 summed over 50 trials) comes from the two trials where i's model of j computed differently from the real j.
+  - Compression misses cost little reward there.
+  - The bounded belief remains the cause of prediction misses: 17 of 19, and all of them at H2.
+- **A correct model must match the opponent's computational frame,** that is, its nested budgets, not only its prior. Matched budgets still leave seed noise, since search trees differ, but they remove a systematic difference.
+- **Consequences for the plan:**
+  - Q3 (the compressor gate at H2, where the stacks match: 100 at every level for both agents) is unaffected.
+  - An H3 re-run (Q4) should use a model of j that matches j's own configuration, whatever the compressor decision.
