@@ -1202,3 +1202,26 @@ Control (published Tiger, same 12 steps): 0 of 12 survive (smallest Holm p = 0.1
 - **Per atom, optimal resampling is far more accurate:** belief error is 6–160× lower at equal N, Q error 3–10× lower, and at N = 32 the six k = 2 misses disappear.
 - **Per CPU-second it does not dominate.** Holding N distinct atoms costs 1.3–5× more at equal N. At the low end it wins: new N = 16 is cheaper than old N = 32 and has fewer misses. At the operating point used for episodes it loses: old N = 64 has no misses at 235 s, against 414 s and 2 misses for new N = 32. Merged systematic draws act as an adaptive support, small when the belief is concentrated.
 - **Decision:** not adopted, under the rule that a redesign must win at matched cost. The implementation and its tests are on branch `resampling/optimal-fc`. A fair next comparison would match the number of distinct atoms rather than N, or adapt N to the belief's spread. Episodes keep the systematic compressor at N = 64 (12.27, and the H3 study now running).
+
+### 12.29 Does a third level pay at horizon 3? (October 9, 2026)
+
+**Design** (`results/p7_h3_depth_20261008/h3_depth.py`, `analyze.py`; fixed before the run): coordination Tiger, both agents at H3, root 1,000 simulations, compressed beliefs N = 64 (systematic, 12.28), j at level 2 (uniform prior over i at levels 0–1, modeled `400`).
+- **L3:** i at level 3 with all prior on j at level 2 and j's true nested prior: a correct model (modeled `6400s/100`).
+- **L2:** i at level 2, uniform prior over levels 0–1 (modeled `400`).
+- Same trial seeds, so the two conditions are paired.
+- **Kill criterion:** the first 8 level-3 episodes took a median 138 CPU-min, above 3× 12.18's 32. So n was cut to 50 as fixed in advance (`KILL_CRITERION.txt`). Level-2 episodes: 0.8 CPU-min.
+
+**Primary endpoint** (i's 20-step reward, L3 − L2, paired t-test, n = 50): **−9.6 [−26.8, 4.2], p = 0.24.** No gain from a third level.
+
+| Measure | L3 | L2 | Difference [95%] | p |
+|---|---|---|---|---|
+| i's reward | 103.2 | 112.8 | −9.6 [−26.8, 4.2] | 0.24 |
+| j's reward | 102.9 | 112.3 | −9.4 [−20.7, 0.2] | 0.09 |
+| i's log-loss of j | 0.51 | 0.45 | +0.06 [−0.09, 0.23] | 0.50 |
+| Trials with a zero-probability prediction | 10% | 0% | | |
+
+**Exploratory (not fixed in advance):** the whole deficit sits in the 5 trials where level 3's belief dropped the realized branch. There the difference averages −101 (a tiger hit or a lost coordination). In the other 45 trials it averages +0.6.
+
+- **What limits level 3 here is the bounded belief, not reasoning depth.** A level-3 belief holds j-models that carry their own beliefs about i, so 64 atoms still drop a realized branch in 1 trial in 10. When it holds, level 3 earns what level 2 earns.
+- **The screen's 2.10 per decision does not appear in episodes.** That value assumed exact beliefs at point priors. In play, beliefs spread over many histories, and the decisions where a third level differs are rare.
+- **Next:** a bounded belief that never drops the realized branch at level 3 at acceptable cost. The optimal-resampling candidate (12.28, branch `resampling/optimal-fc`) is far more accurate per atom; an adaptive N or a matched-distinct-atom comparison is the open design question. A larger H3 study is not worth its CPU (about 2.3 CPU-h per level-3 episode) until then.
