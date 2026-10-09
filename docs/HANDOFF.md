@@ -5,41 +5,49 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 9, 2026. Claude is the sole owner of `main`; there are no other agents. The reviewers saw the episode-study page on October 7; since then the "coordination Tiger" phase (PLAN.md, top) is complete: RESULTS.md 12.22–12.29.
+Last updated October 9, 2026 (evening). Claude is the sole owner of `main`; there are no other agents. The reviewers saw the episode-study page on October 7; since then the "coordination Tiger" phase is complete (RESULTS.md 12.22–12.29) and the "bounded-belief" phase (PLAN.md, top) has run Q0–Q3 (12.30–12.31).
 
 ## 0. Start here (fresh agent)
 
 - **State.**
-  - `main` is clean at the last HANDOFF commit; 309 tests pass in about 80 s; `ruff check` and `ruff format --check` are clean.
-  - Nothing is running and nothing has been pushed (`main` is about 120 commits ahead of `origin/main`).
-  - Branch `resampling/optimal-fc` holds an A/B candidate that was **not** adopted (12.28): optimal resampling in the compressed filter, with 5 tests. Do not merge it without a new gate.
+  - `main` is clean at the last HANDOFF commit; 311 tests pass in about 80 s; `ruff check` and `ruff format --check` are clean.
+  - Nothing is running and nothing has been pushed (`main` is about 125 commits ahead of `origin/main`).
+  - Branches not adopted (do not merge without a new gate): `resampling/optimal-fc` (12.28) and `bounded-belief/compressors` (12.31: systematic/optimal/coverage compressor strategies as bank filters, the drivers accepting every filter name, tests; superset of the first). Its worktree is `../ipomcp-q2` (remove with `git worktree remove ../ipomcp-q2` when no longer needed).
 - **Mandate** (Section 1): rigorous, gated progress on the three contributions; redesign over scaling; A/B gates with paired statistics; fix the analysis before the run. The user wants autonomy: take the recommended option, say it in one line, keep going. Ask only for decisions that are genuinely theirs (the user approved the H3 study on October 8 when asked).
 - **Before running anything:**
   - Read Section 6 (do not repeat). Two new rows matter most: the **snapshot layout** (`mkdir -p <run>/src && cp -r src/ipomdp <run>/src/`, then check `PYTHONPATH=<run>/src python -c 'import ipomdp; print(ipomdp.__file__)'` prints the snapshot path) and **memory** (level-3/4 episode workers grow to 1–2 GB each; 16 such workers nearly exhausted the 23 GB machine).
   - The machine is shared: `~/projects/jepa_ipomdp` sometimes runs multi-core jobs using up to about 12 GB. Never touch its processes. Check `free -g` before sizing workers.
   - A memory watchdog helped: a loop that kills the youngest worker of a named run when `MemAvailable` falls below 1.5 GB (scripts were in the session scratchpad, not kept; rewrite as needed). Workers that write their own CSVs survive their parent being stopped by PID.
   - Compare CPU only within paired, same-process runs.
-- **Results** go in a new dated folder under `results/` with the script inside (the run date in the name). Numbers go into `docs/RESULTS.md`; **the next free section is 12.30**. When results land, update this file, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.2).
+- **Results** go in a new dated folder under `results/` with the script inside (the run date in the name). Numbers go into `docs/RESULTS.md`; **the next free section is 12.32**. When results land, update this file, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.2).
 - **First task for the new session:** write the next plan, prepended to PLAN.md as a new phase, from 0.1 below. Order it by value per CPU-hour, then execute.
 
 ### 0.1 Next steps (input to the next plan)
 
-What the October 7–9 phase established:
-- With joint payoffs (the coordination Tiger), **modeling the opponent pays in reward**: level 2 beats level 1 by 27–30 over 20 steps against a level-1 opponent (Holm p < 0.001); the published Tiger shows nothing (12.27).
-- **A third level does not pay in episodes**, at H2 (+5 to +7, not significant, 12.27) or H3 (−9.6 [−26.8, 4.2], n = 50, 12.29), although the exact screen values it (2.10 per decision at H3, 12.22).
-- **The binding constraint at level 3 is the bounded belief.** Compression to N atoms drops light branches of the opponent's real history; the agent then gives the opponent's actual action probability 0. At H3, level 3's whole deficit sat in the 5 of 50 trials with such a miss (−101 each; +0.6 elsewhere; exploratory). The old gate (level-posterior TV, 12.16) cannot see this.
+What the bounded-belief phase (October 9, PLAN.md top) established:
+- **Why misses happen (12.30).** Exact replays of all 19 zero-probability predictions: 17 are compression losses
+  of a young, light branch at the last one or two compressions (14 below 1/N; systematic compression drops about a
+  quarter of the mass per update, mostly harmless). **2 (both at H3) were a nested-budget mismatch:** i's "correct"
+  model of j solved j's model of i with 100 simulations, the real j uses 400. Those 2 trials carry −469 of 12.29's
+  −481 summed deficit; the 3 compression-miss trials average −12.7, the other 45 +0.6.
+- **No better compressor at acceptable cost (12.31).** Optimal resampling costs about 2× per distinct atom (light
+  atoms are distinct j-models, each solved); coverage-ε either fails G1 (ε = 0.1) or costs > 10× (ε = 0.03).
+  Episodes keep systematic N = 64. The miss metric is now standard: `analysis.metrics.prediction_misses`.
 
 Recommended order:
-1. **A bounded belief that keeps the realized branch at level 3** (contributions 1 and 3). Options, cheapest first:
-   - compare the systematic and optimal compressors at matched **distinct-atom** counts, not matched N (12.28 showed per-atom accuracy strongly favors optimal resampling, per-N CPU favors systematic);
-   - adapt N to the belief: for example optimal resampling with N chosen to keep a coverage target (tail mass dropped ≤ ε);
-   - make the zero-probability rate a standard metric (`analysis.metrics`) and part of the belief gate, next to level TV.
-
-   Gate with 12.28's G1–G3 (`results/p8_resampling_gate_20261008`) plus the level-3 zero-probability rate on the 12.29 seeds; G2 episodes at H2 cost 1.5–7 CPU-min each.
-2. **If (1) removes level-3 misses at acceptable cost,** re-run the H3 depth test (`results/p7_h3_depth_20261008/h3_depth.py`, about 2.3 CPU-h per level-3 episode at N = 64), with the pre-registered endpoint unchanged.
-3. **Root adaptive budgets** (contribution 1): 12.24 shows that at L2 H4, 22% of the remaining search error is deeper greedy choices and 9% rollouts, which chance scoring cannot fix.
-4. **Wumpus beyond 3 beliefs** (HANDOFF 0.6 item 3) and **level 4 on the coordination Tiger** (about 7× N = 32's cost per step at N = 64): deferred.
-5. Still the user's call, not asked: a PAC-style certification standard for L3 H4 (12.13), and housekeeping (legacy `results/`, stale branches; Section 1).
+1. **H3 depth test with a matched model of j** (contribution 3). 12.29's null was driven by the mismatch. Rerun
+   `results/p7_h3_depth_20261008/h3_depth.py` with the L3 condition's `modeled` set to match the real j
+   (`1000/400`: j-L2 as the real j's 1,000-simulation search, its model of i at 400; check first that this
+   reproduces j's logged actions on a few steps), the endpoint unchanged, n = 50 paired, about 115 CPU-h (level-3
+   episodes about 2.3 CPU-h). Report misses with `prediction_misses`. Not launched: it is the phase's largest
+   CPU item, so confirm the machine is free.
+2. **Root adaptive budgets** (contribution 1): 12.24 shows that at L2 H4, 22% of the remaining search error is
+   deeper greedy choices and 9% rollouts, which chance scoring cannot fix.
+3. **Cheaper nested solves per distinct j-model** would make the larger supports of 12.31 affordable (the cost
+   driver there); only if (1) shows compression misses matter for reward.
+4. **Wumpus beyond 3 beliefs** and **level 4 on the coordination Tiger**: deferred.
+5. Still the user's call, not asked: a PAC-style certification standard for L3 H4 (12.13), and housekeeping
+   (legacy `results/`, stale branches, the `../ipomcp-q2` worktree; Section 1).
 
 ### 0.2 What happened October 7–9 (PLAN.md, "October 7 evening" phase)
 
@@ -476,6 +484,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Bounded beliefs at N = 32 for level ≥ 3 episodes (October 7) | Dropped the opponent's realized history in up to 20% of trials; the agent then predicted the real action with probability 0, which reversed level-3 conclusions (12.25 → 12.27) | N = 64, and check the zero-probability rate of every bounded-belief run |
 | Qualifying bounded beliefs by level-posterior TV alone (12.16) | Blind to a dropped light branch (mass about 0.05 moves TV little but removes what happened) | Also measure the probability given to realized opponent actions |
 | Comparing compressors at equal N (12.28) | The systematic compressor keeps far fewer than N distinct atoms, so equal N is not equal cost | Compare at matched CPU or matched distinct atoms |
+| A "correct model" of the opponent with a different nested budget (12.29: i modeled j's model of i with 100 simulations; the real j used 400) | i gave j's real action probability 0 at step 3 in 2 of 50 trials, costing −211 and −258; the whole H3 deficit | Match the opponent's whole configuration (budgets too), and check on logged steps that the model reproduces its actions (12.30) |
+| Optimal resampling or coverage-ε compressors for episodes (12.31) | 1.7–3.8× (coverage 0.03: > 10×) the CPU of systematic N = 64; light kept atoms are distinct j-models, each solved; coverage 0.1 fails G1 (level TV up to 0.99) | Systematic N = 64; report `prediction_misses` |
 | 16 workers of level-4 episodes on the shared machine (October 7) | Workers grew to 1–1.5 GB each; available memory fell to 4 GB | 8 workers for level ≥ 3 episodes, plus a memory watchdog |
 
 ## 7. Merge record

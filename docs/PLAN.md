@@ -4,8 +4,12 @@
 Q0 done. Q1 done (12.30): 17 of 19 misses are young, light branches lost at the last one or two compressions
 (14 below 1/N); 2 H3 misses were a nested-budget mismatch (i modeled j's model of i with 100 simulations, the
 real j uses 400), and those 2 trials carry almost all of 12.29's deficit. So Q4 must match j's configuration.
-Q2 done on branch `bounded-belief/compressors` (coverage arms set to eps 0.1 and 0.03 from Q1's profiles).
-Q3 pilot running (`results/q3_compressor_gate_20261009`; arms sys64, sys96, opt48, opt64, cov10, cov03).
+Q2 done on branch `bounded-belief/compressors`; only the miss metric (`analysis.metrics.predictions`,
+`prediction_misses`) is on `main`. Q3 killed (12.31): every candidate costs 1.7-3.8x the control or fails G1
+(coverage 0.1), so episodes keep systematic N = 64. Q4 as written (conditional on Q3) is void.
+**Next (recommended, not launched):** Q4' = the H3 depth test with i's model of j matching j's own configuration
+(stack `1000/400`: j-L2 as a 1,000-simulation search, its model of i at 400), endpoint as 12.29, about 115 CPU-h for
+n = 50; or Q5 (root adaptive budgets). See HANDOFF 0.1.
 
 ## Context
 The coordination-Tiger phase (below; RESULTS 12.22–12.29) found the binding constraint at level 3: **the bounded
