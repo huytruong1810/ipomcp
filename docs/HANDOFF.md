@@ -18,12 +18,15 @@ The October 7 (evening) phase is in PLAN.md (top). Done so far:
 - **Correct-prior check** (`results/p4b_correct_prior_20261007`): level 3 with a correct prior did not beat level 2 at N = 32, but predicted j *worse*. Diagnosis (**12.26**): N = 32 compression drops the opponent's realized branch (zero-probability predictions in 3–20% of trials above level 1). N = 64 removes it in a 10-trial probe; N = 128 adds nothing at 4.3× the CPU.
 - **N = 64 reruns, done (12.27):** grid levels 1–3 (`results/p4c_joint_level_grid_n64_20261007`) and the correct-prior check (`results/p4b_correct_prior_20261007/trials_n64`), n = 100, same seeds. Level 1 → 2 gains 27–30 against a level-1 opponent and about 15 against level 3 (Holm p ≤ 0.03); level 3 predicts best (log-loss 0.41 vs 0.50) but its reward gain at H2 is +5 to +7, none surviving correction. Compression misses fell to 0–6% of trials per cell.
 - **P6 done:** reviewer page republished with a "coordination Tiger" section (version 18, https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB; generator `results/w4_report_20261007`, now reading `p4c` and `p2`); Claude Doc report has a coordination paragraph, a bounded-belief caveat, and the error-attribution row marked measured.
-- **Nothing is running.**
+- **October 8–9 (user approved the H3 study):**
+  - **Optimal resampling A/B (12.28):** Fearnhead–Clifford compression, 6–160× lower belief error per atom, but 1.3–5× CPU at equal N; no win at matched CPU at the operating point (old N = 64). Not adopted; on branch `resampling/optimal-fc` (code + 5 tests). Gate data: `results/p8_resampling_gate_20261008`.
+  - **H3 depth study (12.29):** `results/p7_h3_depth_20261008`, n = 50 (kill criterion: level-3 episodes took 138 CPU-min, > 3× 32). Level 3 with a correct model vs level 2: −9.6 [−26.8, 4.2], p = 0.24. Exploratory: the deficit is the 5 trials where level 3's N = 64 belief dropped the realized branch (−101 each); +0.6 in the other 45. Its first launch ran on live code (snapshot layout bug, Section 6) and was discarded; 5 quarantined episodes in `trials_quarantine/`.
+  - Reviewer page version 19 (H3 paragraph, data-driven from `p7…/h3_summary.json`); Claude Doc coordination paragraph updated.
+- **Nothing is running.** `main` is clean; branch `resampling/optimal-fc` holds the unadopted compressor.
 - **Next, in order of value per CPU-hour:**
-  1. **Belief gate redesign** (contribution 1): the 12.16 gate missed dropped branches. Add a gate on the probability a bounded belief gives to realized opponent actions (zero-probability rate), and consider a compression that keeps every opponent-observation branch above a mass floor. Cheap to test on the existing trial seeds.
-  2. **Depth at H3** (contribution 3): level 3 vs level 2 on the coordination Tiger at H3, N = 64, where the screen puts the value of a third level (2.10). About 100 CPU-h for n = 100 in two conditions; PLAN's gate for it (an H2 effect against j at level 2) was not met (Holm p = 0.10), so it needs the user's call or a cheaper pilot first.
-  3. Level 4 on the coordination Tiger at N = 64 (about 7× N = 32 per step; the N = 32 cells reached n = 14–15 and are not reported).
-  4. HANDOFF 0.2 items 3–4 (Wumpus beyond 3 beliefs; root adaptive budgets, which 12.24 shows would act on the 22% deeper-choice error at H4).
+  1. **Bounded belief that keeps the realized branch at level 3** (contributions 1, 3): the binding constraint in 12.26–12.29. Compare compressors at matched *distinct-atom* counts, or adapt N to the belief's spread (for example, optimal resampling with N set by a coverage target); gate on G1–G3 of 12.28 plus the level-3 zero-probability rate. Cheap: G2 episodes take 1.5–7 CPU-min at H2.
+  2. Then, if a compressor removes level-3 misses at acceptable cost, re-run the H3 depth test (about 2.3 CPU-h per level-3 episode at N = 64).
+  3. HANDOFF 0.2 items 3–4 (Wumpus beyond 3 beliefs; root adaptive budgets, which 12.24 shows would act on the 22% deeper-choice error at H4). Level 4 on the coordination Tiger stays deferred.
 
 ## 0. Start here (fresh agent)
 
