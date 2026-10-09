@@ -1267,3 +1267,31 @@ Control (published Tiger, same 12 steps): 0 of 12 survive (smallest Holm p = 0.1
 - **Consequences for the plan:**
   - Q3 (the compressor gate at H2, where the stacks match: 100 at every level for both agents) is unaffected.
   - An H3 re-run (Q4) should use a model of j that matches j's own configuration, whatever the compressor decision.
+
+### 12.31 Compressor gate: no candidate keeps the realized branch at acceptable cost (October 9, 2026)
+
+**Design** (`results/q3_compressor_gate_20261009`: `gate.py`, `analyze.py`, `pilot_table.txt`, `g1/`; source branch `bounded-belief/compressors`). Condition: the 12.26 probe (level-3 i with a correct prior against the grid's level-2 j, coordination Tiger, H2, root and modeled 100 simulations, 20 steps). Only i's compressor changes, and j stays systematic at N = 64. The control arm reproduced 12.27's trials exactly (7/7). Arms:
+- systematic at N = 64 (control) and N = 96;
+- optimal resampling at N = 48 (the control keeps about 41 distinct atoms, so this matches distinct atoms) and N = 64;
+- coverage (optimal resampling to the fewest atoms with expected dropped mass ≤ ε, capped at 256) at ε = 0.1 and 0.03.
+
+Kill criterion, fixed before the run: no pilot arm with fewer misses at ≤ 1.2× the control's CPU.
+
+**Pilot cost** (i's CPU per episode, paired by seed; stopped at n = 6–7 per arm once the criterion was decided):
+
+| Arm | n | CPU / control: median (range) | Mean support | Trials with a miss | i's log-loss |
+|---|---|---|---|---|---|
+| systematic 64 (control) | 7 | 1 (409 s) | 41 | 0 | 0.38 |
+| systematic 96 | 7 | 2.08 (1.88–2.16) | 57 | 1 | 0.52 |
+| optimal 48 | 7 | 2.03 (1.94–2.36) | 45 | 0 | 0.40 |
+| optimal 64 | 6 | 3.77 (3.66–4.55) | 60 | 0 | 0.43 |
+| coverage ε = 0.1 | 7 | 1.69 (1.07–1.85) | 138 | 0 | 0.38 |
+| coverage ε = 0.03 | 0 | > 10 (two episodes at 67 CPU-min each, unfinished) | — | — | — |
+
+**G1, belief accuracy against exact beliefs** (`belief_qualification`, 12 histories × 5 steps, cap 256): coverage ε = 0.03 passes (level TV mean 0.023, worst 0.063 at level 3; systematic N = 64: 0.012 and 0.061, 12.28). **Coverage ε = 0.1 fails:** level TV mean 0.32, worst 0.99, and 45% of level-3 steps above 0.2. Dropping up to 10% of the mass at every nesting level and every step compounds.
+
+- **Decision: Q3 killed; episodes keep the systematic compressor at N = 64.** No candidate costs ≤ 1.2× the control. Optimal resampling costs about 2× per distinct atom, because the light atoms it keeps are distinct j-models, each needing its own nested solve. Coverage either fails G1 (ε = 0.1) or costs over 10× (ε = 0.03).
+- **Consistent with 12.30:** keeping the young, light branches needs roughly twice the distinct atoms, and nested solves per distinct j-model dominate the cost.
+- **Kept on `main`:** the miss metric (`analysis.metrics.predictions`, `prediction_misses`), so every bounded-belief run reports it.
+- **Kept on branch `bounded-belief/compressors` only:** the compressor strategies.
+- **Not tested, since 12.30 makes them low value:** reward effects (12.30 found compression misses cost little reward at H3) and the main run of 200 seeds.

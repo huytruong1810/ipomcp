@@ -1,7 +1,9 @@
 """Analysis layer: hierarchies with content and error, long-format metrics, figures."""
 
 import json
+import math
 
+import pandas as pd
 import pytest
 
 from ipomdp.analysis import figures, metrics
@@ -106,3 +108,29 @@ def test_episodes_record_hierarchies_and_both_agents_costs(episodes):
     first = json.loads(episodes["hierarchy_i"].iloc[0])
     assert first[0]["path"] == "i_L1" and first[0]["mass"] == 1.0
     assert {"planning_cpu_j", "update_cpu_j", "physical_i"} <= set(episodes.columns)
+
+
+def test_predictions_score_the_realized_opponent_action_and_flag_misses():
+    frame = pd.DataFrame(
+        {
+            "trial": [0, 0, 0, 1, 1],
+            "step": [0, 1, 2, 0, 1],
+            "prediction_i": [None, '{"L": 0.75, "OL": 0.25}', '{"L": 1.0}', None, '{"L": 0.5}'],
+            "action_j": [None, "OL", "OR", None, "L"],
+            "prediction_j": [None, None, None, None, None],
+            "action_i": [None, "L", "L", None, "L"],
+        }
+    )
+    table = metrics.predictions(frame)
+    assert list(table["realized_probability"]) == [0.25, 0.0, 0.5]
+    assert list(table["miss"]) == [False, True, False]
+    assert table["log_loss"].iloc[1] == pytest.approx(-math.log(metrics.MISS_PROBABILITY))
+    per_trial = metrics.prediction_misses(frame).set_index("trial")
+    assert per_trial.loc[0, "misses"] == 1 and per_trial.loc[0, "any_miss"]
+    assert not per_trial.loc[1, "any_miss"] and per_trial.loc[1, "min_realized_probability"] == 0.5
+
+
+def test_level_one_predicts_a_random_opponent_uniformly(episodes):
+    table = metrics.predictions(episodes)
+    assert set(table["agent"]) == {"i"} and not table["miss"].any()
+    assert table["log_loss"].to_numpy() == pytest.approx(math.log(3))
