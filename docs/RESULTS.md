@@ -1288,7 +1288,7 @@ Kill criterion, fixed before the run: no pilot arm with fewer misses at ≤ 1.2�
 | coverage ε = 0.1 | 7 | 1.69 (1.07–1.85) | 138 | 0 | 0.38 |
 | coverage ε = 0.03 | 0 | > 10 (two episodes at 67 CPU-min each, unfinished) | — | — | — |
 
-**G1, belief accuracy against exact beliefs** (`belief_qualification`, 12 histories × 5 steps, cap 256): coverage ε = 0.03 passes (level TV mean 0.023, worst 0.063 at level 3; systematic N = 64: 0.012 and 0.061, 12.28). **Coverage ε = 0.1 fails:** level TV mean 0.32, worst 0.99, and 45% of level-3 steps above 0.2. Dropping up to 10% of the mass at every nesting level and every step compounds.
+**G1, belief accuracy against exact beliefs** (`belief_qualification`, 12 histories × 5 steps, cap 256): coverage ε = 0.03 passes (level TV mean 0.023, worst 0.063 at level 3; systematic N = 64: 0.012 and 0.061, 12.28). **Coverage ε = 0.1 fails:** level TV mean 0.32, worst 0.99, and 45% of level-3 steps above 0.2. Dropping up to 10% of the mass at every nesting level and every step compounds. Fixed-size arms at level 3 (mean level TV, worst in parentheses): systematic 64 0.012 (0.061), 96 0.0070 (0.040); optimal 48 0.0015 (0.032), 64 0.0018 (0.044). So optimal 48 is 8× more accurate than the control at matched distinct atoms, at 2× its CPU.
 
 - **Decision: Q3 killed; episodes keep the systematic compressor at N = 64.** No candidate costs ≤ 1.2× the control. Optimal resampling costs about 2× per distinct atom, because the light atoms it keeps are distinct j-models, each needing its own nested solve. Coverage either fails G1 (ε = 0.1) or costs over 10× (ε = 0.03).
 - **Consistent with 12.30:** keeping the young, light branches needs roughly twice the distinct atoms, and nested solves per distinct j-model dominate the cost.
