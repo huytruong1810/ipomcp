@@ -427,6 +427,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | A panel run from a snapshot not laid out as `<run>/src/ipomdp` | The source lock found no files and refused to start | Snapshot to `<run>/src/ipomdp` and `PYTHONPATH=<run>/src` |
 | Restarting a runner to add workers | Discards the trials in progress (up to 30 CPU-min each) | Restart only when it saves over an hour |
 | `pgrep -f` inside a waiter loop (again, October 6) | Matched its own command line | Wait on a PID or an output file |
+| `cp -r src/ipomdp <run>/src/` when `<run>/src` does not exist yet (October 7–8) | cp copies the package's contents *as* `<run>/src`, so `PYTHONPATH=<run>/src` finds no `ipomdp` and silently imports the live editable install. Two runs used live code; one (the H3 study) was hit by a mid-run source change and was stopped | `mkdir -p <run>/src && cp -r src/ipomdp <run>/src/`, then check `python -c 'import ipomdp; print(ipomdp.__file__)'` under that PYTHONPATH before launching |
 
 ## 7. Merge record
 
