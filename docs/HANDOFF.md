@@ -11,7 +11,8 @@ Last updated October 9, 2026 (evening). Claude is the sole owner of `main`; ther
 
 - **State.**
   - `main` is clean at the last HANDOFF commit; 311 tests pass in about 80 s; `ruff check` and `ruff format --check` are clean.
-  - Nothing is running and nothing has been pushed (`main` is about 125 commits ahead of `origin/main`).
+  - **Running:** the matched-model H3 study (`results/q4_h3_matched_20261009`, 10 workers on a snapshot, memory watchdog from the session scratchpad; resumable: rerun `PYTHONPATH=results/q4_h3_matched_20261009/src .venv/bin/python results/q4_h3_matched_20261009/h3_matched.py 50 10`). Do not stop it without checking `KILL_CRITERION.txt`.
+  - Nothing has been pushed (`main` is about 125 commits ahead of `origin/main`).
   - Branches not adopted (do not merge without a new gate): `resampling/optimal-fc` (12.28) and `bounded-belief/compressors` (12.31: systematic/optimal/coverage compressor strategies as bank filters, the drivers accepting every filter name, tests; superset of the first). Its worktree is `../ipomcp-q2` (remove with `git worktree remove ../ipomcp-q2` when no longer needed).
 - **Mandate** (Section 1): rigorous, gated progress on the three contributions; redesign over scaling; A/B gates with paired statistics; fix the analysis before the run. The user wants autonomy: take the recommended option, say it in one line, keep going. Ask only for decisions that are genuinely theirs (the user approved the H3 study on October 8 when asked).
 - **Before running anything:**
@@ -39,8 +40,7 @@ Recommended order:
    `results/p7_h3_depth_20261008/h3_depth.py` with the L3 condition's `modeled` set to match the real j
    (`1000/400`: j-L2 as the real j's 1,000-simulation search, its model of i at 400; check first that this
    reproduces j's logged actions on a few steps), the endpoint unchanged, n = 50 paired, about 115 CPU-h (level-3
-   episodes about 2.3 CPU-h). Report misses with `prediction_misses`. Not launched: it is the phase's largest
-   CPU item, so confirm the machine is free.
+   episodes about 2.3 CPU-h). Report misses with `prediction_misses`. Launched October 9 after the user approved it.
 2. **Root adaptive budgets** (contribution 1): 12.24 shows that at L2 H4, 22% of the remaining search error is
    deeper greedy choices and 9% rollouts, which chance scoring cannot fix.
 3. **Cheaper nested solves per distinct j-model** would make the larger supports of 12.31 affordable (the cost

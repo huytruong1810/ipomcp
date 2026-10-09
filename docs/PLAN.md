@@ -7,7 +7,7 @@ real j uses 400), and those 2 trials carry almost all of 12.29's deficit. So Q4 
 Q2 done on branch `bounded-belief/compressors`; only the miss metric (`analysis.metrics.predictions`,
 `prediction_misses`) is on `main`. Q3 killed (12.31): every candidate costs 1.7-3.8x the control or fails G1
 (coverage 0.1), so episodes keep systematic N = 64. Q4 as written (conditional on Q3) is void.
-**Next (recommended, not launched):** Q4' = the H3 depth test with i's model of j matching j's own configuration
+**Running (approved by the user October 9):** Q4' (`results/q4_h3_matched_20261009`, launched October 9 evening; precheck: the stack gives j's real action 0.37 in both mismatch trials) = the H3 depth test with i's model of j matching j's own configuration
 (stack `1000/400`: j-L2 as a 1,000-simulation search, its model of i at 400), endpoint as 12.29, about 115 CPU-h for
 n = 50; or Q5 (root adaptive budgets). See HANDOFF 0.1.
 
