@@ -11,7 +11,7 @@ Last updated October 9, 2026 (evening). Claude is the sole owner of `main`; ther
 
 - **State.**
   - `main` is clean at the last HANDOFF commit; 311 tests pass in about 80 s; `ruff check` and `ruff format --check` are clean.
-  - **Running:** the matched-model H3 study (`results/q4_h3_matched_20261009`, 10 workers on a snapshot, memory watchdog from the session scratchpad; resumable: rerun `PYTHONPATH=results/q4_h3_matched_20261009/src .venv/bin/python results/q4_h3_matched_20261009/h3_matched.py 50 10`). Do not stop it without checking `KILL_CRITERION.txt`.
+  - **Running:** the matched-model H3 study (`results/q4_h3_matched_20261009`: one process per episode, 6 at a time, `xargs -P 6 -L 1 env PYTHONPATH=<run>/src .venv/bin/python <run>/h3_job.py < <run>/jobs.txt`; finished episodes are skipped on restart; `memory.log` every 5 min; memory watchdog from the session scratchpad). Do not stop it without checking `KILL_CRITERION.txt`.
   - Nothing has been pushed (`main` is about 125 commits ahead of `origin/main`).
   - Branches not adopted (do not merge without a new gate): `resampling/optimal-fc` (12.28) and `bounded-belief/compressors` (12.31: systematic/optimal/coverage compressor strategies as bank filters, the drivers accepting every filter name, tests; superset of the first). Its worktree is `../ipomcp-q2` (remove with `git worktree remove ../ipomcp-q2` when no longer needed).
 - **Mandate** (Section 1): rigorous, gated progress on the three contributions; redesign over scaling; A/B gates with paired statistics; fix the analysis before the run. The user wants autonomy: take the recommended option, say it in one line, keep going. Ask only for decisions that are genuinely theirs (the user approved the H3 study on October 8 when asked).
@@ -487,6 +487,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | A "correct model" of the opponent with a different nested budget (12.29: i modeled j's model of i with 100 simulations; the real j used 400) | i gave j's real action probability 0 at step 3 in 2 of 50 trials, costing −211 and −258; the whole H3 deficit | Match the opponent's whole configuration (budgets too), and check on logged steps that the model reproduces its actions (12.30) |
 | Optimal resampling or coverage-ε compressors for episodes (12.31) | 1.7–3.8× (coverage 0.03: > 10×) the CPU of systematic N = 64; light kept atoms are distinct j-models, each solved; coverage 0.1 fails G1 (level TV up to 0.99) | Systematic N = 64; report `prediction_misses` |
 | 16 workers of level-4 episodes on the shared machine (October 7) | Workers grew to 1–1.5 GB each; available memory fell to 4 GB | 8 workers for level ≥ 3 episodes, plus a memory watchdog |
+| A memory watchdog over a `ProcessPoolExecutor` run (October 9, matched H3 study, 10 workers) | One kill raised `BrokenProcessPool` and the whole run exited; nothing finished overnight | One process per episode (`xargs -P`, a job script that skips done files), so a kill loses one episode |
 
 ## 7. Merge record
 
