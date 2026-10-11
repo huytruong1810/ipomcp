@@ -5,13 +5,13 @@ Read this first. Then read, in order:
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
 
-Last updated October 9, 2026 (evening). Claude is the sole owner of `main`; there are no other agents. The reviewers saw the episode-study page on October 7; since then the "coordination Tiger" phase is complete (RESULTS.md 12.22–12.29) and the "bounded-belief" phase (PLAN.md, top) has run Q0–Q3 (12.30–12.31).
+Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. The reviewers saw the episode-study page on October 7; since then the "coordination Tiger" phase is complete (RESULTS.md 12.22–12.29) and the "bounded-belief" phase (PLAN.md, top) is complete (12.30–12.32).
 
 ## 0. Start here (fresh agent)
 
 - **State.**
   - `main` is clean at the last HANDOFF commit; 311 tests pass in about 80 s; `ruff check` and `ruff format --check` are clean.
-  - **Running:** the matched-model H3 study (`results/q4_h3_matched_20261009`: one process per episode, 6 at a time, `xargs -P 6 -L 1 env PYTHONPATH=<run>/src .venv/bin/python <run>/h3_job.py < <run>/jobs.txt`; finished episodes are skipped on restart; `memory.log` every 5 min; memory watchdog from the session scratchpad). Do not stop it without checking `KILL_CRITERION.txt`.
+  - Nothing is running. The matched-model H3 study finished October 11 (12.32; `results/q4_h3_matched_20261009`).
   - Nothing has been pushed (`main` is about 125 commits ahead of `origin/main`).
   - Branches not adopted (do not merge without a new gate): `resampling/optimal-fc` (12.28) and `bounded-belief/compressors` (12.31: systematic/optimal/coverage compressor strategies as bank filters, the drivers accepting every filter name, tests; superset of the first). Its worktree is `../ipomcp-q2` (remove with `git worktree remove ../ipomcp-q2` when no longer needed).
 - **Mandate** (Section 1): rigorous, gated progress on the three contributions; redesign over scaling; A/B gates with paired statistics; fix the analysis before the run. The user wants autonomy: take the recommended option, say it in one line, keep going. Ask only for decisions that are genuinely theirs (the user approved the H3 study on October 8 when asked).
@@ -20,7 +20,7 @@ Last updated October 9, 2026 (evening). Claude is the sole owner of `main`; ther
   - The machine is shared: `~/projects/jepa_ipomdp` sometimes runs multi-core jobs using up to about 12 GB. Never touch its processes. Check `free -g` before sizing workers.
   - A memory watchdog helped: a loop that kills the youngest worker of a named run when `MemAvailable` falls below 1.5 GB (scripts were in the session scratchpad, not kept; rewrite as needed). Workers that write their own CSVs survive their parent being stopped by PID.
   - Compare CPU only within paired, same-process runs.
-- **Results** go in a new dated folder under `results/` with the script inside (the run date in the name). Numbers go into `docs/RESULTS.md`; **the next free section is 12.32**. When results land, update this file, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.2).
+- **Results** go in a new dated folder under `results/` with the script inside (the run date in the name). Numbers go into `docs/RESULTS.md`; **the next free section is 12.33**. When results land, update this file, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.2).
 - **First task for the new session:** write the next plan, prepended to PLAN.md as a new phase, from 0.1 below. Order it by value per CPU-hour, then execute.
 
 ### 0.1 Next steps (input to the next plan)
@@ -35,12 +35,12 @@ What the bounded-belief phase (October 9, PLAN.md top) established:
   atoms are distinct j-models, each solved); coverage-ε either fails G1 (ε = 0.1) or costs > 10× (ε = 0.03).
   Episodes keep systematic N = 64. The miss metric is now standard: `analysis.metrics.prediction_misses`.
 
+- **A third level does not pay at H3 with a correct model (12.32):** L3 − L2 +0.8 [−6.7, 8.6], p = 0.84, n = 50
+  paired, i's model of j matched to j's configuration (`1000/400`); prediction loss 0.41 vs 0.45 (not significant).
+  Reviewer page version 20 and the Claude Doc report carry it.
+
 Recommended order:
-1. **H3 depth test with a matched model of j** (contribution 3). 12.29's null was driven by the mismatch. Rerun
-   `results/p7_h3_depth_20261008/h3_depth.py` with the L3 condition's `modeled` set to match the real j
-   (`1000/400`: j-L2 as the real j's 1,000-simulation search, its model of i at 400; check first that this
-   reproduces j's logged actions on a few steps), the endpoint unchanged, n = 50 paired, about 115 CPU-h (level-3
-   episodes about 2.3 CPU-h). Report misses with `prediction_misses`. Launched October 9 after the user approved it.
+1. (done) H3 depth test with a matched model of j (12.32).
 2. **Root adaptive budgets** (contribution 1): 12.24 shows that at L2 H4, 22% of the remaining search error is
    deeper greedy choices and 9% rollouts, which chance scoring cannot fix.
 3. **Cheaper nested solves per distinct j-model** would make the larger supports of 12.31 affordable (the cost
@@ -63,7 +63,7 @@ Recommended order:
 | Optimal resampling A/B | 6–160× lower belief error per atom, 1.3–5× CPU at equal N; no win at matched CPU; on branch `resampling/optimal-fc` | 12.28 |
 | H3 depth study | n = 50 (cut by kill criterion): level 3 with a correct model −9.6 [−26.8, 4.2] vs level 2; deficit in the 5 miss trials | 12.29 |
 
-**Reviewer page** (version 19): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB, with a "coordination Tiger" section (screen table, N = 64 grid heatmaps, one-level paired forest plot with the published control, H3 paragraph). Rebuild: `cd results/w4_report_20261007 && ../../.venv/bin/python analyze.py && ../../.venv/bin/python build_report.py`, then republish `report.html` with the Artifact tool, passing that `url` (read it first from a new session). It reads `p2_payoff_screen_20261007`, `p4c_joint_level_grid_n64_20261007` (grid_data.json, endpoint.csv, endpoint_control.csv) and `p7_h3_depth_20261008/h3_summary.json`. All page text is generated; edit `template.html` and `build_report.py` only. `*_20261007.bak` files there are the pre-phase versions.
+**Reviewer page** (version 20, October 11: H3 paragraph from `q4_h3_matched_20261009`): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB, with a "coordination Tiger" section (screen table, N = 64 grid heatmaps, one-level paired forest plot with the published control, H3 paragraph). Rebuild: `cd results/w4_report_20261007 && ../../.venv/bin/python analyze.py && ../../.venv/bin/python build_report.py`, then republish `report.html` with the Artifact tool, passing that `url` (read it first from a new session). It reads `p2_payoff_screen_20261007`, `p4c_joint_level_grid_n64_20261007` (grid_data.json, endpoint.csv, endpoint_control.csv) and `p7_h3_depth_20261008/h3_summary.json`. All page text is generated; edit `template.html` and `build_report.py` only. `*_20261007.bak` files there are the pre-phase versions.
 
 **Claude Doc report** (Section 4): the "Coordination Tiger" and "Bounded-belief caveat" paragraphs after "Level grid"; the error-attribution row of "Not yet measured" is now measured.
 
