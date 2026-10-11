@@ -1295,3 +1295,28 @@ Kill criterion, fixed before the run: no pilot arm with fewer misses at ≤ 1.2�
 - **Kept on `main`:** the miss metric (`analysis.metrics.predictions`, `prediction_misses`), so every bounded-belief run reports it.
 - **Kept on branch `bounded-belief/compressors` only:** the compressor strategies.
 - **Not tested, since 12.30 makes them low value:** reward effects (12.30 found compression misses cost little reward at H3) and the main run of 200 seeds.
+
+### 12.32 A third level at horizon 3 with a matched model of j: no gain, no loss (October 9–11, 2026)
+
+**Design** (`results/q4_h3_matched_20261009`: `h3_matched.py`, `h3_job.py`, `analyze.py`, `KILL_CRITERION.txt`; fixed before the run). The design is 12.29's, with one change: in the L3 condition, i models j exactly as j is configured. The stack is `1000/400`: j at level 2 as a 1,000-simulation depth-3 search, and its model of i at level 1 with 400 simulations. 12.29 used `6400s/100` (12.30). Only search and compression seeds differ from the real j. Other settings are unchanged: coordination Tiger, H3, root 1,000, compressed beliefs N = 64 (systematic, 12.31), trials 0–49 paired by seed, endpoint i's 20-step reward L3 − L2.
+- **Precheck:** with this stack, j's actual action in 12.29's two mismatch trials gets probability 0.37 instead of 0.
+- **Kill criterion:** the first 8 L3 episodes took a median 120 CPU-min (99–143), under the 414 threshold, so n stayed at 50.
+- **Reproducibility:** the L2 episodes reproduce 12.29's exactly (50/50).
+
+**Primary endpoint** (n = 50, paired t-test): **+0.8 [−6.7, 8.6], p = 0.84.**
+
+| Measure | L3, matched | L2 | Difference [95%] | p |
+|---|---|---|---|---|
+| i's reward | 113.6 | 112.8 | +0.8 [−6.7, 8.6] | 0.84 |
+| j's reward | 111.4 | 112.3 | −1.0 [−8.3, 5.6] | 0.79 |
+| i's log-loss of j | 0.41 | 0.45 | −0.04 [−0.13, 0.06] | 0.38 |
+| Trials with a prediction miss | 6% | 0% | | |
+| i's CPU per episode (median) | 114 min | 0.6 min | | |
+
+L3 matched vs 12.29's L3 on the same seeds: +10.4 [−2.0, 27.2], p = 0.19.
+
+- **12.29's deficit was the model mismatch.** With a matched model, the two mismatch trials go from −211 and −258 to 0 and +41, and the mean difference goes from −9.6 to +0.8.
+- **A third level still does not pay at H3.** The interval excludes a loss larger than 6.7 and a gain larger than 8.6 over 20 steps. The exact screen's 2.10 per decision (12.22) would add at most a few points per episode on the rare beliefs where level 3 decides differently, which is within that interval.
+- **Prediction is slightly better but not significant,** consistent with 12.27 at H2 (0.41–0.43 against 0.49–0.50 there).
+- **Compression misses remain rare and cheap.** Three L3 trials have a miss (two the same as in 12.29, plus trial 19). They average +3.7 against L2; the other 47 average +0.6.
+- **Contribution 3, as of now:** modeling the opponent pays (level 1 → 2, +27 to +30, 12.27). A third level predicts somewhat better but earns the same reward at H2 (12.27) and H3 (here), in a game where the exact value of the third level is small and rare.
