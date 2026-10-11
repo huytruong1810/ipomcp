@@ -1,55 +1,138 @@
 # Handoff
 
-Read this first. Then read, in order:
-- [RESULTS.md](RESULTS.md): every number below, with its n and its reference;
+Read this first (Section 0 is enough to start). Then, as needed:
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.32);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
-- [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
+- [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
+- [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. The reviewers saw the episode-study page on October 7; since then the "coordination Tiger" phase is complete (RESULTS.md 12.22–12.29) and the "bounded-belief" phase (PLAN.md, top) is complete (12.30–12.32).
+Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Two phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29) and bounded beliefs (12.30–12.32).
 
 ## 0. Start here (fresh agent)
 
-- **State.**
-  - `main` is clean at the last HANDOFF commit; 311 tests pass in about 80 s; `ruff check` and `ruff format --check` are clean.
-  - Nothing is running. The matched-model H3 study finished October 11 (12.32; `results/q4_h3_matched_20261009`).
-  - Nothing has been pushed (`main` is about 125 commits ahead of `origin/main`).
-  - Branches not adopted (do not merge without a new gate): `resampling/optimal-fc` (12.28) and `bounded-belief/compressors` (12.31: systematic/optimal/coverage compressor strategies as bank filters, the drivers accepting every filter name, tests; superset of the first). Its worktree is `../ipomcp-q2` (remove with `git worktree remove ../ipomcp-q2` when no longer needed).
-- **Mandate** (Section 1): rigorous, gated progress on the three contributions; redesign over scaling; A/B gates with paired statistics; fix the analysis before the run. The user wants autonomy: take the recommended option, say it in one line, keep going. Ask only for decisions that are genuinely theirs (the user approved the H3 study on October 8 when asked).
+### 0.0 State, rules and how to work
+
+- **Repository.**
+  - `main` is clean at the last HANDOFF commit. 311 tests pass in about 80 s (`.venv/bin/python -m pytest -q`), and `ruff check` and `ruff format --check` are clean.
+  - **Nothing is running.**
+  - Nothing has been pushed: `main` is about 130 commits ahead of `origin/main`. Do not push unless asked.
+  - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
+    - `resampling/optimal-fc` (12.28);
+    - `bounded-belief/compressors` (12.31): compressor strategies as bank filters, plus drivers that accept every filter name. It is a superset of the first, and its worktree is `../ipomcp-q2`.
+- **The user's mandate** (Section 1):
+  - rigorous, gated progress on the three contributions;
+  - redesign rather than scale up when returns diminish;
+  - A/B gates with paired statistics, the analysis fixed before the run;
+  - big-tech code quality, with no legacy shims.
+
+  The user wants autonomy: take the recommended option, state it in one line, and keep going. Ask only for decisions that are genuinely theirs. Examples: a run of over 100 CPU-h on the shared machine (they approved the October 9 H3 study when asked), deletions, and pushing.
+- **The user's report style:** chosen method only, interim n labeled as interim, and jargon defined.
 - **Before running anything:**
-  - Read Section 6 (do not repeat). Two new rows matter most: the **snapshot layout** (`mkdir -p <run>/src && cp -r src/ipomdp <run>/src/`, then check `PYTHONPATH=<run>/src python -c 'import ipomdp; print(ipomdp.__file__)'` prints the snapshot path) and **memory** (level-3/4 episode workers grow to 1–2 GB each; 16 such workers nearly exhausted the 23 GB machine).
-  - The machine is shared: `~/projects/jepa_ipomdp` sometimes runs multi-core jobs using up to about 12 GB. Never touch its processes. Check `free -g` before sizing workers.
-  - A memory watchdog helped: a loop that kills the youngest worker of a named run when `MemAvailable` falls below 1.5 GB (scripts were in the session scratchpad, not kept; rewrite as needed). Workers that write their own CSVs survive their parent being stopped by PID.
-  - Compare CPU only within paired, same-process runs.
-- **Results** go in a new dated folder under `results/` with the script inside (the run date in the name). Numbers go into `docs/RESULTS.md`; **the next free section is 12.33**. When results land, update this file, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.2).
-- **First task for the new session:** write the next plan, prepended to PLAN.md as a new phase, from 0.1 below. Order it by value per CPU-hour, then execute.
+  - **Read Section 6 (do not repeat).**
+  - **Snapshot every long run.** Run `mkdir -p <run>/src && cp -r src/ipomdp <run>/src/`, then check that `PYTHONPATH=<run>/src .venv/bin/python -c 'import ipomdp; print(ipomdp.__file__)'` prints the snapshot path. A wrong layout silently imports the live code.
+  - **One process per episode.** Use `xargs -P <k> -L 1 env PYTHONPATH=<run>/src .venv/bin/python <run>/job.py < jobs.txt`, with a job script that skips finished files. The template is `results/q4_h3_matched_20261009/h3_job.py`. Never use a `ProcessPoolExecutor` under a memory watchdog: one kill breaks the pool and ends the run (October 9 lost a night this way).
+  - **Memory.**
+    - Level-3 H3 episodes plateau at about 2 GB each; level-4 episodes take 1–2 GB.
+    - The machine has 23 GB, 24 cores, and is shared: `~/projects/jepa_ipomdp` runs jobs of up to about 12 GB. Never touch its processes.
+    - Check `free -g`, then size the workers: 6 level-3 H3 workers left about 10 GB free.
+    - `results/q4_h3_matched_20261009/watchdog.sh <pattern> <log>` kills the youngest matching process when `MemAvailable` falls below 1.5 GB.
+    - `memlog.sh <log>` logs memory every 5 minutes.
+  - **Processes.** Kill by PID only (`ps -eo pid,ppid,args`). Never use `pkill -f`. Never wait on `pgrep -f`: it matches its own command line. Wait on a PID or an output file instead.
+  - **CPU.** Compare CPU only within paired, same-run measurements.
+  - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
+- **Results.**
+  - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.33.**
+  - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
+  - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
+- **First task for the new session:** write the next phase from 0.2 into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Commit it, then execute.
 
-### 0.1 Next steps (input to the next plan)
+### 0.1 Where the science stands (October 11)
 
-What the bounded-belief phase (October 9, PLAN.md top) established:
-- **Why misses happen (12.30).** Exact replays of all 19 zero-probability predictions: 17 are compression losses
-  of a young, light branch at the last one or two compressions (14 below 1/N; systematic compression drops about a
-  quarter of the mass per update, mostly harmless). **2 (both at H3) were a nested-budget mismatch:** i's "correct"
-  model of j solved j's model of i with 100 simulations, the real j uses 400. Those 2 trials carry −469 of 12.29's
-  −481 summed deficit; the 3 compression-miss trials average −12.7, the other 45 +0.6.
-- **No better compressor at acceptable cost (12.31).** Optimal resampling costs about 2× per distinct atom (light
-  atoms are distinct j-models, each solved); coverage-ε either fails G1 (ε = 0.1) or costs > 10× (ε = 0.03).
-  Episodes keep systematic N = 64. The miss metric is now standard: `analysis.metrics.prediction_misses`.
+1. **Online solver (I-POMCP with bounded nested beliefs).**
+   - **Optimal wherever exact references exist:** L1 H1–H5, 220/220 at H5 (12.1); L2 H3–H4, 380/380 (12.3–12.4); L3 H3, 162/162 (12.7); L4 H2, 486/486 (12.23).
+   - **One open residual:** L3 H4, where 4/80 near-tie beliefs are wrong (gaps ≤ 0.03; 12.14).
+   - **Certified bounds:** every real decision carries per-action intervals that contain the exact Q of the searched model (12.17).
+   - **Beliefs:** the compressed filter (exact updates, systematic compression to N = 64; 12.31 found no better compressor at acceptable cost). The root budget is fixed at 1,000 simulations.
+2. **Benchmarks.** I-POMCP is 380/380 at L2 H3 and H4. IPF + RTS reaches 95–99.5% there and is 3–5× slower at H4 (12.20).
+3. **Interpretability and the value of depth.**
+   - **Modeling the opponent pays** on the coordination Tiger: level 1 → 2 gains 27–30 over 20 steps (Holm p < 0.001, 12.27). In the published Tiger it gains nothing, since payoffs depend only on one's own door.
+   - **A third level predicts slightly better but earns the same:** at H2, 12.27; at H3 with a model matched to the opponent's configuration, +0.8 [−6.7, 8.6], n = 50 (12.32). The exact screen agrees: a third level is worth little, and only on rare beliefs (12.22).
+   - **Episodes also show:** sunbursts, level grids (12.21, 12.27) and prediction-miss diagnostics (12.30).
+   - **Wumpus L1** is qualified on 3 distinct beliefs only (12.19). UAV has no oracle or panel path yet.
+   - **Equilibria:** a design note only (`docs/EQUILIBRIA.md`).
+- **Lessons that bind future designs:**
+  - **A "correct model" of an opponent must match its whole configuration,** budgets included (12.30).
+  - **Every bounded-belief run reports** `analysis.metrics.prediction_misses`.
+- **Reviewer-facing material:**
+  - **Reviewer page, version 20:** https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (private to the user). How to rebuild it is in 0.6.
+  - **Claude Doc report:** https://claude.ai/code/artifact/96fa514f-dc7c-477c-8f97-b31eb1b8fca7 (Section 4).
 
-- **A third level does not pay at H3 with a correct model (12.32):** L3 − L2 +0.8 [−6.7, 8.6], p = 0.84, n = 50
-  paired, i's model of j matched to j's configuration (`1000/400`); prediction loss 0.41 vs 0.45 (not significant).
-  Reviewer page version 20 and the Claude Doc report carry it.
+### 0.2 Next steps (input to the next plan)
 
-Recommended order:
-1. (done) H3 depth test with a matched model of j (12.32).
-2. **Root adaptive budgets** (contribution 1): 12.24 shows that at L2 H4, 22% of the remaining search error is
-   deeper greedy choices and 9% rollouts, which chance scoring cannot fix.
-3. **Cheaper nested solves per distinct j-model** would make the larger supports of 12.31 affordable (the cost
-   driver there); only if (1) shows compression misses matter for reward.
-4. **Wumpus beyond 3 beliefs** and **level 4 on the coordination Tiger**: deferred.
-5. Still the user's call, not asked: a PAC-style certification standard for L3 H4 (12.13), and housekeeping
-   (legacy `results/`, stale branches, the `../ipomcp-q2` worktree; Section 1).
+1. **Root adaptive budgets (contribution 1; recommended next).**
+   - **Why.** At L2 H4, the optimal action's search error is 0.164. Chance scoring cuts it only to 0.132, because 22% is deeper greedy choices and 9% is rollouts below the tree (12.24); scoring is exact only where two steps are left. The root budget does not change decisions (Section 3, row 5: the modeled budget decides correctness). So the target is **Q accuracy (error bounds) per CPU-second at real decisions**, and lower mean CPU on easy decisions.
+   - **Pieces that exist:**
+     - `planning.stopping`: one growing tree plus a pilot-calibrated test at the 1/n rate. It is used for modeled solves only (`PlannerConfig(modeled_stopping=...)`; 12.11, 12.15).
+     - Certified per-action bounds at every real decision (12.17).
+     - The exact error split (`results/p5_error_attribution_20261007/attribution.py`).
+     - The replay method of 12.15 (`results/stopping_v2_20261006/`), which tests rules on recorded checkpoints instead of rerunning.
+   - **Candidates, cheapest first:**
+     - (a) the growing-tree stopping rule applied at the root;
+     - (b) stop when certified bounds separate the best action, else spend up to a cap;
+     - (c) if (a) and (b) leave the deep-choice and rollout error, a literature-backed change to the deeper nodes, for example variance-reduced backups or better rollout policies, A/B gated.
+   - **Gates:**
+     - L2 H4 panel, 380 problems against the exact I-POMDP: 380/380 must hold, with paired `optimal_q_error` and CPU.
+     - L3 H3 k = 0: 162/162.
+     - Report Clopper–Pearson intervals.
+2. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
+3. **Domain breadth:**
+   - Wumpus beyond 3 beliefs: vary the scripted history per seed (Section 0.10, item 3).
+   - UAV: oracle and panel paths are needed (`_two_state_belief` and `_point_model` are Tiger-specific).
+   - Level 4 on the coordination Tiger: about 7× N = 32's cost per step at N = 64.
+4. **Cheaper nested solves per distinct j-model.** This is the cost driver that blocked larger belief supports (12.31). Worth it only if a later study shows compression misses matter for reward; so far they do not (12.30, 12.32).
+5. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
 
-### 0.2 What happened October 7–9 (PLAN.md, "October 7 evening" phase)
+### 0.3 What happened October 9–11 (PLAN.md, "bounded-belief" phase)
+
+| Work | Result | RESULTS |
+|---|---|---|
+| Miss diagnosis | Exact replays of all 19 zero-probability predictions. 17 are compression losses: a recent, light branch dropped at the last one or two compressions (14 below 1/N), while systematic compression drops about 25% of the mass per update, mostly harmlessly. **2 (H3) were a nested-budget mismatch** (i modeled j's model of i with 100 simulations; the real j used 400). Those 2 trials carry −469 of 12.29's −481 summed deficit | 12.30 |
+| Compressor gate | Optimal resampling, coverage-ε (expected dropped mass ≤ ε) and larger systematic N: every arm costs 1.7–3.8× the control (coverage 0.03 more than 10×), or fails belief accuracy (coverage 0.1). **Killed; systematic N = 64 kept.** The miss metric is now on `main` | 12.31 |
+| H3 with a matched model of j | Stack `1000/400` (i models j exactly as j is configured). **L3 − L2 = +0.8 [−6.7, 8.6], p = 0.84, n = 50.** 12.29's deficit was the mismatch. Prediction loss 0.41 against 0.45 (not significant) | 12.32 |
+
+12.29's own text carries a correction note pointing to 12.30. The reviewer page (version 20) and the Claude Doc report ("Bounded-belief caveat" paragraph) carry 12.30–12.32.
+
+### 0.4 Reusable tools and data from October 9–11
+
+- `results/q1_miss_diagnosis_20261009/`:
+  - `replay.py <run> <trial csvs>` replays an episode's real belief updates exactly (support sizes and predictions checked against the log) and traces where a branch was lost, with compression profiles per update. Runs: `h3`, `cp32`, `cp64`; add a spec for others.
+  - `budget_check.py <trial csv> <step> <stack>` replays with another modeled stack and prints i's prediction.
+- `results/q3_compressor_gate_20261009/`:
+  - `gate.py` runs paired arms of i's compressor on the 12.26 probe condition; `analyze.py` gives miss share, McNemar test, paired CPU ratio, and a reproduction check against 12.27.
+  - `g1/`: `belief_qualification` outputs for every arm.
+- `results/q4_h3_matched_20261009/`:
+  - the study scripts: `h3_matched.py`, `h3_job.py` (the per-episode runner template) and `analyze.py`;
+  - `KILL_CRITERION.txt`, `memory.log`;
+  - `watchdog.sh` and `memlog.sh`.
+- `analysis.metrics.predictions(frame)` and `prediction_misses(frame)`: realized-action probability, log-loss and miss flag per decision, plus a per-trial summary.
+
+### 0.5 Files touched October 9–11
+
+- `main`:
+  - `src/ipomdp/analysis/metrics.py` (`predictions`, `prediction_misses`, `MISS_PROBABILITY`);
+  - `tests/test_analysis.py`;
+  - docs: `PLAN.md` (the bounded-belief phase), `RESULTS.md` 12.30–12.32 and the 12.29 correction note, this file.
+- Branch `bounded-belief/compressors` only:
+  - `belief/resampling.py` (`SystematicCompressor`, `OptimalCompressor`, `CoverageCompressor`, `expected_dropped_mass`, `COMPRESSORS`);
+  - `belief/compressed_filter.py` (a `compressor` argument);
+  - `planning/solver_bank.py` (`FILTERS` per compressor);
+  - `experiments/{belief_qualification,oracle,panel}.py` (filter choices from `FILTERS`);
+  - tests: `test_compressors.py`, `test_bounded_beliefs.py`.
+- Outside the repository:
+  - `results/w4_report_20261007/build_report.py` and `template.html`: the H3 paragraph now reads `q4_h3_matched_20261009`. The previous versions are saved as `*_20261011.bak`.
+
+### 0.6 What happened October 7–9 (PLAN.md, "October 7 evening" phase)
 
 | Work | Result | RESULTS |
 |---|---|---|
@@ -61,13 +144,13 @@ Recommended order:
 | Compression misses | N = 32 drops the realized branch in 3–20% of trials above level 1; caveat on 12.21 and 12.25 | 12.26 |
 | Level grid, N = 64 | Level 1→2 pays (27–30, Holm p < 0.001); 2→3 not significant at H2; level 3 predicts best | 12.27 |
 | Optimal resampling A/B | 6–160× lower belief error per atom, 1.3–5× CPU at equal N; no win at matched CPU; on branch `resampling/optimal-fc` | 12.28 |
-| H3 depth study | n = 50 (cut by kill criterion): level 3 with a correct model −9.6 [−26.8, 4.2] vs level 2; deficit in the 5 miss trials | 12.29 |
+| H3 depth study | n = 50 (cut by kill criterion): level 3 −9.6 [−26.8, 4.2] vs level 2. **Corrected:** the deficit was a nested-budget mismatch in i's model of j (12.30); with a matched model, +0.8 (12.32) | 12.29 |
 
-**Reviewer page** (version 20, October 11: H3 paragraph from `q4_h3_matched_20261009`): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB, with a "coordination Tiger" section (screen table, N = 64 grid heatmaps, one-level paired forest plot with the published control, H3 paragraph). Rebuild: `cd results/w4_report_20261007 && ../../.venv/bin/python analyze.py && ../../.venv/bin/python build_report.py`, then republish `report.html` with the Artifact tool, passing that `url` (read it first from a new session). It reads `p2_payoff_screen_20261007`, `p4c_joint_level_grid_n64_20261007` (grid_data.json, endpoint.csv, endpoint_control.csv) and `p7_h3_depth_20261008/h3_summary.json`. All page text is generated; edit `template.html` and `build_report.py` only. `*_20261007.bak` files there are the pre-phase versions.
+**Reviewer page** (version 20, October 11: H3 paragraph from `q4_h3_matched_20261009`): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB, with a "coordination Tiger" section (screen table, N = 64 grid heatmaps, one-level paired forest plot with the published control, H3 paragraph). Rebuild: `cd results/w4_report_20261007 && ../../.venv/bin/python analyze.py && ../../.venv/bin/python build_report.py`, then republish `report.html` with the Artifact tool, passing that `url` (read it first from a new session). It reads `p2_payoff_screen_20261007`, `p4c_joint_level_grid_n64_20261007` (grid_data.json, endpoint.csv, endpoint_control.csv) and `q4_h3_matched_20261009/h3_summary.json` (since October 11). All page text is generated; edit `template.html` and `build_report.py` only. `*_20261007.bak` files there are the pre-phase versions.
 
 **Claude Doc report** (Section 4): the "Coordination Tiger" and "Bounded-belief caveat" paragraphs after "Level grid"; the error-attribution row of "Not yet measured" is now measured.
 
-### 0.3 Reusable tools and data from October 7–9 (each folder holds its scripts)
+### 0.7 Reusable tools and data from October 7–9 (each folder holds its scripts)
 
 - `results/p2_payoff_screen_20261007/screen.py`, `analyze.py`: the exact value of one more level for any payoff variant (add a variant to `VARIANTS`).
 - `results/p3_joint_gates_20261007/gates.py`: one job per (gate, seed, belief of i) panel launcher with JSONL rows; reuse for any physics.
@@ -76,14 +159,14 @@ Recommended order:
 - `results/p4b_correct_prior_20261007/`: `correct_prior.py`, `probe_n.py` (N from `PARTICLES`), `compare_n.py`, `analyze.py [trials dir] [grid dir]`: the zero-probability (compression miss) diagnosis.
 - `results/p8_resampling_gate_20261008/`: the compressor A/B (G1 `belief_qualification` outputs, `g2_probe.py`, `g2_compare.py`, `g3.py`; arm chosen by `PYTHONPATH`, old arm = `p4b_correct_prior_20261007/src`).
 - `results/p7_h3_depth_20261008/`: `h3_depth.py` (pre-registered H3 study), `analyze.py`, `KILL_CRITERION.txt`, `trials_quarantine/` (5 episodes of the discarded first launch; unknown code).
-- Zero-probability check: for each step, `json.loads(prediction_i).get(action_j, 0) < 1e-9` on episode rows (see `compare_n.py`); not yet a library function.
+- Zero-probability check: now `analysis.metrics.prediction_misses` (October 9).
 
-### 0.4 Files touched October 7–9
+### 0.8 Files touched October 7–9
 
 - `main`: `domains/tiger.py` (`JointTigerModel`), `experiments/oracle.py` (`physics`, levels 1–4, `nested_beliefs`, `_nested_chain`), `experiments/panel.py` (`physics`, levels 2–4, `--together-safe`), `experiments/modeled_qualification.py` (call site), `experiments/study.py` (`tiger-joint`); tests `test_l4_oracle.py` (new), `test_domains.py`, `test_domain_contracts.py`, `test_l3_oracle.py`, `test_panel.py`; docs `DOMAINS.md`, `ARCHITECTURE.md`, `RESULTS.md` 12.22–12.29, `PLAN.md`, this file.
 - Branch `resampling/optimal-fc` only: `belief/resampling.py` (`optimal_resampling`), `belief/compressed_filter.py`, `tests/test_optimal_resampling.py`.
 
-### 0.5 What happened October 5–7 (PLAN.md W1–W8)
+### 0.9 What happened October 5–7 (PLAN.md W1–W8)
 
 | Work | Result | RESULTS |
 |---|---|---|
@@ -104,7 +187,7 @@ Recommended order:
 - Grid data comes from `results/w9_level_grid_20261007/analyze_grid.py`.
 - The page text, lead included, is generated from the data. Edit `template.html` and `build_report.py`, not `report.html`.
 
-### 0.6 Goals as of October 7 (superseded by 0.1; items 1, 2 and 5 done)
+### 0.10 Goals as of October 7 (superseded by 0.2; items 1, 2 and 5 done)
 
 The science so far:
 - The solver is accurate wherever exact references exist.
@@ -137,7 +220,7 @@ Housekeeping, still the user's call (Section 1):
 - about 12 GB of legacy `results/` and stale branches;
 - `results/` is git-ignored and not backed up since September 30. It includes the reviewer-page generator (`results/w4_report_20261007`) and every October dataset, so copy it off the machine.
 
-### 0.7 Files touched October 5–7
+### 0.11 Files touched October 5–7
 
 - **`src/ipomdp/belief/`:**
   - `frame.py`: cached hash, explicit pickle state;
@@ -232,19 +315,20 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 
 ## 2. Current state
 
-- **Tests.** 309 pass in about 80 s on `main`; `ruff check` and `ruff format --check` are clean.
+- **Tests.** 311 pass in about 80 s on `main`; `ruff check` and `ruff format --check` are clean.
 - **Running jobs.** None.
 - **Archives.**
   - Tag `archive/pre-restructure-20260930`: the pre-restructure code.
   - Tag `archive/codex-final-20261002` (branch `codex/final-20261002`): Codex's and Antigravity's final working tree, preserved unchanged. It holds the legacy recursive-chance candidate (`src/solvers/recursive_chance.py`), its protocols (`docs/RECURSIVE_CHANCE_*.md`), the frozen contracts (`benchmarks/`) and the launchers. `main`'s merge has it as a parent, but `main`'s tree is the restructure.
-- **Results.** Stored under `results/` (git-ignored). A backup of everything up to September 30 is in `C:\Users\Andyj\ipomcp-results-backup-20260930`. Results from October 1–3 are not backed up yet; copy `results/` off the machine.
+- **Results.** Stored under `results/` (git-ignored). A backup of everything up to September 30 is in `C:\Users\Andyj\ipomcp-results-backup-20260930`. Nothing from October 1–11 is backed up yet (every current dataset and the reviewer-page generator); copy `results/` off the machine.
 
 ### What the package is now
 
 ```
 src/ipomdp/
   model/        kernel-only domain contract (sampling derived from the kernels)
-  domains/      tiger (published spec), uav, wumpus (exact 94,500-state prior)
+  domains/      tiger (published spec; JointTigerModel = the coordination Tiger), uav,
+                wumpus (exact 94,500-state prior)
   belief/       FiniteBelief, canonical identity, and three filters:
                   finite_filter       exact enumeration
                   compressed_filter   exact updates, supports compressed to N  <- planner default
@@ -256,11 +340,12 @@ src/ipomdp/
   reference/    BestResponseReference (exact, any level/domain), ExactIPOMDPPlanner, alpha vectors (L1)
   baselines/    RTSPlanner (reachability-tree sampling)
   experiments/  study (TOML StudySpec), episodes, runner, bootstrapper,
-                oracle (one problem vs the exact reference; levels 1-3),
-                panel (grids of cells vs the exact I-POMDP; levels 2-3),
+                oracle (one problem vs the exact reference; levels 1-4, any Tiger physics),
+                panel (grids of cells vs the exact I-POMDP; levels 2-4),
                 modeled_qualification (a modeled level scored at the beliefs it is queried at),
                 l1_qualification, belief_qualification
-  analysis/     hierarchy (sunburst nodes with content and error), metrics, figures, statistics
+  analysis/     hierarchy (sunburst nodes with content and error), metrics (incl. prediction misses),
+                figures, statistics
   infra/        process supervision, source locks, resources, paths
 studies/        tiger_l3_vs_l2.toml
 ```
@@ -298,7 +383,7 @@ studies/        tiger_l3_vs_l2.toml
 | L3 vs L2 episodes, H3 | `6400s/100` for i, `400` for j, mixed level priors (gated 120/120) | compressed 64 (level TV ≤ 0.061 to step 5) | 12.16, 12.18 |
 | Levels 1–4 × 1–4, H2 | decisions exact for the searched model at any budget (two steps left) | compressed 32 (drops realized branches above level 1: use 64) | 12.21, 12.26 |
 | Coordination Tiger (`together_safe = 40`): L2 H3, L3 H3 k = 0, L2–L4 H2 | as for the published Tiger (`400`, `6400s/100`; `100` at H2): 1,244/1,244 | exact; compressed 32 at H2 | 12.23 |
-| Coordination Tiger episodes, levels 1–3, H2 and H3 | as above, root 100 (H2) or 1,000 (H3) | compressed 64; level 3 still misses the realized branch in about 10% of H3 trials | 12.27, 12.29 |
+| Coordination Tiger episodes, levels 1–3, H2 and H3 | as above, root 100 (H2) or 1,000 (H3); for a "correct model" of the opponent use the opponent's own configuration (H3: `1000/400`) | compressed 64 (systematic); misses in about 6% of level-3 H3 trials, cheap in reward | 12.27, 12.30–12.32 |
 | Wumpus L1, H3 | search N = 1,024, 3,000 simulations: 9/9 (3 distinct beliefs) | exact real, compressed search | 12.19 |
 
 ## 3. Key results (details and n in RESULTS.md)
@@ -340,7 +425,10 @@ studies/        tiger_l3_vs_l2.toml
 | 12.25–12.26 | **N = 32 compression drops the opponent's realized branch** (3–20% of trials above level 1); 12.25 superseded |
 | 12.27 | Coordination grid at N = 64 (n = 100): **level 1→2 gains 27–30** (Holm p < 0.001); 2→3 not significant; level 3 predicts best |
 | 12.28 | Optimal resampling: far more accurate per atom, no win at matched CPU; not adopted (branch `resampling/optimal-fc`) |
-| 12.29 | **H3 depth study (n = 50):** level 3 with a correct model −9.6 [−26.8, 4.2] vs level 2; the deficit is the 5 compression-miss trials |
+| 12.29 | H3 depth study (n = 50): level 3 −9.6 [−26.8, 4.2] vs level 2. **Corrected by 12.30:** its model of j used a smaller nested budget than the real j |
+| 12.30 | **Why misses happen:** 17 of 19 are compression losses of a recent, light branch; 2 were the budget mismatch, carrying almost all of 12.29's deficit |
+| 12.31 | **Compressor gate killed:** optimal resampling and coverage-ε cost 1.7–3.8× (or > 10×) or fail belief accuracy; systematic N = 64 kept |
+| 12.32 | **H3 with a matched model of j (n = 50):** L3 − L2 +0.8 [−6.7, 8.6], p = 0.84; a third level neither gains nor loses |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
@@ -348,7 +436,7 @@ studies/        tiger_l3_vs_l2.toml
 
 ### Assessment and next steps
 
-Superseded by Sections 0.1–0.2 (October 7). Section 2's validated configurations and Section 3 hold the evidence.
+Superseded by Sections 0.1–0.2 (October 11). Section 2's validated configurations and Section 3 hold the evidence.
 
 ### Reviewer report
 
@@ -369,6 +457,7 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Updated October 4–5:** the Level 3 section has the H3 qualification table and an H4 paragraph (no certified stack; the adaptive rule's bias); the adaptive-budget bullet says per-level solves.
 - **Updated October 5, evening (12.11):** the adaptive-budget bullet describes the growing-tree rule, and the L3 H4 paragraph gives its result (flat 6,400's decisions at half the CPU; near-tie misses remain).
 - **Updated October 6–7:** an L3 H4 update paragraph (12.14); an "Episode study" paragraph and a "Level grid" paragraph, both linking the reviewer page https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB; the episode-metric rows of "Not yet measured" are marked measured. Still open there: error attribution at L2/L3 and equilibria beyond the design note.
+- **Updated October 7–11:** "Coordination Tiger" and "Bounded-belief caveat" paragraphs after "Level grid" (the caveat now carries 12.30–12.32); the error-attribution row of "Not yet measured" is measured.
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
 ## 5. What changed, and where (since `archive/pre-restructure-20260930`)

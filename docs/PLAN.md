@@ -9,7 +9,7 @@ Q2 done on branch `bounded-belief/compressors`; only the miss metric (`analysis.
 (coverage 0.1), so episodes keep systematic N = 64. Q4 as written (conditional on Q3) is void.
 **Q4' done (12.32):** H3 with i's model of j matched to j's configuration (stack `1000/400`): L3 − L2
 +0.8 [−6.7, 8.6], p = 0.84, n = 50 paired; 12.29's deficit was the model mismatch. Phase complete; next: Q5 (root
-adaptive budgets), HANDOFF 0.1.
+adaptive budgets), HANDOFF 0.2.
 
 ## Context
 The coordination-Tiger phase (below; RESULTS 12.22–12.29) found the binding constraint at level 3: **the bounded
