@@ -1,12 +1,12 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.32);
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.35);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Two phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29) and bounded beliefs (12.30–12.32).
+Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32) and root budgets (12.33–12.35, October 11).
 
 ## 0. Start here (fresh agent)
 
@@ -42,10 +42,10 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.33.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.36.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **First task for the new session:** write the next phase from 0.2 into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Commit it, then execute.
+- **First task for the new session:** confirm the next phase with 0.2's recommendation (the root-budget phase is complete), write it into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Commit it, then execute.
 
 ### 0.1 Where the science stands (October 11)
 
@@ -53,7 +53,7 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
    - **Optimal wherever exact references exist:** L1 H1–H5, 220/220 at H5 (12.1); L2 H3–H4, 380/380 (12.3–12.4); L3 H3, 162/162 (12.7); L4 H2, 486/486 (12.23).
    - **One open residual:** L3 H4, where 4/80 near-tie beliefs are wrong (gaps ≤ 0.03; 12.14).
    - **Certified bounds:** every real decision carries per-action intervals that contain the exact Q of the searched model (12.17).
-   - **Beliefs:** the compressed filter (exact updates, systematic compression to N = 64; 12.31 found no better compressor at acceptable cost). The root budget is fixed at 1,000 simulations.
+   - **Beliefs:** the compressed filter (exact updates, systematic compression to N = 64; 12.31 found no better compressor at acceptable cost). **Root budget (12.33–12.35):** a decision's CPU is almost all nested solves, paid within its first 125 root simulations; more root simulations cost 0.2–0.35 ms each. Root 4,000 cuts L2 H4's optimal-action Q error 3.9× (0.121 → 0.031) at 1.06× CPU; no root stopping rule helps. Episodes keep 1,000 (a matched model of j makes 4,000 cost about 1.4× at L3).
 2. **Benchmarks.** I-POMCP is 380/380 at L2 H3 and H4. IPF + RTS reaches 95–99.5% there and is 3–5× slower at H4 (12.20).
 3. **Interpretability and the value of depth.**
    - **Modeling the opponent pays** on the coordination Tiger: level 1 → 2 gains 27–30 over 20 steps (Holm p < 0.001, 12.27). In the published Tiger it gains nothing, since payoffs depend only on one's own door.
@@ -70,28 +70,23 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
 
 ### 0.2 Next steps (input to the next plan)
 
-1. **Root adaptive budgets (contribution 1; recommended next).**
-   - **Why.** At L2 H4, the optimal action's search error is 0.164. Chance scoring cuts it only to 0.132, because 22% is deeper greedy choices and 9% is rollouts below the tree (12.24); scoring is exact only where two steps are left. The root budget does not change decisions (Section 3, row 5: the modeled budget decides correctness). So the target is **Q accuracy (error bounds) per CPU-second at real decisions**, and lower mean CPU on easy decisions.
-   - **Pieces that exist:**
-     - `planning.stopping`: one growing tree plus a pilot-calibrated test at the 1/n rate. It is used for modeled solves only (`PlannerConfig(modeled_stopping=...)`; 12.11, 12.15).
-     - Certified per-action bounds at every real decision (12.17).
-     - The exact error split (`results/p5_error_attribution_20261007/attribution.py`).
-     - The replay method of 12.15 (`results/stopping_v2_20261006/`), which tests rules on recorded checkpoints instead of rerunning.
-   - **Candidates, cheapest first:**
-     - (a) the growing-tree stopping rule applied at the root;
-     - (b) stop when certified bounds separate the best action, else spend up to a cap;
-     - (c) if (a) and (b) leave the deep-choice and rollout error, a literature-backed change to the deeper nodes, for example variance-reduced backups or better rollout policies, A/B gated.
-   - **Gates:**
-     - L2 H4 panel, 380 problems against the exact I-POMDP: 380/380 must hold, with paired `optimal_q_error` and CPU.
-     - L3 H3 k = 0: 162/162.
-     - Report Clopper–Pearson intervals.
+1. **Cheaper nested solves per distinct j-model (contribution 1; recommended next).** 12.33–12.34 measured that nested solves are almost all of a decision's CPU: 16–23 s of a gate decision, 101 s of an L3 episode decision, against 0.2–0.35 ms per root simulation. Every study's cost (L3 episodes: 114 CPU-min each, 12.32; level 4; larger belief supports, 12.31) is this one cost. Start with a profile of one L3 episode step's nested solves (`results/r2_episode_root_cost_20261011/probe.py` gives the setup), then speedups gated bit-identical as in W1 (12.12), or a solver change gated like 12.15 (same decisions on replayed solves).
 2. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
 3. **Domain breadth:**
    - Wumpus beyond 3 beliefs: vary the scripted history per seed (Section 0.10, item 3).
    - UAV: oracle and panel paths are needed (`_two_state_belief` and `_point_model` are Tiger-specific).
    - Level 4 on the coordination Tiger: about 7× N = 32's cost per step at N = 64.
-4. **Cheaper nested solves per distinct j-model.** This is the cost driver that blocked larger belief supports (12.31). Worth it only if a later study shows compression misses matter for reward; so far they do not (12.30, 12.32).
-5. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+4. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+
+### 0.3a What happened October 11 (PLAN.md, "root adaptive budgets" phase)
+
+| Work | Result | RESULTS |
+|---|---|---|
+| R0–R1 root replay | 542 gate problems, one root tree each, scored at 125–4,000 simulations against the exact I-POMDP. The first 125 simulations carry the whole fixed cost (solving every reachable modeled policy); later ones cost 0.2–0.35 ms. **No stopping rule qualifies** (at most 3% to save). **Root 4,000: 380/380 and 162/162, L2 H4 optimal-action Q error 0.121 → 0.031 at 1.06× CPU** | 12.33 |
+| R2' episodes | 12.32's configuration: one decision at 4,000 costs 1.015× at L3; with a matched model of j (every root 4,000), L3 episodes cost 1.32–1.42× (n = 3). Episodes keep 1,000 | 12.34 |
+| R3 error split at 4,000 | L2 H4 scored error 0.026; deeper choices plus rollouts about 0.009. No deeper-node redesign | 12.35 |
+
+Tools: `results/r0_root_replay_20261011/` (`r0_job.py` per-problem checkpoint dataset, `replay.py` rule replay with the pre-fixed adoption test, `count_solves.py`); `results/r2_episode_root_cost_20261011/` (`probe.py` measures a root budget at real episode decisions without changing them, checked against 12.32's values; `matched_cost.py`); `results/r3_attribution_4000_20261011/`. The Claude Doc report has an "Update, October 11" paragraph in the root-vs-modeled-budget section. No `src/` change this phase.
 
 ### 0.3 What happened October 9–11 (PLAN.md, "bounded-belief" phase)
 
@@ -371,7 +366,7 @@ studies/        tiger_l3_vs_l2.toml
 - **Certified bounds.** Real decisions get per-action intervals containing the exact Q of the searched model (`chance_scoring(..., bounds=True)`, 12.17); modeled solves skip them.
 - **Metrics.** Rows record `first_action_loss`, `max_abs_q_error` and `optimal_q_error`, for both search and scored values. Use `optimal_q_error` for error bounds (12.2), and Clopper–Pearson intervals (`analysis.statistics.clopper_pearson`) for optimal rates.
 
-### Validated configurations (Tiger; root 1,000 simulations unless noted)
+### Validated configurations (Tiger; root 1,000 simulations unless noted; root 4,000 for Q-error reporting at gates, 12.33)
 
 | Problem | Modeled opponent | Beliefs | Evidence |
 |---|---|---|---|
@@ -429,6 +424,9 @@ studies/        tiger_l3_vs_l2.toml
 | 12.30 | **Why misses happen:** 17 of 19 are compression losses of a recent, light branch; 2 were the budget mismatch, carrying almost all of 12.29's deficit |
 | 12.31 | **Compressor gate killed:** optimal resampling and coverage-ε cost 1.7–3.8× (or > 10×) or fail belief accuracy; systematic N = 64 kept |
 | 12.32 | **H3 with a matched model of j (n = 50):** L3 − L2 +0.8 [−6.7, 8.6], p = 0.84; a third level neither gains nor loses |
+| 12.33 | **Root CPU is a fixed cost** (nested solves within 125 simulations); no root stopping rule qualifies; root 4,000 cuts L2 H4 Q error 3.9× at 1.06× CPU |
+| 12.34 | In episodes: one decision at 4,000 costs 1.015× (L3); with a matched model of j, 1.32–1.42× per episode; episodes keep 1,000 |
+| 12.35 | Error split at root 4,000: deeper choices and rollouts about 0.009 of 0.026; no deeper-node redesign |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
@@ -458,6 +456,7 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Updated October 5, evening (12.11):** the adaptive-budget bullet describes the growing-tree rule, and the L3 H4 paragraph gives its result (flat 6,400's decisions at half the CPU; near-tie misses remain).
 - **Updated October 6–7:** an L3 H4 update paragraph (12.14); an "Episode study" paragraph and a "Level grid" paragraph, both linking the reviewer page https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB; the episode-metric rows of "Not yet measured" are marked measured. Still open there: error attribution at L2/L3 and equilibria beyond the design note.
 - **Updated October 7–11:** "Coordination Tiger" and "Bounded-belief caveat" paragraphs after "Level grid" (the caveat now carries 12.30–12.32); the error-attribution row of "Not yet measured" is measured.
+- **Updated October 11:** an "Update, October 11" paragraph closing the root-vs-modeled-budget section (12.33–12.35: root simulations are nearly free; root 4,000 for gates; episodes keep 1,000).
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
 ## 5. What changed, and where (since `archive/pre-restructure-20260930`)
@@ -576,6 +575,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | A "correct model" of the opponent with a different nested budget (12.29: i modeled j's model of i with 100 simulations; the real j used 400) | i gave j's real action probability 0 at step 3 in 2 of 50 trials, costing −211 and −258; the whole H3 deficit | Match the opponent's whole configuration (budgets too), and check on logged steps that the model reproduces its actions (12.30) |
 | Optimal resampling or coverage-ε compressors for episodes (12.31) | 1.7–3.8× (coverage 0.03: > 10×) the CPU of systematic N = 64; light kept atoms are distinct j-models, each solved; coverage 0.1 fails G1 (level TV up to 0.99) | Systematic N = 64; report `prediction_misses` |
 | 16 workers of level-4 episodes on the shared machine (October 7) | Workers grew to 1–1.5 GB each; available memory fell to 4 GB | 8 workers for level ≥ 3 episodes, plus a memory watchdog |
+| A stopping rule at the root (12.33): the modeled test of 12.11/12.15, or certified separation | Saves at most 3%: a decision's CPU is paid in its first 125 simulations (nested solves); stopping early only raises Q error. Certified separation certifies the decision, not the value (stops at 125–250 with Q error 0.28 at L3 H3) | A larger flat root budget (4,000 for gates) |
+| Costing a flat arm from one checkpoint's incremental growth CPU (R1 pilot, October 11) | Flat 1,000 looked 50× cheaper than the rules | Sum growth over all checkpoints up to n, plus one scoring |
 | A memory watchdog over a `ProcessPoolExecutor` run (October 9, matched H3 study, 10 workers) | One kill raised `BrokenProcessPool` and the whole run exited; nothing finished overnight | One process per episode (`xargs -P`, a job script that skips done files), so a kill loses one episode |
 
 ## 7. Merge record

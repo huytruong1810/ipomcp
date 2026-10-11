@@ -1365,7 +1365,7 @@ Q error is the optimal-action Q error, as a mean. 380/380 is 99.0–100% and 162
 **Question.** Does 12.33's cost structure hold at real episode decisions (bounded beliefs, the coordination Tiger)? It could fail there, because the number of reachable j-models might keep growing with the root budget.
 
 **Design** (`results/r2_episode_root_cost_20261011`: `probe.py`, `matched_cost.py`, `KILL_CRITERION.txt`). The configuration is 12.32's: `together_safe = 40`, N = 64, H3, root 1,000. The L3 condition uses stack `1000/400`; the L2 condition's i is the grid's agent.
-- **Probe:** at each of i's real decisions, a measurement tree seeded as a flat 4,000 search is grown first. It records growth CPU and newly solved modeled policies at 125, 250, 500, 1,000, 2,000 and 4,000. The real 1,000-simulation decision then runs unchanged. 3 trials × 6 steps per condition. **Check:** all 36 decisions match the actions of 12.32's episodes.
+- **Probe:** at each of i's real decisions, a measurement tree seeded as a flat 4,000 search is grown first. It records growth CPU and newly solved modeled policies at 125, 250, 500, 1,000, 2,000 and 4,000. The real 1,000-simulation decision then runs unchanged. 3 trials × 6 steps per condition. **Check:** all 36 decisions reproduce 12.32's root values exactly (to 1e-9).
 - **Matched-model cost:** the L3 condition with every root at 4,000 (i, the real j, and i's model of j: stack `4000/400`) against 1,000. Same run, paired by trial, 3 trials × 4 steps.
 
 **Results.**
