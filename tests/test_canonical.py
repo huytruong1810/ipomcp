@@ -87,6 +87,10 @@ def test_keys_and_digests_equal_their_json_definitions(beliefs):
         for row in belief.mass:
             assert canonical.atom_sort_key(row) == json.dumps(canonical.atom_row(*row))
         assert canonical.belief_digest(belief) == reference_digest(belief)
+        assert canonical.canonical_mass_and_digest(belief) == (
+            canonical.canonical_mass(belief),
+            reference_digest(belief),
+        )
         assert canonical.canonical_mass(belief) == tuple(
             sorted(belief.mass, key=lambda row: json.dumps(canonical.atom_row(*row)))
         )

@@ -54,7 +54,7 @@ from ipomdp.belief.resampling import systematic_draws
 
 class CompressedInteractiveFilter(FiniteInteractiveFilter):
     def __init__(
-        self, policy, particles: int, seed: int, cache_size: int = 4096, max_branches=None
+        self, policy, particles: int, seed: int, cache_size: int = 65536, max_branches=None
     ):
         if type(particles) is not int or particles < 1:
             raise ValueError("particles must be a positive integer")
@@ -62,6 +62,10 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
             raise TypeError("A compressed filter needs an explicit integer seed")
         # An update enumerates at most N x |A_j| x |S'| x |O_j| branches; the
         # default guard is far above that for every current domain.
+        # Cache: at 4,096 entries an L3 episode evicted and recomputed 22% of its
+        # updates, and each recomputed posterior is a new object equal to cached
+        # ones downstream, so later lookups compared whole beliefs recursively
+        # (PLAN, cheaper nested solves, S3).
         super().__init__(policy, cache_size, max_branches or 10_000 * particles)
         self.particles, self.seed = particles, seed
 
@@ -76,6 +80,7 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
         """``belief`` itself if it has at most N atoms, else N systematic draws (merged)."""
         if len(belief.mass) <= self.particles:
             return belief
-        rng = random.Random(canonical.digest([self.seed, label, canonical.belief_digest(belief)]))
-        draws = systematic_draws(canonical.canonical_mass(belief), self.particles, rng)
+        ordered, belief_digest = canonical.canonical_mass_and_digest(belief)
+        rng = random.Random(canonical.digest([self.seed, label, belief_digest]))
+        draws = systematic_draws(ordered, self.particles, rng)
         return FiniteBelief(tuple((atom, 1.0) for atom in draws))

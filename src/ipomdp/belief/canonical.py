@@ -125,6 +125,20 @@ def canonical_mass(belief):
     return tuple(sorted(belief.mass, key=atom_sort_key))
 
 
+def canonical_mass_and_digest(belief):
+    """``(canonical_mass(belief), belief_digest(belief))`` from one encoding of the atoms.
+
+    For a belief seen once (a posterior about to be compressed), where both are
+    needed and neither is cached; equal to the two calls (tests/test_canonical.py).
+    """
+    rows = sorted(
+        zip(map(lambda row: _row_encodings(*row), belief.mass), belief.mass),
+        key=lambda pair: pair[0][0],
+    )
+    text = "[" + ",".join(encoded[1] for encoded, _ in rows) + "]"
+    return tuple(row for _, row in rows), hashlib.sha256(text.encode()).hexdigest()
+
+
 def _row_encodings(atom, mass):
     """``atom_row(atom, mass)`` as (``json.dumps``, ``digest``'s compact JSON), from cached parts.
 
