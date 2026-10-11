@@ -1,7 +1,12 @@
 # Plan: root adaptive budgets (October 11, 2026)
 
 ## Status (October 11, 2026)
-R0 starting.
+R0 and R1 done (12.33): the root's CPU is a fixed cost, all paid in the first 125 simulations (solving every
+reachable modeled policy); a further root simulation costs 0.2-0.35 ms. **No stopping rule qualifies** (the most any
+can save is 3%), so R2 as written is void. Flat 4,000 cuts L2 H4's optimal-action Q error 3.9x (0.121 -> 0.031) at
+1.06x CPU, and makes 161/162 L3 H3 roots exact. **R2' (replaces R2):** measure the same cost structure at real
+episode decisions (bounded beliefs, coordination Tiger); if the root budget is also nearly free there, raise the
+default root budget, gated on L2 H4 380 and L3 H3 162.
 
 ## Context
 The bounded-belief phase (below; RESULTS 12.30–12.32) is complete. Contribution 1's open cost is at the root: every

@@ -1320,3 +1320,42 @@ L3 matched vs 12.29's L3 on the same seeds: +10.4 [−2.0, 27.2], p = 0.19.
 - **Prediction is slightly better but not significant,** consistent with 12.27 at H2 (0.41–0.43 against 0.49–0.50 there).
 - **Compression misses remain rare and cheap.** Three L3 trials have a miss (two the same as in 12.29, plus trial 19). They average +3.7 against L2; the other 47 average +0.6.
 - **Contribution 3, as of now:** modeling the opponent pays (level 1 → 2, +27 to +30, 12.27). A third level predicts somewhat better but earns the same reward at H2 (12.27) and H3 (here), in a game where the exact value of the third level is small and rare.
+
+### 12.33 Root budgets: the root's cost is fixed, so stopping early saves nothing (October 11, 2026)
+
+**Question.** Can a stopping rule at the root spend fewer simulations on easy real decisions, or buy lower Q error per CPU-second (PLAN, root adaptive budgets, R0–R1)?
+
+**Design** (`results/r0_root_replay_20261011`: `r0_job.py`, `replay.py`, `count_solves.py`, `KILL_CRITERION.txt`; arms and the adoption rule fixed in PLAN.md before the run). The problems are the current gates, published Tiger:
+- L2 H4, modeled `6400s`, 380 problems;
+- L3 H3 k = 0, stack `6400s/100`, 162 problems.
+
+For each problem, one root tree was seeded as a flat search of 4,000, scored with certified bounds at 125, 250, 500, 1,000, 2,000 and 4,000, and compared with the exact I-POMDP. Each checkpoint of n is a flat search of n with another seed, so all arms are paired. Growth and scoring CPU were timed separately. Three pilot trees of 125 were grown in a fresh bank; this overstates the cost of rule (a), which shares one bank online.
+
+The arms:
+- flat budgets;
+- (a) the modeled stopping test (12.11, 12.15) applied at the root, with a cap of 4,000;
+- (b) stop once certified intervals separate the leading action;
+- (a or b).
+
+**Check:** the 1,000 checkpoint reproduces 12.14: 380/380 with optimal-action Q error 0.121 (12.14: 0.117), and 162/162.
+
+**Cost structure.** Almost all of a decision's CPU goes into the first 125 simulations. The median is 16.9 s at L2 H4 and 23.3 s at L3 H3. That is when the planner solves every modeled policy reachable from the tree (in two traced problems: 56 j-L1 policies at L2 H4, 215 policies at L3 H3). No further policy is solved up to 4,000. After that, a root simulation costs 0.35 ms (L2 H4) or 0.20 ms (L3 H3) at the median.
+
+| Arm | L2 H4 optimal | CPU vs flat 1,000 | Q error | L3 H3 optimal | CPU vs flat 1,000 | Q error |
+|---|---|---|---|---|---|---|
+| flat 125 | 374/380 | 0.97 | 0.763 | 162/162 | 0.99 | 0.320 |
+| flat 250 | 380/380 | 0.98 | 0.407 | 162/162 | 0.99 | 0.077 |
+| flat 500 | 380/380 | 0.99 | 0.244 | 162/162 | 1.00 | 0.006 |
+| flat 1,000 | 380/380 | 1.00 (16.0 s) | 0.121 | 162/162 | 1.00 (23.1 s) | 0.0001 |
+| flat 2,000 | 380/380 | 1.02 | 0.064 | 162/162 | 1.01 | 0 |
+| **flat 4,000** | **380/380** | **1.06** | **0.031** | **162/162** | **1.02** | **0** |
+| (a) test | 380/380 | 1.97 | 0.617 | 162/162 | 2.00 | 0.279 |
+| (b) certified | 380/380 | 1.02 | 0.210 | 162/162 | 0.99 | 0.275 |
+| (a or b) | 380/380 | 1.97 | 0.617 | 162/162 | 2.00 | 0.298 |
+
+Q error is the optimal-action Q error, as a mean. 380/380 is 99.0–100% and 162/162 is 97.7–100% (Clopper–Pearson).
+
+- **No rule qualifies** under the pre-fixed criteria. The most any rule can save is the 3% between flat 125 and flat 1,000. Every rule stops early on most problems and so pays in Q error. Rule (a)'s pilots also re-pay the fixed cost; even if they were free, it would stop at a mean of 291 simulations.
+- **Certified separation is sound but does not cut the error.** It stops once the decision is certified, which at L3 H3 is usually by 125–250 simulations, while the optimal action's own value is still off by 0.28. At L2 H4 the rollout frontiers keep every interval wide (median width 23.5 even at 4,000; no root exact), so it rarely fires.
+- **The cheap lever is the flat root budget.** Going from 1,000 to 4,000 cuts L2 H4's optimal-action Q error by 3.9× (0.121 → 0.031; median 0.073 → 0.022; maximum 0.78 → 0.34; paired Wilcoxon p = 5 × 10⁻³⁹) at 1.06× the CPU. At L3 H3, 4,000 makes 161 of 162 scored roots exact.
+- **Scope:** exact beliefs and the gate problems. Episodes use bounded beliefs (N = 64) and the coordination Tiger, where the number of reachable j-models may keep growing with the root budget. That is measured next before any default changes.
