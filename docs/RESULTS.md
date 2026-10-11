@@ -1359,3 +1359,33 @@ Q error is the optimal-action Q error, as a mean. 380/380 is 99.0–100% and 162
 - **Certified separation is sound but does not cut the error.** It stops once the decision is certified, which at L3 H3 is usually by 125–250 simulations, while the optimal action's own value is still off by 0.28. At L2 H4 the rollout frontiers keep every interval wide (median width 23.5 even at 4,000; no root exact), so it rarely fires.
 - **The cheap lever is the flat root budget.** Going from 1,000 to 4,000 cuts L2 H4's optimal-action Q error by 3.9× (0.121 → 0.031; median 0.073 → 0.022; maximum 0.78 → 0.34; paired Wilcoxon p = 5 × 10⁻³⁹) at 1.06× the CPU. At L3 H3, 4,000 makes 161 of 162 scored roots exact.
 - **Scope:** exact beliefs and the gate problems. Episodes use bounded beliefs (N = 64) and the coordination Tiger, where the number of reachable j-models may keep growing with the root budget. That is measured next before any default changes.
+
+### 12.34 Root budgets in episodes: nearly free for one decision, about 1.4× with a matched model of j (October 11, 2026)
+
+**Question.** Does 12.33's cost structure hold at real episode decisions (bounded beliefs, the coordination Tiger)? It could fail there, because the number of reachable j-models might keep growing with the root budget.
+
+**Design** (`results/r2_episode_root_cost_20261011`: `probe.py`, `matched_cost.py`, `KILL_CRITERION.txt`). The configuration is 12.32's: `together_safe = 40`, N = 64, H3, root 1,000. The L3 condition uses stack `1000/400`; the L2 condition's i is the grid's agent.
+- **Probe:** at each of i's real decisions, a measurement tree seeded as a flat 4,000 search is grown first. It records growth CPU and newly solved modeled policies at 125, 250, 500, 1,000, 2,000 and 4,000. The real 1,000-simulation decision then runs unchanged. 3 trials × 6 steps per condition. **Check:** all 36 decisions match the actions of 12.32's episodes.
+- **Matched-model cost:** the L3 condition with every root at 4,000 (i, the real j, and i's model of j: stack `4000/400`) against 1,000. Same run, paired by trial, 3 trials × 4 steps.
+
+**Results.**
+- **One decision.** The fixed cost again sits in the first 125 simulations. In L3, 9,789 of 9,917 modeled policies were solved there, and the median growth to 125 was 101 s. Growing from 1,000 to 4,000 costs 1.015× the 1,000 tree (max 1.025×). The L2 decision costs 2.9 s at 1,000 and 1.21× at 4,000.
+- **Episodes with a matched model of j.** CPU is **1.32–1.42×** (per trial: 360 → 511 s, 391 → 535 s, 444 → 588 s), and i's and j's actions are identical in all three trials. This cost does not front-load. Each distinct j-model that i solves runs j's own root, and that root is now 4,000.
+
+**Verdict.**
+- **Gates and Q-error reporting** (a real decision against a fixed opponent model): use root 4,000. The cost is 1.02–1.06× and the Q error falls 3.9× (12.33).
+- **Episodes keep root 1,000:** decisions do not change, and 12.30 requires the model of j to match j's root, which costs about 1.4× at L3.
+- **Interim:** n = 3 trials of 4–6 steps. These are cost measurements only; no accuracy claim rests on them.
+
+### 12.35 Error split at root 4,000: nothing left for a deeper-node redesign (October 11, 2026)
+
+**Design** (`results/r3_attribution_4000_20261011`). 12.24's exact split (`attribution.py`, `analyze.py`), unchanged except root 4,000: L2 H4, modeled `6400s`, the 95 problems, seed 0. The residual is below 2 × 10⁻¹⁵.
+
+| Root | Search error, optimal action | Scored error, optimal action (mean / max) | Chance error | Local action loss | Frontier |
+|---|---|---|---|---|---|
+| 1,000 (12.24) | 0.164 | 0.132 / 0.78 | 69% | 22% | 9% |
+| **4,000** | **0.068** | **0.026 / 0.093** | 87% | 9% | 4.5% |
+
+(Shares are of the summed absolute parts of the search error.)
+- **Deeper choices and rollouts now come to about 0.009** of the remaining error (13% of 0.068). These were the targets of R3's candidate redesign (variance-reduced backups, better rollouts). There is too little left for such a change to pay off, so none is planned.
+- What remains is mostly chance error with three steps left, where scoring keeps the sampled weights because some branches are missing.
