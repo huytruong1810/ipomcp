@@ -1,3 +1,67 @@
+# Plan: root adaptive budgets (October 11, 2026)
+
+## Status (October 11, 2026)
+R0 starting.
+
+## Context
+The bounded-belief phase (below; RESULTS 12.30–12.32) is complete. Contribution 1's open cost is at the root: every
+real decision runs a flat 1,000 simulations, whether the decision is clear or not. The root budget does not decide
+correctness (HANDOFF Section 3, row 5: the modeled budget does), so the target is **Q accuracy per CPU-second at
+real decisions**, and lower mean CPU on easy decisions. At L2 H4 the optimal action's Q error after chance scoring
+is 0.117–0.132 (12.14, 12.24), of which 22% is deeper greedy choices and 9% rollouts below the tree; at H3 scoring
+leaves almost nothing (L3 H3 0.0006; 83% of scored roots exact).
+
+What exists: one growing tree with a pilot-calibrated test at the 1/n rate (`planning.stopping`, modeled solves only;
+12.11, 12.15); certified per-action bounds at every real decision (12.17); the exact error split
+(`results/p5_error_attribution_20261007/attribution.py`); and the replay method of 12.15
+(`results/stopping_v2_20261006/`), which tests rules on recorded checkpoints instead of rerunning.
+
+## Summary, in order of value per CPU-hour
+
+| Order | Workstream | Contribution | CPU | Kill criterion |
+|---|---|---|---|---|
+| R0 | Replay dataset: one root tree per gate problem, scored with bounds at 125–4,000 simulations, with per-checkpoint CPU, against the exact reference (L2 H4 380, L3 H3 162) | 1, 2 | ~6–10 CPU-h | a 10-problem pilot > 3× estimate → checkpoints to 2,000 |
+| R1 | Offline: flat budgets vs rules (a) growing-tree test at the root, (b) certified separation, (a ∨ b); pick one by the pre-fixed rule below | 1, 2 | < 0.5 CPU-h | no rule beats the flat Pareto front → skip R2, report the flat front, go to R3 |
+| R2 | Implement the chosen rule (`PlannerConfig.root_stopping`); online gates L2 H4 380 and L3 H3 162, paired with flat 1,000 | 1 | ~4–6 CPU-h | any wrong decision → do not adopt |
+| R3 | Error split at the adopted rule; if deep choices and rollouts still dominate L2 H4, a literature-backed deeper-node change, A/B gated (planned then) | 1 | planned after R2 | — |
+| R4 | Write-up: RESULTS 12.33+, HANDOFF, Claude Doc report | — | — | — |
+
+**Deferred, with reasons:** the L3 H4 residual (a PAC-style standard is the user's call, not asked); Wumpus breadth,
+UAV paths and level 4 on the coordination Tiger (no reviewer question waits on them); cheaper nested solves (only if
+compression misses are shown to cost reward; 12.30, 12.32 say they do not); housekeeping (the user's call).
+
+## Workstreams
+
+**R0. Dataset** (`results/r0_root_replay_20261011/`, one snapshot, one process per problem, JSON per problem).
+- Problems and stacks of the current gates: L2 H4, 19 × 5 beliefs × seeds 0–3, modeled `6400s` (12.14's
+  `g3_decisions`); L3 H3 k = 0, 9 × 3 × 3 × seeds 0–1, stack `6400s/100`.
+- Per problem: one root tree seeded as the flat search of the cap (4,000), grown and scored with bounds at 125, 250,
+  500, 1,000, 2,000, 4,000; plus 3 pilot trees of 125 (the stopping rule's calibration). Recorded per checkpoint:
+  scored values, bounds, exactness, and process CPU split into growth and scoring (bank caches shared as online); the
+  exact reference Q once. A flat arm costs its growth plus one scoring; a rule costs growth plus every scoring up to
+  its stop, plus its pilots.
+- Every flat arm is a checkpoint of the same tree (a flat search of n with another seed), so all arms are paired.
+  Check: the 1,000 checkpoint reproduces 12.14's rates (380/380, 162/162) and its mean `optimal_q_error` within noise.
+
+**R1. Replay** (fixed before R0 runs).
+- Arms: flat 125–4,000; (a) the `ModeledStopping` test at the root (pilot 125, trees 4, α 0.01, cap 4,000);
+  (b) stop at the first checkpoint whose certified intervals separate the leading action (lo_best ≥ hi of every
+  other action), else the cap; (a ∨ b).
+- Endpoint: per problem, `optimal_q_error` and CPU at the stopping checkpoint. Wrong decisions counted with
+  Clopper–Pearson intervals.
+- Adopt a rule if, on both sets, it makes no wrong decision **and** either (i) mean CPU ≤ 0.8× flat 1,000 with
+  paired `optimal_q_error` no worse by more than 0.01 (upper 95% bootstrap bound of the paired mean difference), or
+  (ii) lower `optimal_q_error` than flat 1,000 at ≤ 1.0× its mean CPU (paired Wilcoxon, p < 0.05). If both rules
+  qualify, take the lower mean CPU.
+
+**R2. Engineering and gates.** Generalise `stopping.ModeledStopping` to a stopping rule used for the root as well
+(`PlannerConfig.root_stopping`, no shim for the old name); certified separation as a rule option if (b) is chosen;
+real-decision rows record the simulations spent. Tests: the root rule at the cap equals the flat cap search;
+separation never stops on overlapping intervals. Online gates as in R0's problem sets, paired with flat 1,000 in
+the same run.
+
+**R3.** Planned after R2, from the error split (`attribution.py`) at the adopted rule.
+
 # Plan: the bounded-belief phase (October 9, 2026)
 
 ## Status (October 9, 2026)
