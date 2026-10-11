@@ -121,8 +121,13 @@ class TigerModel(POMDPModel):
         """Physical-only Bayes update, marginalising the other agent as uniform L0.
 
         This cheap memory drives the rollout heuristic only. It is not the
-        interactive posterior, which the planner carries separately.
+        interactive posterior, which the planner carries separately. Memoized
+        (``_rollout_posterior``): it ran 2M times in four L3 episode steps, 14% of
+        their CPU, over few distinct arguments.
         """
+        return dict(_rollout_posterior(self, tuple(memory.items()), action, observation, agent_id))
+
+    def _rollout_update(self, memory, action, observation, agent_id):
         other = "j" if agent_id == "i" else "i"
         posterior = {TIGER_LEFT: 0.0, TIGER_RIGHT: 0.0}
         for state, mass in memory.items():
@@ -137,6 +142,16 @@ class TigerModel(POMDPModel):
         if evidence == 0:
             raise ValueError("Impossible Tiger observation for the rollout memory")
         return {state: mass / evidence for state, mass in posterior.items()}
+
+
+@lru_cache(maxsize=65536)
+def _rollout_posterior(physics, memory, action, observation, agent_id):
+    """``physics._rollout_update`` keyed by value; ``memory`` is its items in order.
+
+    Module-level, so physics gains no attribute (its attributes are its
+    canonical identity, ``canonical.physics_identity``).
+    """
+    return tuple(physics._rollout_update(dict(memory), action, observation, agent_id).items())
 
 
 @lru_cache(maxsize=None)

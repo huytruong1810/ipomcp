@@ -101,16 +101,59 @@ def atom_row(atom, mass):
 
 
 def atom_sort_key(row):
-    """Sort key for an (atom, mass) pair, consistent with ``belief_digest``."""
-    return json.dumps(atom_row(*row))
+    """Sort key for an (atom, mass) pair, consistent with ``belief_digest``.
+
+    Equal to ``json.dumps(atom_row(*row))``, byte for byte.
+    """
+    return _row_encodings(*row)[0]
 
 
 @lru_cache(maxsize=65536)
 def belief_digest(belief):
-    """Order-independent digest of a FiniteBelief, recursive over nested beliefs."""
-    return digest(sorted([atom_row(atom, mass) for atom, mass in belief.mass], key=json.dumps))
+    """Order-independent digest of a FiniteBelief, recursive over nested beliefs.
+
+    Equal to ``digest(sorted(atom rows, key=json.dumps))``: the rows' compact
+    encodings, joined in canonical order, are exactly that list's compact JSON.
+    """
+    rows = sorted(_row_encodings(atom, mass) for atom, mass in belief.mass)
+    text = "[" + ",".join(compact for _, compact in rows) + "]"
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def canonical_mass(belief):
     """The belief's (atom, mass) pairs in canonical order; masses are untouched."""
     return tuple(sorted(belief.mass, key=atom_sort_key))
+
+
+def _row_encodings(atom, mass):
+    """``atom_row(atom, mass)`` as (``json.dumps``, ``digest``'s compact JSON), from cached parts.
+
+    Encoding the opponent frame's physics for every atom was about a third of
+    an L3 episode's CPU (PLAN, cheaper nested solves, S0), so the frame's part
+    is encoded once per frame (``_frame_encodings``). The strings are the ones
+    ``json`` would produce for the whole row (tests/test_canonical.py).
+    """
+    opponent = atom.opponent
+    state = stable_value(atom.state)
+    frame_loose, frame_compact = _frame_encodings(opponent.frame)
+    mass_text = f'"{mass.hex()}"'
+    nested = "null" if opponent.belief is None else f'"{belief_digest(opponent.belief)}"'
+    return (
+        f"[{json.dumps(state)}, {mass_text}, {frame_loose}, {nested}]",
+        f"[{_compact(state)},{mass_text},{frame_compact},{nested}]",
+    )
+
+
+@lru_cache(maxsize=None)
+def _frame_encodings(frame):
+    """The frame's run of an atom row (agent, level, physics), in both JSON forms, unbracketed.
+
+    Exact per frame: frames identify physics by object (``AgentFrame``), and
+    physics is never mutated after construction. Frames are few per experiment.
+    """
+    values = [stable_value(frame.agent_id), frame.level, *physics_identity(frame.pomdp_model)]
+    return json.dumps(values)[1:-1], _compact(values)[1:-1]
+
+
+def _compact(value):
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
