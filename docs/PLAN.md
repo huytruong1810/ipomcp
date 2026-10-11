@@ -1,3 +1,44 @@
+# Plan: cheaper nested solves (October 11, 2026)
+
+## Status (October 11, 2026)
+S0 done (profile below). S1 starting.
+
+## Context
+The root-budget phase (below; 12.33–12.35) measured that nested (modeled) solves are almost all of a decision's CPU:
+16–23 s of a gate decision and 101 s of an L3 episode decision, against 0.2–0.35 ms per root simulation. L3 episodes
+take 114 CPU-min each (12.32); level 4 and larger belief supports (12.31) are blocked by the same cost. Every study
+gets faster if nested solves do, so this phase looks for result-preserving speedups first (W1's standard, 12.12:
+bit-identical outputs), then solver-level changes only if those run out.
+
+**S0 profile** (`results/s0_nested_profile_20261011`; cProfile of 12.32's L3 condition, trial 0, 4 steps, 462 s
+profiled, of which 445 s is inside modeled solves):
+
+| Hotspot | Cumulative | Why it is waste |
+|---|---|---|
+| Canonical sort keys and digests (`canonical.atom_row` via `canonical_mass` in every compression, and `belief_digest`) | ~150 s (32%) | `atom_row` re-encodes the opponent's physics (`stable_value(vars(physics))`, then JSON) for every atom: 5.4M times for a handful of frames |
+| `TigerModel.update_rollout_memory` | 63 s (14%) | 2M physical Bayes updates over a small finite set of (memory, action, observation) |
+| `FiniteBelief.__eq__` (recursive, via frozenset equality of equal-but-distinct beliefs) | 34 s (7%) | equal beliefs built along different paths are compared atom by atom |
+| Tiger kernels (`observation_distribution`, `transition_distribution`) | ~60 s | memoizing them gave no gain before (HANDOFF 6) |
+
+## Summary, in order of value per CPU-hour
+
+| Order | Workstream | CPU | Kill criterion |
+|---|---|---|---|
+| S1 | Canonical keys from cached per-frame and per-state fragments: byte-identical sort keys and digests | tests + ~1 CPU-h gates | any key, digest or gate output differs → revert |
+| S2 | Memoized rollout-memory update (exact key, same arithmetic) | with S1's gates | any gate output differs → revert |
+| S3 | Re-profile; then belief interning (equal beliefs share one object) if `__eq__` is still ≥ 5% | ~1 CPU-h | not bit-identical, or < 3% saved → drop (HANDOFF 6's threshold) |
+| S4 | Only if S1–S3 leave the same hot spots in the solver itself: a solver-level change, gated like 12.15 (same decisions on replayed solves) | planned then | — |
+| S5 | Write-up: RESULTS 12.36+, HANDOFF, Claude Doc cost paragraph | — | — |
+
+**Gates for S1–S3 (fixed now):**
+1. Unit tests, including new ones: the new sort key equals `json.dumps(atom_row(...))` and the new digest equals
+   the old digest over beliefs from L1–L3 models; full suite and ruff clean.
+2. **Bit-identical outputs:** 20 R0 problems (10 L2 H4, 10 L3 H3) rerun with the new code: every checkpoint's scored
+   values and bounds equal R0's exactly; 12.32's L3 and L2 trial 0, 4 steps: every episode row equal to the stored
+   CSV (actions, values, bounds, beliefs' support sizes, predictions).
+3. **Speed:** paired CPU, same machine state, old and new snapshots alternating on the same jobs (L3 episode 4 steps,
+   3 trials; 10 R0 problems). Report the ratio with its range.
+
 # Plan: root adaptive budgets (October 11, 2026)
 
 ## Status (October 11, 2026)
