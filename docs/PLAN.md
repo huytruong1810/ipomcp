@@ -1,11 +1,86 @@
-# Next phases (to be planned): the Tiger experiment suite, then the UAV reconnaissance domain
+# Plan: the Tiger experiment suite (October 11, 2026)
 
-The user decided on October 11:
-1. First, a complete, packaged Tiger suite: a reward matrix across levels including L0, I-POMCP against IPF + RTS in
-   episodes, and prior sensitivity. Brief and audit: HANDOFF 0.2, item 1.
-2. Then UAV reconnaissance, from Doshi & Gmytrasiewicz (2009), Section 8.3.2: HANDOFF 0.2, item 2.
+## Status (October 11, 2026)
+**Planned with the user; E (engineering) next.** UAV reconnaissance (HANDOFF 0.2, item 2) follows this phase.
 
-The next session writes the Tiger-suite phase here with the user, in the usual format, before executing it.
+## Context
+The user wants a complete, packaged Tiger suite before UAV (HANDOFF 0.2, item 1). The three suites that existed
+before the September 30 restructure (a level matrix including L0, I-POMCP against IPF + RTS in episodes, prior
+sensitivity) ran on the retired estimator, so their numbers are void. Their replacements (12.20, 12.21, 12.27, 12.32)
+cover parts only, and their drivers (`grid.py`, `endpoint.py`, `analyze_grid.py`, `h3_matched.py`) live in git-ignored
+`results/` folders. This phase packages three domain-generic suite drivers in `src/ipomdp/` (reused unchanged for
+UAV), fills the gaps with endpoints fixed before each run, and reports from RESULTS 12.37 on.
+
+**Configuration that binds** (HANDOFF 0.2): compressed beliefs N = 64; every model of the opponent matches the real
+opponent's whole configuration (budgets, depth, N, nested priors; 12.30); `prediction_misses` reported for every
+run; H2 for any grid containing level 4 (chance scoring makes H2 decisions exact for the searched model at any
+budget, so 100 root simulations as in 12.21 and 12.27, which keeps their seeds and pairing); root 1,000 where H ≥ 3;
+level 5 out (Section 6). Domains: the coordination Tiger (`tiger-joint`, `together_safe = 40`) and the published
+Tiger as the control in which depth cannot pay.
+
+## Summary, in the user's order (engineering first: it gates the rest)
+
+| Order | Workstream | CPU (post-12.36 estimates) | Kill criterion |
+|---|---|---|---|
+| E | Package: `experiments/suite.py` (multi-cell runner), `analysis/endpoints.py`, three suite builders, tests | tests + ~1 CPU-h gate | the packaged driver does not reproduce 12.27's trial CSVs exactly on 9 cells × 2 trials → fix before any run |
+| M | Level matrix L0–L4 × L0–L4, both domains | M1 ~12 CPU-h; M2 sized by its pilot | M2 pilot: level-4 median > 30 CPU-min per episode at N = 64 → n = 40; any suite > 100 CPU-h → ask the user |
+| P | I-POMCP against IPF + RTS in episodes, at matched CPU | ~25 CPU-h | first 10 H4 RTS episodes > 2× estimate → H4 n = 30 |
+| R | Prior sensitivity at levels 3 and 4 | R3 ~6 CPU-h; R4 from M2's pilot | as M2 |
+| W | Write-up: RESULTS 12.37+, HANDOFF, PLAN status, reviewer page, Claude Doc report | — | — |
+
+## Workstreams
+
+**E. Engineering** (reuse; no shims).
+- `experiments/suite.py`: `SuiteSpec(name, cells: {label: StudySpec}, trials)`; `run_suite(spec, output, workers)`
+  schedules trials round-robin across cells (all cells at equal n whenever stopped), one supervised process per
+  episode through `infra.process_supervisor.supervise_jobs` (per-job kill, source lock, memory cap; never a
+  `ProcessPoolExecutor`), writes `trials/<cell>/<trial>.csv` atomically, skips finished files, and records a
+  manifest of the specification and source hashes as `runner.run_study` does. Episodes are `episodes.run_episode`,
+  unchanged (same seeds as 12.21 and 12.27).
+- Suite builders (pure functions returning a `SuiteSpec`; the domain is a parameter): `level_matrix` (the `grid.py`
+  agents: uniform priors over lower levels at every nesting; level 0 is uniform random), `planner_comparison`,
+  `prior_sensitivity` (the real opponent's configuration copied into i's nested priors and stack).
+- `analysis/endpoints.py`, from `endpoint.py` and `analyze_grid.py`: final rewards, paired differences (paired t-test
+  and trial bootstrap), Holm, the one-level endpoint, per-cell tables (rewards, welfare, log-loss, misses with
+  Clopper–Pearson intervals), joint safe openings.
+- Tests: builders (matched nested configurations asserted), suite resume and round-robin with a stub episode,
+  endpoint functions on synthetic frames.
+- **Gate E (fixed now):** rerun 12.27's cells L1–3 × L1–3, trials 0–1, through `suite.py` from a snapshot. Every row
+  must equal `results/p4c_joint_level_grid_n64_20261007/trials/*.csv`, CPU, wall and memory columns excepted. If it
+  passes, those 900 stored episodes are imported as M1's coordination L1–3 cells instead of being rerun.
+
+**M. Level matrix** (fixed now).
+- M1: levels 0–3, n = 100, H2, root and modeled 100, N = 64. Coordination: 7 new cells with level 0, plus the 9
+  imported. Published Tiger: all 16 cells (12.21 was N = 32 and is superseded).
+- M2: the level-4 cells, coordination only (the published control at level 4 stays 12.21's, under its caveat). Pilot
+  4 episodes each of (4, 4) and (4, 2) at N = 64 for CPU and memory per step; then 9 cells, n sized to at most
+  100 CPU-h (target 40).
+- **Primary:** the paired one-level endpoint (the agent at k + 1 minus the same agent at k, against the same
+  opponent level, on the same seeds), now including 0 → 1, for both agents; Holm over the family per domain. M1 at
+  n = 100; M2 as its own family at its final n.
+- **Secondary:** per cell, i's and j's reward, joint welfare, joint safe openings, log-loss, level posterior at
+  step 20, and the miss rate with Clopper–Pearson intervals; heatmaps.
+- 8 workers for level ≥ 3 cells, with the watchdog and memory log.
+
+**P. Planner comparison** (fixed now).
+- i at level 2 against a real j at level 1 (I-POMCP; the cell where modeling pays 27–30 on the coordination Tiger),
+  20 steps, n = 100.
+- Arms for i: I-POMCP (root 1,000; modeled 400 at H3 and `6400s` at H4; compressed N = 64); IPF + RTS (sampled IPF,
+  N = 64) at K = 2 and K = 4, which bracket I-POMCP's CPU per decision (12.20). H3 on both domains; H4 on the
+  coordination Tiger only, n = 50.
+- **Primary:** i's 20-step reward, I-POMCP minus each RTS arm, paired by trial, Holm over arms × (domain, horizon).
+  **Secondary:** the paired CPU ratio per decision, j's reward, misses. IPF + RTS models j with RTS, as in the paper.
+
+**R. Prior sensitivity** (fixed now).
+- Coordination Tiger, H2, N = 64, 100 simulations. i at level L, the real j at level L − 2, so misspecification
+  exists in both directions: L = 3 against j at level 1, and L = 4 against j at level 2.
+- Arms for i's prior over j's level: correct {L − 2: 1}, over-estimated {L − 1: 1}, under-estimated {L − 3: 1},
+  uniform {0 … L − 1}. The uniform arm is M's cell (L, L − 2), imported (same seeds and configuration).
+- **Primary:** i's reward, each misspecified arm minus correct, paired, Holm over 3 arms × 2 levels.
+  **Secondary:** log-loss, the level-posterior trajectory (does i recover?), misses. R4's n comes from M2's pilot.
+
+**W. Write-up.** RESULTS 12.37 on; HANDOFF; this status; the reviewer page (HANDOFF 0.6) and the Claude Doc report.
+Commit and push after each workstream.
 
 # Plan: cheaper nested solves (October 11, 2026)
 

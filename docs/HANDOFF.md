@@ -45,7 +45,7 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - Numbers go into `docs/RESULTS.md`. **The next free section is 12.37.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **First task for the new session:** plan the **Tiger-suite phase** from 0.2 item 1, with the user. They asked for the experiments and implementations to be "planned out more clearly", so present the plan before executing it. Write it into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Then commit, push and execute. UAV (item 2) follows once the Tiger suite is done.
+- **Current task: the Tiger-suite phase**, planned with the user on October 11 and written on top of PLAN.md (workstreams E, M, P, R, W, with kill criteria and fixed endpoints). Execute in that order; UAV (item 2) follows once it is done.
 
 ### 0.1 Where the science stands (October 11)
 
