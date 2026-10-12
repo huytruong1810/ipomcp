@@ -70,6 +70,15 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
 
 ### 0.2 Next steps (input to the next plan)
 
+**Tiger experiment-suite audit (October 11, at the user's question; the order against UAV is the user's call).**
+Before the September 30 restructure there were three packaged Tiger suites in `src/examples/experiments/`. They are still on the branch `archive/pre-restructure-20260930`, and their raw outputs are in `results/payoff_matrix/` and `results/deep_prior/`. All of them ran on the retired estimator, which was 61–88% optimal, so **none of their numbers are valid now**. The restructure replaced their runner classes with `StudySpec` + `runner`; the drivers that replaced them live only in git-ignored `results/` folders.
+
+| Old suite (archive) | Design | Current replacement | Gap |
+|---|---|---|---|
+| `level_convergence_matrix_experiment.py` (payoff matrix) | L0–L5 × L0–L5 episodes, uniform prior over lower levels, n = 200, T = 12; heatmaps of i's and j's payoffs and joint welfare | 12.21 (published Tiger, L1–4 × L1–4, H2, N = 32; under 12.26's compression caveat) and 12.27 (coordination Tiger, L1–3, N = 64, n = 100). Drivers: `results/w9_level_grid_20261007/grid.py`, `results/p4c_joint_level_grid_n64_20261007/grid.py` | No L0 row or column; published Tiger not re-run at N = 64; no level 4 at N = 64; L5 infeasible (Section 6); the driver is not in the package |
+| `planner_comparison_experiment.py` (vs IPF + RTS) | Episodes: RTS against I-POMCP at 1k–100k simulations, depth 5 | 12.20: decision-level against the exact I-POMDP, L2 H3–H4, n = 380 (`results/w5_rts_baseline_20261006`; the package supports it through `panel`'s `rts` planner) | No episode-level comparison of cumulative reward; `AgentSpec` supports `kind = "rts"`, so it is runnable |
+| `deep_hierarchy_prior_experiment.py` | L3 vs L2 or L1 and L4 vs L3 or L1, with correct, over-estimated and uniform level priors, depth 5 | 12.16 (mixed-prior gate), 12.18 (L3 vs L2 with controls), 12.27 (uniform priors), 12.32 (matched model, H3) | No misspecified (over-estimated) prior conditions; no L4 conditions; depth 5 is infeasible above L2 (H3 is used) |
+
 1. **The UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (the user's decision, October 11; next phase).**
    - **Why.** Tiger results are satisfactory (0.1). The reviewers' remaining weakness is that the evidence is all Tiger. This is the larger benchmark of the paper whose method (IPF + RTS) we already beat on Tiger (12.20).
    - **Source.** Doshi & Gmytrasiewicz, "Monte Carlo Sampling Methods for Approximating Interactive POMDPs", JAIR 34 (2009), 297–337, [arXiv:1401.3455](https://arxiv.org/abs/1401.3455). The domain is defined in Section 8.3.2 (Fig. 14), with results in Section 10.2 (Fig. 16) and Section 11.1 (Table 6).
@@ -348,7 +357,7 @@ The main aim is **not** the L3-vs-L2 Tiger study. The main aim is a rigorous rev
 
 - Work in `/home/andyj1810/projects/ipomcp` on `main`; do not clone.
 - Run code with `.venv/bin/python` from the repository root. The editable install points at `src/`, so no `PYTHONPATH` is needed.
-- **Do not push to `origin`** unless the user asks.
+- **Commit and push to `origin main` after every implementation, without asking** (standing rule, October 11). Never force-push.
 - Back up before deleting evidence. Kill processes by PID only.
 - **Housekeeping.** The worktree and the legacy caches were removed on October 2. Two optional items remain; the permission classifier blocks Claude from deleting them, so the user decides:
   - **Legacy raw outputs, about 12 GB in `results/`:** `oracle/`, `archive/`, `deep_prior/`, `payoff_matrix/`, `review-20260923/`, `tiger/`, and the `*-202609*` folders (`bellman-backup`, `exact-tail`, `exploration`, `history-rewards`, `l2-contract`, `l2-finite`). They are evidence for the retired code only. Material up to September 30 is backed up on `C:\`. The recursive-chance panels of September 30–October 1 and Claude's audit (`results/oracle/l2_recursive_chance_development_claude_audit_20261002/`) are not backed up yet. Every other folder in `results/` belongs to the current package.
