@@ -468,6 +468,7 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Updated October 5, evening (12.11):** the adaptive-budget bullet describes the growing-tree rule, and the L3 H4 paragraph gives its result (flat 6,400's decisions at half the CPU; near-tie misses remain).
 - **Updated October 6–7:** an L3 H4 update paragraph (12.14); an "Episode study" paragraph and a "Level grid" paragraph, both linking the reviewer page https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB; the episode-metric rows of "Not yet measured" are marked measured. Still open there: error attribution at L2/L3 and equilibria beyond the design note.
 - **Updated October 7–11:** "Coordination Tiger" and "Bounded-belief caveat" paragraphs after "Level grid" (the caveat now carries 12.30–12.32); the error-attribution row of "Not yet measured" is measured.
+- **Updated October 11, evening:** an "Update, October 11" paragraph after the cost list (12.36: nested solves about 2× faster, bit-identical).
 - **Updated October 11:** an "Update, October 11" paragraph closing the root-vs-modeled-budget section (12.33–12.35: root simulations are nearly free; root 4,000 for gates; episodes keep 1,000).
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
