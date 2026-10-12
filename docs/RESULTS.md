@@ -1423,3 +1423,104 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
 - **Level-3 episodes are about 2× faster and use about a third of the memory.** So about 3× more of them fit on the shared machine at once.
 - **What remains is essential work.** After the changes, the largest item is the exact enumeration inside the belief update (about a third of the CPU). Belief equality is about 7%, and the Tiger kernels are about 11% (memoizing those did not help before, HANDOFF 6). No single bit-identical change left would save more than about 7%. A further gain needs a solver-level change, which would alter outputs and needs its own gate (12.15's replay standard).
 - Earlier CPU figures (12.29, 12.32: 114 CPU-min per L3 episode) predate these changes.
+
+### 12.37 The packaged suite, and the level matrix at levels 0–3 on both games (October 11–12, 2026)
+
+**Packaging** (PLAN.md, "Tiger experiment suite", E; commit `df8803d`):
+- `experiments.suite` runs named study cells on shared trial ids (so cells pair by trial), round-robin, with one supervised process per episode. Its builders are `level_matrix`, `planner_comparison` and `prior_sensitivity`. Endpoints are in `analysis.endpoints`.
+- **Gate E** (`results/e_suite_gate_20261011`): the suite reran 12.27's cells (levels 1–3 × 1–3, trials 0–1, 18 episodes). Every row equalled the stored episodes (all columns except CPU, wall time and memory). So 12.27's 900 episodes were imported as this matrix's coordination cells at levels 1–3 instead of being rerun.
+
+**Design** (`results/m1_level_matrix_20261011`; `m1.py`, `analyze.py`, `KILL_CRITERION.txt`, all fixed before the run):
+- **Games:** the coordination Tiger (`together_safe = 40`) and the published Tiger.
+- **Agents:** levels 0–3 for both agents. Level 0 acts uniformly at random. An agent at level L ≥ 1 holds a uniform prior over the opponent's levels 0 … L − 1, and so does every nested model.
+- **Configuration:** H2, 100 simulations, compressed beliefs N = 64, 20 steps, n = 100 per cell, all cells on the same seeds.
+- **Primary endpoint:** one more level, against the same opponent level and seeds (the agent at k + 1 minus the same agent at k), for both agents. Holm over the 24 comparisons per game. Intervals are 95% trial bootstrap.
+
+**Primary endpoint, comparisons at level ≥ 1** (the 8 comparisons per game from level 0 to level 1 all gain 535–653, Holm p < 0.001):
+
+| Step | Opponent | Coordination, i | Holm p | Coordination, j | Holm p | Published, i | Holm p | Published, j | Holm p |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 → 2 | 0 | −2.6 [−9.8, 4.0] | 1 | −4.0 [−11.8, 3.8] | 1 | −0.2 [−0.6, 0.0] | 1 | +0.1 [0.0, 0.3] | 1 |
+| 1 → 2 | 1 | **+27.2 [15.9, 38.4]** | < 0.001 | **+29.8 [16.5, 43.5]** | < 0.001 | −4.4 [−8.9, 0.1] | 0.83 | −0.6 [−7.4, 6.3] | 1 |
+| 1 → 2 | 2 | +10.4 [1.5, 20.0] | 0.38 | +6.2 [−5.1, 17.1] | 1 | −2.0 [−6.4, 2.4] | 1 | +0.6 [−4.2, 5.7] | 1 |
+| 1 → 2 | 3 | **+15.5 [5.5, 26.1]** | 0.044 | **+14.7 [5.9, 23.7]** | 0.029 | −3.0 [−7.0, 1.0] | 1 | +2.3 [−4.1, 8.7] | 1 |
+| 2 → 3 | 0 | +2.3 [−3.0, 8.0] | 1 | −3.7 [−13.1, 4.9] | 1 | −1.4 [−4.5, 0.8] | 1 | −2.6 [−6.4, 0.3] | 1 |
+| 2 → 3 | 1 | −3.1 [−9.7, 3.3] | 1 | −1.0 [−7.5, 5.6] | 1 | +5.2 [1.9, 9.4] | 0.15 | +2.5 [−4.3, 9.0] | 1 |
+| 2 → 3 | 2 | +6.8 [1.9, 12.2] | 0.15 | +5.0 [0.3, 9.6] | 0.40 | +3.3 [−0.6, 7.7] | 1 | +1.7 [−3.9, 6.2] | 1 |
+| 2 → 3 | 3 | +6.2 [0.2, 12.3] | 0.44 | +1.7 [−3.5, 6.2] | 1 | +4.3 [0.8, 8.8] | 0.62 | −1.0 [−7.5, 4.8] | 1 |
+
+**Per cell** (20-step reward; log-loss is the agent's prediction of the opponent's next action, where a uniform guess is log 3 = 1.10; "misses" are trials in which a prediction gave the opponent's actual action probability 0):
+
+| i | j | Coordination: i's, j's reward | Welfare | Published: i's, j's reward | Welfare | Misses (i, j), coord. / publ. |
+|---|---|---|---|---|---|---|
+| 0 | 0 | −500, −533 | −1,033 | −561, −593 | −1,155 | — |
+| 0 | 1 | −556, 26 | −530 | −586, −1 | −586 | 0 / 0 |
+| 0 | 2 | −548, 22 | −526 | −589, −1 | −589 | 0 / 1 |
+| 0 | 3 | −539, 19 | −520 | −583, −3 | −586 | 2 / 1 |
+| 1 | 0 | 35, −554 | −519 | 7, −582 | −575 | 0 / 0 |
+| 2 | 0 | 33, −559 | −526 | 7, −582 | −576 | 0 / 0 |
+| 3 | 0 | 35, −561 | −526 | 5, −584 | −578 | 3 / 3 |
+| 1–3 | 1–3 | 12.27's table (coordination) | | 8–17 each | 22–29 | 0–6 per cell |
+
+- **Reasoning at all is what pays most.** Against every opponent, a level-1 agent earns 535–653 more over 20 steps than a level-0 one, which opens doors at random.
+- **Against a random opponent, more levels add nothing** on either game (all |difference| ≤ 4, Holm p = 1). The level posterior identifies a random opponent almost surely by step 20 (0.95–1.00), so modeling buys no information that changes the best response.
+- **The coordination results at levels 1–3 are 12.27's.** Level 1 → 2 pays against opponents at levels 1 and 3, and a third level gains nothing that survives the correction.
+- **The published Tiger is the control, and it holds.** At N = 64, no comparison above level 0 survives the correction (smallest Holm p 0.15). This replaces 12.21's N = 32 grid for levels 1–3.
+- **Bounded-belief misses stay rare:** 0–6 trials per 100 per cell. Against a random opponent, the level-3 agent misses in 3 trials per game (its compressed belief had dropped the level-0 hypothesis).
+- **Cost:** a level-3 against level-3 episode now takes about 1.9 CPU-min (12.27: 6.3, before 12.36). The CPU figures stored with the imported cells predate 12.36.
+
+### 12.38 I-POMCP against IPF + RTS in episodes (October 11–12, 2026)
+
+**Design** (`results/p_planners_20261011`; `p.py`, `analyze.py`, `KILL_CRITERION.txt`, fixed before the run):
+- **Agents:** i is level 2 (prior uniform over j at levels 0–1). The real j is a level-1 I-POMCP agent with root R: R = 1,000 at H3, and a flat R = 6,400 at H4 (at least the gated `6400s`).
+- **Arms for i:**
+  - I-POMCP: root 1,000, compressed N = 64. It models j with j's own solve (R simulations), so the model matches j's configuration.
+  - IPF + RTS: the sampled IPF with N = 64, at K = 2 and K = 4 sampled observations per node. As in Doshi & Gmytrasiewicz (2009), it also models j with RTS.
+- **Suites:** H3 on both games, n = 100; H4 on the coordination Tiger, n = 50. 20 steps.
+- **Primary endpoint:** i's 20-step reward, I-POMCP minus each RTS arm, paired by trial, Holm over the 6 comparisons.
+- **Kill check:** the median H4 K = 4 episode took 15.8 CPU-min, under the 34 limit, so n stayed 50.
+
+| Game, H | Arm | i's reward [95%] | I-POMCP − arm [95%] | Holm p | j's reward | i's log-loss | i's CPU per decision (s) | I-POMCP / arm CPU (median per trial) |
+|---|---|---|---|---|---|---|---|---|
+| Coordination, H3 | I-POMCP | 87.3 [72.4, 102.1] | — | — | 92.3 | 0.52 | 4.7 | — |
+| | RTS K = 2 | 49.6 [30.4, 68.2] | **+37.8 [17.8, 58.9]** | 0.003 | 66.4 | 0.67 | 2.4 | 1.9 |
+| | RTS K = 4 | 59.3 [44.5, 73.7] | **+28.0 [13.3, 43.6]** | 0.003 | 70.2 | 0.63 | 6.6 | 0.69 |
+| Published, H3 | I-POMCP | 7.6 [−1.1, 15.8] | — | — | 13.7 | 0.50 | 4.7 | — |
+| | RTS K = 2 | 11.7 [4.5, 17.6] | −4.1 [−10.3, 2.0] | 0.39 | 8.3 | 0.56 | 3.1 | 1.5 |
+| | RTS K = 4 | 11.7 [5.4, 17.5] | −4.1 [−10.3, 1.7] | 0.39 | 8.4 | 0.57 | 8.9 | 0.52 |
+| Coordination, H4 | I-POMCP | 87.0 [64.0, 107.2] | — | — | 92.5 | 0.53 | 67.3 | — |
+| | RTS K = 2 | 62.6 [41.3, 82.9] | +24.4 [−0.6, 48.1] | 0.17 | 74.5 | 0.66 | 10.1 | 6.5 |
+| | RTS K = 4 | 61.1 [36.4, 83.7] | +25.9 [2.6, 50.1] | 0.16 | 78.5 | 0.64 | 48.7 | 1.4 |
+
+- **Where modeling pays (the coordination Tiger), I-POMCP earns more than IPF + RTS.** At H3 the gain is 28–38 over 20 steps (Holm p = 0.003), including against K = 4, which costs more CPU per decision than I-POMCP (I-POMCP uses 0.69× its CPU). j earns more too, by 22–26, so the gain is better coordination, not taking reward from j.
+- **At H4 the difference is the same size** (+24 and +26) but does not survive the correction at n = 50. I-POMCP's flat 6,400-simulation model of j makes its decisions cost 1.4× RTS K = 4 and 6.5× K = 2.
+- **On the published Tiger, where modeling cannot pay, the planners do not differ** (−4.1, Holm p = 0.39).
+- **I-POMCP predicts j better** (log-loss 0.50–0.53, against 0.56–0.67 for RTS). This matches 12.20's ablation: RTS's error is search error, and RTS also models j with RTS.
+- **This complements 12.20,** which compared decisions against the exact I-POMDP (I-POMCP 380/380; RTS 95–99.5%).
+
+### 12.39 Prior sensitivity at level 3 (October 12, 2026; level 4 running)
+
+**Design** (`results/r_priors_20261011`; `r.py`, `analyze.py`, `KILL_CRITERION.txt`, fixed before the run):
+- **Agents:** coordination Tiger, H2, N = 64, 100 simulations, 20 steps, n = 100. i is at level 3. The real j is the level matrix's agent at level 1.
+- **Arms (i's prior over j's level):**
+  - correct, {1: 1};
+  - over-estimated, {2: 1};
+  - under-estimated, {0: 1};
+  - uniform, {0, 1, 2: 1/3}. This is 12.37's cell (3, 1), imported.
+- Every model of j at a given level is the matrix's real agent at that level.
+- **Primary endpoint:** i's 20-step reward, each arm minus correct, paired. The Holm family is 6 comparisons (3 arms × levels 3 and 4); the p-values below are corrected over level 3's 3 comparisons only and are **interim** until level 4 finishes.
+
+| Prior | i's reward | j's reward | Arm − correct [95%] | Holm p (interim, 3) | i's log-loss | Miss trials | i's posterior on level 1 at step 5 / 10 / 20 |
+|---|---|---|---|---|---|---|---|
+| Correct | 93.9 | 94.9 | — | — | 0.47 | 3 | 1.00 / 1.00 / 1.00 |
+| Over-estimated | 76.4 | 81.1 | **−17.5 [−28.8, −6.6]** | 0.004 | 0.88 | 31 | 0 / 0 / 0 |
+| Under-estimated | 63.9 | 53.9 | **−30.0 [−41.2, −18.7]** | < 0.001 | 1.10 | 0 | 0 / 0 / 0 |
+| Uniform | 88.0 | 89.4 | −6.0 [−13.1, 1.1] | 0.10 | 0.55 | 4 | 0.44 / 0.53 / 0.67 |
+
+- **A wrong point prior costs reward, and in both directions.**
+  - Over-estimating j's level costs 17.5.
+  - Under-estimating it as random costs 30.0. This arm reproduces cell (1, 1) of 12.37 exactly: an agent sure its opponent is random best-responds as a level-1 agent.
+  - A point prior cannot be revised, so the posterior stays at 0.
+- **The over-estimated model is refuted by the data but cannot be dropped.** It gives j's actual action probability 0 in 31 of 100 trials. With every atom a level-2 model, nothing in the belief can absorb an action only a level-1 j takes. So most of these misses are presumably the model's, not compression's (the correct arm has 3); no replay has separated the two (12.30's method would). Either way, the miss metric also flags a misspecified opponent model.
+- **A uniform prior costs little** (−6.0, not significant): i learns j's level (0.67 by step 20) while acting nearly as well as with the correct prior.
+- **Level 4** (i at level 4 against j at level 2, n = 40) is running with the level-4 row of the matrix (approved by the user on October 12, about 225 CPU-h); it completes this family.
