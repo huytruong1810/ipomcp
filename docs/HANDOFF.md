@@ -42,10 +42,10 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.37.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.40.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **Current task: the Tiger-suite phase**, planned with the user on October 11 and written on top of PLAN.md (workstreams E, M, P, R, W, with kill criteria and fixed endpoints). Execute in that order; UAV (item 2) follows once it is done.
+- **Current task: the Tiger-suite phase** (PLAN.md, top). E, M1, P and R3 are done (RESULTS 12.37–12.39). **Running (October 12, 12:10):** `results/m2_level4_20261011/m2.py 10` (runner PID in `runner-m2.pid`; the level-4 row (4, 0..4) at n = 40, then R4 in `results/r_priors_20261011/l4`, about 225 CPU-h, approved by the user). It resumes if restarted (`PYTHONPATH=$PWD/src ../../.venv/bin/python m2.py <workers>` from that folder). When it finishes: `analyze.py` in `r_priors_20261011` (all 6 comparisons, final Holm), a level-4 endpoint (3 → 4, paired with M1's coordination cells (3, j) on trials 0–39), RESULTS 12.40, the 12.39 update, then W (reviewer page, Claude Doc). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 
 ### 0.1 Where the science stands (October 11)
 

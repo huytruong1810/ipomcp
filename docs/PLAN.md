@@ -1,7 +1,14 @@
 # Plan: the Tiger experiment suite (October 11, 2026)
 
 ## Status (October 11, 2026)
-**Planned with the user; E (engineering) next.** UAV reconnaissance (HANDOFF 0.2, item 2) follows this phase.
+**E, M1, P and R3 complete (RESULTS 12.37–12.39); M2 + R4 running.** E: suite packaged (`df8803d`), Gate E
+passed (18/18 episodes equal to 12.27's, so its 900 episodes were imported). M1: levels 0–3 on both games, n = 100
+(12.37). P: I-POMCP beats IPF + RTS by 28–38 on the coordination Tiger at H3 (Holm p = 0.003); H4 +24–26 (n.s. at
+n = 50); no difference on the published Tiger (12.38). R3: a wrong point prior costs 17.5 (over) and 30.0 (under);
+uniform −6.0 n.s. (12.39). M2 pilot: level-4 episodes 22–93 CPU-min; the user approved (October 12) the level-4 row
+(4, 0..4) plus R4 at n = 40, about 225 CPU-h, in place of all 9 level-4 cells (about 250 CPU-h without R4); running
+from `results/m2_level4_20261011/m2.py` (row, then R4). Then W. UAV reconnaissance (HANDOFF 0.2, item 2) follows
+this phase.
 
 ## Context
 The user wants a complete, packaged Tiger suite before UAV (HANDOFF 0.2, item 1). The three suites that existed
