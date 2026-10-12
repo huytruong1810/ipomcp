@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32), root budgets (12.33–12.35) and cheaper nested solves (12.36), the last two on October 11. **The user has decided the next direction: the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009), planned in a new session (0.2).**
+Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32), root budgets (12.33–12.35) and cheaper nested solves (12.36), the last two on October 11. **The user has decided the next two phases (October 11): first a complete Tiger experiment suite, then the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009). Both are planned in a new session (0.2).**
 
 ## 0. Start here (fresh agent)
 
@@ -45,7 +45,7 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - Numbers go into `docs/RESULTS.md`. **The next free section is 12.37.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **First task for the new session:** plan the UAV phase from 0.2's brief, with the user. They asked for the experiments and implementations to be "planned out more clearly", so present the plan before executing it. Start with the parameter question in 0.2 item 1. Write the phase into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Then commit, push and execute.
+- **First task for the new session:** plan the **Tiger-suite phase** from 0.2 item 1, with the user. They asked for the experiments and implementations to be "planned out more clearly", so present the plan before executing it. Write it into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Then commit, push and execute. UAV (item 2) follows once the Tiger suite is done.
 
 ### 0.1 Where the science stands (October 11)
 
@@ -70,7 +70,9 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
 
 ### 0.2 Next steps (input to the next plan)
 
-**Tiger experiment-suite audit (October 11, at the user's question; the order against UAV is the user's call).**
+1. **The Tiger experiment suite (the user's decision, October 11; next phase, before UAV).** It answers the user's question of whether we can produce the full suite for Tiger. Today we can only partly. The audit:
+
+**Audit (October 11).**
 Before the September 30 restructure there were three packaged Tiger suites in `src/examples/experiments/`. They are still on the branch `archive/pre-restructure-20260930`, and their raw outputs are in `results/payoff_matrix/` and `results/deep_prior/`. All of them ran on the retired estimator, which was 61–88% optimal, so **none of their numbers are valid now**. The restructure replaced their runner classes with `StudySpec` + `runner`; the drivers that replaced them live only in git-ignored `results/` folders.
 
 | Old suite (archive) | Design | Current replacement | Gap |
@@ -79,7 +81,24 @@ Before the September 30 restructure there were three packaged Tiger suites in `s
 | `planner_comparison_experiment.py` (vs IPF + RTS) | Episodes: RTS against I-POMCP at 1k–100k simulations, depth 5 | 12.20: decision-level against the exact I-POMDP, L2 H3–H4, n = 380 (`results/w5_rts_baseline_20261006`; the package supports it through `panel`'s `rts` planner) | No episode-level comparison of cumulative reward; `AgentSpec` supports `kind = "rts"`, so it is runnable |
 | `deep_hierarchy_prior_experiment.py` | L3 vs L2 or L1 and L4 vs L3 or L1, with correct, over-estimated and uniform level priors, depth 5 | 12.16 (mixed-prior gate), 12.18 (L3 vs L2 with controls), 12.27 (uniform priors), 12.32 (matched model, H3) | No misspecified (over-estimated) prior conditions; no L4 conditions; depth 5 is infeasible above L2 (H3 is used) |
 
-1. **The UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (the user's decision, October 11; next phase).**
+**Brief for the plan:**
+- **Package the three suites** as drivers in `src/ipomdp/experiments/`, built on `StudySpec` and generic over the domain, so the UAV phase reuses them unchanged:
+  - **level matrix:** episodes for every pair of levels (i, j), including L0; i's and j's cumulative reward, joint welfare, and prediction loss and misses; paired seeds across cells;
+  - **planner comparison:** I-POMCP against IPF + RTS in episodes (cumulative reward at matched CPU), beside 12.20's decision-level comparison;
+  - **prior sensitivity:** correct, over-estimated, under-estimated and uniform priors over the opponent's level, at levels 3 and 4.
+
+  Move the logic of the grid scripts (`grid.py`, `endpoint.py`, `analyze_grid.py`, now in git-ignored `results/` folders) into the package, with tests. The analysis must be fixed before each run: the paired one-level endpoint with Holm correction (12.27), Clopper–Pearson intervals, and `prediction_misses`.
+- **Domains:** the published Tiger and the coordination Tiger (`together_safe = 40`). The published Tiger is the control in which depth cannot pay (12.18, 12.22).
+- **Configurations that bind:**
+  - beliefs N = 64 (12.26);
+  - root 1,000 in episodes (12.34);
+  - every model of the opponent matches its real configuration, budgets included (12.30);
+  - H2 for grids that include level 4 (exact for the searched model); H3 where affordable;
+  - level 5 is out (Section 6).
+- **Cost.** Since 12.36 an L3 H3 episode is about half its October 9 cost (about 57 CPU-min for 20 steps, estimated) and about 0.7 GB. Level-4 cells dominate. Size every suite with a pilot. Any run over 100 CPU-h is the user's approval. **Order:** reward matrix first, then the planner comparison, then priors.
+- **Reporting:** RESULTS from 12.37 on, the reviewer page (0.6) and the Claude Doc report. Old suite numbers came from the retired estimator, so they may be mentioned qualitatively at most.
+
+2. **The UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (the user's decision, October 11; after the Tiger suite).** The suite drivers from item 1 should run it unchanged.
    - **Why.** Tiger results are satisfactory (0.1). The reviewers' remaining weakness is that the evidence is all Tiger. This is the larger benchmark of the paper whose method (IPF + RTS) we already beat on Tiger (12.20).
    - **Source.** Doshi & Gmytrasiewicz, "Monte Carlo Sampling Methods for Approximating Interactive POMDPs", JAIR 34 (2009), 297–337, [arXiv:1401.3455](https://arxiv.org/abs/1401.3455). The domain is defined in Section 8.3.2 (Fig. 14), with results in Section 10.2 (Fig. 16) and Section 11.1 (Table 6).
    - **The paper's specification:**
@@ -119,12 +138,12 @@ Before the September 30 restructure there were three packaged Tiger suites in `s
    - **Cost notes:**
      - 36 states and 5 × 3 actions × observations against Tiger's 2 states and 3 × 6. Profile the hardest case first (the user's efficient-experiments rule; `results/s0_nested_profile_20261011/profile_episode.py` is the template).
      - 12.36's speedups apply. `update_rollout_memory` needs a UAV rollout policy and memory (see `domains/uav.py`'s current one).
-2. **Other breadth items, after UAV:**
+3. **Other breadth items, after UAV:**
    - Wumpus L1 beyond 3 beliefs (Section 0.10, item 3);
    - level 4 on the coordination Tiger (now cheaper, 12.36);
    - a solver-level change to the exact nested update (about a third of the CPU, 12.36; needs 12.15's replay gate).
-3. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
-4. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+4. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
+5. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
 
 ### 0.3b What happened October 11, evening (PLAN.md, "cheaper nested solves" phase)
 

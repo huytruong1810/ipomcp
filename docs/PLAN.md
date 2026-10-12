@@ -1,8 +1,11 @@
-# Next phase: the UAV reconnaissance domain (to be planned)
+# Next phases (to be planned): the Tiger experiment suite, then the UAV reconnaissance domain
 
-The user chose this on October 11: Doshi & Gmytrasiewicz (2009), Section 8.3.2. The brief, the specification gaps and
-the work list are in HANDOFF 0.2, item 1. The next session writes the phase here with the user, in the usual format,
-before executing it.
+The user decided on October 11:
+1. First, a complete, packaged Tiger suite: a reward matrix across levels including L0, I-POMCP against IPF + RTS in
+   episodes, and prior sensitivity. Brief and audit: HANDOFF 0.2, item 1.
+2. Then UAV reconnaissance, from Doshi & Gmytrasiewicz (2009), Section 8.3.2: HANDOFF 0.2, item 2.
+
+The next session writes the Tiger-suite phase here with the user, in the usual format, before executing it.
 
 # Plan: cheaper nested solves (October 11, 2026)
 
