@@ -6,16 +6,16 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32) root budgets (12.33–12.35) and cheaper nested solves (12.36), both October 11.
+Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32), root budgets (12.33–12.35) and cheaper nested solves (12.36), the last two on October 11. **The user has decided the next direction: the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009), planned in a new session (0.2).**
 
 ## 0. Start here (fresh agent)
 
 ### 0.0 State, rules and how to work
 
 - **Repository.**
-  - `main` is clean at the last HANDOFF commit. 311 tests pass in about 80 s (`.venv/bin/python -m pytest -q`), and `ruff check` and `ruff format --check` are clean.
+  - `main` is clean at the last HANDOFF commit. 315 tests pass in about 75 s (`.venv/bin/python -m pytest -q`), and `ruff check` and `ruff format --check` are clean.
   - **Nothing is running.**
-  - Nothing has been pushed: `main` is about 130 commits ahead of `origin/main`. Do not push unless asked.
+  - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
     - `resampling/optimal-fc` (12.28);
     - `bounded-belief/compressors` (12.31): compressor strategies as bank filters, plus drivers that accept every filter name. It is a superset of the first, and its worktree is `../ipomcp-q2`.
@@ -25,7 +25,7 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - A/B gates with paired statistics, the analysis fixed before the run;
   - big-tech code quality, with no legacy shims.
 
-  The user wants autonomy: take the recommended option, state it in one line, and keep going. Ask only for decisions that are genuinely theirs. Examples: a run of over 100 CPU-h on the shared machine (they approved the October 9 H3 study when asked), deletions, and pushing.
+  The user wants autonomy: take the recommended option, state it in one line, and keep going. Ask only for decisions that are genuinely theirs. Examples: a run of over 100 CPU-h on the shared machine (they approved the October 9 H3 study when asked), and deletions. Pushing is not one of them any more (standing rule above).
 - **The user's report style:** chosen method only, interim n labeled as interim, and jargon defined.
 - **Before running anything:**
   - **Read Section 6 (do not repeat).**
@@ -45,7 +45,7 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - Numbers go into `docs/RESULTS.md`. **The next free section is 12.37.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **First task for the new session:** confirm the next phase with 0.2's recommendation (the root-budget phase is complete), write it into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Commit it, then execute.
+- **First task for the new session:** plan the UAV phase from 0.2's brief, with the user. They asked for the experiments and implementations to be "planned out more clearly", so present the plan before executing it. Start with the parameter question in 0.2 item 1. Write the phase into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Then commit, push and execute.
 
 ### 0.1 Where the science stands (October 11)
 
@@ -70,13 +70,52 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
 
 ### 0.2 Next steps (input to the next plan)
 
-1. **Domain breadth (contribution 1's generality; recommended next).** Every gate so far is Tiger, apart from Wumpus L1 on 3 distinct beliefs (12.19).
-   - Wumpus L1 beyond 3 beliefs: vary the scripted history per seed (Section 0.10, item 3). 12.36's canonical-key change helps most where beliefs are large (compressing Wumpus's 94,500-atom prior sorts every atom), so re-time first.
-   - UAV: oracle and panel paths are needed (`_two_state_belief` and `_point_model` are Tiger-specific).
-   - Level 4 on the coordination Tiger: blocked before by cost and memory, both of which 12.36 cut (about 2× and 3× at level 3); re-measure one level-4 step first.
-   - A solver-level change to the exact nested update. It is now about a third of an L3 episode's CPU (12.36), and it would need 12.15's replay gate, since it changes outputs.
-2. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
-3. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+1. **The UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (the user's decision, October 11; next phase).**
+   - **Why.** Tiger results are satisfactory (0.1). The reviewers' remaining weakness is that the evidence is all Tiger. This is the larger benchmark of the paper whose method (IPF + RTS) we already beat on Tiger (12.20).
+   - **Source.** Doshi & Gmytrasiewicz, "Monte Carlo Sampling Methods for Approximating Interactive POMDPs", JAIR 34 (2009), 297–337, [arXiv:1401.3455](https://arxiv.org/abs/1401.3455). The domain is defined in Section 8.3.2 (Fig. 14), with results in Section 10.2 (Fig. 16) and Section 11.1 (Table 6).
+   - **The paper's specification:**
+     - a 3×3 grid of sectors; UAV i, ground target T;
+     - physical state (row_i, side-or-center_i, row_T, side-or-center_T), with the left and right columns merged by symmetry: 3·2·3·2 = **36 states**;
+     - actions for each agent: move N, S, E, W, or listen (**5 each**). Moves are deterministic, to an adjacent sector; T may also move diagonally;
+     - i's observations: **TR, CR, BR**, a noisy report of T's row (received when listening);
+     - i knows its own sector. **The game ends when i moves into T's sector** (T is spotted);
+     - T "may be informed … that it could be in danger of being spotted, with high uncertainty". i knows T's frame (its objectives and observation probabilities);
+     - "36 physical states, 5 actions and 3 observations for each agent".
+   - **What the paper leaves unstated:** the sensor accuracy; the reward values (it says R_i maps into [0, 1], yet Fig. 16 plots expected rewards up to about 12); T's observation function and rewards; the discount; the priors. Also unclear: how "move to T's sector" maps onto the collapsed side/center state, and whether T observes i's row.
+     - **First, ask the user** whether they have the original parameter values.
+     - If not, search Doshi's follow-up papers, and any published problem files from his group.
+     - Only then declare values, documented in `DOMAINS.md` as "the paper's structure, with declared values where it is silent". Do not invent values silently.
+   - **The paper's results to compare against:**
+     - level-1 reward against the number of particles at horizons 2 and 3 (curves flatten from N ≈ 1,000);
+     - I-PF KL divergence at levels 1 and 2 (Fig. 14b);
+     - run times: H2 8m 50s, H3 21m (no RTS); with RTS, H4 121 min (2.0 GB machine);
+     - no exact values: the authors could not compute them.
+   - **What exists in the repo:**
+     - `domains/uav.py`, a different declared game: a 3×3 pursuit game with 72 states, 8 compass observations and capture rewards (`DOMAINS.md`, "UAV pursuit");
+     - RESULTS Section 2, on a 2×3 variant;
+     - the registration `study.DOMAINS["uav"]`;
+     - tests in `test_domains.py`, `test_domain_contracts.py`, `test_best_response.py` and `test_canonical.py`.
+
+     The no-shims mandate says to replace this with the paper's version, not keep both.
+   - **Work the plan must cover** (cheapest and most informative first):
+     1. The model and its tests: kernels sum to one; the 36 states; termination; the symmetry collapse; contract tests.
+     2. Generic problem construction for the oracle and panel. `_two_state_belief`, `_point_model` and `sample_history` are Tiger-specific.
+     3. Exact references. L1 by alpha-vector value iteration at H2–H4. L2 exact I-POMDP: time one problem before committing a grid; Tiger L2 at H4 took about 36 s per problem with exact references. These are references the paper did not have.
+     4. Gates, with the same standard as Tiger:
+        - L1 against VI; L2 against the exact I-POMDP;
+        - Clopper–Pearson intervals; `optimal_q_error`; certified bounds;
+        - the modeled budget qualified at the beliefs j is modeled at (`modeled_qualification`).
+     5. The benchmark: I-POMCP against IPF + RTS (`baselines/`) at matched CPU. Also reproduce the paper's reward-vs-particles profile shape at L1 H2–H3.
+     6. Episodes and interpretability (sunbursts, prediction misses), if the gates pass.
+   - **Cost notes:**
+     - 36 states and 5 × 3 actions × observations against Tiger's 2 states and 3 × 6. Profile the hardest case first (the user's efficient-experiments rule; `results/s0_nested_profile_20261011/profile_episode.py` is the template).
+     - 12.36's speedups apply. `update_rollout_memory` needs a UAV rollout policy and memory (see `domains/uav.py`'s current one).
+2. **Other breadth items, after UAV:**
+   - Wumpus L1 beyond 3 beliefs (Section 0.10, item 3);
+   - level 4 on the coordination Tiger (now cheaper, 12.36);
+   - a solver-level change to the exact nested update (about a third of the CPU, 12.36; needs 12.15's replay gate).
+3. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
+4. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
 
 ### 0.3b What happened October 11, evening (PLAN.md, "cheaper nested solves" phase)
 

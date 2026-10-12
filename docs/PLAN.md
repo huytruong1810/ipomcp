@@ -1,3 +1,9 @@
+# Next phase: the UAV reconnaissance domain (to be planned)
+
+The user chose this on October 11: Doshi & Gmytrasiewicz (2009), Section 8.3.2. The brief, the specification gaps and
+the work list are in HANDOFF 0.2, item 1. The next session writes the phase here with the user, in the usual format,
+before executing it.
+
 # Plan: cheaper nested solves (October 11, 2026)
 
 ## Status (October 11, 2026)
