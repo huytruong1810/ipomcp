@@ -1,12 +1,12 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.35);
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.36);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32) and root budgets (12.33–12.35, October 11).
+Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32) root budgets (12.33–12.35) and cheaper nested solves (12.36), both October 11.
 
 ## 0. Start here (fresh agent)
 
@@ -32,9 +32,9 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - **Snapshot every long run.** Run `mkdir -p <run>/src && cp -r src/ipomdp <run>/src/`, then check that `PYTHONPATH=<run>/src .venv/bin/python -c 'import ipomdp; print(ipomdp.__file__)'` prints the snapshot path. A wrong layout silently imports the live code.
   - **One process per episode.** Use `xargs -P <k> -L 1 env PYTHONPATH=<run>/src .venv/bin/python <run>/job.py < jobs.txt`, with a job script that skips finished files. The template is `results/q4_h3_matched_20261009/h3_job.py`. Never use a `ProcessPoolExecutor` under a memory watchdog: one kill breaks the pool and ends the run (October 9 lost a night this way).
   - **Memory.**
-    - Level-3 H3 episodes plateau at about 2 GB each; level-4 episodes take 1–2 GB.
+    - Since 12.36, level-3 H3 episodes peak at about 0.7 GB each over 10 steps (they plateaued at about 2 GB before). Level-4 episodes took 1–2 GB before 12.36 and have not been re-measured.
     - The machine has 23 GB, 24 cores, and is shared: `~/projects/jepa_ipomdp` runs jobs of up to about 12 GB. Never touch its processes.
-    - Check `free -g`, then size the workers: 6 level-3 H3 workers left about 10 GB free.
+    - Check `free -g`, then size the workers. Before 12.36, 6 level-3 H3 workers left about 10 GB free; re-measure on the first run.
     - `results/q4_h3_matched_20261009/watchdog.sh <pattern> <log>` kills the youngest matching process when `MemAvailable` falls below 1.5 GB.
     - `memlog.sh <log>` logs memory every 5 minutes.
   - **Processes.** Kill by PID only (`ps -eo pid,ppid,args`). Never use `pkill -f`. Never wait on `pgrep -f`: it matches its own command line. Wait on a PID or an output file instead.
@@ -42,7 +42,7 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.36.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.37.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **First task for the new session:** confirm the next phase with 0.2's recommendation (the root-budget phase is complete), write it into PLAN.md (on top, in the format of the existing phases: Status, Context, Summary table with kill criteria, Workstreams), ordered by value per CPU-hour. Commit it, then execute.
@@ -70,13 +70,24 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
 
 ### 0.2 Next steps (input to the next plan)
 
-1. **Cheaper nested solves per distinct j-model (contribution 1; recommended next).** 12.33–12.34 measured that nested solves are almost all of a decision's CPU: 16–23 s of a gate decision, 101 s of an L3 episode decision, against 0.2–0.35 ms per root simulation. Every study's cost (L3 episodes: 114 CPU-min each, 12.32; level 4; larger belief supports, 12.31) is this one cost. Start with a profile of one L3 episode step's nested solves (`results/r2_episode_root_cost_20261011/probe.py` gives the setup), then speedups gated bit-identical as in W1 (12.12), or a solver change gated like 12.15 (same decisions on replayed solves).
-2. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
-3. **Domain breadth:**
-   - Wumpus beyond 3 beliefs: vary the scripted history per seed (Section 0.10, item 3).
+1. **Domain breadth (contribution 1's generality; recommended next).** Every gate so far is Tiger, apart from Wumpus L1 on 3 distinct beliefs (12.19).
+   - Wumpus L1 beyond 3 beliefs: vary the scripted history per seed (Section 0.10, item 3). 12.36's canonical-key change helps most where beliefs are large (compressing Wumpus's 94,500-atom prior sorts every atom), so re-time first.
    - UAV: oracle and panel paths are needed (`_two_state_belief` and `_point_model` are Tiger-specific).
-   - Level 4 on the coordination Tiger: about 7× N = 32's cost per step at N = 64.
-4. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+   - Level 4 on the coordination Tiger: blocked before by cost and memory, both of which 12.36 cut (about 2× and 3× at level 3); re-measure one level-4 step first.
+   - A solver-level change to the exact nested update. It is now about a third of an L3 episode's CPU (12.36), and it would need 12.15's replay gate, since it changes outputs.
+2. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
+3. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+
+### 0.3b What happened October 11, evening (PLAN.md, "cheaper nested solves" phase)
+
+| Work | Result | RESULTS |
+|---|---|---|
+| S0 profile | L3 episode, 4 steps: canonical keys re-encoded the physics for every atom (about 32%), the rollout-memory update (14%), recursive belief comparisons (7%) | 12.36 |
+| S1–S2 (`661526c`) | Per-frame canonical fragments (byte-identical keys); memoized rollout memory | 12.36 |
+| S3 (`7183339`) | Compressed-filter cache 4,096 → 65,536 (it was recomputing 22% of updates, as duplicate objects); one-pass order and digest | 12.36 |
+| Net (bit-identical) | 10-step L3 episodes 0.50–0.52× CPU, peak memory 1.9 → 0.65 GB; L2 0.57× | 12.36 |
+
+Tools: `results/s0_nested_profile_20261011/profile_episode.py` (cProfile of any condition); `results/s1_gates_20261011/` and `results/s3_gates_20261011/` (paired old/new bit-identity gates: `jobs.sh`, `episode_job.py <version> <condition> <trial> <steps>`, `compare.py`); `results/s3_cache_sizes_20261011/cache_probe.py`; `results/s4_net_effect_20261011/`. Files: `belief/canonical.py`, `belief/compressed_filter.py`, `domains/tiger.py`, `tests/test_canonical.py` (new; 315 tests).
 
 ### 0.3a What happened October 11 (PLAN.md, "root adaptive budgets" phase)
 
@@ -427,6 +438,7 @@ studies/        tiger_l3_vs_l2.toml
 | 12.33 | **Root CPU is a fixed cost** (nested solves within 125 simulations); no root stopping rule qualifies; root 4,000 cuts L2 H4 Q error 3.9× at 1.06× CPU |
 | 12.34 | In episodes: one decision at 4,000 costs 1.015× (L3); with a matched model of j, 1.32–1.42× per episode; episodes keep 1,000 |
 | 12.35 | Error split at root 4,000: deeper choices and rollouts about 0.009 of 0.026; no deeper-node redesign |
+| 12.36 | **Nested solves about 2× faster, about ⅓ the memory, bit-identical:** per-frame canonical encodings, memoized rollout memory, filter cache 65,536 |
 
 **Implication the user has been told about.** Contribution 1's bounded belief is now the compressed filter, not the published IPF; the IPF remains the baseline's belief. If the user wants the published IPF inside the proposed method too, that changes the story; ask before assuming.
 
@@ -577,6 +589,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | 16 workers of level-4 episodes on the shared machine (October 7) | Workers grew to 1–1.5 GB each; available memory fell to 4 GB | 8 workers for level ≥ 3 episodes, plus a memory watchdog |
 | A stopping rule at the root (12.33): the modeled test of 12.11/12.15, or certified separation | Saves at most 3%: a decision's CPU is paid in its first 125 simulations (nested solves); stopping early only raises Q error. Certified separation certifies the decision, not the value (stops at 125–250 with Q error 0.28 at L3 H3) | A larger flat root budget (4,000 for gates) |
 | Costing a flat arm from one checkpoint's incremental growth CPU (R1 pilot, October 11) | Flat 1,000 looked 50× cheaper than the rules | Sum growth over all checkpoints up to n, plus one scoring |
+| A filter cache smaller than the caches keyed on its results (4,096 vs 16,384–65,536; until October 11) | Evicted posteriors were recomputed as new, equal objects: 22% of an L3 episode's updates were redone, downstream lookups compared whole beliefs recursively, and the duplicates kept memory at about 2 GB | Filter cache 65,536 (12.36) |
 | A memory watchdog over a `ProcessPoolExecutor` run (October 9, matched H3 study, 10 workers) | One kill raised `BrokenProcessPool` and the whole run exited; nothing finished overnight | One process per episode (`xargs -P`, a job script that skips done files), so a kill loses one episode |
 
 ## 7. Merge record

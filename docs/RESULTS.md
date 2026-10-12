@@ -1389,3 +1389,37 @@ Q error is the optimal-action Q error, as a mean. 380/380 is 99.0–100% and 162
 (Shares are of the summed absolute parts of the search error.)
 - **Deeper choices and rollouts now come to about 0.009** of the remaining error (13% of 0.068). These were the targets of R3's candidate redesign (variance-reduced backups, better rollouts). There is too little left for such a change to pay off, so none is planned.
 - What remains is mostly chance error with three steps left, where scoring keeps the sampled weights because some branches are missing.
+
+### 12.36 Nested solves twice as fast, with a third of the memory, bit-identical (October 11, 2026)
+
+**Question.** Nested solves are almost all of a decision's CPU (12.33–12.34). Can they be made cheaper without changing any output (W1's standard, 12.12)?
+
+**Profile** (`results/s0_nested_profile_20261011`): cProfile of 12.32's L3 condition, trial 0, 4 steps (462 s profiled, 445 s of it inside modeled solves). The waste was in three places:
+- **Canonical sort keys and digests (about 32%).** Every compression and digest re-encoded the opponent's physics for every atom: 5.4M encodings for a handful of frames.
+- **The rollout-memory update (14%).** 2M Tiger Bayes updates, over few distinct arguments.
+- **Recursive belief comparisons (7%).** These came from a cache-size mismatch.
+
+**Changes** (commits `661526c`, `7183339`):
+- Each frame's part of an atom's canonical encoding is computed once per frame. Rows are assembled byte-identically to `json.dumps`. Tests check keys, digests and canonical order against the JSON definitions on Tiger, UAV and Wumpus beliefs.
+- The rollout-memory update is memoized by value at module level, so physics gains no attribute.
+- The compressed filter's caches went from 4,096 to 65,536 entries. At 4,096, an L3 episode recomputed 22% of its updates. Each recomputed posterior is a new object equal to ones cached downstream, so later lookups compared whole beliefs recursively, and the duplicates stayed in memory.
+- Compression computes the canonical order and the digest in one pass.
+
+**Gates** (fixed in PLAN before each change). Old and new snapshots ran paired in the same run.
+- **Bit-identical outputs:** 40 R0 gate problems (L2 H4 and L3 H3; every checkpoint's values, bounds and exactness, plus references and pilots). 12.32-configuration episodes: 4 for each change, two of them 10 steps long. Every non-timing column matched, and decisions matched 12.32's stored episodes.
+- 315 tests pass; ruff is clean.
+
+**Net effect** (`results/s4_net_effect_20261011`): pre-phase code against final `main`, paired, 10-step episodes, all bit-identical.
+
+| Episode (10 steps) | CPU before | CPU after | Ratio | Peak memory before | after |
+|---|---|---|---|---|---|
+| L3, trial 0 | 2,092 s | 1,079 s | 0.52 | 1,910 MB | 678 MB |
+| L3, trial 1 | 1,917 s | 992 s | 0.52 | 1,748 MB | 635 MB |
+| L3, trial 3 | 2,029 s | 1,015 s | 0.50 | 1,868 MB | 612 MB |
+| L2, trial 0 | 66 s | 38 s | 0.57 | 168 MB | 281 MB |
+
+Exact-belief gate problems (no compression) took 0.74× the CPU at the median (range 0.60–0.90) from the first change alone (`results/s1_gates_20261011`).
+
+- **Level-3 episodes are about 2× faster and use about a third of the memory.** So about 3× more of them fit on the shared machine at once.
+- **What remains is essential work.** After the changes, the largest item is the exact enumeration inside the belief update (about a third of the CPU). Belief equality is about 7%, and the Tiger kernels are about 11% (memoizing those did not help before, HANDOFF 6). No single bit-identical change left would save more than about 7%. A further gain needs a solver-level change, which would alter outputs and needs its own gate (12.15's replay standard).
+- Earlier CPU figures (12.29, 12.32: 114 CPU-min per L3 episode) predate these changes.

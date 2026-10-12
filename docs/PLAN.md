@@ -1,7 +1,10 @@
 # Plan: cheaper nested solves (October 11, 2026)
 
 ## Status (October 11, 2026)
-S0 done (profile below). S1 starting.
+**Phase complete (12.36).** S1 + S2 (`661526c`) and S3 (`7183339`; filter cache 65,536 and one-pass order and digest;
+belief interning not needed after the cache fix) passed every gate bit-identically. Net, paired on 10-step episodes:
+L3 0.50–0.52× CPU and peak memory 1.9 → 0.65 GB; L2 0.57×. S4 not started: the remaining profile is the exact update's
+own enumeration (~1/3) with nothing else above ~11%, so a further gain needs a solver-level change (planned separately).
 
 ## Context
 The root-budget phase (below; 12.33–12.35) measured that nested (modeled) solves are almost all of a decision's CPU:
