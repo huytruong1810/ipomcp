@@ -7,6 +7,7 @@ import os
 from itertools import combinations
 from typing import Any, Dict
 
+import numpy as np
 import pandas as pd
 from scipy import stats
 
@@ -62,12 +63,10 @@ def compute_statistical_significance(
             wilcoxon_pval=p_w,
         )
 
-    running = 0.0
-    ordered = sorted(results.values(), key=lambda row: row["paired_t_pval"])
-    for rank, row in enumerate(ordered):
-        running = max(running, min(1.0, (len(ordered) - rank) * row["paired_t_pval"]))
-        row["holm_pval"] = running
-        row["significant_at_05"] = running < 0.05
+    rows = list(results.values())
+    for row, adjusted in zip(rows, holm([row["paired_t_pval"] for row in rows])):
+        row["holm_pval"] = float(adjusted)
+        row["significant_at_05"] = bool(adjusted < 0.05)
 
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, output_filename)
@@ -75,6 +74,16 @@ def compute_statistical_significance(
         json.dump(results, stream, indent=2, allow_nan=False)
 
     return results
+
+
+def holm(p_values):
+    """Holm step-down adjusted p-values, in the input order."""
+    p = np.asarray(p_values, dtype=float)
+    adjusted, running = np.empty(len(p)), 0.0
+    for rank, index in enumerate(np.argsort(p, kind="stable")):
+        running = max(running, min(1.0, (len(p) - rank) * p[index]))
+        adjusted[index] = running
+    return adjusted
 
 
 def clopper_pearson(successes: int, n: int, confidence: float = 0.95) -> tuple[float, float]:

@@ -28,3 +28,10 @@ def fails_until_recovered(marker, spec, trial):
     if trial == 1 and not Path(marker).exists():
         raise ValueError("injected recoverable worker failure")
     return run_episode(spec, trial)
+
+
+def recording_episode(log, spec, trial):
+    """Run the episode and append "<study name> <trial>" to ``log`` (scheduling order)."""
+    with open(log, "a") as stream:
+        stream.write(f"{spec.name} {trial}\n")
+    return run_episode(spec, trial)

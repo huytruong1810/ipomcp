@@ -83,6 +83,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
   - belief support, the level posterior and the physical marginal;
   - optionally the nested hierarchy.
 - `runner.run_study` executes trials under supervision. It writes atomic per-trial checkpoints and a manifest of the spec plus source hashes, resumes only when both match, and writes a completion marker bound to the CSV bytes.
+- **Suites** (`experiments.suite`): a `SuiteSpec` is a set of named `StudySpec` cells on shared trial ids, so cells pair by trial. `run_suite` schedules trials round-robin over cells, one supervised process per episode, checkpoints `trials/<cell>/<trial>.csv`, and resumes against a manifest in which only `trials` may grow. Builders, generic over the domain: `level_matrix` (every level pair, level 0 included, uniform priors over lower levels at every nesting), `planner_comparison` (I-POMCP against IPF + RTS at level 2), `prior_sensitivity` (correct, over-, under-estimated and uniform priors over the opponent's level). Their endpoints are in `analysis.endpoints`.
 - **Qualification drivers:** `l1_qualification`, `belief_qualification`, `oracle` (one decision problem vs exact best response or exact I-POMDP; levels 1–4, the published Tiger or a payoff variant; planners `mcts` and `rts`; exact or particle beliefs) and `panel` (grids of planners, levels 2–4, budgets, modeled budgets and particle counts vs the exact I-POMDP: the allocation and baseline studies), and `modeled_qualification` (the modeled level below a level-2 or level-3 agent, scored against its exact reference at the beliefs it is queried at, over a ladder of modeled stacks).
 - **Per-level modeled stacks** (`experiments.modeled_levels`): the oracle, panel and qualification drivers name how every intentional level below the agent is solved with one label per level, top-down: `400` (flat), `6400s` (stopping, cap 6,400), `exact`; `6400s/400` at level 3 solves j-L2 with stopping and the i-L1 it models with a flat 400. Each level's `PlannerConfig` carries its own budget and rule; `register_levels` builds the hierarchy from the stack for every driver.
 
@@ -95,7 +96,8 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 - `hierarchy`: nested belief hierarchies as path nodes carrying joint mass and the physical belief held at each node, and their error against an exact hierarchy per depth.
 - `metrics`: long-format rewards, costs and level posteriors computed once from episode records, with trial-clustered bootstrap intervals.
 - `figures`: static figures (matplotlib) and interactive sunbursts (plotly) of any depth, with content and error in the hover text.
-- `statistics`: paired comparisons with Holm correction.
+- `statistics`: paired comparisons, Holm correction and Clopper–Pearson intervals.
+- `endpoints`: the suites' pre-registered endpoints (paired differences by trial, the one-level endpoint of a level matrix, arm differences, per-cell tables with prediction misses).
 - `error_attribution`: an additive decomposition of search-tree error.
 
 ### `infra`
