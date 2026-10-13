@@ -1535,7 +1535,7 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
   - j at level 4 minus j at level 3 against i at level 4.
 
   Holm over these 5 comparisons.
-- **Cost:** 74 CPU-h. Median CPU-min per episode: 0.9 against level 0, 13 against level 1, 22–23 against levels 2–3, 45 for level 4 against level 4. The pilot's 61–93 had been measured under full load. Peak memory was 1.3 GB per episode; no episode failed.
+- **Cost:** 69 CPU-h. Median CPU-min per episode: 0.9 against level 0, 13 against level 1, 22–23 against levels 2–3, 45 for level 4 against level 4. The pilot's 61–93 had been measured under full load. Peak memory was 1.3 GB per episode; no episode failed.
 
 | Step 3 → 4 | Opponent level | Difference [95%] | Holm p |
 |---|---|---|---|
