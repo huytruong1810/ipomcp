@@ -1,3 +1,61 @@
+# Plan: the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (October 12, 2026)
+
+## Status (October 12, 2026)
+**Planned by Claude (the user delegated the choice of direction on October 12 while away). U1 done (`3819675`: model, tests, DOMAINS.md); U2 next.**
+
+## Context
+The Tiger suite is complete (RESULTS 12.37–12.40, and level 4 of 12.39). On Tiger the evidence for all three contributions is in hand: exact
+optimality wherever exact references exist, a win over IPF + RTS in decisions (12.20) and in episodes (12.38), and a
+settled value-of-depth profile with its control (12.37, 12.40) and prior sensitivity (12.39). The reviewers' remaining
+weakness is that every result is on Tiger (2 states). The user chose UAV reconnaissance as the next domain on
+October 11 (HANDOFF 0.2, item 2); this plan makes it concrete.
+
+**Why this is the right next step (Claude's judgement, recorded for the user).** Alternatives considered: level 4 at
+H3 or Wumpus breadth (both stay inside settled questions or a domain without an opponent), the L3 H4 residual (4/80
+near-ties, gaps ≤ 0.03; needs a PAC standard that is the user's call), a solver-level speedup (worth it only once a
+domain needs it). UAV is the only item that answers the open reviewer question, it is the benchmark of the paper whose
+method we beat on Tiger, and exact references for it are something that paper did not have.
+
+**Parameters.** The 2009 paper gives the structure but no values (HANDOFF 0.2). The user could not be asked
+(away), so per HANDOFF the search came next: Zeng & Doshi, "Exploiting Model Equivalences for Solving Interactive
+Dynamic Influence Diagrams", JAIR 43 (2012), Section 7 and Appendix B.3 (arXiv:1401.4600), state values for the same
+group's UAV reconnaissance domain: listening reports the target's relative position correctly with probability 0.8,
+other reports equiprobable, and moving gives random reports; the UAV gets 50 for spotting the target and −5 for any
+other action; the CPTs themselves are "available upon request". Declared model (to `DOMAINS.md`, "the paper's
+structure, with declared values where it is silent"):
+
+| Item | 2009 paper | Declared here | Source of the value |
+|---|---|---|---|
+| Grid | 3×3 sectors; UAV i, target T | same | 2009 |
+| State | 36 (sides merged by symmetry) | **81**: (i's sector, T's sector), spotted terminal | the 36-state collapse cannot tell whether two agents in side columns share a sector, so it cannot express "spotted"; the full grid can (the mirror symmetry is tested, not used) |
+| Actions | N, S, E, W, listen for both ("5 actions", stated twice) | same; moves deterministic, clamped at the edge | 2009 (its "or diagonal" remark contradicts its 5 actions; 5 kept) |
+| i's observations | TR, CR, BR: T's row | same 3; listen: correct row 0.8, others 0.1; moving: uniform | Zeng & Doshi 2012 |
+| i's own position | known | i starts in a fixed, commonly known sector (bottom-left); moves are deterministic, so i always knows it | 2009 ("aware of its own location") |
+| T's observations | "informed … with high uncertainty" | (own sector, i's row); listen: i's row correct 0.6, others 0.2; moving: uniform | declared ("high uncertainty" < i's 0.8) |
+| T's prior position | any of 9 | uniform over the 8 sectors other than i's start | 2009 |
+| Spotting | i moves into T's sector; game ends | same sector after the joint move; terminal | 2009 |
+| i's reward | in [0, 1] (yet Fig. 16 plots up to ~12) | +50 on spotting, −5 per step otherwise | Zeng & Doshi 2012 |
+| T's reward | conflicting objectives | −50 when spotted, 0 otherwise | declared (zero-sum on the spotting event) |
+| Discount | — | 0.95 (the package default) | declared |
+
+T's own sector enters T's observation because the package's prior is common and never conditions on the true state
+(`bootstrapper` docstring); T therefore learns its sector at its first observation, and its first decision is made
+without it. Recorded as a deviation.
+
+## Summary, cheapest and most informative first
+
+| Order | Workstream | CPU | Kill criterion |
+|---|---|---|---|
+| U1 | Model + tests (kernels sum to 1, terminal handling, mirror symmetry, contract tests); replace `domains/uav.py` and its tests (no shim); `DOMAINS.md` | tests | any contract test fails → fix before U2 |
+| U2 | Generic problem construction for oracle/panel: a problem gives i's physical belief and, per state, the opponent's belief (the target knows its own sector, so its model depends on the state; Tiger's chain of point models is the special case of a constant map). `sample_history` takes a domain's history policy | tests (Tiger panels reproduce bit-identically) | any Tiger oracle/panel row changes → fix |
+| U3 | Exact references: L1 by alpha-vector VI at H2–H4; time one exact L2 I-POMDP problem before any grid | < 1 CPU-h | one L2 H3 problem > 10 min → L2 gates at H2 only |
+| U4 | Gates as on Tiger: L1 vs VI, L2 vs exact I-POMDP; Clopper–Pearson; `optimal_q_error`; certified bounds; modeled-budget qualification | sized by U3 | > 100 CPU-h → cut problems |
+| U5 | Benchmark: I-POMCP vs IPF + RTS at matched CPU (decisions vs exact, and `planner_comparison` episodes); the paper's reward-vs-particles shape at L1 H2–H3 | sized by U3–U4 | as U4 |
+| U6 | Episodes with the suite drivers unchanged (level matrix 0–2, prediction misses, sunbursts) if U4 passes | pilot first | > 100 CPU-h → flag |
+| U7 | Write-up: RESULTS, DOMAINS, reviewer page, Claude Doc | — | — |
+
+Profile the hardest case first (the efficient-experiments rule; template `results/s0_nested_profile_20261011/profile_episode.py`).
+
 # Plan: the Tiger experiment suite (October 11, 2026)
 
 ## Status (October 11, 2026)
