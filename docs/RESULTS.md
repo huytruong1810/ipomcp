@@ -1524,3 +1524,41 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
 - **The over-estimated model is refuted by the data but cannot be dropped.** It gives j's actual action probability 0 in 31 of 100 trials. With every atom a level-2 model, nothing in the belief can absorb an action only a level-1 j takes. So most of these misses are presumably the model's, not compression's (the correct arm has 3); no replay has separated the two (12.30's method would). Either way, the miss metric also flags a misspecified opponent model.
 - **A uniform prior costs little** (−6.0, not significant): i learns j's level (0.67 by step 20) while acting nearly as well as with the correct prior.
 - **Level 4** (i at level 4 against j at level 2, n = 40) is running with the level-4 row of the matrix (approved by the user on October 12, about 225 CPU-h); it completes this family.
+
+### 12.40 Level 4 against levels 0–4 on the coordination Tiger (October 12, 2026)
+
+**Design** (`results/m2_level4_20261011`; `m2.py`, `analyze.py`, `KILL_CRITERION.txt`, fixed before the run): 12.37's matrix extended by the level-4 row.
+- **Agents:** i at level 4 against j at levels 0–4. The coordination Tiger is symmetric in the agents, so the column would repeat the row on other seeds. The scope was approved by the user on October 12.
+- **Configuration:** H2, 100 simulations, N = 64, 20 steps, n = 40, on 12.37's seeds. Trials 0–3 of (4, 4) and (4, 2) are the cost pilot's episodes (same code and configuration).
+- **Primary endpoint:** one more level (3 → 4):
+  - i at level 4 minus i at level 3 against j at levels 0–3, paired with 12.37's cells (3, j) on trials 0–39;
+  - j at level 4 minus j at level 3 against i at level 4.
+
+  Holm over these 5 comparisons.
+- **Cost:** 74 CPU-h. Median CPU-min per episode: 0.9 against level 0, 13 against level 1, 22–23 against levels 2–3, 45 for level 4 against level 4. The pilot's 61–93 had been measured under full load. Peak memory was 1.3 GB per episode; no episode failed.
+
+| Step 3 → 4 | Opponent level | Difference [95%] | Holm p |
+|---|---|---|---|
+| i | 0 | −1.7 [−11.3, 6.4] | 1 |
+| i | 1 | +3.8 [−1.6, 9.4] | 0.99 |
+| i | 2 | +1.7 [−3.8, 8.1] | 1 |
+| i | 3 | +1.7 [−3.8, 8.1] | 1 |
+| j | 4 | −1.0 [−4.1, 2.1] | 1 |
+
+| i | j | i's reward | j's reward | Welfare | i's log-loss | Miss trials (i) | i's posterior on j's level at step 20 | CPU per step (s) |
+|---|---|---|---|---|---|---|---|---|
+| 4 | 0 | 39.4 | −548.3 | −508.9 | 1.40 | 2 | 0.94 | 6.1 |
+| 4 | 1 | 92.4 | 99.8 | 192.1 | 0.59 | 3 | 0.63 | 38.8 |
+| 4 | 2 | 117.9 | 115.9 | 233.8 | 0.40 | 1 | 0.35 | 65.4 |
+| 4 | 3 | 119.6 | 119.3 | 238.8 | 0.39 | 1 | 0.38 | 64.0 |
+| 4 | 4 | 119.1 | 118.3 | 237.3 | 0.39 | 1 | — | 137.9 |
+
+- **A fourth level changes almost nothing.** Level 4 takes the same actions as level 3 in 34–35 of 40 trials against opponents at levels 2 and 3. The few trials where they differ are the same ones with the same reward swings (+41, +99, −41, +11, −41), which is why those two rows match exactly. No difference exceeds 4.
+- **Prediction no longer improves:** log-loss 0.39–0.40 at level 4 against 0.41–0.43 at level 3 (12.27). Identification of the opponent's level stays weak: 0.35–0.38 for levels 2–3 against a prior of 1/4.
+- **Together with 12.37, the coordination Tiger's value of depth is settled at H2:**
+  - level 0 → 1 is worth about 600;
+  - level 1 → 2 is worth 15–30 against intentional opponents;
+  - level 2 → 3 is worth +5 to +7, not significant;
+  - level 3 → 4 is worth nothing measurable.
+
+  The exact screen (12.22) predicted this ordering.
