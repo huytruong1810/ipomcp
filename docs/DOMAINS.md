@@ -30,19 +30,27 @@ A declared variant for this project. In the published game an agent's reward dep
 
 The coordination game used from RESULTS.md 12.22 on is `together_safe = 40`: it was chosen by an exact screen of the value of one more level of reasoning (`results/p2_payoff_screen_20261007`).
 
-## UAV pursuit (`domains/uav.py`)
+## UAV reconnaissance (`domains/uav.py`)
 
-This is a declared specification for this project.
+The domain of Doshi & Gmytrasiewicz (2009), "Monte Carlo Sampling Methods for Approximating Interactive POMDPs", JAIR 34, Section 8.3.2 (arXiv:1401.3455): **the paper's structure, with declared values where it is silent.** The 2009 paper states no sensor accuracy, rewards, target observations or priors. Values come from the same group's UAV reconnaissance domain in Zeng & Doshi (2012), "Exploiting Model Equivalences for Solving Interactive Dynamic Influence Diagrams", JAIR 43, Section 7 and Appendix B.3 (arXiv:1401.4600), where it states them (its CPTs are "available upon request"); the rest are declared here. The original values were not available (the user could not be asked on October 12; HANDOFF 0.2).
 
-| Element | Specification |
-|---|---|
-| State, prior | (pursuer cell, evader cell) on a rows × cols grid (default 3 × 3); uniform over distinct cells |
-| Actions | N, S, E, W (clamped at the boundary), or SENSE (stay) |
-| Capture | both agents on the same cell after moving; the episode ends. Swapping cells is not a capture |
-| Rewards | pursuer −0.1 per step and +1 on capture; evader +0.1 per step and −1 when caught |
-| Observation | (own cell, token). Each agent knows its own cell. SENSE reports the other agent's compass direction (N, NE, …, NW): correct with probability 0.85, otherwise uniform over the other seven. Moving yields NONE |
+| Element | 2009 paper | Here | Source of the value |
+|---|---|---|---|
+| Grid | 3 × 3 sectors; UAV i, ground target T (agent j) | same (`rows`, `cols`) | 2009 |
+| State | 36: rows and side-or-center columns of both, sides merged by symmetry | 81: (i's sector, T's sector); same sector = spotted (terminal) | the merged state cannot tell whether two side-column agents share a sector, so it cannot express spotting. The mirror symmetry holds for every kernel and is tested |
+| Actions | N, S, E, W, listen for each ("5 actions", stated twice) | same; moves deterministic, clamped at the edge | 2009 (its remark that T may move diagonally contradicts the 5 actions; 5 kept) |
+| i's observations | TR, CR, BR: the row of T | rows 0 (TR), 1 (CR), 2 (BR). Listen: correct with 0.8, each other row 0.1. Moving: uniform | Zeng & Doshi 2012 (0.8 on listening; "random observations during other actions") |
+| i's position | known to i | i starts in the bottom-left sector, known to both; moves are deterministic, so i always knows its sector | 2009 ("aware of its own location") |
+| T's observations | "informed … that it could be in danger of being spotted … with high uncertainty" | (T's own sector, i's row). Listen: i's row correct with 0.6, each other 0.2. Moving: uniform | declared: "high uncertainty" is below i's 0.8 |
+| Prior | i uncertain about T's sector | T uniform over the 8 sectors other than i's start | 2009 |
+| Spotting | "If the UAV moves to a sector containing a target … the game ends" | both in one sector after the joint move; terminal. Swapping sectors is not spotting | 2009 |
+| i's reward | in [0, 1] (though Fig. 16 plots rewards up to about 12) | +50 on spotting, −5 for every other step | Zeng & Doshi 2012 |
+| T's reward | objectives that conflict with i's | −50 when spotted, 0 otherwise | declared |
+| Discount | — | 0.95 (package default) | declared |
 
-An earlier version hid the pursuer's own position, which made capture largely luck.
+**Deviation.** The package's prior is common to every agent and nesting level and never conditions on the true state (`experiments/bootstrapper.py`). T's own sector is therefore part of T's observation, so T learns its sector from its first observation; its first decision is made without it.
+
+The previous `domains/uav.py` was a declared pursuit game (72 states, compass sensors, ±1 rewards; RESULTS Section 2). It was replaced on October 12, 2026, without a compatibility shim.
 
 ## Wumpus world (`domains/wumpus/`)
 

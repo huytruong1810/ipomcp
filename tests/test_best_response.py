@@ -1,4 +1,4 @@
-"""The unified exact reference on a terminating domain (UAV pursuit)."""
+"""The unified exact reference on a terminating domain (UAV reconnaissance)."""
 
 import math
 

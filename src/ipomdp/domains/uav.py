@@ -1,30 +1,42 @@
-"""Two-agent UAV pursuit: a pursuer (agent i) and an evader (agent j) on a grid.
+"""UAV reconnaissance (Doshi & Gmytrasiewicz 2009, Section 8.3.2), with declared values.
 
-Specification (declared here; this project's version of the UAV benchmark)
----------------------------------------------------------------------------
-State: (pursuer cell, evader cell) on a ``rows x cols`` grid.
-Prior: uniform over all pairs of distinct cells.
+The 2009 paper gives the structure; it leaves the sensor accuracy, rewards,
+the target's observations and the priors unstated. Values below come from the
+same group's UAV reconnaissance domain (Zeng & Doshi 2012, JAIR 43, Section 7
+and Appendix B.3) where it states them, and are declared here otherwise; see
+docs/DOMAINS.md, "UAV reconnaissance", for the table of sources.
 
-Actions (each agent): move N, S, E, W (clamped at the boundary) or SENSE (stay).
-Moves are simultaneous and deterministic.
+Agents: the UAV ``i`` and the ground target ``j`` (T) on a ``rows x cols`` grid
+of sectors (3 x 3 in the paper).
 
-Capture: the episode ends when both agents occupy the same cell after moving.
-Agents that swap cells pass each other without capture.
+State: (UAV sector, target sector), each a (row, column) pair. The paper merges
+the left and right columns by symmetry (36 states), but with two agents that
+collapse cannot tell whether both side-column agents share a sector, so it
+cannot express spotting; the full grid is used (the mirror symmetry is tested).
 
-Rewards: pursuer -0.1 per step and +1 on capture; evader +0.1 per step and -1
-on capture.
+Prior: the UAV starts in ``uav_start`` (default bottom-left), known to both
+agents, so with deterministic moves it always knows its own sector (the paper:
+"aware of its own location"); the target is uniform over the other sectors.
 
-Observation (agent k): (own cell, direction token).
-- Each agent always knows its own cell. An earlier version hid the pursuer's
-  own position, which made capture mostly luck and said little about planning.
-- The direction token reports where the other agent is relative to k after the
-  move: the sign of the row offset and of the column offset, giving one of
-  eight compass tokens (N, NE, E, SE, S, SW, W, NW).
-- When k SENSEs, the token is correct with probability ``sensor_accuracy``,
-  and otherwise uniform over the seven wrong tokens. When k moves, it receives
-  the token NONE: moving and sensing are exclusive.
+Actions (each agent): move N, S, E, W to the adjacent sector (deterministic,
+clamped at the grid's edge) or listen (stay). The paper's text also allows the
+target diagonal moves, but it gives each agent 5 actions twice; 5 are kept.
 
-Capture states are terminal, so no observation is emitted from them in planning.
+Spotting: when both are in the same sector after the joint move; the game ends.
+
+Observations:
+- UAV: the row of the target (0 = top row, the paper's TR; 1 = CR; 2 = BR).
+  Listening reports the correct row with probability ``uav_accuracy`` (0.8)
+  and each other row equally; moving gives a uniformly random row.
+- Target: (its own sector, the row of the UAV). Its own sector is exact (the
+  package's prior is common and never conditions on the true state, so the
+  target learns its sector here, from its first observation on). The UAV's row
+  is reported as for the UAV, with ``target_accuracy`` (0.6: "high
+  uncertainty").
+
+Rewards: the UAV gets ``spot_reward`` (50) on spotting and pays ``step_cost``
+(5) for every other step; the target gets -``spot_reward`` when spotted and 0
+otherwise.
 """
 
 import math
@@ -33,73 +45,74 @@ from typing import List, Tuple
 
 from ipomdp.model.pomdp import AgentID, POMDPModel
 
-PURSUER = "i"
-EVADER = "j"
-MOVE_N, MOVE_S, MOVE_E, MOVE_W, SENSE = "N", "S", "E", "W", "sense"
-ACTIONS = (MOVE_N, MOVE_S, MOVE_E, MOVE_W, SENSE)
-_DELTAS = {MOVE_N: (-1, 0), MOVE_S: (1, 0), MOVE_E: (0, 1), MOVE_W: (0, -1), SENSE: (0, 0)}
-DIRECTIONS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
-NONE = "none"
-# Sign of (row offset, column offset) of the other agent -> compass token.
-_DIRECTION_OF = {
-    (-1, 0): "N",
-    (-1, 1): "NE",
-    (0, 1): "E",
-    (1, 1): "SE",
-    (1, 0): "S",
-    (1, -1): "SW",
-    (0, -1): "W",
-    (-1, -1): "NW",
-}
+UAV = "i"
+TARGET = "j"
+MOVE_N, MOVE_S, MOVE_E, MOVE_W, LISTEN = "N", "S", "E", "W", "listen"
+ACTIONS = (MOVE_N, MOVE_S, MOVE_E, MOVE_W, LISTEN)
+_DELTAS = {MOVE_N: (-1, 0), MOVE_S: (1, 0), MOVE_E: (0, 1), MOVE_W: (0, -1), LISTEN: (0, 0)}
 
 
 class UAVModel(POMDPModel):
-    def __init__(self, rows=3, cols=3, sensor_accuracy=0.85):
-        if type(rows) is not int or type(cols) is not int or rows * cols < 2 or min(rows, cols) < 1:
-            raise ValueError("The grid needs at least two cells")
-        if not math.isfinite(sensor_accuracy) or not 0 <= sensor_accuracy <= 1:
-            raise ValueError("Sensor accuracy must lie in [0,1]")
-        self.rows, self.cols, self.acc = rows, cols, sensor_accuracy
+    def __init__(
+        self,
+        rows=3,
+        cols=3,
+        uav_start=None,
+        uav_accuracy=0.8,
+        target_accuracy=0.6,
+        spot_reward=50.0,
+        step_cost=5.0,
+    ):
+        if type(rows) is not int or type(cols) is not int or min(rows, cols) < 1:
+            raise ValueError("The grid needs positive integer dimensions")
+        if rows < 2 or rows * cols < 2:
+            raise ValueError("The grid needs at least two rows")
+        start = (rows - 1, 0) if uav_start is None else tuple(uav_start)
+        if not (0 <= start[0] < rows and 0 <= start[1] < cols):
+            raise ValueError("The UAV must start inside the grid")
+        for accuracy in (uav_accuracy, target_accuracy):
+            if not math.isfinite(accuracy) or not 0 <= accuracy <= 1:
+                raise ValueError("Sensor accuracies must lie in [0, 1]")
+        if not math.isfinite(spot_reward) or not math.isfinite(step_cost) or spot_reward <= 0:
+            raise ValueError("Rewards must be finite, with a positive spotting reward")
+        self.rows, self.cols, self.uav_start = rows, cols, start
+        self.uav_accuracy, self.target_accuracy = uav_accuracy, target_accuracy
+        self.spot_reward, self.step_cost = float(spot_reward), float(step_cost)
 
     def cells(self):
         return [(r, c) for r in range(self.rows) for c in range(self.cols)]
 
     def initial_distribution(self):
-        pairs = [(u, t) for u in self.cells() for t in self.cells() if u != t]
-        return tuple((pair, 1 / len(pairs)) for pair in pairs)
+        targets = [cell for cell in self.cells() if cell != self.uav_start]
+        return tuple(((self.uav_start, cell), 1 / len(targets)) for cell in targets)
 
     def _move(self, cell, action):
         dr, dc = _DELTAS[action]
         return (min(max(cell[0] + dr, 0), self.rows - 1), min(max(cell[1] + dc, 0), self.cols - 1))
 
     def transition_distribution(self, state, joint_action):
-        pursuer, evader = state
-        return (
-            (
-                (
-                    self._move(pursuer, joint_action[PURSUER]),
-                    self._move(evader, joint_action[EVADER]),
-                ),
-                1.0,
-            ),
-        )
+        uav, target = state
+        following = (self._move(uav, joint_action[UAV]), self._move(target, joint_action[TARGET]))
+        return ((following, 1.0),)
 
     def observation_distribution(self, state, joint_action, agent_id):
-        own, other = state if agent_id == PURSUER else (state[1], state[0])
-        if joint_action[agent_id] != SENSE:
-            return (((own, NONE), 1.0),)
-        return tuple(
-            ((own, token), p) for token, p in _sensor_law(_direction(own, other), self.acc)
-        )
+        uav, target = state
+        if agent_id == UAV:
+            accuracy = self.uav_accuracy if joint_action[UAV] == LISTEN else None
+            return _row_report(target[0], self.rows, accuracy)
+        accuracy = self.target_accuracy if joint_action[TARGET] == LISTEN else None
+        return tuple(((target, row), p) for row, p in _row_report(uav[0], self.rows, accuracy))
 
     def get_reward(self, state, joint_action, next_state, agent_id):
-        caught = next_state[0] == next_state[1]
-        if agent_id == PURSUER:
-            return 1.0 if caught else -0.1
-        return -1.0 if caught else 0.1
+        spotted = self.is_terminal(next_state)
+        if agent_id == UAV:
+            return self.spot_reward if spotted else -self.step_cost
+        return -self.spot_reward if spotted else 0.0
 
     def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
-        return (-0.1, 1.0) if agent_id == PURSUER else (-1.0, 0.1)
+        if agent_id == UAV:
+            return (min(-self.step_cost, self.spot_reward), max(-self.step_cost, self.spot_reward))
+        return (-self.spot_reward, 0.0)
 
     def is_terminal(self, state) -> bool:
         return state[0] == state[1]
@@ -108,22 +121,17 @@ class UAVModel(POMDPModel):
         return list(ACTIONS)
 
     def get_all_observations(self, agent_id: AgentID):
-        return [(cell, token) for cell in self.cells() for token in (*DIRECTIONS, NONE)]
-
-
-def _direction(own, other):
-    offset = (_sign(other[0] - own[0]), _sign(other[1] - own[1]))
-    if offset == (0, 0):
-        raise ValueError("Direction is undefined when both agents share a cell")
-    return _DIRECTION_OF[offset]
-
-
-def _sign(x):
-    return (x > 0) - (x < 0)
+        rows = list(range(self.rows))
+        if agent_id == UAV:
+            return rows
+        return [(cell, row) for cell in self.cells() for row in rows]
 
 
 @lru_cache(maxsize=None)
-def _sensor_law(true_token, accuracy):
-    wrong = (1 - accuracy) / (len(DIRECTIONS) - 1)
-    law = ((t, accuracy if t == true_token else wrong) for t in DIRECTIONS)
-    return tuple((t, p) for t, p in law if p > 0)
+def _row_report(true_row, rows, accuracy):
+    """((row, probability), ...): correct with ``accuracy``, else uniform; None = uniform."""
+    if accuracy is None:
+        return tuple((row, 1 / rows) for row in range(rows))
+    wrong = (1 - accuracy) / (rows - 1)
+    law = ((row, accuracy if row == true_row else wrong) for row in range(rows))
+    return tuple((row, p) for row, p in law if p > 0)

@@ -2,6 +2,7 @@
 
 import pytest
 
+from ipomdp.domains import uav
 from ipomdp.domains.tiger import (
     ACTIONS,
     CREAK_LEFT,
@@ -18,7 +19,7 @@ from ipomdp.domains.tiger import (
     JointTigerModel,
     TigerModel,
 )
-from ipomdp.domains.uav import MOVE_E, MOVE_N, MOVE_S, NONE, SENSE, UAVModel
+from ipomdp.domains.uav import UAVModel
 from ipomdp.domains.wumpus.constants import ACTION_SHOOT, AGENT_HUMAN, AGENT_WUMPUS
 from ipomdp.domains.wumpus.model import WumpusModel
 
@@ -128,29 +129,66 @@ def test_tiger_rollout_memory_marginalises_a_uniform_opponent():
 # --------------------------------------------------------------------------- #
 
 
-def test_uav_agents_know_their_own_cell_and_sense_direction():
-    model = UAVModel(sensor_accuracy=0.85)
-    state = ((2, 0), (0, 2))  # evader north-east of the pursuer
-    law = dict(model.observation_distribution(state, {"i": SENSE, "j": MOVE_N}, "i"))
-    assert law[((2, 0), "NE")] == pytest.approx(0.85)
-    assert all(cell == (2, 0) for cell, _ in law)
-    moving = model.observation_distribution(state, {"i": MOVE_E, "j": SENSE}, "i")
-    assert moving == ((((2, 0), NONE), 1.0),)
-    evader = dict(model.observation_distribution(state, {"i": MOVE_E, "j": SENSE}, "j"))
-    assert evader[((0, 2), "SW")] == pytest.approx(0.85)
-
-
-def test_uav_capture_on_shared_cell_only():
+def test_uav_prior_fixes_the_uav_and_spreads_the_target():
     model = UAVModel()
-    meet = model.transition_distribution(((1, 0), (1, 2)), {"i": MOVE_E, "j": "W"})[0][0]
+    prior = dict(model.initial_distribution())
+    assert len(prior) == 8 and all(uav == (2, 0) for uav, _ in prior)
+    assert all(p == pytest.approx(1 / 8) for p in prior.values())
+    assert not any(model.is_terminal(state) for state in prior)
+
+
+def test_uav_listening_reports_the_targets_row():
+    model = UAVModel()
+    state = ((2, 0), (0, 2))  # target in the top row
+    listen = dict(model.observation_distribution(state, {"i": uav.LISTEN, "j": uav.MOVE_N}, "i"))
+    assert listen == pytest.approx({0: 0.8, 1: 0.1, 2: 0.1})
+    moving = dict(model.observation_distribution(state, {"i": uav.MOVE_E, "j": uav.LISTEN}, "i"))
+    assert moving == pytest.approx({0: 1 / 3, 1: 1 / 3, 2: 1 / 3})
+    target = dict(model.observation_distribution(state, {"i": uav.MOVE_E, "j": uav.LISTEN}, "j"))
+    assert target == pytest.approx({((0, 2), 2): 0.6, ((0, 2), 0): 0.2, ((0, 2), 1): 0.2})
+    assert set(model.get_all_observations("i")) == {0, 1, 2}
+
+
+def test_uav_spots_on_a_shared_sector_only():
+    model = UAVModel()
+    joint = {"i": uav.MOVE_E, "j": uav.MOVE_W}
+    meet = model.transition_distribution(((1, 0), (1, 2)), joint)[0][0]
     assert meet == ((1, 1), (1, 1)) and model.is_terminal(meet)
-    assert model.get_reward(((1, 0), (1, 2)), {"i": MOVE_E, "j": "W"}, meet, "i") == 1.0
-    swap = model.transition_distribution(((1, 0), (1, 1)), {"i": MOVE_E, "j": "W"})[0][0]
+    assert model.get_reward(((1, 0), (1, 2)), joint, meet, "i") == 50.0
+    assert model.get_reward(((1, 0), (1, 2)), joint, meet, "j") == -50.0
+    swap = model.transition_distribution(((1, 0), (1, 1)), joint)[0][0]
     assert swap == ((1, 1), (1, 0)) and not model.is_terminal(swap)
-    assert model.transition_distribution(((0, 0), (2, 2)), {"i": MOVE_N, "j": MOVE_S})[0][0] == (
-        (0, 0),
-        (2, 2),
-    )
+    assert model.get_reward(((1, 0), (1, 1)), joint, swap, "i") == -5.0
+    edge = model.transition_distribution(((0, 0), (2, 2)), {"i": uav.MOVE_N, "j": uav.MOVE_S})[0][0]
+    assert edge == ((0, 0), (2, 2))
+
+
+def test_uav_kernels_are_mirror_symmetric():
+    """Reflecting columns and swapping E/W maps every kernel onto itself (the paper's collapse)."""
+    model = UAVModel()
+    flip = {uav.MOVE_E: uav.MOVE_W, uav.MOVE_W: uav.MOVE_E}
+
+    def mirror(cell):
+        return (cell[0], model.cols - 1 - cell[1])
+
+    for drone in model.cells():
+        for target in model.cells():
+            for a in uav.ACTIONS:
+                for b in uav.ACTIONS:
+                    joint = {"i": a, "j": b}
+                    mirrored = {"i": flip.get(a, a), "j": flip.get(b, b)}
+                    ((following, _),) = model.transition_distribution((drone, target), joint)
+                    ((image, _),) = model.transition_distribution(
+                        (mirror(drone), mirror(target)), mirrored
+                    )
+                    assert image == (mirror(following[0]), mirror(following[1]))
+                    assert model.observation_distribution(following, joint, "i") == (
+                        model.observation_distribution(image, mirrored, "i")
+                    )
+                    target_obs = model.observation_distribution(following, joint, "j")
+                    assert tuple(((mirror(c), r), p) for (c, r), p in target_obs) == (
+                        model.observation_distribution(image, mirrored, "j")
+                    )
 
 
 # --------------------------------------------------------------------------- #

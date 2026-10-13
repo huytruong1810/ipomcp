@@ -29,6 +29,8 @@ CPU per root decision at 1,000 simulations ranges from 0.02 s at H2 to 0.10 s at
 
 ## 2. Planner vs exact best response on a terminating domain (UAV, L1)
 
+> **Note (October 12, 2026):** this section used the earlier UAV *pursuit* game (compass sensors, ±1 rewards). `domains/uav.py` is now the reconnaissance domain of Doshi & Gmytrasiewicz (2009) (DOMAINS.md); these numbers describe the retired model.
+
 **Setup.** Pursuer on a 2 × 3 grid against a uniform-random evader. Beliefs are random over two target cells. n = 12 per cell.
 
 | Horizon | Simulations | Optimal | Mean loss | Mean max Q error |
