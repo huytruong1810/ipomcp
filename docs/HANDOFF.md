@@ -6,14 +6,14 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). UAV reconnaissance (PLAN.md, top): U1–U4 are done. I-POMCP is optimal against exact references at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2 (12.41), including the modeled target at L2 H4 (12.42). Next: U5, the benchmark against IPF + RTS on UAV (0.2, item 2 has the concrete plan). UAV is not yet in the reviewer page or the Claude Doc (U7). The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
+Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). UAV reconnaissance (PLAN.md, top): U1–U4 are done. I-POMCP is optimal against exact references at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2 (12.41), including the modeled target at L2 H4 (12.42). U5 step 1 is done (12.43): on UAV L2 decisions I-POMCP is 80/80 at H2 and H3, against 53–68% for IPF + RTS, and cheaper at H3. Next: U5 steps 2–3 (0.2, item 2); H4 decisions need the user's approval (over 100 CPU-h). UAV is not yet in the reviewer page or the Claude Doc (U7). The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
 
 ## 0. Start here (fresh agent)
 
 ### 0.0 State, rules and how to work
 
 - **Repository.**
-  - `main` is clean at the last HANDOFF commit. 331 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded, on HEAD as on older commits (checked October 14 at load 16–20); recheck them on a quiet machine.
+  - `main` is clean at the last HANDOFF commit. 332 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
   - **Nothing is running.**
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
@@ -43,10 +43,10 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.43.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.44.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **Current task (new session):** the UAV phase at U5 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
+- **Current task (new session):** the UAV phase at U5 steps 2–3 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 - **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
 ### 0.1 Where the science stands (October 14)
@@ -57,7 +57,7 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
    - **One open residual:** L3 H4, where 4/80 near-tie beliefs are wrong (gaps ≤ 0.03; 12.14). UAV has a similar near-tie (gap 0.027) for the modeled target at 6,400 with stopping, harmless to i's decisions (12.42).
    - **Certified bounds:** every real decision carries per-action intervals that contain the exact Q of the searched model (12.17).
    - **Beliefs:** the compressed filter (exact updates, systematic compression to N = 64; 12.31 found no better compressor at acceptable cost). **Root budget (12.33–12.35):** a decision's CPU is almost all nested solves, paid within its first 125 root simulations; more root simulations cost 0.2–0.35 ms each. Root 4,000 cuts L2 H4's optimal-action Q error 3.9× (0.121 → 0.031) at 1.06× CPU; no root stopping rule helps. Episodes keep 1,000 (a matched model of j makes 4,000 cost about 1.4× at L3).
-2. **Benchmarks.** I-POMCP is 380/380 at L2 H3 and H4. IPF + RTS reaches 95–99.5% there and is 3–5× slower at H4 (12.20).
+2. **Benchmarks.** I-POMCP is 380/380 at L2 H3 and H4. IPF + RTS reaches 95–99.5% there and is 3–5× slower at H4 (12.20). **UAV L2 (12.43):** I-POMCP 80/80 at H2 and H3; IPF + RTS 53–68% at K = 2–8 (Holm p < 10⁻⁷), and 2–4× slower at H3. Its error is observation-sampling search error (the compressed-belief ablation matches it), and it converges at K = 128.
 3. **Interpretability and the value of depth.**
    - **Modeling the opponent pays** on the coordination Tiger: level 1 → 2 gains 27–30 over 20 steps (Holm p < 0.001, 12.27). In the published Tiger it gains nothing, since payoffs depend only on one's own door.
    - **A third level predicts slightly better but earns the same:** at H2, 12.27; at H3 with a model matched to the opponent's configuration, +0.8 [−6.7, 8.6], n = 50 (12.32). The exact screen agrees: a third level is worth little, and only on rare beliefs (12.22).
@@ -103,10 +103,11 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
    - **U4b engineering done (October 14):** `modeled_qualification` takes `problems(level)` and `physics` like `panel` (CLI `--domain uav`); rows carry the problem name plus its labels. Gate: 608 Tiger qualification rows (L2 H2–H3, L3 H2) identical before and after (`results/u4b_qualification_gate_20261014`). Under load ≥ 16, all four timing tests in `test_process_supervisor.py` fail on HEAD and on this change alike (327 others pass).
    - **U4b/U4c done (RESULTS 12.42):** with the target at 400, i is wrong in 16/32 problems at root 16,000. At the beliefs i queries, the target is wrong in 948 of 2,040 queries at 400, 368 at 1,600, and 4 at 6,400 with stopping (one near-tie, gap 0.027). Confirmation: 32/32 decisions optimal at root 16,000 with the target at 6,400 with stopping (seeds 0–1 after the kill-criterion cut; 27 CPU-h, about 50 CPU-min per decision). An exact level-1 target is about 10× cheaper on UAV (4.5 min per decision), so UAV episodes at level 2 should solve the target exactly where its depth fits.
    - **Cost lessons:** an L2 H4 UAV problem costs about 270 CPU-s for the planner with exact models (at any root budget) plus about 230 s for its exact reference. Panel jobs of 16 such problems hit the 2-hour supervisor timeout, so run H4 as one process per (problem, rung, seed), with the reference solved once per problem (`results/u4_uav_gates_20261013/l2h4/job.py`, `score.py`).
-   - **Next session: U5, I-POMCP against IPF + RTS on UAV** (PLAN.md's U5 row). Concrete plan, in order:
-     1. **Decisions against the exact I-POMDP** (as Tiger 12.20): `panel --domain uav` cells `("rts", 2, H, K, "K", 64, "sampled", 0)` for K = 2, 4 against I-POMCP at the qualified configuration, at H2 and H3, 16 problems × seeds 0–4. Checked October 14: an RTS UAV L2 H2 decision runs through `evaluate_case` (2 s). At H3 run as one process per job if RTS cost grows like `(|A|K)^(H−1)` (UAV has |A| = 5); profile one H3 problem first (the efficient-experiments rule). H4 RTS only if H3 is cheap.
+   - **U5 step 1 done (RESULTS 12.43, `results/u5_uav_rts_20261014`, about 4 CPU-h):** see 0.1, item 2. Also: `panel.summarize` crashed on RTS-only grids (fixed, `db054bf`, with a test); a UAV `planner_comparison` episode runs end to end (spotting gives +50/−50 and ends the episode; later rows are padded with no actions and reward 0), so step 3 needs no code change. **H4 not run:** an IPF + RTS decision at H4 costs 4.2 CPU-min at K = 2, 17 at K = 4 and over 30 at K = 8, and I-POMCP's qualified H4 decision about 50, so 80 problems would exceed 100 CPU-h. **Ask the user** before running it.
+   - **Next session: U5 steps 2–3** (PLAN.md's U5 row). The original plan, in order:
+     1. *(Done, 12.43.)* **Decisions against the exact I-POMDP** (as Tiger 12.20): `panel --domain uav` cells `("rts", 2, H, K, "K", 64, "sampled", 0)` for K = 2, 4 against I-POMCP at the qualified configuration, at H2 and H3, 16 problems × seeds 0–4. Checked October 14: an RTS UAV L2 H2 decision runs through `evaluate_case` (2 s). At H3 run as one process per job if RTS cost grows like `(|A|K)^(H−1)` (UAV has |A| = 5); profile one H3 problem first (the efficient-experiments rule). H4 RTS only if H3 is cheap.
      2. **The paper's reward-vs-particles shape** (Doshi & Gmytrasiewicz 2009, Fig. 16) at L1 H2–H3: IPF particle counts × K, scored against the exact best response.
-     3. **Episodes** with `experiments.suite.planner_comparison(domain="uav", …)`. **First check that a UAV episode runs end to end:** spotting ends the game, and the suite was only exercised on Tiger, which never terminates. Then pilot cost: an L2 H4 decision costs about 50 CPU-min with a modeled target and about 4.5 with an exact one, so pilot at H2–H3, where root 1,000 and target 400 are qualified.
+     3. **Episodes** with `experiments.suite.planner_comparison(domain="uav", …)`. A UAV episode runs end to end (checked October 14 at depth 2 with 100 simulations, 8 steps). Endpoints must handle the padded rows after spotting. Pilot cost first: an L2 H4 decision costs about 50 CPU-min with a modeled target and about 4.5 with an exact one, so pilot at H2–H3, where root 1,000 and target 400 are qualified.
      4. **U6–U7** after: the UAV level matrix (levels 0–2), then the write-up in RESULTS, the reviewer page and the Claude Doc.
    - **Rollout heuristic:** not needed so far. Every horizon qualified with the uniform rollout, at the cost of large root budgets at H5 (64,000); revisit only if U5/U6 need H ≥ 5.
 
@@ -116,6 +117,15 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
    - a solver-level change to the exact nested update (about a third of the CPU, 12.36; needs 12.15's replay gate).
 4. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
 5. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+
+### 0.3e What happened October 14, morning (PLAN.md, "UAV reconnaissance", U5 step 1)
+
+| Work | Result | RESULTS |
+|---|---|---|
+| Supervisor timing tests on a quiet machine | 6/6 pass (their failures were load-related) | — |
+| `panel.summarize` on RTS-only grids (`db054bf`) | Crashed on missing `search_*` columns; fixed, with a test | — |
+| U5a: decisions against the exact I-POMDP, H2–H3 (`u5_uav_rts_20261014`: `u5.py`, `analyze.py`, `profile.py`, `diag/diag.py`) | I-POMCP 80/80 at both horizons; IPF + RTS 53–68%; RTS converges at K = 128 | 12.43 |
+| UAV episode check | `planner_comparison("uav")` runs; spotting ends the episode | — |
 
 ### 0.3d What happened October 13–14 (PLAN.md, "UAV reconnaissance", W and U3–U4)
 
