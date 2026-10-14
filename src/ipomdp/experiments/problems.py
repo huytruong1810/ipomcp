@@ -13,9 +13,14 @@ of the opponent built from the rest of the chain at state s.
 - State-dependent entries let an agent know private parts of the state: the
   UAV target knows its own sector, so its belief depends on the state of the
   atom it is modeled in (``uav_chain``).
+
+A ``Problem`` names one decision problem for the gate drivers (``panel``):
+the ``evaluate_case`` arguments that define it and the columns it adds to its
+row. ``tiger_problems`` and ``uav_problems`` build a level's problem grid.
 """
 
-from dataclasses import dataclass
+import itertools
+from dataclasses import dataclass, field
 
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
@@ -107,3 +112,80 @@ def uav_chain(physics, laws):
         _OwnSector("i" if k % 2 == 0 else "j", tuple(sorted(law.items())), physics.uav_start)
         for k, law in enumerate(laws)
     )
+
+
+@dataclass(frozen=True)
+class Problem:
+    """One decision problem: its name, its ``evaluate_case`` arguments and its extra row columns."""
+
+    name: str
+    case: dict
+    labels: dict = field(default_factory=dict)
+
+
+TIGER_BELIEFS = (0.05, 0.2, 0.5, 0.8, 0.95)
+TIGER_OPPONENT_BELIEFS = (0.085, 0.5, 0.915)
+TIGER_NESTED_BELIEFS = (0.5,)
+
+
+def tiger_problems(
+    level,
+    beliefs=TIGER_BELIEFS,
+    opponent_beliefs=TIGER_OPPONENT_BELIEFS,
+    nested_beliefs=TIGER_NESTED_BELIEFS,
+):
+    """Tiger point-belief problems: i's beliefs x j's x those below j, crossed per nested level.
+
+    Level 1 has no opponent model: its problems are i's beliefs alone.
+    """
+    if level == 1:
+        return [Problem(f"p={p}", dict(belief_p=p)) for p in beliefs]
+    return [
+        Problem(
+            "/".join(f"{x}" for x in (p, p_j, *chain)),
+            dict(belief_p=p, opponent_belief=p_j, nested_beliefs=chain),
+            dict(opponent_belief=p_j, nested_beliefs=list(chain)),
+        )
+        for p in beliefs
+        for p_j in opponent_beliefs
+        for chain in itertools.product(nested_beliefs, repeat=level - 2)
+    ]
+
+
+def uav_laws(physics, concentration=0.75):
+    """Named laws over the other agent's sector, for UAV problem grids.
+
+    ``uniform`` weighs every sector alike. Each other law puts ``concentration``
+    of its mass uniformly on a named set of sectors and the rest uniformly on
+    the whole grid, so no sector is ruled out: ``top-row``; ``near-start``,
+    the UAV's start and the sectors next to it; ``far-corner``, the corner
+    opposite the start. ``_OwnSector`` drops the agent's own sector and
+    renormalizes.
+    """
+    cells = physics.cells()
+    start = physics.uav_start
+    far = (physics.rows - 1 - start[0], physics.cols - 1 - start[1])
+    named = {
+        "top-row": [c for c in cells if c[0] == 0],
+        "near-start": [c for c in cells if abs(c[0] - start[0]) + abs(c[1] - start[1]) <= 1],
+        "far-corner": [far],
+    }
+    laws = {"uniform": {c: 1 / len(cells) for c in cells}}
+    for name, chosen in named.items():
+        laws[name] = {
+            c: (1 - concentration) / len(cells)
+            + (concentration / len(chosen) if c in chosen else 0)
+            for c in cells
+        }
+    return laws
+
+
+def uav_problems(physics, level, laws=None):
+    """UAV problems: every combination of named laws, one per level (i's first)."""
+    laws = uav_laws(physics) if laws is None else laws
+    problems = []
+    for names in itertools.product(sorted(laws), repeat=level):
+        name = "/".join(names)
+        chain = uav_chain(physics, [laws[n] for n in names])
+        problems.append(Problem(name, dict(chain=chain, problem=name)))
+    return problems

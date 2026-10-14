@@ -1,13 +1,14 @@
 """Level-4 oracle problems and payoff variants: i-L4 -> j-L3 -> i-L2 -> j-L1 -> uniform i-L0."""
 
 import json
+from functools import partial
 
 import pytest
 
 from ipomdp.domains.tiger import JointTigerModel
 from ipomdp.experiments.oracle import evaluate_case
 from ipomdp.experiments.panel import run_panel
-from ipomdp.experiments.problems import chain_model, tiger_chain
+from ipomdp.experiments.problems import chain_model, tiger_chain, tiger_problems
 from ipomdp.reference.exact_agent import build_exact_agent
 
 
@@ -63,9 +64,9 @@ def test_level_four_panel_crosses_every_nested_level_on_the_variant(tmp_path):
         cells,
         seeds=[0],
         workers=1,
-        beliefs=(0.2,),
-        opponent_beliefs=(0.5,),
-        nested_beliefs=(0.4, 0.6),
+        problems=partial(
+            tiger_problems, beliefs=(0.2,), opponent_beliefs=(0.5,), nested_beliefs=(0.4, 0.6)
+        ),
         physics=JointTigerModel(together_safe=40.0),
     )
     assert failures == []
