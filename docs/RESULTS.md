@@ -1574,3 +1574,43 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
   - level 3 → 4 is worth nothing measurable.
 
   The exact screen (12.22) predicted this ordering.
+
+### 12.41 UAV reconnaissance against exact references: L1 H2–H5, L2 H2–H4, L3 H2 (October 13–14, 2026)
+
+**Design** (`results/u4_uav_gates_20261013`; `u4.py`, `l2h4/job.py`, `l2h4/score.py`, `analyze.py`, `ENDPOINTS.md`, `KILL_CRITERION.txt`; endpoints fixed before the run, rungs added during it are listed in `ENDPOINTS.md`):
+- **Domain:** UAV reconnaissance with the declared values of `DOMAINS.md` (3×3 grid, 81 states; the UAV i spots the target j by entering its sector, +50, −5 per step; γ = 0.95).
+- **Problems** (`experiments.problems.uav_problems`): at each level, one named law per agent over the other agent's sector. The laws are uniform, and top-row, near-start and far-corner, each with 0.75 of the mass on the named sectors and 0.25 uniform. Each agent knows its own sector. This gives 4 problems at level 1, 16 at level 2 and 64 at level 3. History 0, so seeds add planner randomness only.
+- **References:** level 1 is scored against the exact best response to a uniformly random target. Levels 2–3 are scored against the exact I-POMDP, in which every lower level is exact.
+- **Planner:** I-POMCP with compressed beliefs, chance scoring and per-action certified bounds. "Root" is i's simulations per decision; "modeled" is how the target's level is solved (`exact`, or I-POMCP with that many simulations).
+- **Pass rule:** 100% optimal at some rung; the smallest such rung is the qualified budget.
+- **Cost:** about 31 CPU-h, of which 28 were planner CPU, plus about 10 CPU-h lost in a first L2 H4 attempt that was stopped (below). Peak memory was 0.3 GB per process; no job failed.
+
+**Results** (n = decisions; optimal = zero first-action loss; 95% Clopper–Pearson intervals; optimal-action Q error = |Q̂ − Q*| on the exactly optimal actions; "bounds" = decisions whose certified intervals contain every exact Q, reported where the reference is the searched model):
+
+| Level, horizon | Root | Modeled | n | Optimal [95%] | Max loss | Mean optimal-action Q error | Bounds |
+|---|---|---|---|---|---|---|---|
+| L1 H2 | 1,000 | — | 40 | 40/40 [0.912, 1] | 0 | 0 | 40/40 |
+| L1 H3 | 1,000 | — | 40 | 40/40 [0.912, 1] | 0 | 0 | 40/40 |
+| L1 H4 | 1,000 | — | 40 | 34/40 [0.702, 0.943] | 3.82 | 0.84 | 40/40 |
+| L1 H4 | **4,000** | — | 40 | **40/40** [0.912, 1] | 0 | 0 | 40/40 |
+| L1 H5 | 1,000 | — | 40 | 26/40 [0.483, 0.794] | 8.39 | 5.35 | 40/40 |
+| L1 H5 | 4,000 | — | 40 | 30/40 [0.588, 0.873] | 3.16 | 1.04 | 40/40 |
+| L1 H5 | 16,000 | — | 40 | 39/40 [0.868, 0.999] | 0.65 | 0.16 | 40/40 |
+| L1 H5 | **64,000** | — | 40 | **40/40** [0.912, 1] | 0 | 0 | 40/40 |
+| L2 H2 | 1,000 | exact / 100 / 400 | 80 each | **80/80** each [0.955, 1] | 0 | 0 | 80/80 (exact) |
+| L2 H3 | 1,000 | exact | 80 | **80/80** [0.955, 1] | 0 | 0 | 80/80 |
+| L2 H3 | 1,000 | 100 | 80 | 63/80 [0.682, 0.871] | 2.02 | 0.52 | — |
+| L2 H3 | 1,000 | **400** | 80 | **80/80** [0.955, 1] | 0 | 0 | — |
+| L2 H4 | 1,000 | exact | 80 | 54/80 [0.561, 0.776] | 2.85 | 2.30 | 16/16 |
+| L2 H4 | 4,000 | exact | 80 | 78/80 [0.913, 0.997] | 0.44 | 0.22 | — |
+| L2 H4 | **16,000** | exact | 80 | **80/80** [0.955, 1] | 0 | 0 | — |
+| L2 H4 | 1,000 | 100 | 80 | 40/80 [0.386, 0.614] | 37.97 | 3.80 | — |
+| L2 H4 | 1,000 | 400 | 80 | 34/80 [0.315, 0.541] | 37.97 | 3.82 | — |
+| L3 H2 | 1,000 | exact / 100 | 320 each | **320/320** each [0.989, 1] | 0 | 0 | 320/320 (exact) |
+
+- **I-POMCP is optimal on UAV wherever an exact reference exists, at a qualified budget.** The qualified budgets are: root 1,000 at H2–H3 for every level run; root 4,000 at L1 H4; root 64,000 at L1 H5; root 16,000 at L2 H4 with exact opponent models.
+- **Long horizons need more root simulations than on Tiger** (Tiger L1 H5 is 220/220 at 1,000, 12.1). UAV has 5 actions and 3 observations per step against Tiger's 3 and 2, and a terminal spotting event, so the tree at H5 is about 15 times wider. The misses are overestimates of suboptimal moves, the max bias of search on noisy children: at L1 H5 with 4,000 simulations, E is valued 10.9 against an exact 8.3. They vanish as the root tree becomes exact; at every qualified rung the optimal-action Q error is 0.
+- **Root budget at level 2 is nearly free** when the target is solved exactly: CPU per decision is 267–269 s at roots 1,000, 4,000 and 16,000 alike, all spent on the exact nested solve (12.33's finding on Tiger).
+- **The modeled target's budget must be qualified separately at H4.** At H3, 400 simulations for the target suffice (80/80); 100 do not (63/80). At H4, both 100 and 400 lose up to 38 on near-start problems. There, the exact-model planner rightly picks E (exact Q 30.2), but a finite model of the target values E at 15.8, so i picks N. That is opponent-model error, not i's own search error. Its qualification (a modeled ladder at the beliefs the search queries, `modeled_qualification`, as for Tiger in 12.4) is the next step.
+- **Certified bounds held in every decision checked:** 576 of 576 (level 1, and exact-model rows with the full reference).
+- **How L2 H4 was run.** The first attempt ran it as panel jobs of 16 problems each, and those were heading past the 2-hour job timeout, so it was stopped. It reran as one process per (problem, rung, seed), with the exact reference solved once per problem. The reference does not depend on the seed or the rung; at L2 H3 it was identical in all 15 rows of each problem. Planner-only rows (`reference="none"`) were scored offline with `evaluate_case`'s formulas; a planner-only rerun of an L2 H3 row reproduced its values, loss and Q error exactly. Certified bounds are therefore recorded only for the 16 reference rows at L2 H4.
