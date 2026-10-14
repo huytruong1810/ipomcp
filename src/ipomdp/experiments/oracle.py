@@ -1,4 +1,4 @@
-"""Matched comparisons of planners against exact Tiger references.
+"""Matched comparisons of planners against exact references.
 
 Each case fixes one decision problem (belief, physics, discount, horizon and
 opponent model) and asks a planner for its root policy and action values. The
@@ -33,8 +33,9 @@ Problems
   error).
 
 Physics: the published Tiger (``domains.tiger.TigerModel``) by default, or
-any of its payoff variants (``JointTigerModel``); the problems' two-state point
-beliefs and fixed history need Tiger's states and actions.
+any domain with a problem ``chain`` (``experiments.problems``): Tiger's payoff
+variants take the default point beliefs; other domains (UAV reconnaissance)
+give a chain and, for mid-episode problems, their own ``history_actions``.
 
 Planners: ``mcts`` (I-POMCP; budget = root simulations) and ``rts``
 (reachability-tree sampling; budget = sampled observations per node). The units
@@ -66,9 +67,8 @@ from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 
-from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.belief.frame import AgentFrame
-from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.belief.finite_belief import MentalModel
+from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TigerModel
 from ipomdp.experiments.modeled_levels import (
     EXACT,
     make_planner,
@@ -77,6 +77,7 @@ from ipomdp.experiments.modeled_levels import (
     register_levels,
     stack_label,
 )
+from ipomdp.experiments.problems import chain_model, tiger_chain
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
@@ -107,6 +108,9 @@ def evaluate_case(
     nested_beliefs=None,
     opponent_observer=None,
     physics=None,
+    chain=None,
+    problem=None,
+    history_actions=None,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
@@ -137,6 +141,15 @@ def evaluate_case(
     planner requests, with the policy it got. These are the beliefs at which the
     opponent's budget must be qualified (``experiments.modeled_qualification``);
     the bank's policy cache means each distinct model is reported once.
+
+    ``chain`` (``experiments.problems``) replaces the Tiger point beliefs
+    (``belief_p``, ``opponent_belief``, ``nested_beliefs``) for any domain: one
+    physical belief per level, top-down, each a function of the enclosing state.
+    ``problem`` labels such a problem in the row. Level-1 problems on Tiger are
+    scored by alpha-vector value iteration; on other domains by the exact best
+    response to uniform L0 (``BestResponseReference``), which is the same
+    exact value by enumeration. ``history_actions`` are i's actions for
+    ``history_steps`` (default ``HISTORY_ACTIONS``, Tiger's).
     """
     stack = _validate_problem(
         planner_kind, level, opponent_depth, opponent_belief, modeled, reference, particles
@@ -172,11 +185,19 @@ def evaluate_case(
         exploration=exploration,
         wrap=observed,
     )
-    belief = _two_state_belief(model, level, belief_p, opponent_belief, nested_beliefs)
+    if chain is None:
+        chain = tiger_chain(belief_p, opponent_belief, nested_beliefs)
+        tiger_problem = True
+    else:
+        tiger_problem = False
+    belief = chain_model(model, "i", level, chain).belief
     planner.set_initial_belief(belief)
     prior_model = planner.model()
     history = sample_history(
-        model, history_steps, random.Random(f"history/{seed}/{belief_p}/{opponent_belief}")
+        model,
+        history_steps,
+        random.Random(f"history/{seed}/{belief_p}/{opponent_belief}"),
+        HISTORY_ACTIONS if history_actions is None else history_actions,
     )
     started = time.process_time()
     for action, observation in history:
@@ -202,7 +223,8 @@ def evaluate_case(
         "horizon": horizon,
         "budget": budget,
         "seed": seed,
-        "belief_p": belief_p,
+        "belief_p": belief_p if tiger_problem else None,
+        "problem": problem,
         "gamma": gamma,
         "estimated_q": estimates,
         "policy": policy,
@@ -210,8 +232,10 @@ def evaluate_case(
     }
     if reference == "none":
         return [row]
-    if level == 1:
+    if level == 1 and tiger_problem and isinstance(model, TigerModel):
         oracle_q = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
+    elif level == 1:
+        oracle_q = best_response.q_values(prior_model, horizon)
     elif reference == "exact" or not any(stack):
         oracle_q = _exact_ipomdp_q(
             model, prior_model, history, seed, gamma, opponent_depth, horizon, level
@@ -296,20 +320,22 @@ class _ObservedSolver:
 HISTORY_ACTIONS = (LISTEN, LISTEN, LISTEN, OPEN_LEFT, LISTEN, LISTEN, LISTEN, LISTEN)
 
 
-def sample_history(physics, steps, rng):
-    """i's first ``steps`` (action, observation) pairs of a Tiger history.
+def sample_history(physics, steps, rng, actions=HISTORY_ACTIONS):
+    """i's first ``steps`` (action, observation) pairs of a history.
 
-    i follows ``HISTORY_ACTIONS``, j acts uniformly at random, and the
-    environment samples the initial state, transitions and i's observations
-    from ``rng``. Every observation has positive probability under every
-    belief (Tiger's sensors are noisy), so any agent can condition on it.
+    i follows ``actions`` (Tiger's ``HISTORY_ACTIONS`` by default), j acts
+    uniformly at random, and the environment samples the initial state,
+    transitions and i's observations from ``rng``. A history that reaches a
+    terminal state is rejected: the decision after it would not exist.
     """
-    if not 0 <= steps <= len(HISTORY_ACTIONS):
-        raise ValueError(f"history_steps must lie in [0, {len(HISTORY_ACTIONS)}]")
+    if not 0 <= steps <= len(actions):
+        raise ValueError(f"history_steps must lie in [0, {len(actions)}]")
     state, history = physics.sample_initial_state(rng), []
-    for action in HISTORY_ACTIONS[:steps]:
+    for action in actions[:steps]:
         joint = {"i": action, "j": rng.choice(physics.get_all_actions("j"))}
         state = physics.sample_transition(state, joint, rng)
+        if physics.is_terminal(state):
+            raise ValueError("The sampled history ends the episode; choose another seed")
         history.append((action, physics.sample_observation(state, joint, "i", rng)))
     return history
 
@@ -341,28 +367,6 @@ def _nested_chain(level, nested_beliefs):
     if not all(0 <= p <= 1 for p in chain):
         raise ValueError("Nested beliefs must lie in [0,1]")
     return chain
-
-
-def _two_state_belief(model, level, belief_p, opponent_belief, nested_beliefs=()):
-    """i's exact two-state prior over a chain of point models, down to uniform L0.
-
-    The chain's tiger beliefs are i's ``belief_p``, then j's ``opponent_belief``
-    (level >= 2), then ``nested_beliefs`` for the models below j (level >= 3).
-    """
-    chain = (belief_p, opponent_belief, *nested_beliefs)
-    return _point_model(model, "i", level, chain).belief
-
-
-def _point_model(model, agent, level, tiger_beliefs):
-    """A mental model of ``agent`` at ``level`` whose belief puts one model on the opponent."""
-    if level == 0:
-        return MentalModel(AgentFrame(agent, 0, model))
-    other = _point_model(model, "j" if agent == "i" else "i", level - 1, tiger_beliefs[1:])
-    p = tiger_beliefs[0]
-    belief = FiniteBelief(
-        ((InteractiveState(TIGER_LEFT, other), p), (InteractiveState(TIGER_RIGHT, other), 1 - p))
-    )
-    return MentalModel(AgentFrame(agent, level, model), belief)
 
 
 def _opponent_description(level, depth, belief, stack, nested_beliefs):

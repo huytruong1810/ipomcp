@@ -5,7 +5,7 @@ import random
 import pytest
 
 from ipomdp.domains.tiger import OPEN_LEFT, TigerModel
-from ipomdp.experiments.oracle import _point_model
+from ipomdp.experiments.problems import chain_model, tiger_chain
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.i_pomcp import IPOMCPPlanner, _GrowingSearch
 from ipomdp.planning.random_planner import RandomPlanner
@@ -63,14 +63,14 @@ def test_the_rule_does_not_change_flat_search_streams():
     # every result produced before the rule existed) are reproduced exactly.
     plain, physics = j_planner(3, None)
     ruled, _ = j_planner(3, ModeledStopping(pilot=100))
-    plain.policy_for(_point_model(physics, "j", 1, (0.3,)))
-    ruled.policy_for(_point_model(ruled.pomdp_model, "j", 1, (0.3,)))
+    plain.policy_for(chain_model(physics, "j", 1, tiger_chain(0.3)))
+    ruled.policy_for(chain_model(ruled.pomdp_model, "j", 1, tiger_chain(0.3)))
     assert plain.search_values == ruled.search_values
 
 
 def test_a_grown_tree_equals_a_flat_search_of_its_size():
     planner, physics = j_planner(4, None, simulations=400)
-    model = _point_model(physics, "j", 1, (0.3,))
+    model = chain_model(physics, "j", 1, tiger_chain(0.3))
     node, scores = planner._search(model, 400)
     grown = planner._tree(model, 400)
     grown.grow(150)
@@ -95,12 +95,12 @@ def test_clear_beliefs_stop_at_the_pilot_and_solves_are_pure_functions(monkeypat
     rule = ModeledStopping(pilot=100, trees=4, alpha=0.01)
     first, physics = j_planner(5, rule, simulations=1600)
     # P(tiger left) = 0.02: opening left is far ahead of every alternative.
-    policy = first.policy_for(_point_model(physics, "j", 1, (0.02,)), modeled=True)
+    policy = first.policy_for(chain_model(physics, "j", 1, tiger_chain(0.02)), modeled=True)
     assert policy == {OPEN_LEFT: 1.0}
     assert sizes[:4] == [100, 100, 100, 100]  # the main tree's pilot checkpoint, then 3 pilots
     assert max(sizes) < 1600
     again, physics = j_planner(5, rule, simulations=1600)
-    assert again.policy_for(_point_model(physics, "j", 1, (0.02,)), modeled=True) == policy
+    assert again.policy_for(chain_model(physics, "j", 1, tiger_chain(0.02)), modeled=True) == policy
 
 
 def test_an_unseparated_solve_returns_the_flat_search_of_the_cap(monkeypatch):
@@ -110,8 +110,11 @@ def test_an_unseparated_solve_returns_the_flat_search_of_the_cap(monkeypatch):
     rule = ModeledStopping(pilot=100, trees=2, alpha=1e-12)
     ruled, physics = j_planner(6, rule, simulations=800, depth=4)
     plain, _ = j_planner(6, None, simulations=800, depth=4)
-    model = _point_model(physics, "j", 1, (0.5,))
+    model = chain_model(physics, "j", 1, tiger_chain(0.5))
     sizes = counting(monkeypatch)
     values = ruled._stopped_values(model)
     assert sizes == [100, 100, 200, 400, 800]
-    assert values == plain._search(_point_model(plain.pomdp_model, "j", 1, (0.5,)), 800)[1].values
+    assert (
+        values
+        == plain._search(chain_model(plain.pomdp_model, "j", 1, tiger_chain(0.5)), 800)[1].values
+    )

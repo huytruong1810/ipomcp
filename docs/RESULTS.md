@@ -1500,7 +1500,7 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
 - **I-POMCP predicts j better** (log-loss 0.50–0.53, against 0.56–0.67 for RTS). This matches 12.20's ablation: RTS's error is search error, and RTS also models j with RTS.
 - **This complements 12.20,** which compared decisions against the exact I-POMDP (I-POMCP 380/380; RTS 95–99.5%).
 
-### 12.39 Prior sensitivity at level 3 (October 12, 2026; level 4 running)
+### 12.39 Prior sensitivity at levels 3 and 4 (October 12–13, 2026)
 
 **Design** (`results/r_priors_20261011`; `r.py`, `analyze.py`, `KILL_CRITERION.txt`, fixed before the run):
 - **Agents:** coordination Tiger, H2, N = 64, 100 simulations, 20 steps, n = 100. i is at level 3. The real j is the level matrix's agent at level 1.
@@ -1510,14 +1510,14 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
   - under-estimated, {0: 1};
   - uniform, {0, 1, 2: 1/3}. This is 12.37's cell (3, 1), imported.
 - Every model of j at a given level is the matrix's real agent at that level.
-- **Primary endpoint:** i's 20-step reward, each arm minus correct, paired. The Holm family is 6 comparisons (3 arms × levels 3 and 4); the p-values below are corrected over level 3's 3 comparisons only and are **interim** until level 4 finishes.
+- **Primary endpoint:** i's 20-step reward, each arm minus correct, paired. Holm over the 6 comparisons (3 arms × levels 3 and 4). Level 4: i at level 4 against the matrix's j at level 2, n = 40 (12.40's configuration; its uniform arm is 12.40's cell (4, 2)).
 
-| Prior | i's reward | j's reward | Arm − correct [95%] | Holm p (interim, 3) | i's log-loss | Miss trials | i's posterior on level 1 at step 5 / 10 / 20 |
+| Prior | i's reward | j's reward | Arm − correct [95%] | Holm p (6) | i's log-loss | Miss trials | i's posterior on level 1 at step 5 / 10 / 20 |
 |---|---|---|---|---|---|---|---|
 | Correct | 93.9 | 94.9 | — | — | 0.47 | 3 | 1.00 / 1.00 / 1.00 |
-| Over-estimated | 76.4 | 81.1 | **−17.5 [−28.8, −6.6]** | 0.004 | 0.88 | 31 | 0 / 0 / 0 |
+| Over-estimated | 76.4 | 81.1 | **−17.5 [−28.8, −6.6]** | 0.011 | 0.88 | 31 | 0 / 0 / 0 |
 | Under-estimated | 63.9 | 53.9 | **−30.0 [−41.2, −18.7]** | < 0.001 | 1.10 | 0 | 0 / 0 / 0 |
-| Uniform | 88.0 | 89.4 | −6.0 [−13.1, 1.1] | 0.10 | 0.55 | 4 | 0.44 / 0.53 / 0.67 |
+| Uniform | 88.0 | 89.4 | −6.0 [−13.1, 1.1] | 0.41 | 0.55 | 4 | 0.44 / 0.53 / 0.67 |
 
 - **A wrong point prior costs reward, and in both directions.**
   - Over-estimating j's level costs 17.5.
@@ -1525,7 +1525,17 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
   - A point prior cannot be revised, so the posterior stays at 0.
 - **The over-estimated model is refuted by the data but cannot be dropped.** It gives j's actual action probability 0 in 31 of 100 trials. With every atom a level-2 model, nothing in the belief can absorb an action only a level-1 j takes. So most of these misses are presumably the model's, not compression's (the correct arm has 3); no replay has separated the two (12.30's method would). Either way, the miss metric also flags a misspecified opponent model.
 - **A uniform prior costs little** (−6.0, not significant): i learns j's level (0.67 by step 20) while acting nearly as well as with the correct prior.
-- **Level 4** (i at level 4 against j at level 2, n = 40) is running with the level-4 row of the matrix (approved by the user on October 12, about 225 CPU-h); it completes this family.
+**Level 4** (i at level 4, real j at level 2, n = 40):
+
+| Prior | i's reward | j's reward | Arm − correct [95%] | Holm p (6) | i's log-loss | Miss trials | i's posterior on level 2 at step 20 | CPU per step (s) |
+|---|---|---|---|---|---|---|---|---|
+| Correct, {2: 1} | 112.6 | 119.0 | — | — | 0.33 | 0 | 1.00 | 5.8 |
+| Over-estimated, {3: 1} | 114.6 | 119.5 | +1.9 [−3.6, 9.6] | 1 | 0.41 | 3 | 0 | 177.4 |
+| Under-estimated, {1: 1} | 113.9 | 119.9 | +1.2 [−4.1, 6.1] | 1 | 0.38 | 0 | 0 | 0.3 |
+| Uniform, {0–3: 1/4} | 117.9 | 115.9 | +5.2 [−1.3, 14.0] | 0.57 | 0.40 | 1 | 0.35 | 65.4 |
+
+- **At level 4 a wrong prior costs nothing.** Against a level-2 opponent, believing it is level 1 or level 3 earns the same as the truth. Levels 2–4 act alike in this game (12.40), so a model one level off still predicts the opponent well (log-loss 0.38–0.41 against 0.33). At level 3 the wrong models were level 0 (random) and level 2 against a real level-1 opponent, and level-1 play differs from both.
+- **So what a misspecified prior costs depends on whether the wrong level acts differently, not on the size of the error.** The correct prior is also the cheapest to plan with (5.8 s per step, against 177 s when i must solve a level-3 opponent model).
 
 ### 12.40 Level 4 against levels 0–4 on the coordination Tiger (October 12, 2026)
 

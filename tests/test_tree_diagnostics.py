@@ -149,7 +149,7 @@ def test_trace_keeps_zero_count_branches_in_chance_error():
 def test_attribution_reconstructs_a_real_l2_search_tree_exactly():
     from ipomdp.belief.canonical import belief_digest
     from ipomdp.domains.tiger import TigerModel
-    from ipomdp.experiments.oracle import _two_state_belief
+    from ipomdp.experiments.problems import chain_model, tiger_chain
     from ipomdp.planning.config import PlannerConfig
     from ipomdp.planning.i_pomcp import IPOMCPPlanner
     from ipomdp.planning.random_planner import RandomPlanner
@@ -176,7 +176,7 @@ def test_attribution_reconstructs_a_real_l2_search_tree_exactly():
         (SolverKey("i", 0), RandomPlanner(physics.get_all_actions("i"), random.Random(0))),
     ]:
         bank.register_solver(key, solver)
-    planner.set_initial_belief(_two_state_belief(physics, 2, 0.2, 0.085))
+    planner.set_initial_belief(chain_model(physics, "i", 2, tiger_chain(0.2, 0.085)).belief)
     policy = planner.policy_for(planner.model())
     reference = BestResponseReference(physics, bank, 0.95)
     tree = describe_node(

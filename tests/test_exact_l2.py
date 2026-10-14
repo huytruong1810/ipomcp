@@ -12,7 +12,7 @@ import pytest
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, OPEN_RIGHT, TIGER_LEFT, TIGER_RIGHT, TigerModel
-from ipomdp.experiments.oracle import _two_state_belief
+from ipomdp.experiments.problems import chain_model, tiger_chain
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
@@ -31,7 +31,7 @@ def exact_l2(physics=None, opponent_depth=2, gamma=0.95):
     bank.register_solver(SolverKey("j", 1), opponent)
 
     def q(p, p_j=0.5, horizon=2):
-        model = MentalModel(AgentFrame("i", 2, physics), _two_state_belief(physics, 2, p, p_j))
+        model = chain_model(physics, "i", 2, tiger_chain(p, p_j))
         return reference.q_values(model, horizon)
 
     return q, opponent, physics

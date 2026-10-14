@@ -5,7 +5,8 @@ import pytest
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TigerModel
-from ipomdp.experiments.oracle import _two_state_belief, evaluate_case
+from ipomdp.experiments.oracle import evaluate_case
+from ipomdp.experiments.problems import chain_model, tiger_chain
 from ipomdp.reference.exact_agent import build_exact_agent
 
 
@@ -27,7 +28,7 @@ def test_level_three_reference_matches_the_independently_built_exact_hierarchy()
 
 def test_level_three_point_belief_nests_three_private_beliefs():
     physics = TigerModel()
-    belief = _two_state_belief(physics, 3, 0.2, 0.3, (0.4,))
+    belief = chain_model(physics, "i", 3, tiger_chain(0.2, 0.3, (0.4,))).belief
     (atom, p), _ = sorted(belief.mass, key=lambda item: -item[1])
     j = atom.opponent
     assert (p, j.frame.agent_id, j.frame.level) == (0.8, "j", 2)

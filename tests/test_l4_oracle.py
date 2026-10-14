@@ -5,8 +5,9 @@ import json
 import pytest
 
 from ipomdp.domains.tiger import JointTigerModel
-from ipomdp.experiments.oracle import _two_state_belief, evaluate_case
+from ipomdp.experiments.oracle import evaluate_case
 from ipomdp.experiments.panel import run_panel
+from ipomdp.experiments.problems import chain_model, tiger_chain
 from ipomdp.reference.exact_agent import build_exact_agent
 
 
@@ -39,7 +40,7 @@ def test_level_four_reference_on_a_payoff_variant_matches_the_exact_hierarchy():
 def test_level_four_point_belief_nests_the_whole_chain():
     physics = JointTigerModel()
     model = None
-    belief = _two_state_belief(physics, 4, 0.2, 0.3, (0.4, 0.6))
+    belief = chain_model(physics, "i", 4, tiger_chain(0.2, 0.3, (0.4, 0.6))).belief
     found = []
     while belief is not None:
         atom, p = max(belief.mass, key=lambda item: item[1])
