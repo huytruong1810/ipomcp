@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 13, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). The UAV reconnaissance phase is under way (PLAN.md, top): U1 (model), U2 (generic problems) and U3 (exact-reference cost) are done; U4 (gates) is next. The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
+Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). The UAV reconnaissance phase is under way (PLAN.md, top): U1–U3 are done, and U4's gates are done (RESULTS 12.41): optimal at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2. Next: qualify the modeled target's budget at L2 H4, then U5. The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
 
 ## 0. Start here (fresh agent)
 
@@ -42,10 +42,10 @@ Last updated October 13, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.41.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.42.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **Current task (new session):** the UAV phase at U4 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
+- **Current task (new session):** the UAV phase: modeled-budget qualification at L2 H4, then U5 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 - **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
 ### 0.1 Where the science stands (October 13)
@@ -97,7 +97,9 @@ Last updated October 13, 2026. Claude is the sole owner of `main`; there are no 
 
      Exact references are cheap enough for gate grids at L1 H2–H5, L2 H2–H4 and L3 H2 (logs: `probe_2_4.log`, `probe_3_2.log`).
    - **U4 engineering done** (October 13): `panel` takes `problems(level)`, a list of named `experiments.problems.Problem`s (the `evaluate_case` arguments plus extra row columns), with `tiger_problems` (the old point-belief grid, the default) and `uav_problems` (every combination, one per level, of 4 named laws over the other agent's sector from `uav_laws`: uniform; top-row, near-start and far-corner, each 0.75 on the named sectors plus 0.25 uniform; 4 problems at L1, 16 at L2, 64 at L3); levels 1–4; CLI `--domain uav`. **Gate:** 64 Tiger rows (6 cells × 2 seeds, published and coordination games, levels 2–3, exact, particle and RTS cells) identical before and after (`results/u4_panel_gate_20261013`).
-   - **U4 runs next:** L1 against the exact best response at H2–H5 with a root ladder 1,000 / 4,000 / 16,000; L2 against the exact I-POMDP at H2–H4 with a modeled ladder exact / 100 / 400; L3 H2; Clopper–Pearson intervals, `optimal_q_error`, bounds containment.
+   - **U4 runs done (RESULTS 12.41, `results/u4_uav_gates_20261013`, about 31 CPU-h).** Qualified budgets: root 1,000 at H2–H3 (L1, L2, L3); root 4,000 at L1 H4; 64,000 at L1 H5; 16,000 at L2 H4 with exact opponent models. The modeled target needs 400 at L2 H3 (100: 63/80). At L2 H4, 100 and 400 both lose up to 38 on near-start problems, which is opponent-model error.
+   - **Next (U4b):** qualify the target's modeled budget at L2 H4 with `experiments.modeled_qualification` (as Tiger 12.4: a ladder 400 / 1,600 / 6400s at the beliefs i's search queries; it may need the chain-based `Problem` input, behind a Tiger row-identity gate), then confirm with full decisions at root 16,000 on the near-start problems.
+   - **Cost lessons:** an L2 H4 UAV problem costs about 270 CPU-s for the planner with exact models (at any root budget) plus about 230 s for its exact reference. Panel jobs of 16 such problems hit the 2-hour supervisor timeout, so run H4 as one process per (problem, rung, seed), with the reference solved once per problem (`results/u4_uav_gates_20261013/l2h4/job.py`, `score.py`).
    - **Then U5–U7** as in PLAN.md: IPF + RTS benchmark (decisions and `planner_comparison` episodes), the paper's reward-vs-particles shape, episodes with the suite drivers, write-up. A UAV rollout heuristic (the default is uniform) may be needed for long horizons; decide from U4's errors.
 
 3. **Other breadth items, after UAV:**

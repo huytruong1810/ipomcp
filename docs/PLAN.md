@@ -1,7 +1,7 @@
 # Plan: the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (October 12, 2026)
 
-## Status (October 13, 2026)
-**Planned by Claude (the user delegated the choice of direction on October 12 while away). U1 done (`3819675`: model, tests, DOMAINS.md); U2 done (`9321093`: generic problem chains, Tiger rows identical 5/5); U3 done (exact references: L1 H2–H5 0.1–4.7 s, L2 H2–H4 1.3–87 s, L3 H2 1.4 s; L1 H5 at 1,000 simulations loses 6.29, so U4 needs a budget ladder). Next: U4 (chain-based panel, then gates). Details: HANDOFF 0.2, item 2.**
+## Status (October 14, 2026)
+**Planned by Claude (the user delegated the choice of direction on October 12 while away). U1–U3 done. U4 gates done (RESULTS 12.41): I-POMCP is optimal at a qualified budget at L1 H2–H5 (root up to 64,000 at H5), L2 H2–H4 (root 16,000 at H4 with exact opponent models) and L3 H2; certified bounds held in 576/576. Open: the target's modeled budget at L2 H4 (100 and 400 lose up to 38); next U4b (modeled qualification), then U5. Details: HANDOFF 0.2, item 2.**
 
 ## Context
 The Tiger suite is complete (RESULTS 12.37–12.40, and level 4 of 12.39). On Tiger the evidence for all three contributions is in hand: exact
