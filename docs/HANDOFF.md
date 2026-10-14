@@ -1,19 +1,19 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.40);
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.42);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). The UAV reconnaissance phase is under way (PLAN.md, top): U1–U3 are done, and U4's gates are done (RESULTS 12.41): optimal at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2. The target's modeled budget at L2 H4 is qualified too (12.42: 6,400 with stopping, 32/32 decisions at root 16,000). Next: U5 (benchmark against IPF + RTS on UAV). The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
+Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). UAV reconnaissance (PLAN.md, top): U1–U4 are done. I-POMCP is optimal against exact references at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2 (12.41), including the modeled target at L2 H4 (12.42). Next: U5, the benchmark against IPF + RTS on UAV (0.2, item 2 has the concrete plan). UAV is not yet in the reviewer page or the Claude Doc (U7). The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
 
 ## 0. Start here (fresh agent)
 
 ### 0.0 State, rules and how to work
 
 - **Repository.**
-  - `main` is clean at the last HANDOFF commit. 327 tests (about 75 s on a quiet machine) (`.venv/bin/python -m pytest -q`), and `ruff check` and `ruff format --check` are clean. Three timing tests in `test_process_supervisor.py` (`test_timeout_stops_descendant_processes`, `test_supervisor_enforces_rss_budget`, `test_supervisor_retains_errors_and_reaps_timed_out_workers`) fail intermittently while the machine is heavily loaded and pass alone; recheck them on a quiet machine.
+  - `main` is clean at the last HANDOFF commit. 331 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded, on HEAD as on older commits (checked October 14 at load 16–20); recheck them on a quiet machine.
   - **Nothing is running.**
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
@@ -35,8 +35,9 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
     - Since 12.36, level-3 H3 episodes peak at about 0.7 GB each over 10 steps (they plateaued at about 2 GB before). Level-4 episodes took 1–2 GB before 12.36 and have not been re-measured.
     - The machine has 23 GB, 24 cores, and is shared: `~/projects/jepa_ipomdp` runs jobs of up to about 12 GB. Never touch its processes.
     - Check `free -g`, then size the workers. Before 12.36, 6 level-3 H3 workers left about 10 GB free; re-measure on the first run.
-    - `results/q4_h3_matched_20261009/watchdog.sh <pattern> <log>` kills the youngest matching process when `MemAvailable` falls below 1.5 GB.
-    - `memlog.sh <log>` logs memory every 5 minutes.
+    - **Watchdog:** `results/m1_level_matrix_20261011/watchdog.sh <runner pid> <log>` kills the youngest *child of that PID* when `MemAvailable` falls below 1.5 GB, and `memlog.sh <runner pid> <log>` logs memory every 5 minutes. Give it the **xargs** PID, not the `sh -c` wrapper's: the wrapper's only child is xargs, so the watchdog would kill the whole run. UAV jobs use 0.1–0.3 GB each.
+    - **Job caps:** wrap each job as `timeout 3h …`. To lift the cap from a slow but healthy job, `kill -9` only its `timeout` wrapper; the job keeps running and still writes its file. The panel and qualification drivers have a supervisor timeout (`timeout_seconds`, default 2 h): size jobs below it.
+    - **Scripts that call a supervised driver** (`run_panel`, `run_qualification`, `run_suite`) need `if __name__ == "__main__":`. Workers are spawned and re-import the script, so an unguarded script reruns itself in every worker (October 14 lost two gate runs this way).
   - **Processes.** Kill by PID only (`ps -eo pid,ppid,args`). Never use `pkill -f`. Never wait on `pgrep -f`: it matches its own command line. Wait on a PID or an output file instead.
   - **CPU.** Compare CPU only within paired, same-run measurements.
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
@@ -48,11 +49,12 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
 - **Current task (new session):** the UAV phase at U5 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 - **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
-### 0.1 Where the science stands (October 13)
+### 0.1 Where the science stands (October 14)
 
 1. **Online solver (I-POMCP with bounded nested beliefs).**
    - **Optimal wherever exact references exist:** L1 H1–H5, 220/220 at H5 (12.1); L2 H3–H4, 380/380 (12.3–12.4); L3 H3, 162/162 (12.7); L4 H2, 486/486 (12.23).
-   - **One open residual:** L3 H4, where 4/80 near-tie beliefs are wrong (gaps ≤ 0.03; 12.14).
+   - **UAV reconnaissance (12.41–12.42), at qualified budgets:** L1 H2–H5 40/40 each (root 1,000 up to H3, 4,000 at H4, 64,000 at H5); L2 H2–H3 80/80 (root 1,000, target modeled at 400); L2 H4 80/80 with an exact target at root 16,000, and 32/32 with the target modeled at 6,400 with stopping; L3 H2 640/640. Certified bounds contained the exact Q in 1,016/1,016 decisions checked.
+   - **One open residual:** L3 H4, where 4/80 near-tie beliefs are wrong (gaps ≤ 0.03; 12.14). UAV has a similar near-tie (gap 0.027) for the modeled target at 6,400 with stopping, harmless to i's decisions (12.42).
    - **Certified bounds:** every real decision carries per-action intervals that contain the exact Q of the searched model (12.17).
    - **Beliefs:** the compressed filter (exact updates, systematic compression to N = 64; 12.31 found no better compressor at acceptable cost). **Root budget (12.33–12.35):** a decision's CPU is almost all nested solves, paid within its first 125 root simulations; more root simulations cost 0.2–0.35 ms each. Root 4,000 cuts L2 H4's optimal-action Q error 3.9× (0.121 → 0.031) at 1.06× CPU; no root stopping rule helps. Episodes keep 1,000 (a matched model of j makes 4,000 cost about 1.4× at L3).
 2. **Benchmarks.** I-POMCP is 380/380 at L2 H3 and H4. IPF + RTS reaches 95–99.5% there and is 3–5× slower at H4 (12.20).
@@ -64,7 +66,7 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
      - **Value of depth on the coordination Tiger:** level 0 → 1 is worth about 600 over 20 steps; 1 → 2 is worth 15–30 against an intentional opponent (Holm p < 0.05); 2 → 3 gives +5 to +7, not significant; 3 → 4 gives nothing (level 4 acts as level 3 in 34–35 of 40 episodes). The published Tiger (control): nothing above level 0. Against a random opponent, no level above 1 adds anything.
      - **I-POMCP against IPF + RTS in episodes (12.38):** +28 to +38 for I-POMCP on the coordination Tiger at H3 (Holm p = 0.003), including against RTS K = 4, which costs more CPU; +24 to +26 at H4, not significant at n = 50; no difference on the published Tiger.
      - **Prior sensitivity (12.39):** at level 3 against a level-1 j, a point prior one level too high costs 17.5 and "random" costs 30.0; at level 4 against a level-2 j, wrong priors cost nothing, because levels 2–4 act alike. A uniform prior costs nothing significant at either level.
-   - **Wumpus L1** is qualified on 3 distinct beliefs only (12.19). **UAV** (the paper's domain, declared values): the oracle path works (U2); exact references are cheap (U3, 0.2 item 2).
+   - **Wumpus L1** is qualified on 3 distinct beliefs only (12.19). **UAV:** see item 1; no UAV episodes yet.
    - **Equilibria:** a design note only (`docs/EQUILIBRIA.md`).
 - **Lessons that bind future designs:**
   - **A "correct model" of an opponent must match its whole configuration,** budgets included (12.30).
@@ -100,9 +102,13 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
    - **U4 runs done (RESULTS 12.41, `results/u4_uav_gates_20261013`, about 31 CPU-h).** Qualified budgets: root 1,000 at H2–H3 (L1, L2, L3); root 4,000 at L1 H4; 64,000 at L1 H5; 16,000 at L2 H4 with exact opponent models. The modeled target needs 400 at L2 H3 (100: 63/80). At L2 H4, 100 and 400 both lose up to 38 on near-start problems, which is opponent-model error.
    - **U4b engineering done (October 14):** `modeled_qualification` takes `problems(level)` and `physics` like `panel` (CLI `--domain uav`); rows carry the problem name plus its labels. Gate: 608 Tiger qualification rows (L2 H2–H3, L3 H2) identical before and after (`results/u4b_qualification_gate_20261014`). Under load ≥ 16, all four timing tests in `test_process_supervisor.py` fail on HEAD and on this change alike (327 others pass).
    - **U4b/U4c done (RESULTS 12.42):** with the target at 400, i is wrong in 16/32 problems at root 16,000. At the beliefs i queries, the target is wrong in 948 of 2,040 queries at 400, 368 at 1,600, and 4 at 6,400 with stopping (one near-tie, gap 0.027). Confirmation: 32/32 decisions optimal at root 16,000 with the target at 6,400 with stopping (seeds 0–1 after the kill-criterion cut; 27 CPU-h, about 50 CPU-min per decision). An exact level-1 target is about 10× cheaper on UAV (4.5 min per decision), so UAV episodes at level 2 should solve the target exactly where its depth fits.
-   - **Was (U4b plan):** qualify the target's modeled budget at L2 H4 with `experiments.modeled_qualification` (as Tiger 12.4: a ladder 400 / 1,600 / 6400s at the beliefs i's search queries; it may need the chain-based `Problem` input, behind a Tiger row-identity gate), then confirm with full decisions at root 16,000 on the near-start problems.
    - **Cost lessons:** an L2 H4 UAV problem costs about 270 CPU-s for the planner with exact models (at any root budget) plus about 230 s for its exact reference. Panel jobs of 16 such problems hit the 2-hour supervisor timeout, so run H4 as one process per (problem, rung, seed), with the reference solved once per problem (`results/u4_uav_gates_20261013/l2h4/job.py`, `score.py`).
-   - **Next: U5–U7** as in PLAN.md: IPF + RTS benchmark (decisions and `planner_comparison` episodes), the paper's reward-vs-particles shape, episodes with the suite drivers, write-up. A UAV rollout heuristic (the default is uniform) may be needed for long horizons; decide from U4's errors.
+   - **Next session: U5, I-POMCP against IPF + RTS on UAV** (PLAN.md's U5 row). Concrete plan, in order:
+     1. **Decisions against the exact I-POMDP** (as Tiger 12.20): `panel --domain uav` cells `("rts", 2, H, K, "K", 64, "sampled", 0)` for K = 2, 4 against I-POMCP at the qualified configuration, at H2 and H3, 16 problems × seeds 0–4. Checked October 14: an RTS UAV L2 H2 decision runs through `evaluate_case` (2 s). At H3 run as one process per job if RTS cost grows like `(|A|K)^(H−1)` (UAV has |A| = 5); profile one H3 problem first (the efficient-experiments rule). H4 RTS only if H3 is cheap.
+     2. **The paper's reward-vs-particles shape** (Doshi & Gmytrasiewicz 2009, Fig. 16) at L1 H2–H3: IPF particle counts × K, scored against the exact best response.
+     3. **Episodes** with `experiments.suite.planner_comparison(domain="uav", …)`. **First check that a UAV episode runs end to end:** spotting ends the game, and the suite was only exercised on Tiger, which never terminates. Then pilot cost: an L2 H4 decision costs about 50 CPU-min with a modeled target and about 4.5 with an exact one, so pilot at H2–H3, where root 1,000 and target 400 are qualified.
+     4. **U6–U7** after: the UAV level matrix (levels 0–2), then the write-up in RESULTS, the reviewer page and the Claude Doc.
+   - **Rollout heuristic:** not needed so far. Every horizon qualified with the uniform rollout, at the cost of large root budgets at H5 (64,000); revisit only if U5/U6 need H ≥ 5.
 
 3. **Other breadth items, after UAV:**
    - Wumpus L1 beyond 3 beliefs (Section 0.10, item 3);
@@ -110,6 +116,21 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
    - a solver-level change to the exact nested update (about a third of the CPU, 12.36; needs 12.15's replay gate).
 4. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
 5. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+
+### 0.3d What happened October 13–14 (PLAN.md, "UAV reconnaissance", W and U3–U4)
+
+| Work | Result | RESULTS |
+|---|---|---|
+| W: reviewer page v21, Claude Doc report | Tiger suite 12.37–12.40 published; stale H3 sentence fixed | — |
+| U3 finish | L2 H4 exact reference 87 s, L3 H2 1.4 s | — |
+| U4 engineering (`14c7044`) | `panel` takes `problems(level)` (`Problem`, `tiger_problems`, `uav_problems`, `uav_laws`), levels 1–4, `--domain uav`; Tiger rows 64/64 identical | — |
+| U4 gates (`u4_uav_gates_20261013`) | Qualified budgets per level and horizon | 12.41 |
+| U4b engineering (`ecb8ed0`) | `modeled_qualification` takes problems and physics; Tiger rows 608/608 identical | — |
+| U4b qualification, U4c confirmation | Target at 6,400 with stopping at L2 H4; 32/32 decisions | 12.42 |
+
+Run folders: `results/u4_panel_gate_20261013`, `u4_uav_gates_20261013` (`u4.py` chunks `l1_h*`, `l2_h2`, `l2_h3`, `l3_h2`, `l1_h5_64k`; `l2h4/` one-process jobs with `job.py`, `score.py`; `analyze.py`; the killed `l2_h4` panel chunk's partial folder is still there, unused), `u4b_qualification_gate_20261014`, `u4b_uav_qualification_20261014` (`u4b.py`, `q/`), `u4c_uav_confirm_20261014` (`job.py`, `score.py`, references copied from U4). About 75 CPU-h in all, about 10 of them lost in the stopped L2 H4 panel chunk.
+
+Files: `src/ipomdp/experiments/problems.py`, `experiments/panel.py`, `experiments/modeled_qualification.py`; tests `test_panel.py`, `test_l4_oracle.py`, `test_modeled_qualification.py`; docs `RESULTS.md` 12.41–12.42, `ARCHITECTURE.md`, `PLAN.md`, this file.
 
 ### 0.3c What happened October 11–13 (PLAN.md, "Tiger experiment suite" and the start of "UAV reconnaissance")
 
@@ -653,7 +674,7 @@ On October 2, 2026, after the user confirmed that Codex and Antigravity had fini
 ```bash
 cd /home/andyj1810/projects/ipomcp
 PY=.venv/bin/python
-$PY -m pytest -q                                   # about 45 s (slower while other jobs load the machine)
+$PY -m pytest -q                                   # about 3 min quiet; far slower under load (Section 0.0)
 .venv/bin/ruff check src tests && .venv/bin/ruff format --check src tests
 # Gates
 $PY -m ipomdp.experiments.l1_qualification --budgets 100 1000 5000 --seeds 0 1 2 --output results/<new>
@@ -667,6 +688,10 @@ $PY -m ipomdp.experiments.panel --planners mcts --levels 2 --horizons 3 --budget
 $PY -m ipomdp.experiments.modeled_qualification --horizons 4 --modeled 100 --ladder 100 400 1600 6400s \
     --seeds 0 1 --workers 12 --output results/<new>
 # Level 3: add --level 3 --nested-beliefs 0.085 0.5 0.915 and stack rungs such as 100/400 1600s/400
+# UAV: add --domain uav to panel or modeled_qualification (problems: experiments.problems.uav_problems)
+$PY -m ipomdp.experiments.panel --domain uav --levels 1 --horizons 4 --budgets 4000 --modeled exact --output results/<new>
+$PY -m ipomdp.experiments.modeled_qualification --domain uav --horizons 4 --budget 16000 --modeled 400 \
+    --ladder 400 1600 6400s --seeds 0 1 --output results/<new>
 # Studies
 $PY -m ipomdp.experiments.runner studies/tiger_l3_vs_l2.toml --output results/<new>
 ```
