@@ -43,6 +43,20 @@ def test_panel_rows_cover_every_problem_and_name_their_cell(tmp_path):
     }
 
 
+def test_rts_only_panels_summarize_without_search_columns(tmp_path):
+    cells = [("rts", 1, 2, 2, "exact", 0, "exact", 0)]
+    summary, failures = run_panel(
+        tmp_path / "panel",
+        cells,
+        seeds=[0],
+        workers=1,
+        problems=partial(tiger_problems, beliefs=(0.5,)),
+    )
+    assert failures == []
+    assert summary.iloc[0]["n"] == 1
+    assert summary["search_optimal_rate"].isna().all()
+
+
 def test_panel_takes_a_belief_grid_and_bounds_each_optimal_rate(tmp_path):
     cells = [("mcts", 2, 1, 20, "exact", 0, "exact", 0)]
     summary, failures = run_panel(

@@ -165,8 +165,18 @@ def _mean(flags):
     return float(flags.astype(float).mean()) if len(flags) else float("nan")
 
 
+# Columns only I-POMCP rows carry; absent when every row is RTS.
+SEARCH_COLUMNS = (
+    "scores_exact",
+    "search_first_action_loss",
+    "search_max_abs_q_error",
+    "search_optimal_q_error",
+)
+
+
 def summarize(rows):
     frame = pd.DataFrame(rows)
+    frame = frame.reindex(columns=frame.columns.union(SEARCH_COLUMNS, sort=False))
     return (
         frame.groupby(list(CELL))
         .agg(
