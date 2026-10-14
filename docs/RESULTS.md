@@ -1614,3 +1614,31 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
 - **The modeled target's budget must be qualified separately at H4.** At H3, 400 simulations for the target suffice (80/80); 100 do not (63/80). At H4, both 100 and 400 lose up to 38 on near-start problems. There, the exact-model planner rightly picks E (exact Q 30.2), but a finite model of the target values E at 15.8, so i picks N. That is opponent-model error, not i's own search error. Its qualification (a modeled ladder at the beliefs the search queries, `modeled_qualification`, as for Tiger in 12.4) is the next step.
 - **Certified bounds held in every decision checked:** 1,016 of 1,016 (520 at level 1, 176 exact-model rows at level 2 with the full reference, 320 at level 3).
 - **How L2 H4 was run.** The first attempt ran it as panel jobs of 16 problems each, and those were heading past the 2-hour job timeout, so it was stopped. It reran as one process per (problem, rung, seed), with the exact reference solved once per problem. The reference does not depend on the seed or the rung; at L2 H3 it was identical in all 15 rows of each problem. Planner-only rows (`reference="none"`) were scored offline with `evaluate_case`'s formulas; a planner-only rerun of an L2 H3 row reproduced its values, loss and Q error exactly. Certified bounds are therefore recorded only for the 16 reference rows at L2 H4.
+
+### 12.42 UAV L2 H4: the target's modeled budget, qualified where i's search queries it (October 14, 2026)
+
+**Question.** In 12.41, L2 H4 decisions were optimal at root 16,000 only with the target solved exactly; with the target modeled at 100 or 400 simulations they lost up to 38. Which modeled budget makes i's decisions exact?
+
+**U4b: qualification** (`results/u4b_uav_qualification_20261014`; `u4b.py`, `ENDPOINTS.md`, `KILL_CRITERION.txt`; `experiments.modeled_qualification` with UAV problems, as for Tiger in 12.4):
+- **Phase 1:** i at level 2, H4, root 16,000, with the target modeled at 400. All 16 UAV problems × seeds 0–1 = 32 problems; each of i's decisions is scored against the exact I-POMDP.
+- **Phase 2:** every target model that i's searches queried (2,040 queries at 378 distinct beliefs) is re-solved at each rung and scored against the exact level-1 target at depth 4. The rung equal to 400 reproduced i's policy at every query.
+- **Engineering:** the driver now takes `experiments.problems` problem lists and a `physics` (`ecb8ed0`). Gate: 608 Tiger qualification rows identical before and after (`results/u4b_qualification_gate_20261014`).
+- **Cost:** about 5 CPU-h for phase 1 and 2 CPU-h for phase 2.
+
+| Rung for the target | Wrong of 2,040 queries | Distinct wrong beliefs (of 378) | Correct rate [95%] | Max loss | CPU per query |
+|---|---|---|---|---|---|
+| 400 | 948 | 200 | [0.513, 0.557] | 0.73 | 0.9 s |
+| 1,600 | 368 | 80 | [0.802, 0.836] | 0.10 | 2.4 s |
+| 6,400, sequential stopping | **4** | **1** | [0.995, 0.9995] | 0.027 | 12.6 s |
+
+- **With the target at 400, i is wrong in 16 of 32 problems** (losses 0.30–11.96), confirming 12.41's diagnosis: at H4 the binding error is the target's model, not i's search.
+- **The one belief 6,400 with stopping still gets wrong is a near-tie.** Its exact values are listen −5.004 against N −5.031, a gap of 0.027. 400 and 1,600 get it right; 6,400 with stopping stops early (2.5 s against a mean of 12.6 s) and picks N. It is queried in 4 problems, in all of which i's decision is right. This is the same kind of residual as Tiger's L3 H4 near-ties (gaps ≤ 0.03, 12.14). Under the driver's zero-wrong rule no rung qualifies, so 6,400 with stopping was taken to the confirmation below.
+
+**U4c: confirmation in i's decisions** (`results/u4c_uav_confirm_20261014`; `job.py`, `score.py`, `ENDPOINTS.md`, `KILL_CRITERION.txt`): i at level 2, H4, root 16,000, the target at 6,400 with stopping. Decisions are scored against 12.41's exact references, which do not depend on the seed or the rung. The plan was 16 problems × seeds 0–4. The first decisions cost over 36 CPU-min each, which projected past the 50 CPU-h kill line, so by the fixed criterion the run was cut to seeds 0–1 (32 decisions).
+
+| Configuration | n | Optimal [95%] | Max loss | Mean optimal-action Q error | CPU per decision (median, range) |
+|---|---|---|---|---|---|
+| Root 16,000, target 6,400 with stopping | 32 | **32/32** [0.891, 1] | 0 | 0 | 50.6 min (22–106) |
+
+- **UAV L2 H4 is qualified at root 16,000 with the target at 6,400 with stopping.** That configuration is now fixed for UAV episodes at H4. At H2–H3, root 1,000 with the target at 400 suffices (12.41).
+- **Cost:** 27.4 CPU-h. A qualified L2 H4 UAV decision costs about 50 CPU-min, against about 4.5 min with an exact target (12.41), because the exact level-1 target is cheap on UAV. For UAV episodes at level 2, the exact target model is therefore the cheaper correct choice wherever its depth fits.
