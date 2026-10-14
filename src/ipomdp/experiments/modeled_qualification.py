@@ -12,8 +12,10 @@ actually queried.
 
 What it does
 ------------
-For each Tiger problem of level L = 2 or 3 (belief of i, private belief of j,
-at level 3 the private belief of the i-L1 that j models, seed, history k):
+For each problem of level L = 2 or 3 (``problems(level)``, from
+``experiments.problems``: by default Tiger's point beliefs of i, of j and, at
+level 3, of the i-L1 that j models; ``uav_problems`` for UAV), seed and
+history k, on the run's ``physics``:
 
 1. Solve i's decision as ``panel`` does (I-POMCP, root ``budget``, the levels
    below i solved as the ``modeled`` stack says, at depth equal to the
@@ -70,6 +72,8 @@ import pandas as pd
 
 from ipomdp.analysis.statistics import clopper_pearson
 from ipomdp.belief import canonical
+from ipomdp.domains.tiger import TigerModel
+from ipomdp.domains.uav import UAVModel
 from ipomdp.experiments.modeled_levels import (
     parse_stack,
     planner_config,
@@ -77,6 +81,7 @@ from ipomdp.experiments.modeled_levels import (
     stack_label,
 )
 from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, REFERENCE_BRANCHES, evaluate_case
+from ipomdp.experiments.problems import tiger_problems, uav_problems
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
@@ -91,7 +96,13 @@ OPPONENT_BELIEFS = (0.085, 0.3, 0.5, 0.7, 0.915)
 NESTED_BELIEFS = (0.5,)
 LADDER = ("100", "400", "1600", "4000")
 GROUP = ("level", "horizon", "budget", "modeled", "history")
-PROBLEM = ("horizon", "history", "seed", "belief_p", "opponent_belief", "nested_belief")
+PROBLEM = ("horizon", "history", "seed", "problem")
+TIGER_GRID = partial(
+    tiger_problems,
+    beliefs=BELIEFS,
+    opponent_beliefs=OPPONENT_BELIEFS,
+    nested_beliefs=NESTED_BELIEFS,
+)
 
 
 def collect_queries(
@@ -101,17 +112,16 @@ def collect_queries(
     modeled,
     history,
     seed,
-    belief_p,
-    opponent_belief,
-    nested_belief,
+    problem,
     score_decision=True,
     gamma=0.95,
+    physics=None,
 ):
     """Phase 1 for one problem: i's decision and every j-(level-1) model its search queries.
 
-    Returns the problem, i's decision loss (None when ``score_decision`` is
-    False, which skips level L's exact reference) and the queries in request
-    order as (canonical belief digest, model, policy i used).
+    Returns the problem (its name and labels), i's decision loss (None when
+    ``score_decision`` is False, which skips level L's exact reference) and the
+    queries in request order as (canonical belief digest, model, policy i used).
     """
     queried = []
     decision = evaluate_case(
@@ -119,26 +129,25 @@ def collect_queries(
         horizon,
         budget,
         seed,
-        belief_p,
+        problem.case.get("belief_p"),
         gamma=gamma,
         level=level,
         opponent_depth=horizon,
-        opponent_belief=opponent_belief,
-        nested_beliefs=(nested_belief,) if level == 3 else (),
         modeled=modeled,
         reference="exact" if score_decision else "none",
         history_steps=history,
+        physics=physics,
         opponent_observer=lambda model, policy: queried.append(
             (canonical.belief_digest(model.belief), model, policy)
         ),
+        **{k: v for k, v in problem.case.items() if k != "belief_p"},
     )[0]
     return dict(
         horizon=horizon,
         history=history,
         seed=seed,
-        belief_p=belief_p,
-        opponent_belief=opponent_belief,
-        nested_belief=nested_belief,
+        problem=problem.name,
+        labels=problem.labels,
         decision_loss=decision.get("first_action_loss"),
         queries=queried,
     )
@@ -264,9 +273,8 @@ def run_qualification(
     ladder=LADDER,
     histories=(0,),
     seeds=(0, 1, 2, 3),
-    beliefs=BELIEFS,
-    opponent_beliefs=OPPONENT_BELIEFS,
-    nested_beliefs=NESTED_BELIEFS,
+    problems=TIGER_GRID,
+    physics=None,
     score_decision=True,
     queries_from=None,
     workers=4,
@@ -275,8 +283,11 @@ def run_qualification(
 ):
     """Search every problem, score each distinct queried model once, then expand to rows.
 
-    ``queries_from`` names an earlier run's ``queries.pkl`` (same settings
-    except the ladder) whose phase 1 is reused, so new rungs cost phase 2 only.
+    ``problems(level)`` lists the problems (it must pickle: a module function
+    or a ``functools.partial`` of one); ``physics`` is their model (None: the
+    published Tiger). ``queries_from`` names an earlier run's ``queries.pkl``
+    (same settings except the ladder) whose phase 1 is reused, so new rungs
+    cost phase 2 only.
     """
     if level not in (2, 3):
         raise ValueError("Qualification scores the level below a level-2 or level-3 agent")
@@ -285,7 +296,7 @@ def run_qualification(
         raise ValueError("A rung must solve the queried level by search; exact is the reference")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
-    nested = tuple(nested_beliefs) if level == 3 else NESTED_BELIEFS
+    listed = problems(level)
     lock = source_hashes(REPOSITORY_ROOT)
     problem_settings = dict(
         level=level,
@@ -294,9 +305,8 @@ def run_qualification(
         modeled=stack_label(used_stack),
         histories=list(histories),
         seeds=list(seeds),
-        beliefs=list(beliefs),
-        opponent_beliefs=list(opponent_beliefs),
-        nested_beliefs=list(nested),
+        problems=[problem.name for problem in listed],
+        physics=canonical.physics_identity(TigerModel() if physics is None else physics),
         score_decision=score_decision,
     )
     (output / "manifest.json").write_text(
@@ -317,43 +327,51 @@ def run_qualification(
     )
     failures = []
     if queries_from:
-        searched = pickle.loads(Path(queries_from).read_bytes())
-        if searched["settings"] != problem_settings:
+        saved = pickle.loads(Path(queries_from).read_bytes())
+        if saved["settings"] != problem_settings:
             raise ValueError("queries_from was searched with different problem settings")
-        problems = searched["problems"]
+        searched = saved["problems"]
     else:
-        index = list(
-            itertools.product(horizons, histories, seeds, beliefs, opponent_beliefs, nested)
-        )
+        index = list(itertools.product(horizons, histories, seeds, range(len(listed))))
         jobs = {
             i: partial(
                 collect_queries,
                 level,
-                budget=budget,
-                modeled=modeled,
+                horizon,
+                budget,
+                modeled,
+                history,
+                seed,
+                listed[k],
                 score_decision=score_decision,
-                **dict(zip(PROBLEM, values)),
+                physics=physics,
             )
-            for i, values in enumerate(index)
+            for i, (horizon, history, seed, k) in enumerate(index)
         }
-        problems = []
+        searched = []
         for i, outcome in supervise_jobs(
             jobs, log_directory=output / "logs" / "search", **supervision
         ):
             if outcome["status"] == "complete":
-                problems.append(outcome["rows"])
+                searched.append(outcome["rows"])
             else:
-                failures.append(dict(job=dict(zip(PROBLEM, index[i])), reason=outcome["reason"]))
-        problems.sort(key=lambda p: tuple(p[k] for k in PROBLEM))
+                horizon, history, seed, k = index[i]
+                job = dict(horizon=horizon, history=history, seed=seed, problem=listed[k].name)
+                failures.append(dict(job=job, reason=outcome["reason"]))
+        order = {problem.name: k for k, problem in enumerate(listed)}
+        searched = sorted(
+            searched,
+            key=lambda p: (p["horizon"], p["history"], p["seed"], order[p["problem"]]),
+        )
         (output / "queries.pkl").write_bytes(
             pickle.dumps(
-                dict(settings=problem_settings, problems=problems), pickle.HIGHEST_PROTOCOL
+                dict(settings=problem_settings, problems=searched), pickle.HIGHEST_PROTOCOL
             )
         )
     # Phase 2: a modeled solve is a pure function of (depth, bank seed, belief),
     # so each distinct queried model is scored once (L3 H4: 633 queries, 211 distinct).
     distinct = {}
-    for found in problems:
+    for found in searched:
         for digest, model, used in found["queries"]:
             key = (found["horizon"], found["seed"], digest)
             if key in distinct and distinct[key][1] != used:
@@ -382,6 +400,7 @@ def run_qualification(
     rows = [
         dict(
             {k: found[k] for k in PROBLEM},
+            **found["labels"],
             level=level,
             budget=budget,
             modeled=stack_label(used_stack),
@@ -392,7 +411,7 @@ def run_qualification(
             exact_q=result["exact_q"],
             **rung,
         )
-        for found in problems
+        for found in searched
         for q, (digest, _, _) in enumerate(found["queries"])
         if (result := scored.get((found["horizon"], found["seed"], digest)))
         for rung in result["rungs"]
@@ -417,6 +436,12 @@ def main():
     parser.add_argument("--ladder", nargs="+", default=list(LADDER), help="modeled stacks to score")
     parser.add_argument("--history", type=int, nargs="+", default=[0])
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3])
+    parser.add_argument(
+        "--domain",
+        choices=["tiger", "uav"],
+        default="tiger",
+        help="tiger: point-belief problems; uav: experiments.problems.uav_problems",
+    )
     parser.add_argument("--beliefs", type=float, nargs="+", default=list(BELIEFS))
     parser.add_argument("--opponent-beliefs", type=float, nargs="+", default=list(OPPONENT_BELIEFS))
     parser.add_argument("--nested-beliefs", type=float, nargs="+", default=list(NESTED_BELIEFS))
@@ -428,6 +453,17 @@ def main():
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.domain == "uav":
+        physics = UAVModel()
+        problems = partial(uav_problems, physics)
+    else:
+        physics = None
+        problems = partial(
+            tiger_problems,
+            beliefs=tuple(args.beliefs),
+            opponent_beliefs=tuple(args.opponent_beliefs),
+            nested_beliefs=tuple(args.nested_beliefs),
+        )
     summary, qualifying, failures = run_qualification(
         args.output,
         level=args.level,
@@ -437,9 +473,8 @@ def main():
         ladder=args.ladder,
         histories=args.history,
         seeds=args.seeds,
-        beliefs=args.beliefs,
-        opponent_beliefs=args.opponent_beliefs,
-        nested_beliefs=args.nested_beliefs,
+        problems=problems,
+        physics=physics,
         score_decision=not args.no_decision_score,
         workers=args.workers,
     )

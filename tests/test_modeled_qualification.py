@@ -1,11 +1,13 @@
 """Modeled-agent qualification: j-L1 scored at the beliefs i's search queries it at."""
 
 import json
+from functools import partial
 
 import pytest
 
 from ipomdp.experiments.modeled_qualification import run_qualification
 from ipomdp.experiments.oracle import evaluate_case
+from ipomdp.experiments.problems import tiger_problems
 
 
 def test_observer_sees_every_modeled_policy_and_level_one_rejects_it():
@@ -39,8 +41,7 @@ def test_ladder_reproduces_the_search_and_reports_a_qualifying_rung(tmp_path):
         modeled="5",
         ladder=("5", "200"),
         seeds=[0],
-        beliefs=(0.1, 0.9),
-        opponent_beliefs=(0.5,),
+        problems=partial(tiger_problems, beliefs=(0.1, 0.9), opponent_beliefs=(0.5,)),
         workers=1,
     )
     assert failures == []
@@ -69,9 +70,9 @@ def test_level_three_rungs_are_whole_stacks_and_reproduce_the_search(tmp_path):
         modeled="20/5",
         ladder=("20/5", "40s[20,2,0.05]/exact"),
         seeds=[0],
-        beliefs=(0.3,),
-        opponent_beliefs=(0.5,),
-        nested_beliefs=(0.2, 0.8),
+        problems=partial(
+            tiger_problems, beliefs=(0.3,), opponent_beliefs=(0.5,), nested_beliefs=(0.2, 0.8)
+        ),
         workers=1,
     )
     assert failures == []
@@ -79,7 +80,7 @@ def test_level_three_rungs_are_whole_stacks_and_reproduce_the_search(tmp_path):
     assert set(summary["level"]) == {3}
     assert (summary["mean_cpu_seconds"] > 0).all()
     rows = json.loads((tmp_path / "q3" / "rows.json").read_text())
-    assert {r["nested_belief"] for r in rows} == {0.2, 0.8}
+    assert {tuple(r["nested_beliefs"]) for r in rows} == {(0.2,), (0.8,)}
     assert qualifying[(3, 2, 30, "20/5", 0)] in ("20/5", "40s[20,2,0.05]/exact", None)
 
 
@@ -96,8 +97,7 @@ def test_unscored_decisions_skip_the_reference_but_still_qualify(tmp_path):
         modeled="5",
         ladder=("5",),
         seeds=[0],
-        beliefs=(0.1,),
-        opponent_beliefs=(0.5,),
+        problems=partial(tiger_problems, beliefs=(0.1,), opponent_beliefs=(0.5,)),
         score_decision=False,
         workers=1,
     )
@@ -112,8 +112,7 @@ def test_saved_queries_score_a_new_ladder_without_searching_again(tmp_path):
         budget=30,
         modeled="5",
         seeds=[0],
-        beliefs=(0.1, 0.9),
-        opponent_beliefs=(0.5,),
+        problems=partial(tiger_problems, beliefs=(0.1, 0.9), opponent_beliefs=(0.5,)),
         workers=1,
     )
     first, _, failures = run_qualification(tmp_path / "a", ladder=("5",), **common)
@@ -125,7 +124,7 @@ def test_saved_queries_score_a_new_ladder_without_searching_again(tmp_path):
     assert not (tmp_path / "b" / "logs" / "search").exists()
     a = json.loads((tmp_path / "a" / "rows.json").read_text())
     b = [r for r in json.loads((tmp_path / "b" / "rows.json").read_text()) if r["rung"] == "5"]
-    keep = ("belief_p", "query", "belief_digest", "policy", "loss")
+    keep = ("problem", "query", "belief_digest", "policy", "loss")
     assert [{k: r[k] for k in keep} for r in a] == [{k: r[k] for k in keep} for r in b]
     with pytest.raises(ValueError, match="different problem settings"):
         run_qualification(
