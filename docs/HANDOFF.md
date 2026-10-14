@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 13, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete (RESULTS 12.37–12.40), except for republishing the reviewer page and updating the Claude Doc report (0.2, item 1). The UAV reconnaissance phase has started (PLAN.md, top): U1 (model) and U2 (generic problems) are done, U3 (exact-reference cost) is partly done. The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
+Last updated October 13, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). The UAV reconnaissance phase is under way (PLAN.md, top): U1 (model), U2 (generic problems) and U3 (exact-reference cost) are done; U4 (gates) is next. The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
 
 ## 0. Start here (fresh agent)
 
@@ -45,7 +45,7 @@ Last updated October 13, 2026. Claude is the sole owner of `main`; there are no 
   - Numbers go into `docs/RESULTS.md`. **The next free section is 12.41.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **Current task (new session):** first finish the Tiger suite's write-up (0.2, item 1: reviewer page and Claude Doc), then continue the UAV phase at U3/U4 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
+- **Current task (new session):** the UAV phase at U4 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 - **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
 ### 0.1 Where the science stands (October 13)
@@ -70,21 +70,19 @@ Last updated October 13, 2026. Claude is the sole owner of `main`; there are no 
   - **A "correct model" of an opponent must match its whole configuration,** budgets included (12.30).
   - **Every bounded-belief run reports** `analysis.metrics.prediction_misses`.
 - **Reviewer-facing material:**
-  - **Reviewer page, version 20:** https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (private to the user). How to rebuild it is in 0.6.
+  - **Reviewer page, version 21** (October 13: the Tiger suite, 12.37–12.40): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (private to the user). How to rebuild it is in 0.6.
   - **Claude Doc report:** https://claude.ai/code/artifact/96fa514f-dc7c-477c-8f97-b31eb1b8fca7 (Section 4).
 
 ### 0.2 Next steps (input to the next plan)
 
-1. **Tiger suite: finish the write-up (W).** All runs and RESULTS 12.37–12.40 are done and pushed. Two things remain:
-   - **Reviewer page (version 21).** The generator has been extended and the page rebuilt but **not republished**. Changes, all in `results/w4_report_20261007` (backups `*_20261012.bak`): the published grid is now 12.37's N = 64 matrix with level 0; the coordination grid covers levels 0–4; heatmaps take their levels from the data, and their color scales ignore level-0 cells (clamped); the forest plot adds the 3 → 4 steps and leaves out 0 → 1 (stated in the caption); new sections cover the planner comparison and prior sensitivity (tables from `p_planners_20261011` and `r_priors_20261011`). Data for the grids come from `results/w_suite_report_20261012/grid_data.py`. To finish: rerun `results/r_priors_20261011/analyze.py` (no arguments: both levels), `grid_data.py`, then `analyze.py` and `build_report.py` in `w4_report_20261007`; read the page once; republish `report.html` with the Artifact tool to the URL in 0.6. The JavaScript was checked offline (QuickJS compile, and a run against a DOM stub that catches planted errors; scripts in the session scratchpad, easily redone).
-   - **Claude Doc report** (Section 4): add the suite (12.37–12.40) to the level-grid and benchmark sections, in the report style (chosen method only, n beside every number, jargon defined).
+1. **Tiger suite write-up (W): done October 13.** Reviewer page version 21 republished (generator in `results/w4_report_20261007`, backups `*_20261013.bak`; data from `results/w_suite_report_20261012/grid_data.py` and `results/r_priors_20261011/analyze.py`). Claude Doc report: level matrix, planner comparison in episodes and prior sensitivity added to the lead and the benchmark section; the stale horizon-3 sentence (−9.6) replaced by 12.32's +0.8.
 
 2. **UAV reconnaissance (PLAN.md, top; started October 12).**
    - **Parameters.** The 2009 paper states none. The user could not be asked (away), so values come from Zeng & Doshi (2012), JAIR 43, Section 7 and Appendix B.3 (arXiv:1401.4600): listening reports the target's row correctly with 0.8; +50 for spotting, −5 per step. The rest are declared. Source table: `DOMAINS.md`, "UAV reconnaissance". **Ask the user whether they have the original problem files** (Zeng & Doshi say they are "available upon request"); if so, replace the declared values before the gates.
    - **Declared design choices to keep in mind:** 81 states, not the paper's 36 (the side-column collapse cannot express spotting); the UAV starts bottom-left, known to both; the target's own sector is in its observation, so its first decision is made without it (the package's prior is common and never conditions on the true state).
    - **U1 done** (`3819675`): `domains/uav.py` replaced (no shim); tests for kernels, spotting and mirror symmetry; RESULTS Section 2 marked as the retired pursuit game.
    - **U2 done** (`9321093`): `experiments/problems.py`. A problem is a chain of physical beliefs, one per level, each a function of the enclosing state (`chain_model`, `tiger_chain`, `uav_chain`). `oracle.evaluate_case(chain=..., problem=..., history_actions=...)`; level 1 off Tiger is scored by `BestResponseReference` (exact enumeration); `sample_history` takes a domain's actions and rejects terminal histories. **Gate:** 5 Tiger problems (L1; L2 vs exact; L3 declared; L2 history 3 with N = 64; RTS sampled on the coordination game) give identical rows before and after (`results/u2_gate_20261012`).
-   - **U3 partly done** (`results/u3_uav_reference_20261012/probe.py <level> <horizon> [budget]`, one problem: i uniform over the target's 8 possible sectors; at level 2 the target uniform over the UAV's sectors). Exact reference plus planner, 1,000 simulations:
+   - **U3 done** (`results/u3_uav_reference_20261012/probe.py <level> <horizon> [budget]`, one problem: i uniform over the target's 8 possible sectors; at level 2 the target uniform over the UAV's sectors). Exact reference plus planner, 1,000 simulations:
 
      | Level, horizon | Total CPU | Planner loss | optimal_q_error |
      |---|---|---|---|
@@ -94,8 +92,10 @@ Last updated October 13, 2026. Claude is the sole owner of `main`; there are no 
      | L1 H5 | 4.7 s | **6.29** | 2.40 |
      | L2 H2 | 1.3 s | 0 | 0 |
      | L2 H3 | 38 s (planner 19 s) | 0 | 0 |
+     | L2 H4 | 87 s (planner 45 s), 0.2 GB | 0 | 0.48 |
+     | L3 H2 | 1.4 s | 0 | 0 |
 
-     Next for U3: time L2 H4 and one L3 H2 problem. Exact references are cheap enough for gate grids at L1 H2–H5 and L2 H2–H3.
+     Exact references are cheap enough for gate grids at L1 H2–H5, L2 H2–H4 and L3 H2 (logs: `probe_2_4.log`, `probe_3_2.log`).
    - **U4 next:** a problem grid (i's beliefs over the target's sector: uniform, concentrated in one row, near the start, far corner; the target's beliefs about the UAV likewise) × seeds; L1 against the exact best response at H2–H5 with a root-budget ladder (H5 at 1,000 already loses 6.29, so qualify the budget, as on Tiger, 12.1–12.2); L2 against the exact I-POMDP at H2–H3 with a modeled-budget ladder; Clopper–Pearson intervals, `optimal_q_error`, bounds containment. `panel.run_panel` still builds Tiger point beliefs; give it a chain-based problem list rather than a parallel driver.
    - **Then U5–U7** as in PLAN.md: IPF + RTS benchmark (decisions and `planner_comparison` episodes), the paper's reward-vs-particles shape, episodes with the suite drivers, write-up. A UAV rollout heuristic (the default is uniform) may be needed for long horizons; decide from U4's errors.
 

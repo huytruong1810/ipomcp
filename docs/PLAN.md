@@ -1,7 +1,7 @@
 # Plan: the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (October 12, 2026)
 
-## Status (October 12, 2026)
-**Planned by Claude (the user delegated the choice of direction on October 12 while away). U1 done (`3819675`: model, tests, DOMAINS.md); U2 done (`9321093`: generic problem chains, Tiger rows identical 5/5); U3 partly done (L1 H2–H5 and L2 H2–H3 exact references take 0.1–38 s; L1 H5 at 1,000 simulations loses 6.29, so U4 needs a budget ladder). Next: finish U3 (L2 H4, L3 H2), then U4. Details: HANDOFF 0.2, item 2.**
+## Status (October 13, 2026)
+**Planned by Claude (the user delegated the choice of direction on October 12 while away). U1 done (`3819675`: model, tests, DOMAINS.md); U2 done (`9321093`: generic problem chains, Tiger rows identical 5/5); U3 done (exact references: L1 H2–H5 0.1–4.7 s, L2 H2–H4 1.3–87 s, L3 H2 1.4 s; L1 H5 at 1,000 simulations loses 6.29, so U4 needs a budget ladder). Next: U4 (chain-based panel, then gates). Details: HANDOFF 0.2, item 2.**
 
 ## Context
 The Tiger suite is complete (RESULTS 12.37–12.40, and level 4 of 12.39). On Tiger the evidence for all three contributions is in hand: exact
@@ -59,11 +59,10 @@ Profile the hardest case first (the efficient-experiments rule; template `result
 # Plan: the Tiger experiment suite (October 11, 2026)
 
 ## Status (October 11, 2026)
-**All runs complete (RESULTS 12.37–12.40); W partly done.** E: suite packaged (`df8803d`), Gate E 18/18. M1:
+**All runs complete (RESULTS 12.37–12.40); W done October 13 (reviewer page v21, Claude Doc).** E: suite packaged (`df8803d`), Gate E 18/18. M1:
 levels 0–3 on both games, n = 100 (12.37). M2: the level-4 row (user-approved), n = 40: 3 → 4 gains nothing (12.40).
 P: I-POMCP beats IPF + RTS by 28–38 on the coordination Tiger at H3 (Holm p = 0.003); no difference on the
-published Tiger (12.38). R: at level 3 a wrong point prior costs 17.5–30.0; at level 4 nothing (12.39). Remaining
-W: republish the rebuilt reviewer page and update the Claude Doc report (HANDOFF 0.2, item 1).
+published Tiger (12.38). R: at level 3 a wrong point prior costs 17.5–30.0; at level 4 nothing (12.39). 
 
 ## Context
 The user wants a complete, packaged Tiger suite before UAV (HANDOFF 0.2, item 1). The three suites that existed
