@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
+from ipomdp.domains.uav import LISTEN
 
 
 @dataclass(frozen=True)
@@ -180,12 +181,21 @@ def uav_laws(physics, concentration=0.75):
     return laws
 
 
+# i's actions in a mid-episode UAV problem: it listens in place at its start
+# sector, so its belief over the target sharpens while its own sector stays known.
+UAV_HISTORY_ACTIONS = (LISTEN,) * 8
+
+
 def uav_problems(physics, level, laws=None):
-    """UAV problems: every combination of named laws, one per level (i's first)."""
+    """UAV problems: every combination of named laws, one per level (i's first).
+
+    With ``history`` > 0, i's history follows ``UAV_HISTORY_ACTIONS``.
+    """
     laws = uav_laws(physics) if laws is None else laws
     problems = []
     for names in itertools.product(sorted(laws), repeat=level):
         name = "/".join(names)
         chain = uav_chain(physics, [laws[n] for n in names])
-        problems.append(Problem(name, dict(chain=chain, problem=name)))
+        case = dict(chain=chain, problem=name, history_actions=UAV_HISTORY_ACTIONS)
+        problems.append(Problem(name, case))
     return problems

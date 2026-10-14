@@ -151,6 +151,25 @@ def test_uav_cells_are_scored_at_levels_one_and_two(tmp_path):
     assert manifest["panel"]["physics"][1] == "UAVModel"
 
 
+def test_uav_cells_take_a_history_of_listening(tmp_path):
+    physics = UAVModel()
+    uniform = {"uniform": uav_laws(physics)["uniform"]}
+    cells = [("mcts", 2, 2, 200, "exact", 0, "exact", 2)]
+    summary, failures = run_panel(
+        tmp_path / "panel",
+        cells,
+        seeds=[0],
+        workers=1,
+        problems=partial(uav_problems, physics, laws=uniform),
+        physics=physics,
+    )
+    assert failures == []
+    assert list(summary["optimal_rate"]) == [1.0]
+    # Tiger's scripted history (listen-left, ...) is not a UAV action.
+    rows = json.loads((tmp_path / "panel" / "rows.json").read_text())
+    assert rows[0]["history_steps"] == 2
+
+
 def test_level_one_takes_no_modeled_budget():
     with pytest.raises(ValueError, match="modeled label"):
         evaluate_cell("mcts", 1, 2, 10, "100", 0, "exact", 0, seed=0)
