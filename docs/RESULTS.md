@@ -1672,3 +1672,61 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
 - **The ablation shows that the error is search error, not belief error:** RTS on compressed beliefs is about as accurate as on the sampled particle filter (McNemar p = 0.33 at both horizons), at 1/4 to 1/12 of the CPU.
 - **RTS itself is sound on UAV.** In a check at H2 (`diag/`, 2 seeds), RTS converges to the exact decision as K grows: at level 1, 6/8 optimal at K = 2 and 8/8 at K = 128; at level 2 with an exact target, 27/32 at K = 2 and 32/32 at K = 128; at level 2 with RTS at every level, 32/32 at K = 128. The shortfall at K ≤ 8 is therefore sampling error, not a defect of the implementation.
 - **H4 was not run.** One IPF + RTS decision at H4 costs 4.2 CPU-min at K = 2 and 17 at K = 4, and more than 30 at K = 8 (the profile was stopped at its 30-minute cap). I-POMCP's qualified H4 decision costs about 50 CPU-min (12.42). An 80-problem H4 grid would therefore exceed 100 CPU-h, which needs the user's approval.
+
+### 12.44 UAV episodes: I-POMCP vs IPF + RTS, horizon 3 (October 14, 2026)
+
+**Design** (`results/u5_uav_rts_20261014/episodes`; `episodes.py`, `analyze.py`, `ENDPOINTS.md`, `KILL_CRITERION.txt`; endpoints fixed before the run). This is 12.38's design on UAV:
+- **Suite:** `suite.planner_comparison("uav", depth=3)`. i is a level-2 UAV, planning either with I-POMCP (root 1,000, modeling the target exactly as the target is configured) or with IPF + RTS at K = 2 or 4 (sampled particle filter, N = 64). The real target j is a level-1 I-POMCP agent with 400 simulations (qualified at H3, 12.41). Episodes last up to 20 steps; spotting ends one.
+- **Trials:** n = 100 per cell, on shared trial seeds.
+- **Primary endpoint:** i's episode reward, I-POMCP minus each RTS arm, paired by trial, with a bootstrap 95% interval and Holm correction over the 2 comparisons.
+- **Cost:** about 20 CPU-h (both agents' planning and updates).
+
+| i plans with | n | i's reward [95%] | Steps to spot | Spotted | i's log-loss of j | Prediction misses | CPU per decision (s) |
+|---|---|---|---|---|---|---|---|
+| **I-POMCP** | 100 | 30.0 [30.0, 30.0] | 5.0 | 100% | **0.93** | 0 | **5.3** |
+| IPF + RTS, K = 2 | 100 | 28.6 [27.1, 29.8] | 5.3 | 100% | 1.21 | 0 | 43.2 |
+| IPF + RTS, K = 4 | 99 | 30.3 [29.1, 31.4] | 5.0 | 100% | 1.20 | 0 | 95.0 |
+
+| Comparison | n | Mean difference [95%] | p | Holm p | Median CPU ratio per decision |
+|---|---|---|---|---|---|
+| I-POMCP − (IPF + RTS, K = 2) | 100 | +1.45 [0.25, 2.90] | 0.035 | 0.070 | 0.12 |
+| I-POMCP − (IPF + RTS, K = 4) | 99 | −0.25 [−1.36, 0.91] | 0.66 | 0.66 | 0.055 |
+
+- **The planners earn the same reward in UAV episodes at horizon 3** (neither difference is significant after correction). I-POMCP spends 8–18× less CPU per decision.
+- **Why episodes barely separate the planners:** the level-1 target always flees to the far corner, (0, 2), and stays there. The UAV starts 4 moves away, beyond the 3-step horizon, so the first move is close to a tie for every planner at this depth. I-POMCP listens once and then makes the four moves (reward 30 in all 100 episodes). IPF + RTS sometimes skips the listen (35, in 28 and 39 episodes for K = 2 and 4) and sometimes wanders (25 or less, in 34 and 18; as low as 0). The decision-level gap of 12.43 shows up on problems that a fleeing target never presents.
+- **I-POMCP predicts the target better:** log-loss 0.93, against 1.20 for both RTS arms (log 5 = 1.61 is a uniform guess).
+- **IPF failed once:** IPF + RTS K = 4 aborted trial 52, deterministically (twice). Its sampled filter of the target had no particle consistent with the target's observation ("no particle explains action = S"); the target observes its own sector exactly, which the published IPF does not handle. The K = 4 comparison is paired on the 99 remaining trials. I-POMCP's compressed filter makes exact updates and cannot fail this way.
+
+### 12.45 UAV: decision quality against the number of particles (the paper's Fig. 16 shape), L2 after a 2-step history (October 14, 2026)
+
+**Design** (`results/u5_uav_rts_20261014/particles`; `job.py`, `score.py`, `analyze.py`, `ENDPOINTS.md` with amendment 1, `refcheck.py`, `gate.py`). Doshi & Gmytrasiewicz (2009, Fig. 16) plot IPF + RTS's reward against the number of particles. Here the same axis is scored against exact references:
+- **Why level 2 with a history:** the level-1 exact reference is solved only at the prior, where i's UAV belief is uniform over 8 sectors and N barely matters. So i acts at level 2 after a 2-step history, listening twice in place (`UAV_HISTORY_ACTIONS`, added for this run, `8c079fc`; history-0 rows unchanged, 160/160). The exact belief then has about 20 atoms.
+- **Problems:** the 16 level-2 problems × seeds 0–4 (each seed draws a history; all 5 histories are non-terminal), n = 80 per cell, at horizons 2 and 3.
+- **References:** the exact I-POMDP at the exact posterior, solved once per (problem, seed). They were checked to be independent of the planner's particle setting (32/32).
+- **Cells:** IPF + RTS at K = 2, 4, 8 with N = 4–64 sampled particles, and on exact beliefs; I-POMCP (root 1,000; target 100 at H2, 400 at H3) with compressed N = 4–64, and exact.
+- **Failures (amendment 1, made before any H3 table was read):** the sampled filter can run out of particles inside RTS's look-ahead. Such a decision is recorded as failed and counted as not optimal; losses are means over the completed decisions.
+- **Cost:** 21 CPU-h of planning, plus references.
+
+Horizon 3 (mean loss = expected reward lost against the exact decision; CPU includes the 2 history updates):
+
+| Planner | N | Failed | Optimal [95%] | Mean loss [95%] | Max loss | CPU (s) |
+|---|---|---|---|---|---|---|
+| I-POMCP | 4 | 0 | 29/80 [0.26, 0.48] | 4.22 [2.70, 6.14] | 54.8 | 2.6 |
+| I-POMCP | 8 | 0 | 46/80 [0.46, 0.69] | 0.58 [0.32, 0.87] | 6.2 | 9.1 |
+| I-POMCP | 16 | 0 | 51/80 [0.52, 0.74] | 0.42 [0.16, 0.77] | 9.7 | 15.2 |
+| I-POMCP | 32 | 0 | 70/80 [0.78, 0.94] | 0.071 [0.006, 0.16] | 2.4 | 24.3 |
+| **I-POMCP** | **64** | 0 | **74/80** [0.84, 0.97] | **0.012** [0.002, 0.026] | 0.46 | 34.5 |
+| I-POMCP | exact | 0 | 77/80 [0.89, 0.99] | 0.007 [0.000, 0.019] | 0.46 | 55.0 |
+| IPF + RTS K = 2 | 4 / 8 / 16 / 32 / 64 | 22 / 0 / 0 / 0 / 0 | 22 / 35 / 38 / 43 / 43 of 80 | 4.48 / 3.71 / 2.90 / 2.20 / 1.48 | 10.8–46.8 | 2–58 |
+| IPF + RTS K = 2 | exact | 0 | 46/80 [0.46, 0.69] | 1.24 [0.73, 1.84] | 10.4 | 8.8 |
+| IPF + RTS K = 4 | 4 / 8 / 16 / 32 / 64 | 41 / 2 / 0 / 0 / 0 | 18 / 38 / 40 / 51 / 47 of 80 | 4.41 / 3.30 / 2.71 / 1.19 / 0.86 | 9.3–42.4 | 4–135 |
+| IPF + RTS K = 4 | exact | 0 | 49/80 [0.50, 0.72] | 1.39 [0.73, 2.19] | 20.7 | 10.7 |
+| IPF + RTS K = 8 | 4 / 8 / 16 / 32 / 64 | 46 / 0 / 1 / 0 / 0 | 18 / 38 / 41 / 49 / 48 of 80 | 5.26 / 3.12 / 2.65 / 1.00 / 0.61 | 7.8–46.8 | 6–198 |
+| IPF + RTS K = 8 | exact | 0 | 48/80 [0.48, 0.71] | 0.64 [0.27, 1.09] | 10.4 | 15.5 |
+
+Horizon 2 (same layout; full table in `particles/analysis.txt`): I-POMCP is 46/80 at N = 4, 72/80 at N = 32, and **80/80 at N = 64 and exact**. IPF + RTS is 38–43/80 at N = 4 (2–5 failures) and 62–69/80 at N = 64; on exact beliefs it reaches 61–71/80.
+
+- **The paper's shape holds for IPF + RTS:** loss falls as particles grow (at H3, K = 8: 5.3 at N = 4 to 0.61 at N = 64). It flattens at RTS's own limit with exact beliefs (loss 0.64–1.39 at H3, 46–49/80 optimal), which is set by K, not by N.
+- **At every N, I-POMCP loses less than IPF + RTS at any K**, at H3 from N = 8 up. I-POMCP at N = 8 (loss 0.58, 9 s) matches IPF + RTS at K = 8, N = 64 (loss 0.61, 198 s) at 1/22 of the CPU. At N = 64 its loss is 0.012, 50× lower than the best IPF + RTS cell.
+- **Small sampled filters break on UAV.** At N = 4 the published IPF ran out of particles in 22–46 of 80 H3 decisions (2–5 at H2). The target observes its own sector exactly, so a small sample of the target's possible situations often contains none consistent with what it saw. I-POMCP's compressed filter makes exact updates before compressing, and never failed.
+- **I-POMCP's qualified budget does not fully carry over to mid-episode beliefs at H3:** with exact beliefs it is 77/80, not 80/80. The 3 misses are near-ties: gaps of 0.46 (E 36.82 against S 36.36) and 0.044 twice. Its budget (root 1,000, target 400) was qualified at the prior (12.41). At H2 it is 80/80 here too. Like 12.14's L3 H4 residual, this is a near-tie floor, recorded rather than tuned away.

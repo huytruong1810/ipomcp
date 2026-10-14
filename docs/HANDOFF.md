@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). UAV reconnaissance (PLAN.md, top): U1–U4 are done. I-POMCP is optimal against exact references at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2 (12.41), including the modeled target at L2 H4 (12.42). U5 step 1 is done (12.43): on UAV L2 decisions I-POMCP is 80/80 at H2 and H3, against 53–68% for IPF + RTS, and cheaper at H3. Next: U5 steps 2–3 (0.2, item 2); H4 decisions need the user's approval (over 100 CPU-h). UAV is not yet in the reviewer page or the Claude Doc (U7). The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
+Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). UAV reconnaissance (PLAN.md, top): U1–U4 are done. I-POMCP is optimal against exact references at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2 (12.41), including the modeled target at L2 H4 (12.42). U5 step 1 is done (12.43): on UAV L2 decisions I-POMCP is 80/80 at H2 and H3, against 53–68% for IPF + RTS, and cheaper at H3. U5 steps 2–3 done (12.44 episodes, 12.45 particles). **Running: the H4 decision grid (user-approved October 14), see 0.0.** UAV is not yet in the reviewer page or the Claude Doc (U7). The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
 
 ## 0. Start here (fresh agent)
 
@@ -14,7 +14,7 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
 
 - **Repository.**
   - `main` is clean at the last HANDOFF commit. 332 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
-  - **Nothing is running.**
+  - **Running (October 14):** the U5a H4 grid, `results/u5_uav_rts_20261014/h4` (368 one-process jobs via `xargs` PID in `h4/xargs.pid`, `wrap.sh` waits for 3 GB free and always exits 0, `watchdog.sh` kills only our youngest Python job). When xargs ends: rerun the missing jobs (`job.py` skips finished files; 46+ were killed during an other-project memory crunch), then `score.py`, and analyze with `analyze.py` (chunk `h4`). I-POMCP seeds 0–1 are U4c's rows.
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
     - `resampling/optimal-fc` (12.28);
@@ -43,7 +43,7 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.44.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.46** (12.46 is reserved for the H4 decision grid).
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** the UAV phase at U5 steps 2–3 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
