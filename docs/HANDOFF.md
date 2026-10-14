@@ -1,19 +1,19 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.36);
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.40);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 11, 2026. Claude is the sole owner of `main`; there are no other agents. Three phases have finished since the reviewers saw the episode page on October 7: the coordination Tiger (RESULTS 12.22–12.29), bounded beliefs (12.30–12.32), root budgets (12.33–12.35) and cheaper nested solves (12.36), the last two on October 11. **The user has decided the next two phases (October 11): first a complete Tiger experiment suite, then the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009). Both are planned in a new session (0.2).**
+Last updated October 13, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete (RESULTS 12.37–12.40), except for republishing the reviewer page and updating the Claude Doc report (0.2, item 1). The UAV reconnaissance phase has started (PLAN.md, top): U1 (model) and U2 (generic problems) are done, U3 (exact-reference cost) is partly done. The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
 
 ## 0. Start here (fresh agent)
 
 ### 0.0 State, rules and how to work
 
 - **Repository.**
-  - `main` is clean at the last HANDOFF commit. 315 tests pass in about 75 s (`.venv/bin/python -m pytest -q`), and `ruff check` and `ruff format --check` are clean.
+  - `main` is clean at the last HANDOFF commit. 327 tests (about 75 s on a quiet machine) (`.venv/bin/python -m pytest -q`), and `ruff check` and `ruff format --check` are clean. Three timing tests in `test_process_supervisor.py` (`test_timeout_stops_descendant_processes`, `test_supervisor_enforces_rss_budget`, `test_supervisor_retains_errors_and_reaps_timed_out_workers`) fail intermittently while the machine is heavily loaded and pass alone; recheck them on a quiet machine.
   - **Nothing is running.**
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
@@ -42,12 +42,13 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.40.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.41.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **Current task: the Tiger-suite phase** (PLAN.md, top). E, M1, P and R3 are done (RESULTS 12.37–12.39). **Running (October 12, 12:10):** `results/m2_level4_20261011/m2.py 10` (runner PID in `runner-m2.pid`; the level-4 row (4, 0..4) at n = 40, then R4 in `results/r_priors_20261011/l4`, about 225 CPU-h, approved by the user). It resumes if restarted (`PYTHONPATH=$PWD/src ../../.venv/bin/python m2.py <workers>` from that folder). When it finishes: `analyze.py` in `r_priors_20261011` (all 6 comparisons, final Holm), a level-4 endpoint (3 → 4, paired with M1's coordination cells (3, j) on trials 0–39), RESULTS 12.40, the 12.39 update, then W (reviewer page, Claude Doc). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
+- **Current task (new session):** first finish the Tiger suite's write-up (0.2, item 1: reviewer page and Claude Doc), then continue the UAV phase at U3/U4 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
+- **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
-### 0.1 Where the science stands (October 11)
+### 0.1 Where the science stands (October 13)
 
 1. **Online solver (I-POMCP with bounded nested beliefs).**
    - **Optimal wherever exact references exist:** L1 H1–H5, 220/220 at H5 (12.1); L2 H3–H4, 380/380 (12.3–12.4); L3 H3, 162/162 (12.7); L4 H2, 486/486 (12.23).
@@ -59,7 +60,11 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
    - **Modeling the opponent pays** on the coordination Tiger: level 1 → 2 gains 27–30 over 20 steps (Holm p < 0.001, 12.27). In the published Tiger it gains nothing, since payoffs depend only on one's own door.
    - **A third level predicts slightly better but earns the same:** at H2, 12.27; at H3 with a model matched to the opponent's configuration, +0.8 [−6.7, 8.6], n = 50 (12.32). The exact screen agrees: a third level is worth little, and only on rare beliefs (12.22).
    - **Episodes also show:** sunbursts, level grids (12.21, 12.27) and prediction-miss diagnostics (12.30).
-   - **Wumpus L1** is qualified on 3 distinct beliefs only (12.19). UAV has no oracle or panel path yet.
+   - **The Tiger suite (12.37–12.40), at H2 with N = 64 unless noted:**
+     - **Value of depth on the coordination Tiger:** level 0 → 1 is worth about 600 over 20 steps; 1 → 2 is worth 15–30 against an intentional opponent (Holm p < 0.05); 2 → 3 gives +5 to +7, not significant; 3 → 4 gives nothing (level 4 acts as level 3 in 34–35 of 40 episodes). The published Tiger (control): nothing above level 0. Against a random opponent, no level above 1 adds anything.
+     - **I-POMCP against IPF + RTS in episodes (12.38):** +28 to +38 for I-POMCP on the coordination Tiger at H3 (Holm p = 0.003), including against RTS K = 4, which costs more CPU; +24 to +26 at H4, not significant at n = 50; no difference on the published Tiger.
+     - **Prior sensitivity (12.39):** at level 3 against a level-1 j, a point prior one level too high costs 17.5 and "random" costs 30.0; at level 4 against a level-2 j, wrong priors cost nothing, because levels 2–4 act alike. A uniform prior costs nothing significant at either level.
+   - **Wumpus L1** is qualified on 3 distinct beliefs only (12.19). **UAV** (the paper's domain, declared values): the oracle path works (U2); exact references are cheap (U3, 0.2 item 2).
    - **Equilibria:** a design note only (`docs/EQUILIBRIA.md`).
 - **Lessons that bind future designs:**
   - **A "correct model" of an opponent must match its whole configuration,** budgets included (12.30).
@@ -70,80 +75,51 @@ Last updated October 11, 2026. Claude is the sole owner of `main`; there are no 
 
 ### 0.2 Next steps (input to the next plan)
 
-1. **The Tiger experiment suite (the user's decision, October 11; next phase, before UAV).** It answers the user's question of whether we can produce the full suite for Tiger. Today we can only partly. The audit:
+1. **Tiger suite: finish the write-up (W).** All runs and RESULTS 12.37–12.40 are done and pushed. Two things remain:
+   - **Reviewer page (version 21).** The generator has been extended and the page rebuilt but **not republished**. Changes, all in `results/w4_report_20261007` (backups `*_20261012.bak`): the published grid is now 12.37's N = 64 matrix with level 0; the coordination grid covers levels 0–4; heatmaps take their levels from the data, and their color scales ignore level-0 cells (clamped); the forest plot adds the 3 → 4 steps and leaves out 0 → 1 (stated in the caption); new sections cover the planner comparison and prior sensitivity (tables from `p_planners_20261011` and `r_priors_20261011`). Data for the grids come from `results/w_suite_report_20261012/grid_data.py`. To finish: rerun `results/r_priors_20261011/analyze.py` (no arguments: both levels), `grid_data.py`, then `analyze.py` and `build_report.py` in `w4_report_20261007`; read the page once; republish `report.html` with the Artifact tool to the URL in 0.6. The JavaScript was checked offline (QuickJS compile, and a run against a DOM stub that catches planted errors; scripts in the session scratchpad, easily redone).
+   - **Claude Doc report** (Section 4): add the suite (12.37–12.40) to the level-grid and benchmark sections, in the report style (chosen method only, n beside every number, jargon defined).
 
-**Audit (October 11).**
-Before the September 30 restructure there were three packaged Tiger suites in `src/examples/experiments/`. They are still on the branch `archive/pre-restructure-20260930`, and their raw outputs are in `results/payoff_matrix/` and `results/deep_prior/`. All of them ran on the retired estimator, which was 61–88% optimal, so **none of their numbers are valid now**. The restructure replaced their runner classes with `StudySpec` + `runner`; the drivers that replaced them live only in git-ignored `results/` folders.
+2. **UAV reconnaissance (PLAN.md, top; started October 12).**
+   - **Parameters.** The 2009 paper states none. The user could not be asked (away), so values come from Zeng & Doshi (2012), JAIR 43, Section 7 and Appendix B.3 (arXiv:1401.4600): listening reports the target's row correctly with 0.8; +50 for spotting, −5 per step. The rest are declared. Source table: `DOMAINS.md`, "UAV reconnaissance". **Ask the user whether they have the original problem files** (Zeng & Doshi say they are "available upon request"); if so, replace the declared values before the gates.
+   - **Declared design choices to keep in mind:** 81 states, not the paper's 36 (the side-column collapse cannot express spotting); the UAV starts bottom-left, known to both; the target's own sector is in its observation, so its first decision is made without it (the package's prior is common and never conditions on the true state).
+   - **U1 done** (`3819675`): `domains/uav.py` replaced (no shim); tests for kernels, spotting and mirror symmetry; RESULTS Section 2 marked as the retired pursuit game.
+   - **U2 done** (`9321093`): `experiments/problems.py`. A problem is a chain of physical beliefs, one per level, each a function of the enclosing state (`chain_model`, `tiger_chain`, `uav_chain`). `oracle.evaluate_case(chain=..., problem=..., history_actions=...)`; level 1 off Tiger is scored by `BestResponseReference` (exact enumeration); `sample_history` takes a domain's actions and rejects terminal histories. **Gate:** 5 Tiger problems (L1; L2 vs exact; L3 declared; L2 history 3 with N = 64; RTS sampled on the coordination game) give identical rows before and after (`results/u2_gate_20261012`).
+   - **U3 partly done** (`results/u3_uav_reference_20261012/probe.py <level> <horizon> [budget]`, one problem: i uniform over the target's 8 possible sectors; at level 2 the target uniform over the UAV's sectors). Exact reference plus planner, 1,000 simulations:
 
-| Old suite (archive) | Design | Current replacement | Gap |
-|---|---|---|---|
-| `level_convergence_matrix_experiment.py` (payoff matrix) | L0–L5 × L0–L5 episodes, uniform prior over lower levels, n = 200, T = 12; heatmaps of i's and j's payoffs and joint welfare | 12.21 (published Tiger, L1–4 × L1–4, H2, N = 32; under 12.26's compression caveat) and 12.27 (coordination Tiger, L1–3, N = 64, n = 100). Drivers: `results/w9_level_grid_20261007/grid.py`, `results/p4c_joint_level_grid_n64_20261007/grid.py` | No L0 row or column; published Tiger not re-run at N = 64; no level 4 at N = 64; L5 infeasible (Section 6); the driver is not in the package |
-| `planner_comparison_experiment.py` (vs IPF + RTS) | Episodes: RTS against I-POMCP at 1k–100k simulations, depth 5 | 12.20: decision-level against the exact I-POMDP, L2 H3–H4, n = 380 (`results/w5_rts_baseline_20261006`; the package supports it through `panel`'s `rts` planner) | No episode-level comparison of cumulative reward; `AgentSpec` supports `kind = "rts"`, so it is runnable |
-| `deep_hierarchy_prior_experiment.py` | L3 vs L2 or L1 and L4 vs L3 or L1, with correct, over-estimated and uniform level priors, depth 5 | 12.16 (mixed-prior gate), 12.18 (L3 vs L2 with controls), 12.27 (uniform priors), 12.32 (matched model, H3) | No misspecified (over-estimated) prior conditions; no L4 conditions; depth 5 is infeasible above L2 (H3 is used) |
+     | Level, horizon | Total CPU | Planner loss | optimal_q_error |
+     |---|---|---|---|
+     | L1 H2 | 0.1 s | 0 | 0 |
+     | L1 H3 | 0.4 s | 0 | 0 |
+     | L1 H4 | 2.2 s | 0 | 1.16 |
+     | L1 H5 | 4.7 s | **6.29** | 2.40 |
+     | L2 H2 | 1.3 s | 0 | 0 |
+     | L2 H3 | 38 s (planner 19 s) | 0 | 0 |
 
-**Brief for the plan:**
-- **Package the three suites** as drivers in `src/ipomdp/experiments/`, built on `StudySpec` and generic over the domain, so the UAV phase reuses them unchanged:
-  - **level matrix:** episodes for every pair of levels (i, j), including L0; i's and j's cumulative reward, joint welfare, and prediction loss and misses; paired seeds across cells;
-  - **planner comparison:** I-POMCP against IPF + RTS in episodes (cumulative reward at matched CPU), beside 12.20's decision-level comparison;
-  - **prior sensitivity:** correct, over-estimated, under-estimated and uniform priors over the opponent's level, at levels 3 and 4.
+     Next for U3: time L2 H4 and one L3 H2 problem. Exact references are cheap enough for gate grids at L1 H2–H5 and L2 H2–H3.
+   - **U4 next:** a problem grid (i's beliefs over the target's sector: uniform, concentrated in one row, near the start, far corner; the target's beliefs about the UAV likewise) × seeds; L1 against the exact best response at H2–H5 with a root-budget ladder (H5 at 1,000 already loses 6.29, so qualify the budget, as on Tiger, 12.1–12.2); L2 against the exact I-POMDP at H2–H3 with a modeled-budget ladder; Clopper–Pearson intervals, `optimal_q_error`, bounds containment. `panel.run_panel` still builds Tiger point beliefs; give it a chain-based problem list rather than a parallel driver.
+   - **Then U5–U7** as in PLAN.md: IPF + RTS benchmark (decisions and `planner_comparison` episodes), the paper's reward-vs-particles shape, episodes with the suite drivers, write-up. A UAV rollout heuristic (the default is uniform) may be needed for long horizons; decide from U4's errors.
 
-  Move the logic of the grid scripts (`grid.py`, `endpoint.py`, `analyze_grid.py`, now in git-ignored `results/` folders) into the package, with tests. The analysis must be fixed before each run: the paired one-level endpoint with Holm correction (12.27), Clopper–Pearson intervals, and `prediction_misses`.
-- **Domains:** the published Tiger and the coordination Tiger (`together_safe = 40`). The published Tiger is the control in which depth cannot pay (12.18, 12.22).
-- **Configurations that bind:**
-  - beliefs N = 64 (12.26);
-  - root 1,000 in episodes (12.34);
-  - every model of the opponent matches its real configuration, budgets included (12.30);
-  - H2 for grids that include level 4 (exact for the searched model); H3 where affordable;
-  - level 5 is out (Section 6).
-- **Cost.** Since 12.36 an L3 H3 episode is about half its October 9 cost (about 57 CPU-min for 20 steps, estimated) and about 0.7 GB. Level-4 cells dominate. Size every suite with a pilot. Any run over 100 CPU-h is the user's approval. **Order:** reward matrix first, then the planner comparison, then priors.
-- **Reporting:** RESULTS from 12.37 on, the reviewer page (0.6) and the Claude Doc report. Old suite numbers came from the retired estimator, so they may be mentioned qualitatively at most.
-
-2. **The UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (the user's decision, October 11; after the Tiger suite).** The suite drivers from item 1 should run it unchanged.
-   - **Why.** Tiger results are satisfactory (0.1). The reviewers' remaining weakness is that the evidence is all Tiger. This is the larger benchmark of the paper whose method (IPF + RTS) we already beat on Tiger (12.20).
-   - **Source.** Doshi & Gmytrasiewicz, "Monte Carlo Sampling Methods for Approximating Interactive POMDPs", JAIR 34 (2009), 297–337, [arXiv:1401.3455](https://arxiv.org/abs/1401.3455). The domain is defined in Section 8.3.2 (Fig. 14), with results in Section 10.2 (Fig. 16) and Section 11.1 (Table 6).
-   - **The paper's specification:**
-     - a 3×3 grid of sectors; UAV i, ground target T;
-     - physical state (row_i, side-or-center_i, row_T, side-or-center_T), with the left and right columns merged by symmetry: 3·2·3·2 = **36 states**;
-     - actions for each agent: move N, S, E, W, or listen (**5 each**). Moves are deterministic, to an adjacent sector; T may also move diagonally;
-     - i's observations: **TR, CR, BR**, a noisy report of T's row (received when listening);
-     - i knows its own sector. **The game ends when i moves into T's sector** (T is spotted);
-     - T "may be informed … that it could be in danger of being spotted, with high uncertainty". i knows T's frame (its objectives and observation probabilities);
-     - "36 physical states, 5 actions and 3 observations for each agent".
-   - **What the paper leaves unstated:** the sensor accuracy; the reward values (it says R_i maps into [0, 1], yet Fig. 16 plots expected rewards up to about 12); T's observation function and rewards; the discount; the priors. Also unclear: how "move to T's sector" maps onto the collapsed side/center state, and whether T observes i's row.
-     - **First, ask the user** whether they have the original parameter values.
-     - If not, search Doshi's follow-up papers, and any published problem files from his group.
-     - Only then declare values, documented in `DOMAINS.md` as "the paper's structure, with declared values where it is silent". Do not invent values silently.
-   - **The paper's results to compare against:**
-     - level-1 reward against the number of particles at horizons 2 and 3 (curves flatten from N ≈ 1,000);
-     - I-PF KL divergence at levels 1 and 2 (Fig. 14b);
-     - run times: H2 8m 50s, H3 21m (no RTS); with RTS, H4 121 min (2.0 GB machine);
-     - no exact values: the authors could not compute them.
-   - **What exists in the repo:**
-     - `domains/uav.py`, a different declared game: a 3×3 pursuit game with 72 states, 8 compass observations and capture rewards (`DOMAINS.md`, "UAV pursuit");
-     - RESULTS Section 2, on a 2×3 variant;
-     - the registration `study.DOMAINS["uav"]`;
-     - tests in `test_domains.py`, `test_domain_contracts.py`, `test_best_response.py` and `test_canonical.py`.
-
-     The no-shims mandate says to replace this with the paper's version, not keep both.
-   - **Work the plan must cover** (cheapest and most informative first):
-     1. The model and its tests: kernels sum to one; the 36 states; termination; the symmetry collapse; contract tests.
-     2. Generic problem construction for the oracle and panel. `_two_state_belief`, `_point_model` and `sample_history` are Tiger-specific.
-     3. Exact references. L1 by alpha-vector value iteration at H2–H4. L2 exact I-POMDP: time one problem before committing a grid; Tiger L2 at H4 took about 36 s per problem with exact references. These are references the paper did not have.
-     4. Gates, with the same standard as Tiger:
-        - L1 against VI; L2 against the exact I-POMDP;
-        - Clopper–Pearson intervals; `optimal_q_error`; certified bounds;
-        - the modeled budget qualified at the beliefs j is modeled at (`modeled_qualification`).
-     5. The benchmark: I-POMCP against IPF + RTS (`baselines/`) at matched CPU. Also reproduce the paper's reward-vs-particles profile shape at L1 H2–H3.
-     6. Episodes and interpretability (sunbursts, prediction misses), if the gates pass.
-   - **Cost notes:**
-     - 36 states and 5 × 3 actions × observations against Tiger's 2 states and 3 × 6. Profile the hardest case first (the user's efficient-experiments rule; `results/s0_nested_profile_20261011/profile_episode.py` is the template).
-     - 12.36's speedups apply. `update_rollout_memory` needs a UAV rollout policy and memory (see `domains/uav.py`'s current one).
 3. **Other breadth items, after UAV:**
    - Wumpus L1 beyond 3 beliefs (Section 0.10, item 3);
    - level 4 on the coordination Tiger (now cheaper, 12.36);
    - a solver-level change to the exact nested update (about a third of the CPU, 12.36; needs 12.15's replay gate).
 4. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
 5. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
+
+### 0.3c What happened October 11–13 (PLAN.md, "Tiger experiment suite" and the start of "UAV reconnaissance")
+
+| Work | Result | RESULTS |
+|---|---|---|
+| E: packaged suites (`df8803d`) | `experiments/suite.py` (`SuiteSpec`, `run_suite`: round-robin over cells on shared trial ids, one supervised process per episode, resumable; only `trials` may grow) and builders `level_matrix`, `planner_comparison`, `prior_sensitivity`; `analysis/endpoints.py`; `holm` moved to `analysis.statistics`. Gate E: 18/18 of 12.27's episodes reproduced exactly, so its 900 episodes were imported | 12.37 |
+| M1: level matrix L0–3, both games, n = 100 | Above | 12.37 |
+| M2: level-4 row (4, 0..4), coordination, n = 40 (user-approved, 69 CPU-h) | 3 → 4 gains nothing | 12.40 |
+| P: I-POMCP vs IPF + RTS in episodes | Above | 12.38 |
+| R: prior sensitivity, levels 3 and 4 | Above | 12.39 |
+| UAV U1–U3 | 0.2, item 2 | — |
+
+Run folders (each with its launcher, `analyze.py`, `KILL_CRITERION.txt`, snapshot `src/`): `results/e_suite_gate_20261011`, `m1_level_matrix_20261011` (`coordination/`, `published/`), `m2_level4_20261011` (`pilot/`, `row/`), `p_planners_20261011` (`h3-coordination/`, `h3-published/`, `h4-coordination/`), `r_priors_20261011` (`l3/`, `l4/`), `w_suite_report_20261012`, `u2_gate_20261012`, `u3_uav_reference_20261012`. Watchdog and memory log that only look at one runner's children: `m1_level_matrix_20261011/watchdog.sh <runner pid> <log>` and `memlog.sh`. Costs since 12.36: an L3 × L3 H2 episode about 1.9 CPU-min; level 4 against levels 0–4: 1–45 CPU-min, peak 1.3 GB.
+
+Files: `src/ipomdp/experiments/suite.py`, `experiments/problems.py`, `analysis/endpoints.py`, `analysis/statistics.py`, `experiments/oracle.py`, `domains/uav.py`; tests `test_suite.py`, `test_domains.py`, `test_best_response.py`, and the oracle tests migrated to `problems`; docs `PLAN.md`, `RESULTS.md` 12.37–12.40 (and a note on Section 2), `DOMAINS.md`, `ARCHITECTURE.md`, this file.
 
 ### 0.3b What happened October 11, evening (PLAN.md, "cheaper nested solves" phase)
 
