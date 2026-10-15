@@ -56,6 +56,21 @@ without it. Recorded as a deviation.
 
 Profile the hardest case first (the efficient-experiments rule; template `results/s0_nested_profile_20261011/profile_episode.py`).
 
+### U6 design (Claude, October 15, written before any U6 run)
+- **Question:** does reasoning one level deeper pay on UAV, a pursuit game where the opponent's model matters by
+  construction? (12.44: a level-1 target flees to the far corner; a level-1 UAV models the target as random, a level-2
+  UAV models it as level 1.)
+- **Suite:** `suite.level_matrix("uav", levels=(0, 1, 2), depth=3, simulations=1000, particles=64, steps=20)`: i is the
+  UAV, j the target; each agent holds a uniform prior over the other's lower levels; every model matches the real
+  agent's configuration (12.30). Depth 3 with root 1,000 is qualified at L1 and L2 (12.41); modeled agents use 1,000,
+  above the qualified 400.
+- **Endpoints (fixed now):** the UAV's episode reward and steps to spot (primary: the paired one-level differences
+  along each row and column, Holm-corrected, as 12.37); the target's reward; prediction log-loss and misses; level
+  identification at the last step, where inside the prior. n = 100 per cell; pilot 2 trials per cell first.
+- **Depth-4 arm:** only if the pilot shows the depth-3 UAV stalls on the far corner (12.44) and a depth-4 cell costs
+  less than 30 CPU-h at n = 50 (a qualified decision costs about 6 CPU-min, 12.46).
+- **Kill:** over 100 CPU-h projected from the pilot → cut n to 50 or levels to (1, 2).
+
 # Plan: the Tiger experiment suite (October 11, 2026)
 
 ## Status (October 11, 2026)
