@@ -1758,3 +1758,51 @@ Horizon 2 (same layout; full table in `particles/analysis.txt`): I-POMCP is 46/8
 - **One IPF failure:** one K = 8 decision (seed 3, near-start/far-corner) ran out of particles in i's own filter. This is the failure mode of 12.44–12.45.
 - **Across horizons (12.43, 12.46):** I-POMCP is 80/80 at H2, H3 and H4; IPF + RTS falls from 58–68% (H2) to 53–60% (H3) to 46–50% (H4).
 - **Correction to 12.42:** the qualified H4 decision costs about 6 CPU-min, not 50 (see the note there).
+
+### 12.47 Why j's belief that i is level 1 is the same curve for every level of i (reviewer concern C1, October 15, 2026)
+
+**The concern** (HANDOFF 0.1a). On the reviewer page, a level-2 j's posterior that i is level 1 follows nearly the same curve whether i is level 1, 2 or 3, and converges to level 1. The reviewer asked:
+- Would a level-1000 i give the same curve?
+- Should a deeper i not act differently, and change how j models it?
+- Since j cannot model an i of its own level or above, should j not conclude that i is random (level 0)?
+
+Each answer below rests on an exact computation or a control, not on the plotted episodes alone.
+
+**1. j updates on behaviour, and a level-2 j has only two hypotheses: "random" (level 0) or "level 1".**
+- **Theory.** A Bayesian whose hypotheses exclude the truth concentrates on the hypothesis closest to the truth in Kullback–Leibler divergence (Berk 1966; Kleijn & van der Vaart 2012), not on the most random one. Level 0 gives each of i's 3 actions probability 1/3. Level 1 predicts what any planning i does: listen until the growls agree, then open the safe door.
+- **Per-step decomposition** (`results/c1_level_posterior_20261014/odds.py`, the page's trials). j hears i's action only through a creak that is correct 90% of the time. Each step changes j's log-odds of level 1 against level 0 by:
+
+  | i | Mean change per listen | Mean change per open | Share of steps listening | j's P(level 1) at step 20 |
+  |---|---|---|---|---|
+  | level 1, 2, 3 | +1.08 to +1.15 | +1.65 to +2.08 | 0.76–0.78 | 0.991–0.994 |
+  | **level 0 (control)** | −0.49 | −1.47 to −1.91 | 0.35 | **0.014** |
+- **Positive control** (level grid, n = 100): against an i that really is random, j's posterior on level 1 falls to 0.014 [0.001, 0.037] in the published game and 0.019 in the coordination game. j does conclude "random" when i is random. It does not when i plans, because a planning i is far closer to level 1 than to uniform random behaviour.
+
+**2. A deeper i does not act differently in the published Tiger, exactly.** Exact I-POMDP Q at point-belief chains (12.22's screen, extended in `screen_levels.py`; today's code reproduces 12.22's rows). The table gives the share of chains where level k+1's optimal action set differs from level k's at the same beliefs:
+
+| H | 1 → 2 | 2 → 3 | 3 → 4 | 4 → 5 | 5 → 6 |
+|---|---|---|---|---|---|
+| 2 | 29% (21 chains) | **0%** (63) | **0%** (189) | **0%** (567) | **0%** (27 of 81 sampled; the rest stopped for memory) |
+| 3 | 29% (21) | 10% (63; value 0.009) | not run (memory) | — | — |
+
+- From level 2 up, the hierarchy is at a fixed point at H2. A level-(k+2) agent best-responds to a level-(k+1) opponent that acts exactly like a level-k one, so it acts exactly as level (k+1) does. By induction, a level-1000 i acts exactly as a level-2 i, and j's posterior follows the same curve.
+- In the episodes (shared seeds), levels 2 and 3 take identical actions over all 20 steps in 52 of 100 trials, and levels 1 and 2 in 30. Divergences come late (median step 10–12).
+
+**3. j distinguishes levels when its hypotheses include them.** A level-3 j holds a uniform prior over i at levels 0–2. Its posterior at step 20 (M1, n = 100, 95% bootstrap intervals):
+
+| Game | i's level | P(level 0) | P(level 1) | P(level 2) |
+|---|---|---|---|---|
+| published | 0 | **0.985** | 0.004 | 0.011 |
+| published | 1 | 0.005 | **0.609** [0.557, 0.660] | 0.386 |
+| published | 2 | 0.002 | 0.450 | **0.548** [0.497, 0.599] |
+| published | 3 | 0.002 | 0.461 | 0.537 |
+| coordination | 1 | 0.012 | **0.652** [0.591, 0.712] | 0.336 |
+| coordination | 2 | 0.003 | 0.344 | **0.653** [0.601, 0.703] |
+| coordination | 3 | 0.000 | 0.322 | 0.678 |
+
+- **The true level wins whenever it is inside j's hypotheses**, from a prior of 1/3. The win is clearer in the coordination game, where levels 1 and 2 behave more differently.
+- **A level-3 i, outside j's hypotheses, is classified as level 2**, the closest model available, as item 1's theory predicts. j does not fall back to "random".
+
+**4. The plotted posterior is accurate.** `replay_j.py` replays j's real belief updates on the page's logged trials (5 trials × 3 conditions). Configured as in the run, it reproduces the logged posterior to 1e-16. The exact filter (uncompressed; stopped by its 100,000-branch budget at step 8) and N = 256 agree within 0.015 at every step. The plotted N = 64 posterior can dip below them by up to 0.28 within a trial, when compression drops some level-1 mass, but by step 20 it is 0.996–0.998 against 1.000. Compression slightly *understates* j's confidence that i is level 1, so the exact posterior shows the pattern more strongly.
+
+**Summary for the reviewer:** j's posterior answers "is i random, or does it plan like a level-1 agent?" For any planning i the answer is "it plans". In the published Tiger, levels ≥ 2 act identically by exact computation, so the curves coincide. A j that can represent level 2 separates the levels, and classifies a level-3 i as its closest representable model, level 2.
