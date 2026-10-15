@@ -43,7 +43,7 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.48** (reserved for C2).
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.49.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** the UAV phase at U5 steps 2–3 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
@@ -72,12 +72,12 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
   - **A "correct model" of an opponent must match its whole configuration,** budgets included (12.30).
   - **Every bounded-belief run reports** `analysis.metrics.prediction_misses`.
 - **Reviewer-facing material:**
-  - **Reviewer page, version 21** (October 13: the Tiger suite, 12.37–12.40): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (private to the user). How to rebuild it is in 0.6.
+  - **Reviewer page, version 22** (October 15: the reviewer checks C1–C3, 12.47–12.48; version 21 on October 13 added the Tiger suite): https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB (private to the user). How to rebuild it is in 0.6.
   - **Claude Doc report:** https://claude.ai/code/artifact/96fa514f-dc7c-477c-8f97-b31eb1b8fca7 (Section 4).
 
 ### 0.1a Reviewer concerns on the Tiger visuals (user, October 14): top priority after the H4 grid
 
-**Status (October 15):** **C1 done (RESULTS 12.47)**: a level-2 j has only the hypotheses "random" and "level 1", and every planning i is closest to level 1. Exactly, levels 2–5 (and 6 on 27 sampled chains) act identically at H2. A level-3 j identifies i's level (0.61 for level 1, 0.55 for level 2) and classifies a level-3 i as level 2. The exact replay agrees with the plot. **C2 in progress:** the exact ceiling is computed (`results/c2_tiger_ceiling_20261014/ceiling.json`; V*_3 = 2.72, V*_20 = 20.39; it bounds i's mean for every j). Across all 30 plotted curves no 95% interval lies above it; means exceed it only at steps 3–4, by one shared draw of growl luck. The large-n reruns are running (`large_n.py`; gate: trials 0–99 reproduce the plotted episodes, 100% so far); then write RESULTS 12.48. **C3 ready:** the split y-axis and the ceiling overlay are in `results/w4_report_20261007/template.html` and `build_report.py` (backups `*_20261015.bak`; the script parses; not rendered here, because headless Chrome lacks system libraries). Publish as page version 22 with C1/C2 panels after 12.48. The C1 screen's remaining chains (level 6, and level 4 at H3) were stopped for memory; resume with `screen_levels.py 1` when the machine is quiet.
+**Status (October 15): C1–C3 done.** C1: RESULTS 12.47 (j's two hypotheses; exact fixed point of levels 2–5 at H2; a level-3 j identifies levels; exact replay). C2: RESULTS 12.48 (exact ceiling V*_3 = 2.72; no plotted interval above it; 15,600 fresh trials give 2.59 ± 0.22 at step 3; the plotted trials reproduce 100/100). C3: split y-axis plus a dotted ceiling. **Reviewer page version 22** published October 15 (same URL; generator backups `*_20261015.bak`, live v21 saved as `report_v21_20261015.bak`), with a new section "Checks behind two patterns in these plots". Open: the C1 screen's remaining chains (level 6, and level 4 at H3), to run with `screen_levels.py 1` on a quiet machine; the Claude Doc report does not mention C1/C2 yet.
 
 The user relayed a reviewer's skepticism about two patterns on the reviewer page (version 21), plus one plot request. The reviewer will not accept "the simulation happens to produce it" or "statistical noise": every explanation needs a **backup benchmark that cannot be argued with** (an exact computation, a positive control, or a much larger n), and a theory statement where one exists. Do this before U6.
 
