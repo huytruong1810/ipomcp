@@ -1806,3 +1806,34 @@ Each answer below rests on an exact computation or a control, not on the plotted
 **4. The plotted posterior is accurate.** `replay_j.py` replays j's real belief updates on the page's logged trials (5 trials × 3 conditions). Configured as in the run, it reproduces the logged posterior to 1e-16. The exact filter (uncompressed; stopped by its 100,000-branch budget at step 8) and N = 256 agree within 0.015 at every step. The plotted N = 64 posterior can dip below them by up to 0.28 within a trial, when compression drops some level-1 mass, but by step 20 it is 0.996–0.998 against 1.000. Compression slightly *understates* j's confidence that i is level 1, so the exact posterior shows the pattern more strongly.
 
 **Summary for the reviewer:** j's posterior answers "is i random, or does it plan like a level-1 agent?" For any planning i the answer is "it plans". In the published Tiger, levels ≥ 2 act identically by exact computation, so the curves coincide. A j that can represent level 2 separates the levels, and classifies a level-3 i as its closest representable model, level 2.
+
+### 12.48 Reward curves above the "2.72 ceiling" at step 3: an exact ceiling and 15,600 fresh trials (reviewer concern C2, October 15, 2026)
+
+**The concern** (HANDOFF 0.1a). With 85% growl accuracy, the optimal expected cumulative reward after 3 steps from a uniform belief is 2.72. The reviewer page's reward curves sit above it at step 3: 4.48 for i at levels 2 and 3, 3.49 at level 1. The reviewer asked whether n = 100 is too low, or whether there is a bug.
+
+**1. The exact ceiling** (`results/c2_tiger_ceiling_20261014/ceiling.py`).
+- **Claim:** in the published two-agent Tiger, V*_t (the single-agent optimum from a uniform belief, undiscounted) bounds i's mean cumulative reward at step t, whatever j does.
+- **Why:** i's reward depends only on its own action and the tiger. j affects i only by resetting the tiger when it opens a door, and through creaks. With k steps left, i's optimal value is convex and symmetric in its belief, so it is lowest at 50/50. A reset puts i's belief at 50/50, so by induction over k it can never raise i's optimum, even for an i that is told when j opens.
+- **Computed two ways:** a DP over the net growl count, and brute-force enumeration with the package's own `TigerModel` kernels (equal for t ≤ 5). Values: V*_1 = −1, V*_2 = −2, **V*_3 = 2.72**, V*_4 = 2.42, V*_5 = 3.61, V*_10 = 9.44, V*_20 = 20.39.
+
+**2. Every plotted curve against the ceiling** (`check_plots.py`; 30 curves: the page's 3 matchups and the level grid, both agents).
+- No 95% interval lies wholly above the ceiling at any step.
+- Means exceed it only at steps 3–4, by +0.22 to +1.76.
+- The same excesses repeat across cells because the cells share trial seeds, so each agent's growl luck is the same in every cell. On the page's matchups, at step 3 the 100 trials had 77 correct opens, 1 wrong and 22 without an open, against 72.25 / 2.25 / 25.5 expected under the optimal policy: a lucky draw, about 1.1 standard errors (p ≈ 0.3).
+
+**3. Large n with fresh seeds** (`large_n.py`, `analyze_large_n.py`).
+- **Design:** four configurations rerun with trial ids 0 to n − 1. **Gate: trials 0–99 reproduce the plotted episodes exactly in all four (100/100 each)**, so the plotted data come from the same code. Trials ≥ 100 are new, independent seeds.
+
+| Configuration | Fresh trials | i at step 3 (mean ± 95%) | Ceiling | Steps with interval above the ceiling (i or j) | i at step 20 | Ceiling |
+|---|---|---|---|---|---|---|
+| grid, i L1 vs j L1 (H2) | 9,900 | 2.48 ± 0.29 | 2.72 | none | 12.41 ± 0.80 | 20.39 |
+| grid, i L2 vs j L2 (H2) | 2,900 | 2.82 ± 0.47 | 2.72 | none | 14.11 ± 1.38 | 20.39 |
+| grid, i L1 vs j L2 (H2) | 1,900 | 2.63 ± 0.59 | 2.72 | none | 14.68 ± 1.81 | 20.39 |
+| page, i L1 vs j L2 (H3) | 900 | 2.95 ± 0.77 | 2.72 | none | 15.05 ± 2.59 | 20.39 |
+| **pooled** | **15,600** | **2.59 ± 0.22** | 2.72 | — | — | — |
+
+- With fresh seeds, the step-3 mean converges to just below the exact ceiling: 2.59 ± 0.22 pooled. The plotted excess was a sample of 100 shared across cells. The step-3 outcome mix with fresh seeds is 63–65% correct opens, 1.0–1.7% wrong and 33–36% no open.
+- **No accounting bug:** the code that produced the plots reproduces them exactly and, with fresh seeds, stays below the exact optimum at every step for both agents.
+- **Cost:** about 40 CPU-h.
+
+**For the page:** every published-Tiger reward panel now draws the exact ceiling as a dotted line (version 22).
