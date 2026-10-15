@@ -1782,8 +1782,8 @@ Each answer below rests on an exact computation or a control, not on the plotted
 
 | H | 1 → 2 | 2 → 3 | 3 → 4 | 4 → 5 | 5 → 6 |
 |---|---|---|---|---|---|
-| 2 | 29% (21 chains) | **0%** (63) | **0%** (189) | **0%** (567) | **0%** (27 of 81 sampled; the rest stopped for memory) |
-| 3 | 29% (21) | 10% (63; value 0.009) | not run (memory) | — | — |
+| 2 | 29% (21 chains) | **0%** (63) | **0%** (189) | **0%** (567) | **0%** (72 of 81 sampled chains; the rest stopped for memory) |
+| 3 | 29% (21) | 10% (63; value 0.009) | not run (over 4 GB per exact solve) | — | — |
 
 - From level 2 up, the hierarchy is at a fixed point at H2. A level-(k+2) agent best-responds to a level-(k+1) opponent that acts exactly like a level-k one, so it acts exactly as level (k+1) does. By induction, a level-1000 i acts exactly as a level-2 i, and j's posterior follows the same curve.
 - In the episodes (shared seeds), levels 2 and 3 take identical actions over all 20 steps in 52 of 100 trials, and levels 1 and 2 in 30. Divergences come late (median step 10–12).
