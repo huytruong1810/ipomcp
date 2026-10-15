@@ -43,7 +43,7 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.47.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.48** (reserved for C2).
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** the UAV phase at U5 steps 2–3 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
@@ -76,6 +76,8 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
   - **Claude Doc report:** https://claude.ai/code/artifact/96fa514f-dc7c-477c-8f97-b31eb1b8fca7 (Section 4).
 
 ### 0.1a Reviewer concerns on the Tiger visuals (user, October 14): top priority after the H4 grid
+
+**Status (October 15):** **C1 done (RESULTS 12.47)**: a level-2 j has only the hypotheses "random" and "level 1", and every planning i is closest to level 1. Exactly, levels 2–5 (and 6 on 27 sampled chains) act identically at H2. A level-3 j identifies i's level (0.61 for level 1, 0.55 for level 2) and classifies a level-3 i as level 2. The exact replay agrees with the plot. **C2 in progress:** the exact ceiling is computed (`results/c2_tiger_ceiling_20261014/ceiling.json`; V*_3 = 2.72, V*_20 = 20.39; it bounds i's mean for every j). Across all 30 plotted curves no 95% interval lies above it; means exceed it only at steps 3–4, by one shared draw of growl luck. The large-n reruns are running (`large_n.py`; gate: trials 0–99 reproduce the plotted episodes, 100% so far); then write RESULTS 12.48. **C3 ready:** the split y-axis and the ceiling overlay are in `results/w4_report_20261007/template.html` and `build_report.py` (backups `*_20261015.bak`; the script parses; not rendered here, because headless Chrome lacks system libraries). Publish as page version 22 with C1/C2 panels after 12.48. The C1 screen's remaining chains (level 6, and level 4 at H3) were stopped for memory; resume with `screen_levels.py 1` when the machine is quiet.
 
 The user relayed a reviewer's skepticism about two patterns on the reviewer page (version 21), plus one plot request. The reviewer will not accept "the simulation happens to produce it" or "statistical noise": every explanation needs a **backup benchmark that cannot be argued with** (an exact computation, a positive control, or a much larger n), and a theory statement where one exists. Do this before U6.
 
@@ -712,6 +714,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | A stopping rule at the root (12.33): the modeled test of 12.11/12.15, or certified separation | Saves at most 3%: a decision's CPU is paid in its first 125 simulations (nested solves); stopping early only raises Q error. Certified separation certifies the decision, not the value (stops at 125–250 with Q error 0.28 at L3 H3) | A larger flat root budget (4,000 for gates) |
 | Costing a flat arm from one checkpoint's incremental growth CPU (R1 pilot, October 11) | Flat 1,000 looked 50× cheaper than the rules | Sum growth over all checkpoints up to n, plus one scoring |
 | A filter cache smaller than the caches keyed on its results (4,096 vs 16,384–65,536; until October 11) | Evicted posteriors were recomputed as new, equal objects: 22% of an L3 episode's updates were redone, downstream lookups compared whole beliefs recursively, and the duplicates kept memory at about 2 GB | Filter cache 65,536 (12.36) |
+| Trusting CPU recorded during a loaded, memory-starved run (U4c, October 14) | 12.42 recorded about 50 CPU-min per qualified L2 H4 decision; a deterministic rerun gave the identical decision in 718 s (7.5× less), and 12.46 measured 366 s | Rerun one deterministic job on a quiet machine before quoting a cost; compare CPU only within one run |
 | A memory watchdog over a `ProcessPoolExecutor` run (October 9, matched H3 study, 10 workers) | One kill raised `BrokenProcessPool` and the whole run exited; nothing finished overnight | One process per episode (`xargs -P`, a job script that skips done files), so a kill loses one episode |
 
 ## 7. Merge record
