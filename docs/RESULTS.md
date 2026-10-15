@@ -1874,3 +1874,26 @@ Each answer below rests on an exact computation or a control, not on the plotted
   - A level-1 target is caught slightly faster than a random one by a modeling UAV (−2.0 and −3.5): its flight to the corner is predictable.
 - **Prediction:** a level-2 UAV predicts a level-1 target's moves with log-loss 0.90 (a uniform guess over 5 actions is 1.61), and a level-2 target predicts a level-1 UAV with 0.96. Against an opponent of its own level, the loss rises to 1.43 (UAV) and 0.99 (target).
 - **Identification at the last step:** a level-2 UAV puts 0.64 on a level-1 target and 0.75 on a random one (from a prior of 0.5). A level-2 target puts 0.70 on a level-1 UAV and 0.63 on a random one.
+
+### 12.50 UAV mid-episode qualification: two search misses and one tie-convention mismatch (October 15, 2026)
+
+**Design** (`results/q_uav_midepisode_20261015`; `ENDPOINTS.md` fixed before the run, with two rungs added after the first ladder; `job.py`, `score.py`, `diag_tie.py`). 12.45 found I-POMCP (root 1,000, target 400, exact beliefs) optimal on only 77/80 decisions at level 2, H3, after a 2-step history, against 80/80 at the prior (12.41). This run asks which error source causes each miss.
+- **Problems:** 12.45's (16 problems × seeds 0–4), with its exact references reused.
+- **Rungs:** root × target budget.
+
+| Root | Target model | Optimal [95%] | Max loss | Optimal-action Q error | CPU per decision (s) |
+|---|---|---|---|---|---|
+| 1,000 | I-POMCP 400 | 77/80 [0.894, 0.992] | 0.463 | 0.026 | 51 |
+| 1,000 | exact | 78/80 [0.913, 0.997] | 0.044 | 0.008 | 21 |
+| 4,000 | I-POMCP 400 / 1,600 / 6,400 with stopping | 79/80 each | 0.463 | 0.019 | 32 / 55 / 65 |
+| 16,000 | I-POMCP 400 | 79/80 [0.932, 1] | 0.463 | 0.018 | 32 |
+| **4,000** | **exact** | **80/80** [0.955, 1] | **0** | 0.001 | **21** |
+
+- **Two misses (gaps 0.044, seed 3) are i's own search error.** Root 4,000 removes them with any target model.
+- **One miss (uniform/top-row, seed 0, 0.463) stays at every modeled budget** with the same loss. Only an exact target removes it. It is a tie-convention mismatch, not an error (`diag_tie.py`):
+  - i's search queried 170 distinct target models. **75 have an exact tie among the target's best actions**: on UAV a move into the grid's edge leaves the agent in place, and often has exactly the value of listening.
+  - The exact reference has modeled agents play all tied actions uniformly. I-POMCP's modeled target played the whole tie set in 37 of the 75, and a subset of it in 38.
+  - Every one of the 170 modeled decisions is optimal for the target (loss 0 at budgets 400, 1,600 and 6,400 with stopping). But tied actions give the target different observations, and so different futures, which changes i's best response. The reference and the modeled target are two equally rational opponents that break ties differently. No budget can remove the gap; only a modeled solve that plays ties as the reference does (the exact target) can.
+- **Qualified mid-episode configuration on UAV (L2, H3):** root 4,000 with an exact target, 80/80. It is also the cheapest rung here (21 s against 51 s), as an exact level-1 target is cheap on UAV.
+- **What this means for episodes:** the episode runs (12.44, 12.49) model the target as the real target is configured (I-POMCP, the same budget and seed derivation; 12.30's rule), so i predicts the real target's tie-breaking. In U6 no prediction ever gave the real action probability 0. Against the exact reference, the H3 decision has search error at root 1,000 (2 of 80 decisions, 0.044 each) and the tie convention above (1 of 80).
+- **Open:** whether 12.14's L3 H4 residual on Tiger (4/80 near-ties, gaps ≤ 0.03) has the same cause: there are exact ties among modeled actions. Test with `diag_tie.py`'s method on those problems.
