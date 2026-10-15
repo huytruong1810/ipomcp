@@ -1837,3 +1837,40 @@ Each answer below rests on an exact computation or a control, not on the plotted
 - **Cost:** about 40 CPU-h.
 
 **For the page:** every published-Tiger reward panel now draws the exact ceiling as a dotted line (version 22).
+
+### 12.49 UAV level matrix: levels 0–2 for the UAV and the target (U6, October 15, 2026)
+
+**Design** (`results/u6_uav_level_matrix_20261015`; `u6.py`, `analyze.py`, `KILL_CRITERION.txt`; endpoints fixed in PLAN.md, "U6 design", before the run):
+- **Suite:** `suite.level_matrix("uav", levels=(0, 1, 2), depth=3, simulations=1000, particles=64, steps=20)`. i is the UAV (+50 for spotting, −5 per step) and j the target (−50 when spotted). Level 0 acts at random.
+- **Priors and models:** each agent holds a uniform prior over the other's lower levels, and every model matches the real agent of that level. Depth 3 with root 1,000 is qualified at levels 1–2 (12.41).
+- **Trials:** n = 100 per cell, on shared trial seeds. Paired one-level differences, Holm-corrected over the family of 12.
+- **Cost:** about 15 CPU-h; no failures; prediction misses 0 in every cell.
+
+| UAV i \ target j | Level 0 | Level 1 | Level 2 |
+|---|---|---|---|
+| **Level 0** | −15.4 (spotted 73%, 11.1 steps) | −66.9 (36%, 17.3) | −55.2 (46%, 16.1) |
+| **Level 1** | 17.7 (96%, 7.0) | 24.2 (100%, 6.2) | −71.6 (30%, 17.6) |
+| **Level 2** | 10.6 (93%, 8.1) | **30.0** (100%, **5.0**) | −45.6 (48%, 14.4) |
+
+(Each cell: the UAV's mean 20-step reward, then the share of episodes in which it spots the target, then the mean number of steps played.)
+
+| Agent | Step | Against | Paired difference [95%] | Holm p |
+|---|---|---|---|---|
+| UAV | 1 → 2 | target level 1 | **+5.8** [3.9, 8.0] | < 0.001 |
+| UAV | 1 → 2 | target level 2 | **+26.0** [15.4, 37.1] | < 0.001 |
+| UAV | 1 → 2 | target level 0 | **−7.2** [−12.7, −2.6] | 0.032 |
+| UAV | 0 → 1 | target levels 0 / 1 / 2 | +33.1 / **+91.1** / −16.4 | < 0.001 / < 0.001 / 0.055 |
+| Target | 1 → 2 | UAV level 1 | **+35.0** [30.5, 39.5] | < 0.001 |
+| Target | 1 → 2 | UAV level 2 | **+26.0** [21.0, 31.0] | < 0.001 |
+| Target | 1 → 2 | UAV level 0 | −5.0 [−10.0, −0.5] | 0.090 |
+| Target | 0 → 1 | UAV levels 0 / 1 / 2 | +18.5 / −2.0 / −3.5 | < 0.001 / 0.090 / 0.032 |
+
+- **On UAV, a second level of reasoning pays for both agents, against the opponents it models.**
+  - A level-2 UAV models a level-1 target's flight to the far corner. It goes straight there, spotting in 5.0 steps in every episode, against 6.2 for a level-1 UAV (+5.8).
+  - A level-2 target models the UAV's pursuit and evades. It escapes for all 20 steps in 52–70% of episodes against every UAV level, and gains 26–35 over a level-1 target.
+  - This is the domain-level counterpart of the coordination Tiger (12.37). Here the opponent's model matters through the game itself, not through a designed payoff variant.
+- **Depth costs something against an opponent it models wrongly:**
+  - A level-2 UAV does worse than a level-1 UAV against a random target (−7.2, Holm p = 0.032): it spends moves anticipating a flight that never comes.
+  - A level-1 target is caught slightly faster than a random one by a modeling UAV (−2.0 and −3.5): its flight to the corner is predictable.
+- **Prediction:** a level-2 UAV predicts a level-1 target's moves with log-loss 0.90 (a uniform guess over 5 actions is 1.61), and a level-2 target predicts a level-1 UAV with 0.96. Against an opponent of its own level, the loss rises to 1.43 (UAV) and 0.99 (target).
+- **Identification at the last step:** a level-2 UAV puts 0.64 on a level-1 target and 0.75 on a random one (from a prior of 0.5). A level-2 target puts 0.70 on a level-1 UAV and 0.63 on a random one.
