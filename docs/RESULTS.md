@@ -1641,6 +1641,8 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
 | Root 16,000, target 6,400 with stopping | 32 | **32/32** [0.891, 1] | 0 | 0 | 50.6 min (22–106) |
 
 - **UAV L2 H4 is qualified at root 16,000 with the target at 6,400 with stopping.** That configuration is now fixed for UAV episodes at H4. At H2–H3, root 1,000 with the target at 400 suffices (12.41).
+> **Correction (October 15, 12.46):** the CPU per decision in this section is inflated by the machine's state during the run. A deterministic rerun of one U4c decision (seed 0, uniform/uniform) on October 15 gave the identical Q values and action in 718 CPU-s, against 5,368 recorded here. In 12.46's run, the same configuration averaged 366 CPU-s (6.1 min) over 48 decisions. The comparison with an exact target below is withdrawn: CPU from different runs is not comparable (HANDOFF Section 6).
+
 - **Cost:** 27.4 CPU-h. A qualified L2 H4 UAV decision costs about 50 CPU-min, against about 4.5 min with an exact target (12.41), because the exact level-1 target is cheap on UAV. For UAV episodes at level 2, the exact target model is therefore the cheaper correct choice wherever its depth fits.
 
 ### 12.43 UAV L2: I-POMCP vs IPF + RTS against the exact I-POMDP, H2–H3 (October 14, 2026)
@@ -1671,7 +1673,7 @@ Exact-belief gate problems (no compression) took 0.74× the CPU at the median (r
 - **The gap is much larger than on Tiger** (there, IPF + RTS reached 95–99.5%; 12.20). RTS's error is in sampling observations: UAV has 5 actions, 3 observations and a terminal spotting event whose value depends on predicting the target's move, so a few sampled branches misjudge that value. The misses are spread over all 16 problems, not concentrated on a few.
 - **The ablation shows that the error is search error, not belief error:** RTS on compressed beliefs is about as accurate as on the sampled particle filter (McNemar p = 0.33 at both horizons), at 1/4 to 1/12 of the CPU.
 - **RTS itself is sound on UAV.** In a check at H2 (`diag/`, 2 seeds), RTS converges to the exact decision as K grows: at level 1, 6/8 optimal at K = 2 and 8/8 at K = 128; at level 2 with an exact target, 27/32 at K = 2 and 32/32 at K = 128; at level 2 with RTS at every level, 32/32 at K = 128. The shortfall at K ≤ 8 is therefore sampling error, not a defect of the implementation.
-- **H4 was not run.** One IPF + RTS decision at H4 costs 4.2 CPU-min at K = 2 and 17 at K = 4, and more than 30 at K = 8 (the profile was stopped at its 30-minute cap). I-POMCP's qualified H4 decision costs about 50 CPU-min (12.42). An 80-problem H4 grid would therefore exceed 100 CPU-h, which needs the user's approval.
+- **H4 was not run.** One IPF + RTS decision at H4 costs 4.2 CPU-min at K = 2 and 17 at K = 4, and more than 30 at K = 8 (the profile was stopped at its 30-minute cap). I-POMCP's qualified H4 decision was then believed to cost about 50 CPU-min (12.42; corrected in 12.46 to about 6). An 80-problem H4 grid would therefore exceed 100 CPU-h, which needs the user's approval.
 
 ### 12.44 UAV episodes: I-POMCP vs IPF + RTS, horizon 3 (October 14, 2026)
 
@@ -1730,3 +1732,29 @@ Horizon 2 (same layout; full table in `particles/analysis.txt`): I-POMCP is 46/8
 - **At every N, I-POMCP loses less than IPF + RTS at any K**, at H3 from N = 8 up. I-POMCP at N = 8 (loss 0.58, 9 s) matches IPF + RTS at K = 8, N = 64 (loss 0.61, 198 s) at 1/22 of the CPU. At N = 64 its loss is 0.012, 50× lower than the best IPF + RTS cell.
 - **Small sampled filters break on UAV.** At N = 4 the published IPF ran out of particles in 22–46 of 80 H3 decisions (2–5 at H2). The target observes its own sector exactly, so a small sample of the target's possible situations often contains none consistent with what it saw. I-POMCP's compressed filter makes exact updates before compressing, and never failed.
 - **I-POMCP's qualified budget does not fully carry over to mid-episode beliefs at H3:** with exact beliefs it is 77/80, not 80/80. The 3 misses are near-ties: gaps of 0.46 (E 36.82 against S 36.36) and 0.044 twice. Its budget (root 1,000, target 400) was qualified at the prior (12.41). At H2 it is 80/80 here too. Like 12.14's L3 H4 residual, this is a near-tie floor, recorded rather than tuned away.
+
+### 12.46 UAV L2 H4: I-POMCP vs IPF + RTS against the exact I-POMDP (October 14–15, 2026)
+
+**Design** (`results/u5_uav_rts_20261014/h4`; `job.py`, `score.py`, `wrap.sh`, `watchdog.sh`, `KILL_CRITERION.txt`; analysis `analyze.py`, chunk `h4`). This is 12.43's design at horizon 4, approved by the user (over 100 CPU-h):
+- **Problems:** the 16 level-2 problems × seeds 0–4 (n = 80 per cell), history 0. Exact references come from U4 (one per problem).
+- **I-POMCP:** the qualified H4 configuration (12.42): root 16,000, target modeled with 6,400 simulations and stopping, exact beliefs. Seeds 0–1 are U4c's rows. At H3, compressed N = 64 and exact beliefs gave identical estimates on all 80 rows, so these are the same decisions.
+- **IPF + RTS:** K = 2, 4, 8, sampled particle filter, N = 64. **Ablation:** RTS with K = 4 on compressed beliefs.
+- **Jobs:** one process per (problem, cell, seed), planner only, scored offline with `evaluate_case`'s formulas.
+- **Failures:** a decision whose sampled filter ran out of particles is recorded as failed and counted as not optimal (12.45's amendment 1).
+- **Cost:** 151 CPU-h. The run lost about 5 CPU-h of killed and duplicated jobs: another project's 18 GB job forced memory kills, and two runners overlapped at the end.
+
+| Planner | n | Failed | Optimal [95%] | Mean loss | Max loss | Optimal-action Q error | CPU per decision (s), seeds 2–4 |
+|---|---|---|---|---|---|---|---|
+| **I-POMCP** (root 16,000, target 6,400 with stopping) | 80 | 0 | **80/80** [0.955, 1] | 0 | 0 | **0.05** | **366** |
+| IPF + RTS, K = 2 | 80 | 0 | 40/80 [0.386, 0.614] | 1.68 | 11.96 | 7.32 | 601 |
+| IPF + RTS, K = 4 | 80 | 0 | 37/80 [0.350, 0.578] | 2.00 | 11.96 | 5.30 | 2,143 |
+| IPF + RTS, K = 8 | 80 | 1 | 40/80 [0.386, 0.614] | 1.40 | 11.96 | 4.07 | 3,980 |
+| RTS, compressed 64, K = 4 | 80 | 0 | 43/80 [0.422, 0.650] | 1.62 | 11.96 | 5.49 | 53 |
+
+- **I-POMCP is optimal on all 80 problems at H4; IPF + RTS on 46–50%.** On no problem was IPF + RTS optimal where I-POMCP was not. I-POMCP alone was optimal on 40, 43 and 40 problems against K = 2, 4, 8 (exact McNemar test, Holm p < 10⁻¹¹).
+- **I-POMCP is also cheaper:** 366 CPU-s per decision, against 601–3,980 s for IPF + RTS (1.6–11×). All rows were measured in this run under the same machine load, but not paired in-process.
+- **More samples do not close the gap:** IPF + RTS reaches the same 37–40/80 at K = 2, 4 and 8. Its misses are spread over 15 of the 16 problems.
+- **The ablation again shows search error, not belief error:** RTS on compressed beliefs is as accurate as on the sampled particle filter (McNemar p = 0.38), at 1/40 of the CPU.
+- **One IPF failure:** one K = 8 decision (seed 3, near-start/far-corner) ran out of particles in i's own filter. This is the failure mode of 12.44–12.45.
+- **Across horizons (12.43, 12.46):** I-POMCP is 80/80 at H2, H3 and H4; IPF + RTS falls from 58–68% (H2) to 53–60% (H3) to 46–50% (H4).
+- **Correction to 12.42:** the qualified H4 decision costs about 6 CPU-min, not 50 (see the note there).
