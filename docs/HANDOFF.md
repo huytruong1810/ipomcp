@@ -25,7 +25,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
    - (b) make a modeled solve return a uniform policy over actions whose certified intervals cannot be separated.
 
    Option (b) changes episode behaviour, so it needs 12.15's replay gate and the U2/U4 panel gates.
-5. **Then, Claude's recommended research order:**
+5. **5a done, no code change (12.52):** the update proper is about 20% of self time; exact level-1 models would save at most about 30% at level 3. **5b priced:** a level-4 H3 coordination episode costs about 2–2.5 CPU-h (9× level 3), so n = 50 needs over 100 CPU-h. **Ask the user before running it.** *Original item:* **Then, Claude's recommended research order:**
    - (a) the solver-level speedup of the exact nested update (about a third of CPU, 12.36), which would make level 4 at H3 and longer UAV horizons affordable;
    - (b) level 4 on the coordination Tiger at H3;
    - (c) Wumpus level 1 beyond 3 beliefs.
@@ -75,7 +75,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.52.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.53.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.

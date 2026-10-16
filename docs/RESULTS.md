@@ -1914,3 +1914,36 @@ The definition is in THEORY.md, "Tie convention".
 **Gate** (`results/t1_tie_columns_gate_20261015`; pass criterion fixed in `KILL_CRITERION.txt` before the run): the U4b grid (608 Tiger qualification rows, L2 H2–H3 and L3 H2), HEAD against the change, run from snapshots. Every stored column is identical (horizon, seed, query, rung, belief digest, policy, loss, decision loss, exact Q). That grid has no exact ties (`tied` = 0 everywhere).
 
 **Positive control:** the new definition applied to 12.50's stored diagnosis (`q_uav_midepisode_20261015/diag_tie.json`) reproduces its counts exactly. Of the 170 distinct target models, 75 are tied, and 38 are optimal off convention at each of the 400, 1,600 and 6,400-with-stopping rungs.
+
+### 12.52 Where a level-3 decision's CPU goes, and what level 4 at H3 costs (October 15, 2026)
+
+**Question** (HANDOFF 0.0a, 5a): would a solver-level speedup of the exact nested update make level 4 at H3 affordable? `results/s5_exact_update_20261015`; today's code, quiet machine.
+
+**Profile** (`profile_episode.py`, 12.36's L3 condition, trial 0, 4 steps; cProfile self time, which does not double-count the recursion):
+- **The search itself** (tree descent, rollouts, sampling): 20%.
+- **The exact update proper:** about 20%. That is its loop (7%), branch bookkeeping (5%) and the Tiger kernels (10%, shared with expected rewards).
+- **Compression and digests:** 5%. **Belief equality:** 5%.
+- Everything else is below 2% each.
+
+12.36's "a third of CPU" was the update's cumulative time, which includes the nested updates it calls. Kernel memoization already failed (Section 6). So no change to the update alone can save more than about 20%.
+
+**Where the nested solves come from** (`count_solves.py`, the same 4 steps without the profiler: 114 CPU-s, the same actions):
+
+| Modeled level | Solves | CPU including nested (s) | Mean (s) | Distinct policies |
+|---|---|---|---|---|
+| j at level 2 | 457 | 113 | 0.25 | 3, all deterministic |
+| i at level 1 (inside j's) | 1,298 | 36 | 0.03 | 3, all deterministic |
+
+- **Level-1 models are exact thresholds on the physical marginal** (2 switches along it). A level-1 model facing a level-0 opponent is a POMDP over the physical state.
+- **Level-2 models are not** (46 switches): their policy also depends on their model of i.
+- Solving the level-1 models exactly (an exact bottom level, which stacks such as `1000/exact` already support) would save at most the level-1 share, about 30% at level 3. To keep i's model matched to j (12.30), the real j's own model of i would then also have to be exact. Episode studies reject exact modeled levels today (`study._modeled_configs`).
+
+**Level 4 at H3** (`pilot_l4h3.py`; coordination Tiger; i at level 4 against j at level 2; root 1,000, every modeled level 400, N = 64, uniform level priors; 1 episode, 4 steps):
+
+| Step | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| i's CPU (s) | 57 | 161 | 353 | 431 |
+
+- About 9× level 3 over the same steps (1,006 s against 108 s), with a flat peak of 0.6 GB. Actions L, L, OL, L, as level 3's.
+- A 20-step episode is about 2–2.5 CPU-h, so a paired comparison of levels 3 and 4 at n = 50 needs over 100 CPU-h.
+- **Conclusion:** no available change to the update, nor exact level-1 models (at most about 1.4×), brings this below the user-approval threshold. 5b is the user's call at its full cost, and 5a stops here (no code change).
