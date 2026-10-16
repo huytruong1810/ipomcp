@@ -2012,3 +2012,42 @@ The definition is in THEORY.md, "Tie convention".
 - **The cost grows with the history, not with the human's support.** The prior (94,500 atoms) is the cheapest case. Later beliefs reach more distinct nested wumpus beliefs, and memory grows with them.
 - **Exact L2 reference: not feasible here.** It needs the exact level-1 best response of the wumpus at every nested belief the human's H3 tree reaches. One such solve costs about 260 s (12.53), and a single decision queries hundreds or more of them.
 - **Conclusion: Wumpus L2 is not run on this machine.** A qualification grid (about 60 problems × rungs, at qualified budgets) plus its references would far exceed 100 CPU-h, and decisions after 4 steps do not fit in 8 GB. It would first need a memory-lean nested belief for the modeled wumpus. For example, compressed nested beliefs (the bank's `particles` for nested levels), qualified against the exact nested update on Tiger and UAV, where exact references exist. That is a design item, not a run.
+
+### 12.56 Making Wumpus L2 lighter: nested compression fails, bit-identical speedups do not pay, and a 3 × 3 board has exact references (October 16, 2026)
+
+**Why** (12.55): a 4 × 4 Wumpus L2 decision costs 6–28 CPU-min at budgets below the qualified ones, and over 8 GB after 4 steps.
+
+**1. Compressing nested beliefs in real updates: 0 of 3 jobs survive** (`results/c7_wumpus_l2_nested_20261016`, not adopted). A filter kept the human's own update exact but held every nested wumpus belief at M atoms. Three jobs ran: M = 4,096 after 2 and 4 steps, and M = 1,024 after 4 steps. All three raised `UnsupportedObservation` in the real history update (for example "Nested j L1 cannot condition on Forward, (Breeze,)").
+- **Why:** the real update enumerates every outer world, and a compressed nested belief has dropped some of them. In such a world the wumpus's deterministic percept has zero evidence under its own belief. Under a common prior, the exact nested belief always contains the outer world.
+- In-tree updates already compress nested beliefs, but there only sampled worlds are reached, and no failure occurred in 4 pilot jobs.
+- The code was removed (Section 6 of HANDOFF).
+
+**2. Where an L2 decision's CPU goes** (cProfile of the exact-nested decision after 2 steps, root 200; profiled time 5,151 s): almost all of it is exact enumeration (`_update`, 4,867 s).
+
+| Part | Profiled s | Calls |
+|---|---|---|
+| In-tree history successors (first advances of the root's exact nested models) | 3,932 | 51,156 |
+| Real history updates (2 steps) | 1,316 | 2 |
+| Transitions (state construction) | 1,558 | 151 M |
+| Kernel validation (`checked_distribution`) | 1,453 | 227 M |
+| Canonical encodings in compression | 1,007 | 2,832 compressions |
+| Dataclass state hashes | 603 | 323 M |
+
+**3. Bit-identical speedups: correct, but no gain** (`results/c8_wumpus_interning_20261016`, `c9_speedup_gate_20261016`, `c10_wumpus_speedup_20261016`; not adopted; patch kept as `c9_speedup_gate_20261016/new.diff`).
+- **The changes:** weakly interned Wumpus states, cached state hashes, a point-mass fast path in kernel validation, cached pose moves, and cached state encodings.
+- **Gates, all identical:** the U4 Tiger panel gate (6 cells × 2 seeds, every row), and 12.55's Wumpus rows at 0 and 2 steps (values, support, digest).
+- **Paired cost** (old and new code concurrently, same decision at the prior): **0.91× the CPU speed (424 s → 466 s) and 1.27× the peak RSS (1.17 → 1.50 GB).** Most states are hashed only once, so the tables cost more than they save.
+- **With interning alone,** the 4-step decision completed: 2,321 s of belief update plus 3,016 s of decision, peaking at 6.4 GB (12.55: over 8 GB, stopped). That is still about 1.5 CPU-h per problem at budgets below the qualified ones.
+- **Conclusion:** the cost is the volume of exact enumeration, not per-branch overhead. On the 4 × 4 board, Wumpus L2 stays out of reach on this machine.
+
+**4. A 3 × 3 board with 1 pit has exact references at L2 and L3** (`results/c11_wumpus3_exact_20261016/probe.py`; `WumpusModel(width=3, height=3, n_pits=1)`: 8 × 4 × 8 × 8 = 2,048 prior states). The exact I-POMDP at the prior (`reference.exact_agent`, every level exact):
+
+| Level, horizon | CPU | Peak RSS |
+|---|---|---|
+| L1 H2 | 1.6 s | 32 MB |
+| L1 H3 | 8.0 s | 62 MB |
+| L2 H2 | 13.5 s | 70 MB |
+| **L2 H3** | **226 s** | **0.5 GB** |
+| L3 H2 | 28 s | 0.1 GB |
+
+- **Next:** qualify I-POMCP at Wumpus L2 (and L3 H2) against these exact references on the 3 × 3 board, over distinct beliefs, as was done on Tiger and UAV. This follows the redesign-before-scale rule: a smaller instance of the same domain, with references that cannot be argued with.

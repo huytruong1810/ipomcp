@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. The Wumpus L2 pilot (12.55) priced L2 out of this machine. No research item is queued; candidates are in 0.2. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
+Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. Wumpus L2 is out of reach on 4 × 4 (12.55–12.56); the 3 × 3 board has exact L2/L3 references (12.56), and its qualification is the current task. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
 
 ## 0. Start here (fresh agent)
 
@@ -78,7 +78,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.56.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.57.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
@@ -700,6 +700,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Judging IPF accuracy from 3 histories | They were easy ones; the error was understated 2–5× | At least 12 histories, reporting max and share of steps above 0.2 |
 | Carrying one root particle down the tree with bounded beliefs | The particle can sit on an atom compression dropped; deterministic sensors then give zero evidence (Wumpus) | Draw each step's state from b_h |
 | Compressed or sampled *real* beliefs on Wumpus | The 94,500-state prior compressed to N atoms loses the true world, and the next deterministic observation has zero evidence | Exact real updates (cheap: at most 2.9 s per step) + `search_particles` |
+| Compressing *nested* beliefs in real updates (Wumpus L2, October 16) | 0/3 jobs: the real update enumerates every outer world, some dropped from the compressed nested belief, whose deterministic percept then has zero evidence (12.56) | Exact nested beliefs; a 3 × 3 board with exact references |
+| Interning, cached hashes and kernel fast paths for Wumpus (October 16) | Bit-identical, but 0.91× CPU and 1.27× RSS, paired: the cost is enumeration volume (12.56) | Not adopted; patch in `results/c9_speedup_gate_20261016/new.diff` |
 | Assuming exact Wumpus L1 is too big | Wrong for filtering: deterministic sensors prune 94,500 → 46 atoms in 8 steps | Exact real filtering |
 | Exact reference with the default 200k-branch guard | Stops at history 6; mistaken for intractability | `REFERENCE_BRANCHES = 50M` (146 s at k = 6) |
 | Raising root simulations to fix H4 L2 misses | No effect; the misses are opponent-model error | Raise the modeled budget (4,000 at depth 4) |
