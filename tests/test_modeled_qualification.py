@@ -5,7 +5,7 @@ from functools import partial
 
 import pytest
 
-from ipomdp.experiments.modeled_qualification import run_qualification
+from ipomdp.experiments.modeled_qualification import _uniform_on, run_qualification
 from ipomdp.experiments.oracle import evaluate_case
 from ipomdp.experiments.problems import tiger_problems
 
@@ -58,6 +58,11 @@ def test_ladder_reproduces_the_search_and_reports_a_qualifying_rung(tmp_path):
     assert qualifying[(2, 2, 30, "5", 0)] in ("5", "200", None)
     rows = json.loads((tmp_path / "q" / "rows.json").read_text())
     assert {r["rung"] for r in rows} == {"5", "200"}
+    for r in rows:  # the tie set is the exact best actions; a uniform policy on it loses nothing
+        best = max(r["exact_q"].values())
+        assert r["tie_set"] == sorted(a for a, q in r["exact_q"].items() if q >= best - 1e-9)
+        assert not r["uniform_on_ties"] or r["loss"] < 1e-9
+    assert (by_rung["optimal_off_convention"] <= by_rung["tied"]).all()
     assert all(abs(sum(r["physical_belief"].values()) - 1) < 1e-9 for r in rows)
 
 
@@ -133,3 +138,11 @@ def test_saved_queries_score_a_new_ladder_without_searching_again(tmp_path):
             queries_from=tmp_path / "a" / "queries.pkl",
             **(common | dict(budget=31)),
         )
+
+
+def test_uniform_on_ties_is_the_reference_convention():
+    assert _uniform_on({"L": 0.5, "R": 0.5}, ["L", "R"])
+    assert _uniform_on({"L": 1.0}, ["L"])
+    assert not _uniform_on({"L": 1.0, "R": 0.0}, ["L", "R"])  # a subset of the tie set
+    assert not _uniform_on({"L": 0.75, "R": 0.25}, ["L", "R"])
+    assert not _uniform_on({"L": 0.5, "R": 0.5}, ["L"])

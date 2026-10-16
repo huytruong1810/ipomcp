@@ -58,6 +58,17 @@ modeled level's exact reference, never level L's, which is what makes it
 usable where level L's exact solution is out of reach (L3 beyond H3 k = 0;
 12.7). It is conservative (H4: it certifies 6,400 where i's decisions are
 already 380/380 at 1,600). Scope: exact beliefs.
+
+Ties (RESULTS.md 12.50): the exact reference plays a modeled agent's tied best
+actions uniformly, while a modeled solve plays whatever its search returns, so
+an optimal modeled policy can still break a tie differently. Tied actions give
+the modeled agent different observations, and so can change i's best response;
+no budget removes that gap. Each row therefore carries the exact ``tie_set``
+(the actions within ``OPTIMALITY_TOLERANCE`` of the best) and whether the rung's
+policy is ``uniform_on_ties``; the summary counts the tied queries and the
+optimal decisions that break a tie differently from the reference. Neither
+changes which rung qualifies: any optimal policy is a correct model of a
+rational opponent, and episodes model the real opponent's own tie-breaking.
 """
 
 import argparse
@@ -163,6 +174,7 @@ def score_belief(level, horizon, seed, model, used_stack, used_policy, ladder, g
     physics = model.frame.pomdp_model
     exact = _exact_reference(physics, level, horizon, seed, gamma).q_values(model, horizon)
     best = max(exact.values())
+    ties = [a for a in exact if exact[a] >= best - OPTIMALITY_TOLERANCE]
     results = []
     for label in ladder:
         rung = parse_stack(label, level)
@@ -177,13 +189,23 @@ def score_belief(level, horizon, seed, model, used_stack, used_policy, ladder, g
                 rung=stack_label(rung),
                 policy={str(a): w for a, w in policy.items()},
                 loss=best - sum(w * exact[a] for a, w in policy.items()),
+                uniform_on_ties=_uniform_on(policy, ties),
                 cpu_seconds=cpu_seconds,
             )
         )
     return dict(
         exact_q={str(a): q for a, q in exact.items()},
+        tie_set=sorted(map(str, ties)),
         physical_belief=_physical_marginal(model),
         rungs=results,
+    )
+
+
+def _uniform_on(policy, actions):
+    """Whether ``policy`` plays exactly ``actions``, uniformly: the reference's tie convention."""
+    support = {a for a, w in policy.items() if w > 0}
+    return support == set(actions) and all(
+        abs(policy[a] - 1 / len(actions)) < 1e-12 for a in actions
     )
 
 
@@ -224,6 +246,8 @@ def summarize(rows):
     frame["wrong"] = frame["loss"] > OPTIMALITY_TOLERANCE
     frame["scored"] = frame["decision_loss"].notna()
     frame["decision_wrong"] = frame["decision_loss"].astype(float) > OPTIMALITY_TOLERANCE
+    frame["tied"] = frame["tie_set"].map(len) > 1
+    frame["off_convention"] = frame["tied"] & ~frame["wrong"] & ~frame["uniform_on_ties"]
     records = []
     for key, group in frame.groupby([*GROUP, "rung"], sort=False):
         wrong, n = int(group["wrong"].sum()), len(group)
@@ -239,6 +263,8 @@ def summarize(rows):
                 correct_rate_high=high,
                 mean_loss=float(group["loss"].mean()),
                 max_loss=float(group["loss"].max()),
+                tied=int(group["tied"].sum()),
+                optimal_off_convention=int(group["off_convention"].sum()),
                 wrong_where_decision_wrong=_split(group, group["decision_wrong"]),
                 wrong_where_decision_right=_split(group, ~group["decision_wrong"]),
                 mean_cpu_seconds=float(group["cpu_seconds"].mean()),
@@ -409,6 +435,7 @@ def run_qualification(
             belief_digest=digest,
             physical_belief=result["physical_belief"],
             exact_q=result["exact_q"],
+            tie_set=result["tie_set"],
             **rung,
         )
         for found in searched

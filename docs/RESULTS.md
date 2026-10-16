@@ -1897,3 +1897,20 @@ Each answer below rests on an exact computation or a control, not on the plotted
 - **Qualified mid-episode configuration on UAV (L2, H3):** root 4,000 with an exact target, 80/80. It is also the cheapest rung here (21 s against 51 s), as an exact level-1 target is cheap on UAV.
 - **What this means for episodes:** the episode runs (12.44, 12.49) model the target as the real target is configured (I-POMCP, the same budget and seed derivation; 12.30's rule), so i predicts the real target's tie-breaking. In U6 no prediction ever gave the real action probability 0. Against the exact reference, the H3 decision has search error at root 1,000 (2 of 80 decisions, 0.044 each) and the tie convention above (1 of 80).
 - **Not the cause of Tiger's L3 H4 residual (12.14):** that residual was measured with the stack `6400s/exact`, so the level below the searched j was exact and played ties as the reference does. Its 4 misses are j's own search at a true gap of 0.03, not a tie convention.
+
+### 12.51 Modeled agents' tie-breaking made explicit (October 15, 2026)
+
+**Decision** (HANDOFF 0.0a, item 4; option (a)): keep I-POMCP's modeled solves as they are, and record the tie convention instead of changing behaviour. The reasons:
+- Episodes model the real opponent as it is configured (12.30), so they need the opponent's own tie-breaking, not the reference's uniform one.
+- Option (b) (uniform play over actions whose certified intervals cannot be separated) would change episode behaviour, and an interval test cannot certify an exact tie anyway.
+
+The definition is in THEORY.md, "Tie convention".
+
+**Change** (`experiments.modeled_qualification`):
+- Each row carries the exact `tie_set` (the actions within 10⁻⁹ of the best exact Q) and, per rung, `uniform_on_ties` (the policy is exactly uniform on that set, as the reference plays).
+- The summary adds `tied` (queries with more than one best action) and `optimal_off_convention` (optimal decisions that break a tie differently from the reference).
+- Qualification is unchanged: a rung still fails only on a wrong decision.
+
+**Gate** (`results/t1_tie_columns_gate_20261015`; pass criterion fixed in `KILL_CRITERION.txt` before the run): the U4b grid (608 Tiger qualification rows, L2 H2–H3 and L3 H2), HEAD against the change, run from snapshots. Every stored column is identical (horizon, seed, query, rung, belief digest, policy, loss, decision loss, exact Q). That grid has no exact ties (`tied` = 0 everywhere).
+
+**Positive control:** the new definition applied to 12.50's stored diagnosis (`q_uav_midepisode_20261015/diag_tie.json`) reproduces its counts exactly. Of the 170 distinct target models, 75 are tied, and 38 are optimal off convention at each of the 400, 1,600 and 6,400-with-stopping rungs.

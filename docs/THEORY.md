@@ -86,6 +86,11 @@ Every error report states which one it uses.
 | Exact I-POMDP | every level solved exactly, recursively | `reference.exact_agent` + best response | search error plus opponent-model error |
 | Exact POMDP (L1) | fixed L0 | `reference.pomdp_exact_vi` | independent cross-check by alpha vectors |
 
+**Tie convention.** In the exact I-POMDP, a modeled agent with several exactly optimal actions plays them uniformly. I-POMCP's modeled solve plays whatever its search returns, which may be a subset of the tie set (RESULTS.md 12.50: on UAV, 75 of 170 queried target models have exact ties, and 38 of them are solved optimally on a subset). Both are equally rational opponents. But tied actions give the modeled agent different observations, so the modelling agent's exact best response can differ between them. No search budget closes this gap: it is a difference of opponent definition, not an error. So:
+- the error against the **exact I-POMDP** at a level above 1 includes this convention whenever a modeled level has ties;
+- modeled-agent qualification counts it separately (`tie_set`, `uniform_on_ties`; summary columns `tied`, `optimal_off_convention`) and never fails a rung for it;
+- episodes model the real opponent as it is configured (RESULTS.md 12.30), so they predict its own tie-breaking, not the uniform one.
+
 ## Error measures
 
 - **First-action loss:** V*(b) − Σ_a π(a|b) Q*(b, a). This is the value lost by the planner's root decision when every later decision is optimal. It handles ties exactly and is not an episode regret.
