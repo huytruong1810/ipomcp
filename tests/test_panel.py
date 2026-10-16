@@ -6,7 +6,7 @@ from functools import partial
 import pytest
 
 from ipomdp.domains.uav import UAVModel
-from ipomdp.experiments.panel import evaluate_cell, run_panel
+from ipomdp.experiments.panel import CELL, evaluate_cell, run_panel, summarize
 from ipomdp.experiments.problems import (
     TIGER_BELIEFS,
     TIGER_OPPONENT_BELIEFS,
@@ -173,3 +173,26 @@ def test_uav_cells_take_a_history_of_listening(tmp_path):
 def test_level_one_takes_no_modeled_budget():
     with pytest.raises(ValueError, match="modeled label"):
         evaluate_cell("mcts", 1, 2, 10, "100", 0, "exact", 0, seed=0)
+
+
+def test_summary_counts_epsilon_correct_decisions_and_bounds_their_failure_rate():
+    cell = dict(zip(CELL, ("mcts", 3, 4, 1000, "exact", 0, "exact", 0)))
+    losses = [0.0] * 76 + [0.03] * 4
+    rows = [
+        dict(
+            cell,
+            first_action_loss=loss,
+            max_abs_q_error=0.0,
+            optimal_q_error=0.0,
+            planner_cpu_seconds=1.0,
+            history_update_cpu_seconds=0.0,
+            belief_support=2,
+        )
+        for loss in losses
+    ]
+    row = summarize(rows).iloc[0]
+    assert row["optimal_rate"] == 76 / 80
+    # Every loss is within epsilon = 0.05, and 0/80 failures bounds delta at
+    # 1 - 0.025 ** (1 / 80), the two-sided exact 95% interval's upper end.
+    assert row["eps_correct_rate"] == 1.0
+    assert row["eps_failure_high"] == pytest.approx(1 - 0.025 ** (1 / 80))

@@ -283,6 +283,9 @@ def evaluate_case(
 
 
 OPTIMALITY_TOLERANCE = 1e-9
+# Certification standard (THEORY.md): a decision is epsilon-correct when its
+# first-action loss is at most this, in reward units.
+CERTIFICATION_EPSILON = 0.05
 
 
 def optimal_q_error(estimates, exact):

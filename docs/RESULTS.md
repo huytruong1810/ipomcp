@@ -1975,3 +1975,22 @@ The definition is in THEORY.md, "Tie convention".
     - seed 13 after 4 steps loses 8.42 with an uncertified root (width 15.9) at 3,000 simulations, and is optimal at 10,000: **search error**.
 - **Qualified Wumpus L1 H3 configuration: N = 4,096, 3,000 simulations** (60/60 over 52 distinct beliefs, median 45 CPU-s per decision). 10,000 simulations cut the worst optimal-action Q error from 27.7 to 3.7 at 1.2× the CPU.
 - CPU figures are from one run on a quiet machine. 12.19's 41 s per N = 1,024 decision predates 12.36's speedups.
+
+### 12.54 Certification standard ε = 0.05: every stored grid re-scored; the L3 H4 residual is 80/80 ε-correct (October 16, 2026)
+
+**Why** (HANDOFF 0.0a, item 6): 12.14 left 4 of 80 modeled-j decisions at L3 H4 wrong at near-ties (gap 0.03). On October 16 the user adopted the PAC-style standard proposed in 12.13, with ε = 0.05 (THEORY.md, "Certification standard").
+
+**Design** (`results/p1_pac_rescore_20261016/rescore.py`, `rescore.csv`). Stored rows only; nothing was rerun. For each configuration cell of every certified grid (12.1, 12.3, 12.4, 12.7, 12.14, 12.23, 12.41, 12.42, 12.46, 12.53; 66 cells, 13,721 decisions), the script reports n, the exactly optimal count, the ε-correct count (first-action loss ≤ 0.05), the maximum loss and δ. δ is the upper end of the exact 95% Clopper–Pearson interval on the ε-failure rate, the package's two-sided convention. `panel.summarize` gains the columns `eps_correct_rate` and `eps_failure_high` (with a test). **Gate:** its existing columns reproduce 30 stored summary rows (U4 and U5 panels) exactly.
+
+**Checks.** The exactly optimal counts reproduce each section's headline: L1 H5 220/220, L2 H4 380/380, L3 H3 162/162, L4 H2 486/486, UAV L3 H2 640/640, and UAV L2 H4 32/32 with the modeled target.
+
+**Where ε changes a count.** Only in the L3 H4 residual set (the modeled j-L2 at the 8 residual beliefs × seeds 0–9):
+
+| Rung | n | Exactly optimal | ε-correct | Max loss | δ |
+|---|---|---|---|---|---|
+| **6400s/exact (the planner's)** | 80 | 76 | **80** | 0.030 | **0.045** |
+| 1600/exact | 80 | 56 | 74 | 0.295 | 0.156 |
+
+- **The residual is resolved under the standard:** 80/80 ε-correct, with δ ≤ 4.5%. 12.13 found that flips of j decisions with gaps up to 0.3 never changed i's decision. That is the evidence behind ε, though those hierarchies held no gap as small as 0.03.
+- **No other cell changes.** Every other grid's qualified configuration was already exactly optimal on every decision. Every cell that still fails ε is a sub-qualified rung (for example UAV L1 H5 below 64,000, Wumpus N = 1,024, or IPF + RTS), and its misses exceed 0.05, so the standard does not soften any comparison between planners.
+- **Exactly optimal stays reported** alongside ε-correct in every new summary.

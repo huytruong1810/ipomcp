@@ -69,7 +69,11 @@ from ipomdp.belief import canonical
 from ipomdp.domains.tiger import JointTigerModel, TigerModel
 from ipomdp.domains.uav import UAVModel
 from ipomdp.experiments.modeled_levels import EXACT, parse_stack, stack_label
-from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, evaluate_case
+from ipomdp.experiments.oracle import (
+    CERTIFICATION_EPSILON,
+    OPTIMALITY_TOLERANCE,
+    evaluate_case,
+)
 from ipomdp.experiments.problems import (
     TIGER_BELIEFS,
     TIGER_NESTED_BELIEFS,
@@ -160,6 +164,17 @@ def _optimal_rate_high(losses):
     return clopper_pearson(int(flags.sum()), len(flags))[1]
 
 
+def _eps_correct_rate(losses):
+    flags = losses.dropna() <= CERTIFICATION_EPSILON
+    return float(flags.mean()) if len(flags) else float("nan")
+
+
+def _eps_failure_high(losses):
+    """Upper 95% Clopper-Pearson bound on the rate of losses above epsilon (delta)."""
+    flags = losses.dropna() > CERTIFICATION_EPSILON
+    return clopper_pearson(int(flags.sum()), len(flags))[1]
+
+
 def _mean(flags):
     flags = flags.dropna()
     return float(flags.astype(float).mean()) if len(flags) else float("nan")
@@ -197,6 +212,8 @@ def summarize(rows):
             mean_cpu_seconds=("planner_cpu_seconds", "mean"),
             mean_update_cpu_seconds=("history_update_cpu_seconds", "mean"),
             mean_support=("belief_support", "mean"),
+            eps_correct_rate=("first_action_loss", _eps_correct_rate),
+            eps_failure_high=("first_action_loss", _eps_failure_high),
         )
         .reset_index()
     )

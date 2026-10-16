@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 15, 2026 (evening session: 0.0a items 1–5 done or priced; see each item). Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
+Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. Next: the Wumpus L2 cost pilot (0.0a, 5c). Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
 
 ## 0. Start here (fresh agent)
 
@@ -25,13 +25,13 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
    - (b) make a modeled solve return a uniform policy over actions whose certified intervals cannot be separated.
 
    Option (b) changes episode behaviour, so it needs 12.15's replay gate and the U2/U4 panel gates.
-5. **5a done, no code change (12.52):** the update proper is about 20% of self time; exact level-1 models would save at most about 30% at level 3. **5b priced:** a level-4 H3 coordination episode costs about 2–2.5 CPU-h (9× level 3), so n = 50 needs over 100 CPU-h. **Ask the user before running it.** *Original item:* **Then, Claude's recommended research order:**
+5. **5a done, no code change (12.52):** the update proper is about 20% of self time; exact level-1 models would save at most about 30% at level 3. **5b priced:** a level-4 H3 coordination episode costs about 2–2.5 CPU-h (9× level 3), so n = 50 needs over 100 CPU-h. **User, October 16: not now.** *Original item:* **Then, Claude's recommended research order:**
    - (a) the solver-level speedup of the exact nested update (about a third of CPU, 12.36), which would make level 4 at H3 and longer UAV horizons affordable;
    - (b) level 4 on the coordination Tiger at H3;
    - (c) Wumpus level 1 beyond 3 beliefs. **Done (12.53):** over 52 distinct beliefs, N = 4,096 with 3,000 simulations is 60/60; N = 1,024 misses 2 (one compression error, one search error). Next for Wumpus: L2 (the original 0.10 item), which needs a pilot of its cost.
 
    UAV at depth 4 in episodes is not needed: the depth-3 UAV does not stall (12.49).
-6. **The L3 H4 residual on Tiger** (4/80 at a true gap of 0.03, j's own search; 12.14). The tie convention of 12.50 is ruled out as its cause. A PAC-style certification standard (12.13) is the user's call and has not been asked.
+6. **Resolved October 16 (12.54):** the user adopted ε = 0.05; the residual is 80/80 ε-correct (max loss 0.030, δ = 4.5%), and no other cell changes. *Original item:* **The L3 H4 residual on Tiger** (4/80 at a true gap of 0.03, j's own search; 12.14). The tie convention of 12.50 is ruled out as its cause. A PAC-style certification standard (12.13) is the user's call and has not been asked.
 
 **Run lessons from October 14–15 (also in Section 6):**
 - On the shared machine, use each run folder's `wrap.sh`: it waits for 3 GB free and always exits 0, so a killed job never stops xargs.
@@ -78,7 +78,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.54.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.55.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
@@ -89,7 +89,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
 1. **Online solver (I-POMCP with bounded nested beliefs).**
    - **Optimal wherever exact references exist:** L1 H1–H5, 220/220 at H5 (12.1); L2 H3–H4, 380/380 (12.3–12.4); L3 H3, 162/162 (12.7); L4 H2, 486/486 (12.23).
    - **UAV reconnaissance (12.41–12.42), at qualified budgets:** L1 H2–H5 40/40 each (root 1,000 up to H3, 4,000 at H4, 64,000 at H5); L2 H2–H3 80/80 (root 1,000, target modeled at 400); L2 H4 80/80 with an exact target at root 16,000, and 32/32 with the target modeled at 6,400 with stopping; L3 H2 640/640. Certified bounds contained the exact Q in 1,016/1,016 decisions checked.
-   - **One open residual:** L3 H4, where 4/80 near-tie beliefs are wrong (gaps ≤ 0.03; 12.14). UAV has a similar near-tie (gap 0.027) for the modeled target at 6,400 with stopping, harmless to i's decisions (12.42).
+   - **The L3 H4 residual** (4/80 near-tie beliefs wrong at gaps ≤ 0.03; 12.14) is 80/80 ε-correct under the ε = 0.05 standard adopted October 16 (12.54). UAV has a similar near-tie (gap 0.027) for the modeled target at 6,400 with stopping, harmless to i's decisions (12.42).
    - **Certified bounds:** every real decision carries per-action intervals that contain the exact Q of the searched model (12.17).
    - **Beliefs:** the compressed filter (exact updates, systematic compression to N = 64; 12.31 found no better compressor at acceptable cost). **Root budget (12.33–12.35):** a decision's CPU is almost all nested solves, paid within its first 125 root simulations; more root simulations cost 0.2–0.35 ms each. Root 4,000 cuts L2 H4's optimal-action Q error 3.9× (0.121 → 0.031) at 1.06× CPU; no root stopping rule helps. Episodes keep 1,000 (a matched model of j makes 4,000 cost about 1.4× at L3).
 2. **Benchmarks.** I-POMCP is 380/380 at L2 H3 and H4. IPF + RTS reaches 95–99.5% there and is 3–5× slower at H4 (12.20). **UAV L2 (12.43):** I-POMCP 80/80 at H2 and H3; IPF + RTS 53–68% at K = 2–8 (Holm p < 10⁻⁷), and 2–4× slower at H3; at H4 (12.46) 80/80 against 46–50%, at 1.6–11× less CPU. Its error is observation-sampling search error (the compressed-belief ablation matches it), and it converges at K = 128.
@@ -189,7 +189,7 @@ The user relayed a reviewer's skepticism about two patterns on the reviewer page
    - Wumpus L1 beyond 3 beliefs (Section 0.10, item 3);
    - level 4 on the coordination Tiger (now cheaper, 12.36);
    - a solver-level change to the exact nested update (about a third of the CPU, 12.36; needs 12.15's replay gate).
-4. **L3 H4 residual** (4/80 at gaps ≤ 0.03). A PAC-style certification standard (12.13) is **the user's call and has not been asked**.
+4. **L3 H4 residual:** resolved under the ε = 0.05 standard (12.54, October 16).
 5. **Housekeeping** (the user's call): legacy `results/` (about 12 GB), stale branches (Section 1), the `../ipomcp-q2` worktree (`git worktree remove ../ipomcp-q2`), and backing up `results/`.
 
 ### 0.3e What happened October 14 (PLAN.md, "UAV reconnaissance", U5)

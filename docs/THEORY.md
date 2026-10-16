@@ -101,6 +101,8 @@ Every error report states which one it uses.
   - total variation between nested path masses at a given depth (what a sunburst ring shows);
   - the absolute error in the physical marginal.
 
+**Certification standard** (adopted October 16, 2026; RESULTS.md 12.54). A decision is **ε-correct** when its first-action loss is at most ε = 0.05 in reward units (`oracle.CERTIFICATION_EPSILON`). Over a grid of n decisions with k losses above ε, δ is the upper end of the exact 95% Clopper–Pearson interval on k/n. A configuration is certified (ε, δ) when k = 0; for example, 0/80 gives δ = 4.5%. "Exactly optimal" (loss ≤ 10⁻⁹) is a stronger claim and is always reported beside it. Ties follow the convention above. The evidence that losses below ε are harmless is 12.13: no flip of a modeled decision with a gap up to 0.3 changed the modelling agent's decision.
+
 ## Cost model
 
 Searching futures costs root simulations (`simulations`). Simulating minds costs one search of `modeled_simulations` for every distinct nested belief that a search reaches.

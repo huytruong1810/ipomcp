@@ -1,6 +1,8 @@
 # Plan: the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (October 12, 2026)
 
-## Status (October 14, 2026)
+## Status (October 16, 2026)
+**October 15–16 follow-ups (HANDOFF 0.0a):** tie convention (12.51); exact-update profile, no change (12.52); Wumpus L1 qualified over 52 beliefs at N = 4,096 (12.53); the ε = 0.05 certification standard adopted by the user, and the L3 H4 residual 80/80 ε-correct (12.54). Level 4 at H3 (5b) is deferred by the user. Next: the Wumpus L2 cost pilot.
+
 **Planned by Claude (the user delegated the choice of direction on October 12 while away). U1–U3 done. U4 gates done (RESULTS 12.41): I-POMCP is optimal at a qualified budget at L1 H2–H5 (root up to 64,000 at H5), L2 H2–H4 (root 16,000 at H4 with exact opponent models) and L3 H2; certified bounds held in 1,016/1,016. U4b/U4c done (RESULTS 12.42): at L2 H4 the target needs 6,400 with stopping (32/32 decisions at root 16,000; an exact target is about 10× cheaper on UAV). U5 step 1 done (RESULTS 12.43): on UAV L2 decisions, I-POMCP is 80/80 at H2 and H3 against 53–68% for IPF + RTS (K = 2–8), and cheaper at H3. U5 steps 2–3 done: episodes at H3 earn the same reward (the target flees to a corner beyond the horizon) at 8–18× less CPU for I-POMCP (12.44); against particles, I-POMCP loses less than IPF + RTS at every N, and small sampled filters fail on UAV (12.45). H4 done (12.46): I-POMCP 80/80 against 46–50% for IPF + RTS, and 1.6–11× cheaper (12.42's CPU corrected to about 6 min per decision). Reviewer concerns C1–C3 done (12.47–12.48, page version 22). U6 done (12.49): a second level pays for both agents on UAV. U7 done (page version 23, Claude Doc). The depth-4 arm of U6 was not triggered: the depth-3 UAV does not stall (a level-1 UAV spots a level-1 target in 6.2 steps, 100%). Details: HANDOFF 0.2, item 2.**
 
 ## Context
