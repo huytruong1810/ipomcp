@@ -19,7 +19,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
    - tick labels are readable in the compact grid panels;
    - the ceiling line sits under the curves and does not hide them.
 2. **Remind the user to back up `results/`** (not backed up since September 30). It holds every October dataset, the reviewer-page generator and all run snapshots. Deletions, the legacy `results/` (about 12 GB), stale branches and the `../ipomcp-q2` worktree are the user's call (0.2, item 5).
-3. **Level 4 at H3 in the exact level screen (C1, optional).** `results/c1_level_posterior_20261014/screen_levels.py` resumes from `levels_rows.jsonl`. Level 6 at H2 is done on 72 of 81 sampled chains, all identical to level 5. Level 4 at H3 (27 sampled chains) needs over 4 GB per exact solve: run it with 1 worker on a quiet machine with `guard.sh` (edit the PID inside), then update RESULTS 12.47's table. It only adds H3 evidence; the H2 fixed point already answers the reviewer.
+3. **Partly done (October 15, evening):** level 6 now covers 81 of 81 chains, all identical to level 5. Level 4 at H3 does not fit this machine: one exact solve run alone reached 12.2 GB after about 30 min, still growing about 0.4 GB a minute, and was stopped. Rows of 9 chains shared one cache, so H3 jobs are now 1 chain each. Running it needs a machine with about 20+ GB free, or a memory-lean exact solver. It stays optional. *Original item:* **Level 4 at H3 in the exact level screen (C1, optional).** `results/c1_level_posterior_20261014/screen_levels.py` resumes from `levels_rows.jsonl`. Level 6 at H2 is done on 72 of 81 sampled chains, all identical to level 5. Level 4 at H3 (27 sampled chains) needs over 4 GB per exact solve: run it with 1 worker on a quiet machine with `guard.sh` (edit the PID inside), then update RESULTS 12.47's table. It only adds H3 evidence; the H2 fixed point already answers the reviewer.
 4. **Done (12.51, option (a)):** tie columns in modeled qualification, a THEORY.md tie convention; the gate rows are identical. *Original item:* **Make modeled agents' tie-breaking explicit (12.50).** On UAV, 75 of 170 queried target models have exact ties (an edge move equals listening). The exact reference has modeled agents play ties uniformly; I-POMCP's modeled solve plays a subset in about half of them. Design options, gated against the current planner:
    - (a) document the convention and qualify against the real opponent's tie-breaking;
    - (b) make a modeled solve return a uniform policy over actions whose certified intervals cannot be separated.
@@ -40,6 +40,9 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
 - Two runners over one job list duplicate work where they meet.
 - Never trust CPU recorded under heavy load or memory pressure; rerun one deterministic job before quoting a cost (12.42's correction).
 - The machine can suspend: the wall clock then jumps, and the jobs pause without harm.
+- (October 15, evening) Never wait with `pgrep -f` in a loop: it matched its own shell and the wait never ended. Wait with `kill -0 <pid>`.
+- (October 15, evening) Do not rewrite a guard's PID with a digit-pattern `sed`: it also rewrote the 3 GB threshold (3145728) to the PID. Replace the old PID literally.
+- (October 15, evening) `R=… && nohup cmd &` puts the assignment in a background subshell, so later lines see an empty `R`. Set variables on their own line first.
 
 
 ### 0.0 State, rules and how to work
@@ -201,7 +204,7 @@ The user relayed a reviewer's skepticism about two patterns on the reviewer page
 | U5 step 3: episodes (`u5_uav_rts_20261014/episodes`) | Same reward; I-POMCP 8–18× cheaper per decision, better prediction; 1 IPF episode aborted | 12.44 |
 | U5 step 2: particles (`u5_uav_rts_20261014/particles`: `job.py`, `score.py`, `analyze.py`, `refcheck.py`, `gate.py`) | I-POMCP below IPF + RTS at every N; IPF fails at N = 4 | 12.45 |
 | U5a H4 (`u5_uav_rts_20261014/h4`) | I-POMCP 80/80, IPF + RTS 46–50%; I-POMCP 1.6–11× cheaper; 12.42's CPU corrected (about 6 min per decision, not 50) | 12.46 |
-| C1: j's level posterior (`c1_level_posterior_20261014`: `odds.py`, `agreement.py`, `contrast.py`, `replay_j.py`, `screen_levels.py`, `screen_analyze.py`) | j's two hypotheses; levels 2–5 (and 6, on 72/81 chains) act identically at H2; a level-3 j identifies levels; exact replay agrees | 12.47 |
+| C1: j's level posterior (`c1_level_posterior_20261014`: `odds.py`, `agreement.py`, `contrast.py`, `replay_j.py`, `screen_levels.py`, `screen_analyze.py`) | j's two hypotheses; levels 2–5 (and 6, on 81/81 chains) act identically at H2; a level-3 j identifies levels; exact replay agrees | 12.47 |
 | C2: rewards above 2.72 (`c2_tiger_ceiling_20261014`: `ceiling.py`, `check_plots.py`, `large_n.py`, `gate.py`, `analyze_large_n.py`) | Exact ceiling; no plotted interval above it; 15,600 fresh trials 2.59 ± 0.22; plotted trials reproduce 100/100 | 12.48 |
 | C3 and page versions 22–23 (`w4_report_20261007`, backups `*_20261015.bak`) | Split y-axis, ceiling line, a reviewer-checks section, a UAV section; Claude Doc updated | — |
 | U6: UAV level matrix (`u6_uav_level_matrix_20261015`) | A second level pays for both UAV and target | 12.49 |
