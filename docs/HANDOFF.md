@@ -6,15 +6,47 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 14, 2026. Claude is the sole owner of `main`; there are no other agents. **The Tiger experiment suite is complete and written up (RESULTS 12.37–12.40; reviewer page version 21 and the Claude Doc report updated October 13). UAV reconnaissance (PLAN.md, top): U1–U4 are done. I-POMCP is optimal against exact references at a qualified budget at L1 H2–H5, L2 H2–H4 and L3 H2 (12.41), including the modeled target at L2 H4 (12.42). U5 step 1 is done (12.43): on UAV L2 decisions I-POMCP is 80/80 at H2 and H3, against 53–68% for IPF + RTS, and cheaper at H3. U5 done (12.43–12.46): I-POMCP 80/80 at H2–H4 against 46–68% for IPF + RTS; equal episode reward at 8–18× less CPU; lower loss than IPF + RTS at every particle count. **U6 done (12.49): on UAV a second level pays for both UAV (+5.8, +26) and target (+26, +35). U7 done: the reviewer page (version 23) has a UAV section, and the Claude Doc report has "A second domain: UAV reconnaissance" and "Checks behind two reviewer questions" (October 15).** **Mid-episode qualification (12.50):** at L2 H3 after a 2-step history, root 4,000 with an exact target is 80/80. With root 1,000, 2 misses are search error. 1 miss is a tie convention: the exact reference has modeled agents play exact ties uniformly, and I-POMCP's modeled target breaks them differently; 75 of 170 queried target models have exact ties (an edge move equals listening). Episodes are unaffected in kind, since they model the real opponent's own tie-breaking. **Next after H4: the reviewer concerns C1–C3 in 0.1a (user, October 14), before U6.** UAV is not yet in the reviewer page or the Claude Doc (U7). The user delegated the choice of research direction on October 12 ("I trust your taste in research"); Claude chose to proceed with UAV, as the user had lined up, and recorded why in PLAN.md.**
+Last updated October 15, 2026. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
 
 ## 0. Start here (fresh agent)
+
+### 0.0a Next session (user, October 15: "let's do these in next session")
+
+Do these first, in this order. Items 1–2 are checks or user actions; items 3–6 are research, in the order Claude recommends.
+
+1. **Check the reviewer page's new plots render correctly (version 23).** The split y-axis on "What each agent earns, every pairing" and the dotted exact-ceiling line on every published-Tiger reward panel were never seen rendered: headless Chrome here lacks system libraries (`libnspr4`), and only a script syntax check passed. Open https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB, or ask the user for a screenshot. Check the following, and fix in `results/w4_report_20261007/template.html` (`splitScale`, `pairChart`), rebuild with `build_report.py`, and republish to the same URL:
+   - the upper half shows gains, the lower half losses, and the break mark sits at 0;
+   - tick labels are readable in the compact grid panels;
+   - the ceiling line sits under the curves and does not hide them.
+2. **Remind the user to back up `results/`** (not backed up since September 30). It holds every October dataset, the reviewer-page generator and all run snapshots. Deletions, the legacy `results/` (about 12 GB), stale branches and the `../ipomcp-q2` worktree are the user's call (0.2, item 5).
+3. **Level 4 at H3 in the exact level screen (C1, optional).** `results/c1_level_posterior_20261014/screen_levels.py` resumes from `levels_rows.jsonl`. Level 6 at H2 is done on 72 of 81 sampled chains, all identical to level 5. Level 4 at H3 (27 sampled chains) needs over 4 GB per exact solve: run it with 1 worker on a quiet machine with `guard.sh` (edit the PID inside), then update RESULTS 12.47's table. It only adds H3 evidence; the H2 fixed point already answers the reviewer.
+4. **Make modeled agents' tie-breaking explicit (12.50).** On UAV, 75 of 170 queried target models have exact ties (an edge move equals listening). The exact reference has modeled agents play ties uniformly; I-POMCP's modeled solve plays a subset in about half of them. Design options, gated against the current planner:
+   - (a) document the convention and qualify against the real opponent's tie-breaking;
+   - (b) make a modeled solve return a uniform policy over actions whose certified intervals cannot be separated.
+
+   Option (b) changes episode behaviour, so it needs 12.15's replay gate and the U2/U4 panel gates.
+5. **Then, Claude's recommended research order:**
+   - (a) the solver-level speedup of the exact nested update (about a third of CPU, 12.36), which would make level 4 at H3 and longer UAV horizons affordable;
+   - (b) level 4 on the coordination Tiger at H3;
+   - (c) Wumpus level 1 beyond 3 beliefs.
+
+   UAV at depth 4 in episodes is not needed: the depth-3 UAV does not stall (12.49).
+6. **The L3 H4 residual on Tiger** (4/80 at a true gap of 0.03, j's own search; 12.14). The tie convention of 12.50 is ruled out as its cause. A PAC-style certification standard (12.13) is the user's call and has not been asked.
+
+**Run lessons from October 14–15 (also in Section 6):**
+- On the shared machine, use each run folder's `wrap.sh`: it waits for 3 GB free and always exits 0, so a killed job never stops xargs.
+- Use `watchdog.sh`, which walks the process tree from the xargs PID and so only ever kills this run's jobs.
+- GNU xargs lowers its parallelism on SIGUSR2; raising it with SIGUSR1 did not take effect here.
+- Two runners over one job list duplicate work where they meet.
+- Never trust CPU recorded under heavy load or memory pressure; rerun one deterministic job before quoting a cost (12.42's correction).
+- The machine can suspend: the wall clock then jumps, and the jobs pause without harm.
+
 
 ### 0.0 State, rules and how to work
 
 - **Repository.**
-  - `main` is clean at the last HANDOFF commit. 332 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
-  - **Running (October 15):** the C2 large-n Tiger reruns (`results/c2_tiger_ceiling_20261014`, `large_n.py`, runner PIDs in `runners.pids`; suites `grid_i1_j1`, `grid_i2_j2`, `grid_i1_j2`, `page_l1`, each resumable) and the C1 exact level screen (`results/c1_level_posterior_20261014/screen_levels.py`, guarded by `guard.sh`; resumes from `levels_rows.jsonl`). The UAV H4 grid is done (12.46).
+  - `main` is clean at the last HANDOFF commit. 333 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
+  - **Nothing is running** (checked October 15, 06:15; no watchdog, guard or job processes of this project remain).
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
     - `resampling/optimal-fc` (12.28);
@@ -46,7 +78,7 @@ Last updated October 14, 2026. Claude is the sole owner of `main`; there are no 
   - Numbers go into `docs/RESULTS.md`. **The next free section is 12.51.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **Current task (new session):** the UAV phase at U5 steps 2–3 (0.2, item 2; PLAN.md, top). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
+- **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 - **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
 ### 0.1 Where the science stands (October 14)
@@ -169,6 +201,11 @@ The user relayed a reviewer's skepticism about two patterns on the reviewer page
 | U5 step 3: episodes (`u5_uav_rts_20261014/episodes`) | Same reward; I-POMCP 8–18× cheaper per decision, better prediction; 1 IPF episode aborted | 12.44 |
 | U5 step 2: particles (`u5_uav_rts_20261014/particles`: `job.py`, `score.py`, `analyze.py`, `refcheck.py`, `gate.py`) | I-POMCP below IPF + RTS at every N; IPF fails at N = 4 | 12.45 |
 | U5a H4 (`u5_uav_rts_20261014/h4`) | I-POMCP 80/80, IPF + RTS 46–50%; I-POMCP 1.6–11× cheaper; 12.42's CPU corrected (about 6 min per decision, not 50) | 12.46 |
+| C1: j's level posterior (`c1_level_posterior_20261014`: `odds.py`, `agreement.py`, `contrast.py`, `replay_j.py`, `screen_levels.py`, `screen_analyze.py`) | j's two hypotheses; levels 2–5 (and 6, on 72/81 chains) act identically at H2; a level-3 j identifies levels; exact replay agrees | 12.47 |
+| C2: rewards above 2.72 (`c2_tiger_ceiling_20261014`: `ceiling.py`, `check_plots.py`, `large_n.py`, `gate.py`, `analyze_large_n.py`) | Exact ceiling; no plotted interval above it; 15,600 fresh trials 2.59 ± 0.22; plotted trials reproduce 100/100 | 12.48 |
+| C3 and page versions 22–23 (`w4_report_20261007`, backups `*_20261015.bak`) | Split y-axis, ceiling line, a reviewer-checks section, a UAV section; Claude Doc updated | — |
+| U6: UAV level matrix (`u6_uav_level_matrix_20261015`) | A second level pays for both UAV and target | 12.49 |
+| Mid-episode qualification (`q_uav_midepisode_20261015`: `diag_tie.py`) | Root 4,000 + exact target 80/80; one tie-convention mismatch | 12.50 |
 | Shared-machine lesson | Another project's process took 18 GB; our watchdog killed 46+ young jobs, and xargs exits when a child dies by signal. Fix: `h4/wrap.sh` (waits for 3 GB, exits 0) and `h4/watchdog.sh` (walks the tree from the xargs PID). Change xargs parallelism live with SIGUSR1/SIGUSR2 | — |
 
 ### 0.3d What happened October 13–14 (PLAN.md, "UAV reconnaissance", W and U3–U4)
@@ -714,6 +751,7 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | A stopping rule at the root (12.33): the modeled test of 12.11/12.15, or certified separation | Saves at most 3%: a decision's CPU is paid in its first 125 simulations (nested solves); stopping early only raises Q error. Certified separation certifies the decision, not the value (stops at 125–250 with Q error 0.28 at L3 H3) | A larger flat root budget (4,000 for gates) |
 | Costing a flat arm from one checkpoint's incremental growth CPU (R1 pilot, October 11) | Flat 1,000 looked 50× cheaper than the rules | Sum growth over all checkpoints up to n, plus one scoring |
 | A filter cache smaller than the caches keyed on its results (4,096 vs 16,384–65,536; until October 11) | Evicted posteriors were recomputed as new, equal objects: 22% of an L3 episode's updates were redone, downstream lookups compared whole beliefs recursively, and the duplicates kept memory at about 2 GB | Filter cache 65,536 (12.36) |
+| `xargs -P` with the shared watchdog when another project starves memory (October 14) | The watchdog killed 46 young jobs; xargs stops reading its job list when a child dies by a signal, orphaning the rest | Run-folder `wrap.sh` (waits for 3 GB free, exits 0) and `watchdog.sh` (walks the tree from the xargs PID); a final pass reruns the missing files |
 | Trusting CPU recorded during a loaded, memory-starved run (U4c, October 14) | 12.42 recorded about 50 CPU-min per qualified L2 H4 decision; a deterministic rerun gave the identical decision in 718 s (7.5× less), and 12.46 measured 366 s | Rerun one deterministic job on a quiet machine before quoting a cost; compare CPU only within one run |
 | A memory watchdog over a `ProcessPoolExecutor` run (October 9, matched H3 study, 10 workers) | One kill raised `BrokenProcessPool` and the whole run exited; nothing finished overnight | One process per episode (`xargs -P`, a job script that skips done files), so a kill loses one episode |
 
