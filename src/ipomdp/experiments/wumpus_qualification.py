@@ -1,28 +1,42 @@
-"""Wumpus L1 qualification: compressed search beliefs x simulations, vs the exact best response.
+"""Wumpus qualification: compressed search beliefs x simulations, vs an exact reference.
 
-The human (L1) faces a uniform-random wumpus (L0) on the 4 x 4 board with its
-exact 94,500-state prior (RESULTS.md Section 10). Real beliefs are exact
-(filtering is cheap: deterministic sensors prune the support fast); each search
-starts from the belief compressed to ``search_particles`` atoms. The Section 10
-pilot lost 1.8-7.7 in 13 of 18 decisions without separating the two suspects:
-root compression (N) and the simulation budget over 5 actions x 32
-observations. This grid separates them.
+The human (level L) models the wumpus at level L - 1, down to uniform L0, on
+a ``width x height`` board with ``n_pits`` pits (``--board``; default the
+4 x 4 board with 2 pits and its exact 94,500-state prior, RESULTS.md Section
+10). Real beliefs are exact (filtering is cheap: deterministic sensors prune
+the support fast); each search starts from the belief compressed to
+``search_particles`` atoms. At level 1 the Section 10 pilot lost 1.8-7.7 in 13
+of 18 decisions without separating the two suspects: root compression (N) and
+the simulation budget over 5 actions x 32 observations. This grid separates
+them. At level 2 and above, the modeled wumpus is solved by I-POMCP with
+``modeled`` simulations at every level below the human (RESULTS.md 12.56: on a
+3 x 3 board with 1 pit the exact I-POMDP is tractable at L2 H3 and L3 H2).
 
 Problems: a scripted history (turn, step, turn, step, step; a step that would
 end the episode is replaced by a turn) cut after 0, 2 or 4 steps, per seed.
 That script gives every seed the same observations, so 3 seeds held 3 distinct
 beliefs (RESULTS.md 12.19). ``--script random`` draws each step's action
 uniformly per seed instead; references record the belief's digest so analyses
-count distinct beliefs. The
-exact H-step best response at the exact belief (``BestResponseReference``,
-520-600 s at the prior) is computed once per problem and reused by every cell.
-Each row records the decision's loss against it, the optimal-action and max Q
-errors, the width of the planner's certified bounds (certified for the
-*searched*, compressed belief, so not guaranteed to contain this reference),
-and CPU. One JSON line per (problem, cell); restarts skip finished rows.
+count distinct beliefs. At level 1 the world's wumpus acts uniformly at
+random, as the human models it. Above level 1 it acts as the reference's own
+exact model of it (``ModeledWumpus``), so every history has positive evidence
+under the exact reference; the history is stored with the reference and
+replayed to the planner. The planner's own update can still find zero
+evidence (its modeled wumpus is a finite search); such a row records the
+failure instead of a decision.
+
+References: at level 1 the exact H-step best response at the exact belief
+(``BestResponseReference``, 520-600 s at the 4 x 4 prior); above level 1 the
+exact I-POMDP (``reference.exact_agent``, every level exact) after the same
+history. Each is computed once per problem and reused by every cell. Each row
+records the decision's loss against it, the optimal-action and max Q errors,
+the width of the planner's certified bounds (certified for the *searched*,
+compressed belief, so not guaranteed to contain this reference), and CPU. One
+JSON line per (problem, cell); restarts skip finished rows.
 
 Usage:
     python -m ipomdp.experiments.wumpus_qualification --output DIR \\
+        [--board 4 4 2] [--level 1] [--modeled 0] \\
         [--seeds 3] [--steps 0 2 4] [--search-particles 64 256 1024 4096] \\
         [--simulations 1000 3000 10000] [--horizon 3] [--script fixed|random] [--workers 6]
 """
@@ -36,22 +50,50 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from ipomdp.belief import canonical
+from ipomdp.belief.finite_filter import UnsupportedObservation
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.experiments.oracle import REFERENCE_BRANCHES, optimal_q_error
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.reference.best_response import BestResponseReference
+from ipomdp.reference.exact_agent import build_exact_agent
 
 HISTORY = ("TurnLeft", "Forward", "TurnRight", "Forward", "Forward")
 GAMMA = 0.95
+BOARD = (4, 4, 2)
 
 
-def history(physics, steps, seed, script="fixed"):
-    """The human's first ``steps`` (action, observation) pairs; the wumpus acts at random.
+def nested_levels(level):
+    """Each intentional level models the other agent one level below: {k: {k - 1: 1}}."""
+    return {k: {k - 1: 1.0} for k in range(1, level + 1)}
+
+
+class ModeledWumpus:
+    """The world's wumpus, acting as an exact model of it and advancing its belief.
+
+    ``bank`` holds the exact policies (``reference.exact_agent``); ``model`` is
+    the wumpus's mental model in the modelling agent's prior.
+    """
+
+    def __init__(self, bank, model):
+        self.bank, self.model = bank, model
+
+    def act(self, rng):
+        policy = self.bank.policy(self.model)
+        actions = sorted(policy, key=str)
+        return rng.choices(actions, weights=[policy[a] for a in actions])[0]
+
+    def observe(self, action, observation):
+        self.model = self.bank.filter.advance(self.model, action, observation, terminal=False)
+
+
+def history(physics, steps, seed, script="fixed", wumpus=None):
+    """The human's first ``steps`` (action, observation) pairs.
 
     ``script`` "fixed" plays ``HISTORY``; "random" draws each action uniformly
-    from the human's actions, from a stream separate from the world's.
+    from the human's actions, from a stream separate from the world's. The
+    wumpus acts uniformly at random, or as ``wumpus`` (a ``ModeledWumpus``).
     """
     rng = random.Random(f"wumpus/{seed}")
     state = rng.choices(*zip(*physics.initial_distribution()))[0]
@@ -64,7 +106,8 @@ def history(physics, steps, seed, script="fixed"):
         raise ValueError(f"Unknown script {script!r}")
     out = []
     for action in actions:
-        joint = {"i": action, "j": rng.choice(physics.get_all_actions("j"))}
+        other = rng.choice(physics.get_all_actions("j")) if wumpus is None else wumpus.act(rng)
+        joint = {"i": action, "j": other}
         following = physics.sample_transition(state, joint, rng)
         if physics.is_terminal(following):
             # History generation only: turn instead of ending the episode.
@@ -72,42 +115,113 @@ def history(physics, steps, seed, script="fixed"):
             following = physics.sample_transition(state, joint, rng)
         state = following
         out.append((action, physics.sample_observation(state, joint, "i", rng)))
+        if wumpus is not None:
+            wumpus.observe(other, physics.sample_observation(state, joint, "j", rng))
     return out
 
 
-def human(physics, seed, simulations, horizon, search_particles):
-    """The L1 human with exact real beliefs and searches on ``search_particles`` atoms."""
+def human(physics, seed, simulations, horizon, search_particles, level=1, modeled=0):
+    """The level-``level`` human with exact real beliefs and searches on ``search_particles`` atoms.
+
+    Every modeled intentional level runs I-POMCP with ``modeled`` simulations
+    (0: the human's own budget).
+    """
+    modeled = modeled or simulations
     config = PlannerConfig(
-        simulations=simulations, depth=horizon, modeled_simulations=simulations, gamma=GAMMA
+        simulations=simulations, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
+    )
+    lower = PlannerConfig(
+        simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
     )
     # The exact real filter needs more than the default branch guard when the
     # human moves at the 94,500-atom prior (x 3 wumpus actions).
     bank = SolverBank(seed, search_particles=search_particles, max_branches=REFERENCE_BRANCHES)
-    return HierarchyBuilder(bank).build("i", 1, physics, "j", config=config, level_weights={0: 1.0})
-
-
-def reference(seed, steps, horizon, script="fixed"):
-    """Exact Q of the problem: the H-step best response at the exact belief."""
-    physics = WumpusModel()
-    planner = human(physics, seed, 1, horizon, None)
-    for action, observation in history(physics, steps, seed, script):
-        planner.update_root(action, observation)
-    started = time.process_time()
-    exact = BestResponseReference(physics, SolverBank(seed), GAMMA, max_branches=REFERENCE_BRANCHES)
-    q = exact.q_values(planner.model(), horizon)
-    return (
-        {str(a): v for a, v in q.items()},
-        time.process_time() - started,
-        len(planner.belief.mass),
-        canonical.belief_digest(planner.belief),
+    nested = nested_levels(level)
+    return HierarchyBuilder(bank).build(
+        "i",
+        level,
+        physics,
+        "j",
+        config=config,
+        modeled_configs=dict.fromkeys(range(1, level), lower),
+        level_weights=nested[level],
+        nested_level_weights=nested,
     )
 
 
-def evaluate(seed, steps, search_particles, simulations, horizon, oracle, script="fixed"):
-    physics = WumpusModel()
-    planner = human(physics, seed, simulations, horizon, search_particles)
-    for action, observation in history(physics, steps, seed, script):
-        planner.update_root(action, observation)
+def reference(seed, steps, horizon, script="fixed", board=BOARD, level=1):
+    """Exact Q of the problem, the history it conditions on, and the belief's size and digest.
+
+    Level 1: the H-step best response at the exact belief. Above level 1: the
+    exact I-POMDP after a history in which the wumpus acts as its exact model.
+    """
+    physics = WumpusModel(*board)
+    if level == 1:
+        planner = human(physics, seed, 1, horizon, None)
+        steps_taken = history(physics, steps, seed, script)
+        for action, observation in steps_taken:
+            planner.update_root(action, observation)
+        started = time.process_time()
+        exact = BestResponseReference(
+            physics, SolverBank(seed), GAMMA, max_branches=REFERENCE_BRANCHES
+        )
+        q = exact.q_values(planner.model(), horizon)
+        belief = planner.belief
+    else:
+        agent = build_exact_agent("i", "j", level, physics, nested_levels(level), horizon, GAMMA)
+        wumpus = ModeledWumpus(agent.solver_bank, agent.belief.mass[0][0].opponent)
+        steps_taken = history(physics, steps, seed, script, wumpus)
+        for action, observation in steps_taken:
+            agent.update_root(action, observation)
+        started = time.process_time()
+        q = agent.q_values(agent.model())
+        belief = agent.belief
+    return (
+        {str(a): v for a, v in q.items()},
+        time.process_time() - started,
+        len(belief.mass),
+        canonical.belief_digest(belief),
+        steps_taken,
+    )
+
+
+def evaluate(
+    seed,
+    steps,
+    search_particles,
+    simulations,
+    horizon,
+    oracle,
+    script="fixed",
+    board=BOARD,
+    level=1,
+    modeled=0,
+    steps_taken=None,
+):
+    """One decision after the problem's history, scored against ``oracle`` (the exact Q).
+
+    ``steps_taken`` is the stored history (required above level 1, where it
+    depends on the exact wumpus); at level 1 it is regenerated when omitted.
+    """
+    physics = WumpusModel(*board)
+    planner = human(physics, seed, simulations, horizon, search_particles, level, modeled)
+    if steps_taken is None:
+        steps_taken = history(physics, steps, seed, script)
+    row = dict(
+        seed=seed,
+        steps=steps,
+        script=script,
+        search_particles=search_particles,
+        simulations=simulations,
+        horizon=horizon,
+    )
+    if (board, level, modeled) != (BOARD, 1, 0):
+        row |= dict(board=list(board), level=level, modeled=modeled)
+    try:
+        for action, observation in steps_taken:
+            planner.update_root(action, observation)
+    except UnsupportedObservation as error:
+        return row | dict(failure=str(error))
     started = time.process_time()
     planner.policy_for(planner.model())
     cpu = time.process_time() - started
@@ -115,13 +229,7 @@ def evaluate(seed, steps, search_particles, simulations, horizon, oracle, script
     best = max(oracle.values())
     chosen = max(values, key=values.get)
     bounds = planner.scores.bounds
-    return dict(
-        seed=seed,
-        steps=steps,
-        script=script,
-        search_particles=search_particles,
-        simulations=simulations,
-        horizon=horizon,
+    return row | dict(
         loss=best - oracle[chosen],
         optimal_q_error=optimal_q_error(values, oracle),
         max_abs_q_error=max(abs(values[a] - oracle[a]) for a in oracle),
@@ -141,9 +249,17 @@ def _evaluate_job(args):
     return evaluate(*args)
 
 
+def _decoded(steps_taken):
+    """A history read back from JSON: observations are tuples of tokens."""
+    return [(action, tuple(observation)) for action, observation in steps_taken]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--board", type=int, nargs=3, default=list(BOARD))
+    parser.add_argument("--level", type=int, default=1)
+    parser.add_argument("--modeled", type=int, nargs="+", default=[0])
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--steps", type=int, nargs="+", default=[0, 2, 4])
     parser.add_argument("--search-particles", type=int, nargs="+", default=[64, 256, 1024, 4096])
@@ -152,31 +268,65 @@ def main():
     parser.add_argument("--script", choices=("fixed", "random"), default="fixed")
     parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args()
+    board = tuple(args.board)
     args.output.mkdir(parents=True, exist_ok=True)
     references, rows = args.output / "references.jsonl", args.output / "rows.jsonl"
     problems = list(itertools.product(range(args.seeds), args.steps))
-    known = {}
+    known, taken = {}, {}
     if references.exists():
         for line in references.read_text().splitlines():
             r = json.loads(line)
             known[(r["seed"], r["steps"])] = r["q"]
+            if "history" in r:
+                taken[(r["seed"], r["steps"])] = _decoded(r["history"])
     done = set()
     if rows.exists():
         for line in rows.read_text().splitlines():
             r = json.loads(line)
-            done.add((r["seed"], r["steps"], r["search_particles"], r["simulations"]))
+            done.add(
+                (
+                    r["seed"],
+                    r["steps"],
+                    r["search_particles"],
+                    r["simulations"],
+                    r.get("modeled", 0),
+                )
+            )
     with ProcessPoolExecutor(args.workers, max_tasks_per_child=1) as pool:
-        todo = [(s, k, args.horizon, args.script) for s, k in problems if (s, k) not in known]
+        todo = [
+            (s, k, args.horizon, args.script, board, args.level)
+            for s, k in problems
+            if (s, k) not in known
+        ]
         with open(references, "a") as log:
-            for (seed, steps, *_), (q, cpu, support, digest) in pool.map(_reference_job, todo):
-                known[(seed, steps)] = q
+            for (seed, steps, *_), (q, cpu, support, digest, steps_taken) in pool.map(
+                _reference_job, todo
+            ):
+                known[(seed, steps)], taken[(seed, steps)] = q, steps_taken
                 row = dict(seed=seed, steps=steps, q=q, cpu_seconds=cpu, support=support)
-                log.write(json.dumps(row | dict(digest=digest, script=args.script)) + "\n")
+                row |= dict(digest=digest, script=args.script, history=steps_taken)
+                if (board, args.level) != (BOARD, 1):
+                    row |= dict(board=list(board), level=args.level)
+                log.write(json.dumps(row) + "\n")
                 log.flush()
         cells = [
-            (s, k, n, m, args.horizon, known[(s, k)], args.script)
-            for (s, k), n, m in itertools.product(problems, args.search_particles, args.simulations)
-            if (s, k, n, m) not in done
+            (
+                s,
+                k,
+                n,
+                m,
+                args.horizon,
+                known[(s, k)],
+                args.script,
+                board,
+                args.level,
+                d,
+                taken.get((s, k)),
+            )
+            for (s, k), n, m, d in itertools.product(
+                problems, args.search_particles, args.simulations, args.modeled
+            )
+            if (s, k, n, m, d) not in done
         ]
         with open(rows, "a") as log:
             for row in pool.map(_evaluate_job, cells):
