@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 15, 2026. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
+Last updated October 15, 2026 (evening session: 0.0a items 1–5 done or priced; see each item). Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
 
 ## 0. Start here (fresh agent)
 
@@ -633,6 +633,7 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Updated October 7–11:** "Coordination Tiger" and "Bounded-belief caveat" paragraphs after "Level grid" (the caveat now carries 12.30–12.32); the error-attribution row of "Not yet measured" is measured.
 - **Updated October 11, evening:** an "Update, October 11" paragraph after the cost list (12.36: nested solves about 2× faster, bit-identical).
 - **Updated October 11:** an "Update, October 11" paragraph closing the root-vs-modeled-budget section (12.33–12.35: root simulations are nearly free; root 4,000 for gates; episodes keep 1,000).
+- **Updated October 15, evening:** an "Update, October 15 (evening)" paragraph after the cost update (12.52), and "Tie-breaking" (12.51) and "Wumpus" (12.53) paragraphs after the UAV section's data line.
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
 ## 5. What changed, and where (since `archive/pre-restructure-20260930`)
