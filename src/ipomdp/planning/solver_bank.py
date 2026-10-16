@@ -38,7 +38,13 @@ FILTERS = {"compressed": CompressedInteractiveFilter, "sampled": ParticleInterac
 
 class SolverBank:
     def __init__(
-        self, seed, *, particles=None, particle_filter="compressed", search_particles=None
+        self,
+        seed,
+        *,
+        particles=None,
+        particle_filter="compressed",
+        search_particles=None,
+        max_branches=100_000,
     ):
         """``seed`` determines all randomness of this bank's models.
 
@@ -57,6 +63,9 @@ class SolverBank:
         (a compressed real belief can lose the true world), while search cost
         stays bounded. Tree observations are generated from atoms of the
         compressed root, so they always have positive evidence there.
+
+        ``max_branches`` guards exact real updates (``FiniteInteractiveFilter``);
+        it only ever raises, so raising it changes no completed update.
         """
         if type(seed) is not int:
             raise TypeError("A solver bank needs an explicit integer seed")
@@ -68,7 +77,7 @@ class SolverBank:
         self.filter = (
             FILTERS[particle_filter](self.policy, particles, seed)
             if particles is not None
-            else FiniteInteractiveFilter(self.policy, cache_size=4096)
+            else FiniteInteractiveFilter(self.policy, cache_size=4096, max_branches=max_branches)
         )
         self.search_filter = (
             CompressedInteractiveFilter(self.policy, search_particles, seed)

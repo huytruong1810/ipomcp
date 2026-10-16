@@ -17,3 +17,11 @@ def test_the_human_filters_exactly_and_searches_compressed():
     bank = planner.solver_bank
     assert len(planner.belief.mass) == 94_500
     assert len(bank.search_model(planner.model()).belief.mass) <= 64
+
+
+def test_random_scripts_are_reproducible_prefixes_that_differ_across_seeds():
+    physics = WumpusModel()
+    full = history(physics, 4, seed=3, script="random")
+    assert history(physics, 2, seed=3, script="random") == full[:2]
+    assert history(physics, 4, seed=3, script="random") == full
+    assert len({tuple(map(str, history(physics, 4, s, script="random"))) for s in range(10)}) > 1
