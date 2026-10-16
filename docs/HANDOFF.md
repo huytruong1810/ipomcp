@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. Next: the Wumpus L2 cost pilot (0.0a, 5c). Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
+Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. The Wumpus L2 pilot (12.55) priced L2 out of this machine. No research item is queued; candidates are in 0.2. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
 
 ## 0. Start here (fresh agent)
 
@@ -28,7 +28,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
 5. **5a done, no code change (12.52):** the update proper is about 20% of self time; exact level-1 models would save at most about 30% at level 3. **5b priced:** a level-4 H3 coordination episode costs about 2–2.5 CPU-h (9× level 3), so n = 50 needs over 100 CPU-h. **User, October 16: not now.** *Original item:* **Then, Claude's recommended research order:**
    - (a) the solver-level speedup of the exact nested update (about a third of CPU, 12.36), which would make level 4 at H3 and longer UAV horizons affordable;
    - (b) level 4 on the coordination Tiger at H3;
-   - (c) Wumpus level 1 beyond 3 beliefs. **Done (12.53):** over 52 distinct beliefs, N = 4,096 with 3,000 simulations is 60/60; N = 1,024 misses 2 (one compression error, one search error). Next for Wumpus: L2 (the original 0.10 item), which needs a pilot of its cost.
+   - (c) Wumpus level 1 beyond 3 beliefs. **Done (12.53):** over 52 distinct beliefs, N = 4,096 with 3,000 simulations is 60/60; N = 1,024 misses 2 (one compression error, one search error). **L2 priced (12.55, October 16):** 6–28 CPU-min per decision at sub-qualified budgets; after 4 steps a decision exceeds 8 GB. The cost is in the nested wumpus belief updates (4× the modeled simulations cost 1.07×). Not run further: it needs a memory-lean nested belief first (a design item).
 
    UAV at depth 4 in episodes is not needed: the depth-3 UAV does not stall (12.49).
 6. **Resolved October 16 (12.54):** the user adopted ε = 0.05; the residual is 80/80 ε-correct (max loss 0.030, δ = 4.5%), and no other cell changes. *Original item:* **The L3 H4 residual on Tiger** (4/80 at a true gap of 0.03, j's own search; 12.14). The tie convention of 12.50 is ruled out as its cause. A PAC-style certification standard (12.13) is the user's call and has not been asked.
@@ -78,7 +78,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.55.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.56.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.

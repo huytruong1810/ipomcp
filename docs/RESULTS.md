@@ -1994,3 +1994,21 @@ The definition is in THEORY.md, "Tie convention".
 - **The residual is resolved under the standard:** 80/80 ε-correct, with δ ≤ 4.5%. 12.13 found that flips of j decisions with gaps up to 0.3 never changed i's decision. That is the evidence behind ε, though those hierarchies held no gap as small as 0.03.
 - **No other cell changes.** Every other grid's qualified configuration was already exactly optimal on every decision. Every cell that still fails ε is a sub-qualified rung (for example UAV L1 H5 below 64,000, Wumpus N = 1,024, or IPF + RTS), and its misses exceed 0.05, so the standard does not soften any comparison between planners.
 - **Exactly optimal stays reported** alongside ε-correct in every new summary.
+
+### 12.55 Wumpus L2 cost pilot: 6–28 CPU-min per decision at a sub-qualified budget, and over 8 GB after 4 steps (October 16, 2026)
+
+**Why** (HANDOFF 0.0a, 5c): after Wumpus L1 qualified (12.53), the next Wumpus step is L2. First, price it.
+
+**Design** (`results/c6_wumpus_l2_pilot_20261016`; `KILL_CRITERION.txt` was written before the first run: 2 CPU-h per job, an 8 GB RSS guard, cheapest first). The human is level 2 and models the wumpus at level 1, which models a uniform-random human. Real beliefs are exact. Searches use N = 1,024 atoms (bank-wide, so the wumpus's nested searches too), with root 1,000, H3, and histories drawn with `--script random`, seed 0. These budgets are **below** the qualified L1 configuration (N = 4,096, 3,000 simulations), so this measures cost only, not accuracy. There is one job per process, and the CPU is from a quiet machine, with at most 2 jobs at once.
+
+| History steps | Modeled wumpus simulations | Human support (atoms) | Belief update CPU (s) | Decision CPU (s) | Peak RSS |
+|---|---|---|---|---|---|
+| 0 (prior) | 100 | 94,500 | 0 | 386 | 1.2 GB |
+| 2 | 100 | 19,440 | 326 | 1,351 | 3.4 GB |
+| 2 | 400 | 19,440 | 299 | 1,446 | 3.6 GB |
+| 4 | 100 | — | — | **stopped by the guard at 8.1 GB after about 50 CPU-min** | > 8 GB |
+
+- **The cost is in the nested belief updates, not the nested search.** Four times the modeled simulations cost only 1.07× (2 steps). The wumpus's exact beliefs stay large, because its only informative percepts are footsteps within 2 cells, breeze and glitter. Every nested update runs over them.
+- **The cost grows with the history, not with the human's support.** The prior (94,500 atoms) is the cheapest case. Later beliefs reach more distinct nested wumpus beliefs, and memory grows with them.
+- **Exact L2 reference: not feasible here.** It needs the exact level-1 best response of the wumpus at every nested belief the human's H3 tree reaches. One such solve costs about 260 s (12.53), and a single decision queries hundreds or more of them.
+- **Conclusion: Wumpus L2 is not run on this machine.** A qualification grid (about 60 problems × rungs, at qualified budgets) plus its references would far exceed 100 CPU-h, and decisions after 4 steps do not fit in 8 GB. It would first need a memory-lean nested belief for the modeled wumpus. For example, compressed nested beliefs (the bank's `particles` for nested levels), qualified against the exact nested update on Tiger and UAV, where exact references exist. That is a design item, not a run.
