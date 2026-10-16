@@ -28,7 +28,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
 5. **5a done, no code change (12.52):** the update proper is about 20% of self time; exact level-1 models would save at most about 30% at level 3. **5b priced:** a level-4 H3 coordination episode costs about 2–2.5 CPU-h (9× level 3), so n = 50 needs over 100 CPU-h. **Ask the user before running it.** *Original item:* **Then, Claude's recommended research order:**
    - (a) the solver-level speedup of the exact nested update (about a third of CPU, 12.36), which would make level 4 at H3 and longer UAV horizons affordable;
    - (b) level 4 on the coordination Tiger at H3;
-   - (c) Wumpus level 1 beyond 3 beliefs.
+   - (c) Wumpus level 1 beyond 3 beliefs. **Done (12.53):** over 52 distinct beliefs, N = 4,096 with 3,000 simulations is 60/60; N = 1,024 misses 2 (one compression error, one search error). Next for Wumpus: L2 (the original 0.10 item), which needs a pilot of its cost.
 
    UAV at depth 4 in episodes is not needed: the depth-3 UAV does not stall (12.49).
 6. **The L3 H4 residual on Tiger** (4/80 at a true gap of 0.03, j's own search; 12.14). The tie convention of 12.50 is ruled out as its cause. A PAC-style certification standard (12.13) is the user's call and has not been asked.
@@ -75,7 +75,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.53.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.54.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.

@@ -1947,3 +1947,29 @@ The definition is in THEORY.md, "Tie convention".
 - About 9× level 3 over the same steps (1,006 s against 108 s), with a flat peak of 0.6 GB. Actions L, L, OL, L, as level 3's.
 - A 20-step episode is about 2–2.5 CPU-h, so a paired comparison of levels 3 and 4 at n = 50 needs over 100 CPU-h.
 - **Conclusion:** no available change to the update, nor exact level-1 models (at most about 1.4×), brings this below the user-approval threshold. 5b is the user's call at its full cost, and 5a stops here (no code change).
+
+### 12.53 Wumpus L1 qualification over 52 distinct beliefs: N = 4,096 qualifies, N = 1,024 does not (October 15, 2026)
+
+**Why** (HANDOFF 0.0a, 5c): 12.19 qualified N = 1,024 with 3,000 simulations on only 3 distinct beliefs, because its scripted history gave every seed the same observations.
+
+**Design** (`results/c5_wumpus_beliefs_20261015`; `ENDPOINTS.md` fixed before the run, with 3 rungs added after the first ladder and recorded before they ran; `distinct.py`, `analyze.py`):
+- **Problems:** `wumpus_qualification --script random`, which draws each history action uniformly per seed. Seeds 0–19, histories cut after 2, 4 and 6 steps: 60 problems.
+- **Beliefs:** 52 distinct exact beliefs (by digest), supports 2,100–74,880 atoms, with breeze, bump, stench and scream observations. Duplicated beliefs are decided with different planner seeds.
+- **Reference:** the exact H3 best response at the exact belief (as 12.19), median 260 s, 3.7 CPU-h in all. 11 problems have an exact tie at the best action, which first-action loss scores correctly. The median gap is 29.6.
+- **Code** (`f003a17`): the fixed script is unchanged (histories identical, seeds 0–9, 0–5 steps). A Forward move at the 94,500-atom prior needs more than the default 100,000-branch guard of the exact filter, so `SolverBank` takes `max_branches` (the guard only raises, so no completed update changes).
+
+| N (search atoms) | Simulations | Optimal / 60 [95%] | Wrong beliefs | Max loss | Optimal-action Q error (median, max) | Root certified exact | CPU per decision, median (s) |
+|---|---|---|---|---|---|---|---|
+| 64 | 3,000 | 43 [0.586, 0.825] | 16 | 43.5 | 16.3, 74.7 | 46/60 | 2.8 |
+| 1,024 | 3,000 | 58 [0.885, 0.996] | 2 | 8.42 | 1.08, 24.2 | 30/60 | 14.5 |
+| 1,024 | 10,000 | 59 [0.911, 1] | 1 | 1.27 | 1.33, 12.4 | 44/60 | 14.6 |
+| **4,096** | **3,000** | **60 [0.940, 1]** | **0** | **0** | 0.50, 27.7 | 28/60 | **44.8** |
+| 4,096 | 10,000 | 60 [0.940, 1] | 0 | 0 | 0.45, 3.75 | 44/60 | 52.4 |
+
+- **12.19's qualification does not carry over.**
+  - N = 64, which was 9/9 there, is wrong on 17 of 60 decisions, losing up to 43.5.
+  - N = 1,024 misses 2 of 60:
+    - seed 5 after 4 steps loses 1.27 with its root certified exact (bound width 0) at both budgets, so it is **compression error**;
+    - seed 13 after 4 steps loses 8.42 with an uncertified root (width 15.9) at 3,000 simulations, and is optimal at 10,000: **search error**.
+- **Qualified Wumpus L1 H3 configuration: N = 4,096, 3,000 simulations** (60/60 over 52 distinct beliefs, median 45 CPU-s per decision). 10,000 simulations cut the worst optimal-action Q error from 27.7 to 3.7 at 1.2× the CPU.
+- CPU figures are from one run on a quiet machine. 12.19's 41 s per N = 1,024 decision predates 12.36's speedups.
