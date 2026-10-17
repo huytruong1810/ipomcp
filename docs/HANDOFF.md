@@ -6,7 +6,13 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. Wumpus L2 is out of reach on 4 × 4 (12.55–12.56). The 3 × 3 board is qualified at L2 H2 (60/60) and L3 H2 (55/55) against the exact I-POMDP (12.58); L2 H3 is running in `results/c14_wumpus3_qualification_20261016/h3`. The compressed filter now uses stratified draws (12.57: systematic draws aliased); 4 × 4 L1 qualifies at N = 4,096 with 10,000 simulations under it. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
+Last updated October 17, 2026, 06:30. The user was away October 17, about 00:30–12:30, and delegated the research direction. **Wumpus 3 × 3 is the current phase** (PLAN, top):
+- qualified at L2 H2 (60/60) and L3 H2 (55/55), and L2 H3 interim at 13/13 (12.58);
+- I-POMCP 60/60 against IPF + RTS at 1–28/60 (12.59);
+- level matrix at n = 100: a second level pays the human only against an intentional wumpus (12.60);
+- the compressed filter now uses stratified draws (12.57).
+
+**Running:** the confirmation of 12.60 on fresh trials 100–199, in `results/c15_wumpus3_episodes_20261017/confirm`, driver PID in `pilot.pid`, guard `guard.sh`. Analyse it with `confirm_analyze.py confirm`, using the primary test fixed in `ENDPOINTS.md` step 3, and add the result to 12.60, the Claude Doc and PLAN. Earlier October 16 work: 12.54–12.56 (0.0a done).
 
 ## 0. Start here (fresh agent)
 
@@ -638,6 +644,7 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Updated October 16:** an "Update, October 16: certification standard" paragraph after the "Update, October 6" (residual) paragraph (12.54).
 - **Updated October 16, afternoon:** a "Wumpus level 2" paragraph after "Wumpus, October 15" (12.55).
 - **Updated October 17:** "Wumpus on a 3 × 3 board" (12.58) and "A compression bug, found and fixed" (12.57) paragraphs after "Wumpus level 2".
+- **Updated October 17, morning:** "Wumpus decisions against the published baseline" (12.59) and "The value of a second level in an adversarial game" (12.60) after the compression paragraph.
 - **Updated October 15, evening:** an "Update, October 15 (evening)" paragraph after the cost update (12.52), and "Tie-breaking" (12.51) and "Wumpus" (12.53) paragraphs after the UAV section's data line.
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 

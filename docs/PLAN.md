@@ -8,6 +8,16 @@
 - Wumpus is the first adversarial pair: the wumpus hunts the human. Do deeper humans survive more and find more gold, and does a deeper wumpus kill more?
 - The step after this (12.59 or later) is I-POMCP against IPF + RTS on the same board (contribution 2), if the matrix shows depth matters.
 
+**Status (October 17, 06:30):**
+- Steps 1–2 are done: the gate is 60/60, and the matrix at n = 100 is RESULTS 12.60.
+- The decisions against IPF + RTS are done (12.59).
+- Step 3, the confirmation on fresh trials, is running.
+
+**Next, Claude's recommendation:**
+1. If step 3 confirms, add a Wumpus section to the reviewer page (the matrix plus the death-cause bars) and the Claude Doc.
+2. A third level on Wumpus (i3 against j2) only if it can be priced under 100 CPU-h. Tiger and UAV both found 2 → 3 worth little, so it is low priority.
+3. Horizon 3 episodes are priced out: a decision costs 6–36 CPU-min (12.58).
+
 **Design:** `results/c15_wumpus3_episodes_20261017/ENDPOINTS.md` (fixed before any run).
 1. Pilot: 9 cells × 2 trials, for cost.
 2. Qualification of the episode agents' own configuration: uniform level priors, 400 simulations.
