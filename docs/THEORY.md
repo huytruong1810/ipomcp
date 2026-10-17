@@ -103,6 +103,20 @@ Every error report states which one it uses.
 
 **Certification standard** (adopted October 16, 2026; RESULTS.md 12.54). A decision is **ε-correct** when its first-action loss is at most ε = 0.05 in reward units (`oracle.CERTIFICATION_EPSILON`). Over a grid of n decisions with k losses above ε, δ is the upper end of the exact 95% Clopper–Pearson interval on k/n. A configuration is certified (ε, δ) when k = 0; for example, 0/80 gives δ = 4.5%. "Exactly optimal" (loss ≤ 10⁻⁹) is a stronger claim and is always reported beside it. Ties follow the convention above. The evidence that losses below ε are harmless is 12.13: no flip of a modeled decision with a gap up to 0.3 changed the modelling agent's decision.
 
+## When a deeper model can pay
+
+Fix a real opponent j and a lookahead H. Write V_H^true(b, a) for the expected H-step reward of i taking a at belief b and then acting optimally, when j acts as it really does. A **predictive model** of j is a law of j's next action given i's private history. Two of i's models are **predictively equivalent** on a history when they give i the same joint law over the next H steps of j's actions and i's observations.
+
+**Proposition 1 (correct prediction is enough).** If i's model is predictively equivalent to the real j on every history of the next H steps, then i's exact best response maximizes V_H^true at every decision. No other model, of any level and any prior, does better at that decision.
+*Proof.* i's planning problem is a POMDP over (s, j's internal state) whose transition and observation laws are fixed by the predictive law. Equivalent laws give the same POMDP, hence the same Q_H; the exact best response maximizes it.
+
+**Corollary (depth cannot pay against a mind-less opponent).** Call j **non-intentional** when its action law depends only on its own history, not on any belief about i (level 0 is the extreme case: uniform and history-free). Then a level-1 i that models j by that law is the exact best response to the truth, by Proposition 1. A level-k i (k ≥ 2) with any prior mass on intentional levels predicts differently, so its first-action loss under V_H^true is ≥ 0 at every decision, with equality exactly where its action is also optimal under the truth.
+- A deeper level can pay only when the real opponent's actions depend on its belief about i. Only then is a level-1 model (which treats j as non-intentional) mis-specified.
+- Even then it pays only when the mis-specification changes i's action at a belief i reaches. In the published Tiger, payoffs depend on one's own door alone, so it rarely does: levels 2–5 coincide exactly at H2 (RESULTS.md 12.47).
+- **Scope:** the statement is per decision, at the planning horizon H. Receding-horizon episodes add no such guarantee, but the empirical controls agree: against a random opponent, no second level is significantly better in any domain (Tiger 12.37; UAV −7.2, 12.49; Wumpus −70 and +20, 12.60).
+
+**Remark (level-0 mass keeps nested updates defined).** With deterministic percepts, a modeled j whose own model of i is a point mass on one level can receive an observation that this model gives zero probability; its Bayes update is then undefined (RESULTS.md 12.58, Wumpus L3). Any positive weight on level 0 restores it whenever the observation is possible under some action of i at some state in j's support. Level 0 gives every action probability 1/|A_i|, so the evidence is positive. This is why every multi-level prior in the episode studies keeps level-0 mass.
+
 ## Cost model
 
 Searching futures costs root simulations (`simulations`). Simulating minds costs one search of `modeled_simulations` for every distinct nested belief that a search reaches.
