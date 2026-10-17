@@ -62,6 +62,11 @@ def test_level_zero_weight_mixes_every_level_above_one():
 
     assert nested_levels(2) == {1: {0: 1.0}, 2: {1: 1.0}}
     assert nested_levels(3, 0.1) == {1: {0: 1.0}, 2: {1: 0.9, 0: 0.1}, 3: {2: 0.9, 0: 0.1}}
+    assert nested_levels(3, "uniform") == {
+        1: {0: 1.0},
+        2: {0: 0.5, 1: 0.5},
+        3: {0: 1 / 3, 1: 1 / 3, 2: 1 / 3},
+    }
 
 
 def test_a_modeled_human_with_only_ending_actions_ends_the_history():

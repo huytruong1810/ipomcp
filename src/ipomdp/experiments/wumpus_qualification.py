@@ -70,12 +70,16 @@ BOARD = (4, 4, 2)
 def nested_levels(level, l0=0.0):
     """Each intentional level models the other agent one level below, with weight ``l0`` on level 0.
 
-    {1: {0: 1}}, and {k: {k - 1: 1 - l0, 0: l0}} for k >= 2. A level-0 share gives
+    {1: {0: 1}}, and {k: {k - 1: 1 - l0, 0: l0}} for k >= 2; ``l0`` "uniform" gives
+    {k: uniform over 0 .. k - 1}. A level-0 share gives
     every action of the modeled agent positive probability. With deterministic
     percepts a near-deterministic modeled policy otherwise leaves some of the
     modelling agent's counterfactual actions with zero-evidence nested updates,
     and the exact I-POMDP is undefined there (Wumpus L3; docs/RESULTS.md 12.58).
     """
+    if l0 == "uniform":
+        # Uniform over every lower level, as the episode suite's agents hold (suite.hierarchy_agent).
+        return {k: {m: 1 / k for m in range(k)} for k in range(1, level + 1)}
     levels = {1: {0: 1.0}}
     for k in range(2, level + 1):
         levels[k] = {k - 1: 1.0 - l0, 0: l0} if l0 else {k - 1: 1.0}
@@ -380,7 +384,12 @@ def main():
     parser.add_argument("--board", type=int, nargs=3, default=list(BOARD))
     parser.add_argument("--level", type=int, default=1)
     parser.add_argument("--modeled", type=int, nargs="+", default=[0])
-    parser.add_argument("--l0", type=float, default=0.0, help="level-0 weight at every level >= 2")
+    parser.add_argument(
+        "--l0",
+        type=lambda v: v if v == "uniform" else float(v),
+        default=0.0,
+        help="level-0 weight at every level >= 2, or 'uniform' over all lower levels",
+    )
     parser.add_argument("--planner", choices=("mcts", "rts"), default="mcts")
     parser.add_argument(
         "--particles", type=int, default=0, help="rts: IPF sample count (0: exact beliefs)"
