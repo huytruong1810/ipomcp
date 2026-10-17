@@ -6,7 +6,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top.
 
-Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. Wumpus L2 is out of reach on 4 × 4 (12.55–12.56); the 3 × 3 board has exact L2/L3 references (12.56), and its qualification is the current task. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
+Last updated October 16, 2026. The machine shut down on October 16 at 00:29, after the October 15 session had finished; nothing was lost. On October 16 the user deferred 5b and adopted the ε = 0.05 certification standard (12.54), which resolves item 6. Wumpus L2 is out of reach on 4 × 4 (12.55–12.56). The 3 × 3 board is qualified at L2 H2 (60/60) and L3 H2 (55/55) against the exact I-POMDP (12.58); L2 H3 is running in `results/c14_wumpus3_qualification_20261016/h3`. The compressed filter now uses stratified draws (12.57: systematic draws aliased); 4 × 4 L1 qualifies at N = 4,096 with 10,000 simulations under it. Claude is the sole owner of `main`; there are no other agents. **Tiger is complete (RESULTS 12.1–12.40) and UAV reconnaissance is complete (U1–U7, RESULTS 12.41–12.50). The reviewer's three concerns about the Tiger plots are answered with exact checks (12.47–12.48). Reviewer page version 23 and the Claude Doc report were updated October 15. Nothing is running. Start at 0.0a: the user asked (October 15) for its items to be done in the next session.**
 
 ## 0. Start here (fresh agent)
 
@@ -34,6 +34,8 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
 6. **Resolved October 16 (12.54):** the user adopted ε = 0.05; the residual is 80/80 ε-correct (max loss 0.030, δ = 4.5%), and no other cell changes. *Original item:* **The L3 H4 residual on Tiger** (4/80 at a true gap of 0.03, j's own search; 12.14). The tie convention of 12.50 is ruled out as its cause. A PAC-style certification standard (12.13) is the user's call and has not been asked.
 
 **Run lessons from October 14–15 (also in Section 6):**
+- (October 16) `wumpus_qualification` uses a spawn pool: its workers are children of the python driver, not of the shell wrapper `$!` may name. Check `ps -o comm -p <pid>` says python. Killing only a wrapper orphans the workers, so kill them by PID.
+- (October 16) Do not write guessed clock times into endpoint amendments; read `date` first.
 - On the shared machine, use each run folder's `wrap.sh`: it waits for 3 GB free and always exits 0, so a killed job never stops xargs.
 - Use `watchdog.sh`, which walks the process tree from the xargs PID and so only ever kills this run's jobs.
 - GNU xargs lowers its parallelism on SIGUSR2; raising it with SIGUSR1 did not take effect here.
@@ -78,7 +80,7 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.57.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.59.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
