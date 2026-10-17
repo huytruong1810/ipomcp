@@ -71,6 +71,10 @@ def nested_levels(level):
     return {k: {k - 1: 1.0} for k in range(1, level + 1)}
 
 
+class HistoryEnded(ValueError):
+    """The modeled human's every likely action ends the episode: the problem has no decision."""
+
+
 class ModeledAgent:
     """An agent of the world acting as an exact model of it, and advancing that model's belief.
 
@@ -92,7 +96,7 @@ class ModeledAgent:
             policy = self.bank.policy(self.model)
         actions = sorted((a for a in policy if allowed is None or a in allowed), key=str)
         if not actions:
-            raise ValueError("The modeled agent has no allowed action with positive probability")
+            raise HistoryEnded("The modeled agent has no allowed action with positive probability")
         return rng.choices(actions, weights=[policy[a] for a in actions])[0]
 
     def observe(self, action, observation):
@@ -284,7 +288,10 @@ def evaluate(
 
 
 def _reference_job(args):
-    return args, reference(*args)
+    try:
+        return args, reference(*args)
+    except HistoryEnded:
+        return args, None
 
 
 def _evaluate_job(args):
@@ -314,10 +321,13 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     references, rows = args.output / "references.jsonl", args.output / "rows.jsonl"
     problems = list(itertools.product(range(args.seeds), args.steps))
-    known, taken = {}, {}
+    known, taken, ended = {}, {}, set()
     if references.exists():
         for line in references.read_text().splitlines():
             r = json.loads(line)
+            if r.get("ended"):
+                ended.add((r["seed"], r["steps"]))
+                continue
             known[(r["seed"], r["steps"])] = r["q"]
             if "history" in r:
                 taken[(r["seed"], r["steps"])] = _decoded(r["history"])
@@ -338,12 +348,15 @@ def main():
         todo = [
             (s, k, args.horizon, args.script, board, args.level)
             for s, k in problems
-            if (s, k) not in known
+            if (s, k) not in known and (s, k) not in ended
         ]
         with open(references, "a") as log:
-            for (seed, steps, *_), (q, cpu, support, digest, steps_taken) in pool.map(
-                _reference_job, todo
-            ):
+            for (seed, steps, *_), result in pool.map(_reference_job, todo):
+                if result is None:
+                    # No decision exists after this history (the modeled human ends the episode).
+                    log.write(json.dumps(dict(seed=seed, steps=steps, ended=True)) + "\n")
+                    continue
+                q, cpu, support, digest, steps_taken = result
                 known[(seed, steps)], taken[(seed, steps)] = q, steps_taken
                 row = dict(seed=seed, steps=steps, q=q, cpu_seconds=cpu, support=support)
                 row |= dict(digest=digest, script=args.script, history=steps_taken)
@@ -368,7 +381,7 @@ def main():
             for (s, k), n, m, d in itertools.product(
                 problems, args.search_particles, args.simulations, args.modeled
             )
-            if (s, k, n, m, d) not in done
+            if (s, k) in known and (s, k, n, m, d) not in done
         ]
         with open(rows, "a") as log:
             for row in pool.map(_evaluate_job, cells):

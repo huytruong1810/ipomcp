@@ -55,3 +55,18 @@ def test_level_three_histories_from_the_modeled_human_have_positive_evidence():
     assert len(taken) == 2
     row = evaluate(0, 2, 0, 10, 1, q, "modeled", board, 3, 5, taken)
     assert "loss" in row or "failure" in row
+
+
+def test_a_modeled_human_with_only_ending_actions_ends_the_history():
+    import random
+
+    import pytest
+
+    from ipomdp.belief.finite_belief import MentalModel
+    from ipomdp.belief.frame import AgentFrame
+    from ipomdp.experiments.wumpus_qualification import HistoryEnded, ModeledAgent
+
+    uniform = ModeledAgent(None, MentalModel(AgentFrame("i", 0, WumpusModel(3, 3, 1))))
+    assert uniform.act(random.Random(0), allowed=["Grab"]) == "Grab"
+    with pytest.raises(HistoryEnded):
+        uniform.act(random.Random(0), allowed=[])
