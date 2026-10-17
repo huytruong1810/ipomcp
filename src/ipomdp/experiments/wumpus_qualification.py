@@ -17,9 +17,11 @@ end the episode is replaced by a turn) cut after 0, 2 or 4 steps, per seed.
 That script gives every seed the same observations, so 3 seeds held 3 distinct
 beliefs (RESULTS.md 12.19). ``--script random`` draws each step's action
 uniformly per seed instead; references record the belief's digest so analyses
-count distinct beliefs. At level 1 the world's wumpus acts uniformly at
+count distinct beliefs; ``--script modeled`` (level 2 and above) draws the
+human's actions from the wumpus's model of the human, which level 3 needs
+(``history``). At level 1 the world's wumpus acts uniformly at
 random, as the human models it. Above level 1 it acts as the reference's own
-exact model of it (``ModeledWumpus``), so every history has positive evidence
+exact model of it (``ModeledAgent``), so every history has positive evidence
 under the exact reference; the history is stored with the reference and
 replayed to the planner. The planner's own update can still find zero
 evidence (its modeled wumpus is a finite search); such a row records the
@@ -38,7 +40,7 @@ Usage:
     python -m ipomdp.experiments.wumpus_qualification --output DIR \\
         [--board 4 4 2] [--level 1] [--modeled 0] [--search-particles ... (0: exact)] \\
         [--seeds 3] [--steps 0 2 4] [--search-particles 64 256 1024 4096] \\
-        [--simulations 1000 3000 10000] [--horizon 3] [--script fixed|random] [--workers 6]
+        [--simulations 1000 3000 10000] [--horizon 3] [--script fixed|random|modeled] [--workers 6]
 """
 
 import argparse
@@ -69,31 +71,47 @@ def nested_levels(level):
     return {k: {k - 1: 1.0} for k in range(1, level + 1)}
 
 
-class ModeledWumpus:
-    """The world's wumpus, acting as an exact model of it and advancing its belief.
+class ModeledAgent:
+    """An agent of the world acting as an exact model of it, and advancing that model's belief.
 
     ``bank`` holds the exact policies (``reference.exact_agent``); ``model`` is
-    the wumpus's mental model in the modelling agent's prior.
+    the agent's mental model in the modelling agent's prior. A level-0 model acts
+    uniformly at random.
     """
 
     def __init__(self, bank, model):
         self.bank, self.model = bank, model
 
-    def act(self, rng):
-        policy = self.bank.policy(self.model)
-        actions = sorted(policy, key=str)
+    def act(self, rng, allowed=None):
+        """An action drawn from the model's policy, restricted to ``allowed`` when given."""
+        frame = self.model.frame
+        if frame.level == 0:
+            actions = frame.pomdp_model.get_all_actions(frame.agent_id)
+            policy = dict.fromkeys(actions, 1.0)
+        else:
+            policy = self.bank.policy(self.model)
+        actions = sorted((a for a in policy if allowed is None or a in allowed), key=str)
+        if not actions:
+            raise ValueError("The modeled agent has no allowed action with positive probability")
         return rng.choices(actions, weights=[policy[a] for a in actions])[0]
 
     def observe(self, action, observation):
-        self.model = self.bank.filter.advance(self.model, action, observation, terminal=False)
+        if self.model.frame.level:
+            self.model = self.bank.filter.advance(self.model, action, observation, terminal=False)
 
 
-def history(physics, steps, seed, script="fixed", wumpus=None):
+def history(physics, steps, seed, script="fixed", wumpus=None, human=None):
     """The human's first ``steps`` (action, observation) pairs.
 
     ``script`` "fixed" plays ``HISTORY``; "random" draws each action uniformly
-    from the human's actions, from a stream separate from the world's. The
-    wumpus acts uniformly at random, or as ``wumpus`` (a ``ModeledWumpus``).
+    from the human's actions, from a stream separate from the world's;
+    "modeled" draws it from ``human`` (a ``ModeledAgent``: the wumpus's own
+    model of the human), among the actions that do not end the episode. The
+    wumpus acts uniformly at random, or as ``wumpus`` (a ``ModeledAgent``).
+
+    "modeled" keeps every history possible under the exact I-POMDP at level 3
+    and above: there the modeled wumpus expects a near-deterministic human, and
+    a scripted human's actions can give it observations of zero probability.
     """
     rng = random.Random(f"wumpus/{seed}")
     state = rng.choices(*zip(*physics.initial_distribution()))[0]
@@ -102,11 +120,24 @@ def history(physics, steps, seed, script="fixed", wumpus=None):
     elif script == "random":
         choose = random.Random(f"wumpus/script/{seed}")
         actions = [choose.choice(physics.get_all_actions("i")) for _ in range(steps)]
+    elif script == "modeled":
+        if human is None:
+            raise ValueError("The modeled script needs the human's model")
+        actions = [None] * steps
     else:
         raise ValueError(f"Unknown script {script!r}")
     out = []
     for action in actions:
         other = rng.choice(physics.get_all_actions("j")) if wumpus is None else wumpus.act(rng)
+        if action is None:
+            safe = [
+                a
+                for a in physics.get_all_actions("i")
+                if not physics.is_terminal(
+                    physics.sample_transition(state, {"i": a, "j": other}, random.Random(0))
+                )
+            ]
+            action = human.act(rng, allowed=safe)
         joint = {"i": action, "j": other}
         following = physics.sample_transition(state, joint, rng)
         if physics.is_terminal(following):
@@ -114,9 +145,12 @@ def history(physics, steps, seed, script="fixed", wumpus=None):
             action = joint["i"] = "TurnLeft"
             following = physics.sample_transition(state, joint, rng)
         state = following
-        out.append((action, physics.sample_observation(state, joint, "i", rng)))
+        observation = physics.sample_observation(state, joint, "i", rng)
+        out.append((action, observation))
         if wumpus is not None:
             wumpus.observe(other, physics.sample_observation(state, joint, "j", rng))
+        if human is not None:
+            human.observe(action, observation)
     return out
 
 
@@ -172,8 +206,13 @@ def reference(seed, steps, horizon, script="fixed", board=BOARD, level=1):
         belief = planner.belief
     else:
         agent = build_exact_agent("i", "j", level, physics, nested_levels(level), horizon, GAMMA)
-        wumpus = ModeledWumpus(agent.solver_bank, agent.belief.mass[0][0].opponent)
-        steps_taken = history(physics, steps, seed, script, wumpus)
+        model = agent.belief.mass[0][0].opponent
+        wumpus = ModeledAgent(agent.solver_bank, model)
+        # The wumpus's own model of the human (one model at the common prior).
+        believed = ModeledAgent(agent.solver_bank, model.belief.mass[0][0].opponent)
+        steps_taken = history(
+            physics, steps, seed, script, wumpus, believed if script == "modeled" else None
+        )
         for action, observation in steps_taken:
             agent.update_root(action, observation)
         started = time.process_time()
@@ -268,7 +307,7 @@ def main():
     parser.add_argument("--search-particles", type=int, nargs="+", default=[64, 256, 1024, 4096])
     parser.add_argument("--simulations", type=int, nargs="+", default=[1000, 3000, 10000])
     parser.add_argument("--horizon", type=int, default=3)
-    parser.add_argument("--script", choices=("fixed", "random"), default="fixed")
+    parser.add_argument("--script", choices=("fixed", "random", "modeled"), default="fixed")
     parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args()
     board = tuple(args.board)

@@ -45,3 +45,13 @@ def test_zero_search_particles_searches_exact_beliefs():
     bank = planner.solver_bank
     assert bank.search_filter is bank.filter
     assert bank.search_model(planner.model()) == planner.model()
+
+
+def test_level_three_histories_from_the_modeled_human_have_positive_evidence():
+    from ipomdp.experiments.wumpus_qualification import evaluate, reference
+
+    board = (3, 3, 1)
+    q, _, _, _, taken = reference(0, 2, 1, "modeled", board, 3)
+    assert len(taken) == 2
+    row = evaluate(0, 2, 0, 10, 1, q, "modeled", board, 3, 5, taken)
+    assert "loss" in row or "failure" in row
