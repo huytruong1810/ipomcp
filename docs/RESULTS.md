@@ -2051,3 +2051,55 @@ The definition is in THEORY.md, "Tie convention".
 | L3 H2 | 28 s | 0.1 GB |
 
 - **Next:** qualify I-POMCP at Wumpus L2 (and L3 H2) against these exact references on the 3 × 3 board, over distinct beliefs, as was done on Tiger and UAV. This follows the redesign-before-scale rule: a smaller instance of the same domain, with references that cannot be argued with.
+
+### 12.57 Systematic compression aliased on structured uniform beliefs; stratified draws adopted (October 16, 2026)
+
+**Found** (3 × 3 Wumpus L2, 12.56's follow-up). In 12 of 60 problems, the planner lost 102.5 at N = 256 and N = 1,024, whatever the root or modeled budget, with its root scored exactly. The problem was the prior, where Q(Forward) came out −56.1 against an exact −174.1. The modeled wumpus's policies agreed with the exact ones at every belief checked. The compressed search belief did not: it held **zero** mass on "pit at (1, 0)", whose exact mass is 1/8.
+- **Cause:** systematic resampling (`belief.resampling`) takes evenly spaced points through the canonical order. On a uniform belief over 2,048 atoms, the points are every 2,048/N-th atom. A field that cycles in the canonical order with a commensurate period (here the pit cell) is then always drawn at the same phase.
+- **Survey** of worst physical-marginal error (`results/c13_compression_ab_20261016`, scratch survey):
+  - 3 × 3 prior: systematic 0.875 at N = 16–256 and 0.125 at N = 1,024, against stratified 0.25–0.018.
+  - 4 × 4 prior: systematic is *better* (0.0036 against stratified 0.009 at N = 1,024), because canonical order stratifies when nothing resonates.
+  - 4 × 4 seed 5 after 4 steps (12.53's compression miss): systematic 0.0225, stratified 0.0087.
+- **Change** (`resampling.stratified_draws`; `CompressedInteractiveFilter.compress`): one independent point per 1/N stratum, still in canonical order. Per-atom error is below 2/N, and compression stays a pure function of the belief.
+  - **Not changed:** the sampled IPF baseline (`ParticleInteractiveFilter`). It resamples its own N particles, so its support never far exceeds N and it cannot alias this way. Its published comparisons stand.
+
+**A/B** (paired, `ENDPOINTS.md` fixed before the runs; exact references shared by both arms):
+
+| Grid | Cell | Systematic wrong | Stratified wrong | Fixed / broken | Exact McNemar p |
+|---|---|---|---|---|---|
+| G1 Wumpus 3 × 3, L2 H2 (60) | N = 256 | 19 (max loss 949) | **6** | 18 / 5 | 0.011 |
+| G1 | N = 1,024 | 12 | **1** | 12 / 1 | 0.0034 |
+| G2 Wumpus 4 × 4, L1 H3 (60; 12.53) | N = 1,024, 3,000 sims | 2 | 2 | 2 / 2 | 1 |
+| G2 | N = 4,096, 3,000 sims | 0 | 1 | 0 / 1 | 1 |
+| G2 | N = 4,096, 10,000 sims | 0 | 0 | 0 / 0 | 1 |
+| G3 Tiger L2 H3, N = 64, history 2 (380) | — | 5 | 6 | 2 / 3 | 1 |
+| G3, history 4 (380) | — | 0 | 0 | 0 / 0 | 1 |
+
+- **Adopted** by the pre-registered rule: no cell is worse by more than 2 decisions, none is significant against stratified, and it fixes the aliasing grid (31 of 34 discordant pairs on G1).
+- **Consequence for 12.53:**
+  - Under stratified draws, N = 4,096 with 3,000 simulations is 59/60. The miss has an uncertified root (width 21.7, loss 6.97, a search error), and the same problem is optimal at 10,000 simulations.
+  - **The 4 × 4 L1 qualified configuration is now N = 4,096 with 10,000 simulations** (60/60), at a median of about 52 CPU-s.
+  - 12.53's compression miss (seed 5 after 4 steps, at N = 1,024) is fixed by stratified draws.
+- **Remaining 3 × 3 errors under stratified draws at N = 1,024** are in nested solves. The one miss (loss 949, seed 11 after 4 steps) has a root support of 35 atoms, scored exactly; its error is the modeled wumpus's compressed nested search. 12.58 removes compression on this board.
+
+### 12.58 Wumpus 3 × 3 qualified at L2 H2 and L3 H2 against the exact I-POMDP (October 16, 2026)
+
+**Design** (`results/c13_compression_ab_20261016/g1x_exact`, `results/c14_wumpus3_qualification_20261016`; `ENDPOINTS.md` fixed before the runs, amendments recorded before each rerun).
+- **Setup:** board 3 × 3 with 1 pit (2,048 prior states). Search uses exact beliefs at every level (`--search-particles 0`), so no compressor is involved. The reference is the exact I-POMDP after the history.
+- **Problems:** seeds 0–19 × history steps {0, 2, 4}.
+- **Histories at L2:** human actions are random, and the wumpus acts as its exact model.
+- **Histories at L3** (`--script modeled`): the human acts as the wumpus's exact model of it, among actions that do not end the episode.
+- **The level-0 weight at L3:** both the planner and the reference give 0.1 to level 0 at each level ≥ 2 (`--l0 0.1`). The reasons are in the next list.
+
+| Level, horizon | Problems (distinct beliefs) | Optimal [95%] | ε-correct | Median CPU per decision |
+|---|---|---|---|---|
+| L2 H2, root 1,000, modeled 400 | 60 (31) | **60/60** [0.940, 1] | 60/60 | 116 s |
+| L2 H2, root 1,000, modeled 1,600 | 60 (31) | 60/60 [0.940, 1] | 60/60 | 120 s |
+| L3 H2, root 1,000, modeled 400, l0 0.1 | 55 (23); 5 ended before a decision | **55/55** [0.935, 1] | 55/55 | 104 s |
+
+- **Every root was scored exactly**, and no planner update failed.
+- **Why L3 needs these choices** (each found in a failed run, and kept in `l3h2_*_failed/`):
+  1. With scripted human actions, the level-2 wumpus models a near-deterministic level-1 human, and its own observations had zero evidence.
+  2. Some modeled humans' only likely action ends the episode. Such problems are recorded as ended and skipped.
+  3. With point-mass levels, the exact reference's own lookahead was undefined. A counterfactual human action that the wumpus model gives zero probability, with deterministic percepts, leaves its nested update with zero evidence. Any level-0 weight defines it.
+- **L2 H3** (root 1,000, modeled 400, 4 workers) is running. Its exact references cost 8–13 CPU-min each.

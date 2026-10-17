@@ -105,14 +105,15 @@ def wumpus_prior(physics):
     return tuple((InteractiveState(s, l0), p) for s, p in physics.initial_distribution())
 
 
-def test_compression_errs_by_less_than_one_over_n_per_atom():
+def test_compression_errs_by_less_than_two_over_n_per_atom():
     physics = WumpusModel(3, 3, 1)  # 2,048 states, more than N
     rows = wumpus_prior(physics)
     compressed = CompressedInteractiveFilter(greedy_one_step, particles=100, seed=0)
     belief = compressed.initial_belief(rows)
     assert len(belief.mass) <= 100
     mass = dict(belief.mass)
-    assert max(abs(mass.get(atom, 0.0) - p) for atom, p in rows) < 1 / 100
+    # Stratified draws: one point per 1/N stratum, so an atom's count is within 2 of N w.
+    assert max(abs(mass.get(atom, 0.0) - p) for atom, p in rows) < 2 / 100
 
 
 def test_compressed_update_is_the_exact_update_of_its_compressed_prior():
@@ -126,11 +127,11 @@ def test_compressed_update_is_the_exact_update_of_its_compressed_prior():
     posterior = compressed.update(model, action, observation)
     reference = exact.update(model, action, observation)
     # Evidence is exact under the compressed prior; the posterior (three wumpus
-    # moves per atom) exceeds N and is compressed with per-atom error below 1/N.
+    # moves per atom) exceeds N and is compressed with per-atom error below 2/N.
     assert posterior.evidence == pytest.approx(reference.evidence)
     assert len(reference.belief.mass) > 100 >= len(posterior.belief.mass)
     mass = dict(posterior.belief.mass)
-    assert max(abs(mass.get(atom, 0.0) - p) for atom, p in reference.belief.mass) < 1 / 100
+    assert max(abs(mass.get(atom, 0.0) - p) for atom, p in reference.belief.mass) < 2 / 100
 
 
 def test_filters_are_chosen_by_name_and_validated():
@@ -159,3 +160,13 @@ def test_search_beliefs_are_bounded_while_real_beliefs_stay_exact():
     assert (
         plain.search_filter is plain.filter and plain.search_model(exact.model()) == exact.model()
     )
+
+
+def test_compression_does_not_alias_structured_uniform_beliefs():
+    # Systematic draws at N = 256 over the 3 x 3 prior's canonical order dropped
+    # every world with a pit at (1, 0) (RESULTS.md 12.57); its mass is 1/8.
+    physics = WumpusModel(3, 3, 1)
+    compressed = CompressedInteractiveFilter(greedy_one_step, particles=256, seed=0)
+    belief = compressed.initial_belief(wumpus_prior(physics))
+    pit = sum(p for atom, p in belief.mass if (1, 0) in atom.state.pit_locations)
+    assert abs(pit - 1 / 8) < 0.05

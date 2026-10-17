@@ -22,11 +22,12 @@ Given a belief with at most N atoms:
 1. enumerate the exact I-POMDP update of that belief (``FiniteInteractiveFilter``:
    every opponent action, successor state and private opponent observation, with
    nested opponents updated by this same filter, recursively);
-2. if the posterior has more than N distinct atoms, replace it by N systematic
-   draws (``belief.resampling``), with identical draws merged.
+2. if the posterior has more than N distinct atoms, replace it by N stratified
+   draws in canonical order (``belief.resampling``; systematic draws aliased
+   on structured uniform beliefs, docs/RESULTS.md 12.57), with identical draws merged.
 
 Small beliefs therefore stay exact, and the only approximation is step 2,
-whose per-atom mass error is below 1/N. ``evidence`` is the exact
+whose per-atom mass error is below 2/N. ``evidence`` is the exact
 P(o_i | compressed prior, a_i). Initial beliefs are the exact prior rows,
 compressed the same way.
 
@@ -49,7 +50,7 @@ import random
 from ipomdp.belief import canonical
 from ipomdp.belief.finite_belief import FiniteBelief
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, Posterior
-from ipomdp.belief.resampling import systematic_draws
+from ipomdp.belief.resampling import stratified_draws
 
 
 class CompressedInteractiveFilter(FiniteInteractiveFilter):
@@ -77,10 +78,10 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
         return Posterior(self.compress(posterior.belief, "update"), posterior.evidence)
 
     def compress(self, belief, label="search"):
-        """``belief`` itself if it has at most N atoms, else N systematic draws (merged)."""
+        """``belief`` itself if it has at most N atoms, else N stratified draws (merged)."""
         if len(belief.mass) <= self.particles:
             return belief
         ordered, belief_digest = canonical.canonical_mass_and_digest(belief)
         rng = random.Random(canonical.digest([self.seed, label, belief_digest]))
-        draws = systematic_draws(ordered, self.particles, rng)
+        draws = stratified_draws(ordered, self.particles, rng)
         return FiniteBelief(tuple((atom, 1.0) for atom in draws))
