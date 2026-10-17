@@ -2131,3 +2131,42 @@ The definition is in THEORY.md, "Tie convention".
 - **With exact beliefs, RTS's search is still wrong on 53–67% of problems,** at about the same CPU as I-POMCP. Its errors include a 949 loss, a walk into death. Raising K from 2 to 8 helps only slowly (20 → 28 of 60).
 - **The one exact-belief failure** (K = 4, seed 9 after 4 steps) is the planner's own update. RTS's modeled wumpus gives zero probability to the move the history's exact wumpus made, so the human's observation has zero evidence: opponent-model error made visible.
 - **No pair favours RTS** in any arm.
+
+### 12.60 Wumpus 3 × 3 level matrix: a second level pays the human against an intentional wumpus only (October 17, 2026)
+
+**Design** (`results/c15_wumpus3_episodes_20261017`, `ENDPOINTS.md` fixed before any run; PLAN, October 17).
+- **Agents:** a human i and a wumpus j at levels 0–2. Each holds a uniform prior over the opponent's lower levels at every nesting, and every model of the opponent matches the real opponent's configuration.
+- **Planning:** exact real and search beliefs, horizon 2, I-POMCP with 400 simulations at the root and in every modeled solve, at most 20 steps.
+- **Trials:** 100 per cell, paired by trial; 900 episodes in about 45 CPU-h.
+- **Gate:** this exact agent configuration is 60/60 optimal against the exact I-POMDP at L2 H2 (12.58), and every root in the gate was scored exactly.
+- **Payoffs:** the human gets +1,000 for gold and −1,000 for dying; the wumpus gets +1,000 for a kill and −1,000 when shot.
+
+| Cell | Human's return [95%] | Wumpus's return [95%] | Gold | Killed by wumpus | Pit | Wumpus shot |
+|---|---|---|---|---|---|---|
+| i0 j0 | −336 [−469, −203] | 107 [−22, 229] | 0.14 | 0.27 | 0.17 | 0.15 |
+| i0 j1 | −793 [−892, −681] | 542 [401, 682] | 0.06 | 0.69 | 0.14 | 0.14 |
+| i0 j2 | −784 [−883, −673] | 522 [380, 662] | 0.06 | 0.67 | 0.15 | 0.14 |
+| i1 j0 | 136 [7, 266] | −185 [−314, −55] | 0.30 | 0.14 | 0.00 | 0.31 |
+| i1 j1 | −389 [−539, −229] | 251 [70, 422] | 0.20 | 0.57 | 0.00 | 0.31 |
+| i1 j2 | −438 [−588, −288] | 281 [101, 461] | 0.18 | 0.60 | 0.00 | 0.31 |
+| i2 j0 | 67 [−65, 197] | −144 [−277, −14] | 0.28 | 0.18 | 0.01 | 0.31 |
+| i2 j1 | −209 [−378, −40] | 90 [−80, 251] | 0.28 | 0.41 | 0.06 | 0.31 |
+| i2 j2 | −259 [−418, −97] | 120 [−50, 291] | 0.25 | 0.44 | 0.05 | 0.31 |
+
+**Paired gains of one level step** (same opponent, by trial; sign-flip permutation tests, Holm over the 12):
+
+| Step | vs opponent L0 | vs opponent L1 | vs opponent L2 |
+|---|---|---|---|
+| Human L0 → L1 | +473 [306, 638], Holm < 10⁻⁴ | +404 [236, 574], Holm < 10⁻⁴ | +346 [186, 507], Holm < 10⁻⁴ |
+| **Human L1 → L2** | −70 [−160, 20], Holm 0.47 | **+179 [49, 319], Holm 0.087** | **+179 [70, 299], Holm 0.015** |
+| Wumpus L0 → L1 | +435 [284, 585], Holm < 10⁻⁴ | +435 [334, 537], Holm < 10⁻⁴ | +234 [124, 335], Holm 0.0003 |
+| Wumpus L1 → L2 | −20 [−60, 20], Holm 0.47 | +31 [−10, 80], Holm 0.33 | +30 [−30, 100], Holm 0.47 |
+
+- **The first level is worth about 350–470 to either agent.** A level-0 human dies in 82–83% of episodes against an intentional wumpus.
+- **A second level pays the human only when the wumpus has a mind to model.**
+  - Against a level-1 or level-2 wumpus, a level-2 human gains about 179. It is killed by the wumpus in 41–44% of episodes, against 57–60% at level 1, and reaches the gold more often (0.25–0.28 against 0.18–0.20), at a small pit cost (0.05–0.06 against 0).
+  - Against a random wumpus, the second level gains nothing (−70, not significant). This is the control: there is no mind to predict.
+  - This matches Tiger's coordination game (12.37) and UAV (12.49).
+- **A second level does not pay the wumpus** (+30, not significant). The wumpus's lever is pursuit, which a level-1 model of a level-0 human already captures at horizon 2.
+- **Every human of level ≥ 1 opens with Shoot** (100 of 100), killing the wumpus in 31% of episodes whatever its level.
+- **Confirmation on fresh trials 100–199** (the six human L1/L2 cells; primary test fixed before its run in `ENDPOINTS.md`, step 3) is running.
