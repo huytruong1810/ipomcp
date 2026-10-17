@@ -2108,3 +2108,26 @@ The definition is in THEORY.md, "Tie convention".
 - **The episode agents' configuration** (`results/c15_wumpus3_episodes_20261017/qual`):
   - **Setup:** L2 H2 with a uniform prior over the opponent's lower levels (`--l0 0.5`, as `suite.hierarchy_agent` builds every agent), root 400, modeled 400, exact search. It was scored against fresh exact references (median 89 s).
   - **60/60 optimal** [0.940, 1] over 31 distinct beliefs, every root scored exactly, at a median of 112 CPU-s. This is the gate for the episode study (PLAN, October 17).
+
+### 12.59 Wumpus 3 × 3 L2 H2 decisions: I-POMCP 60/60, IPF + RTS 2–47% (October 17, 2026)
+
+**Design** (`results/c16_wumpus3_rts_20261017`, `ENDPOINTS.md` fixed before the runs).
+- **Problems:** the 60 problems of 12.58 (31 distinct beliefs), with their exact I-POMDP references.
+- **I-POMCP:** 12.58's qualified cell (exact search, root 1,000, modeled 400).
+- **IPF + RTS** (`--planner rts`, every level RTS): K = 2, 4 or 8 sampled observations per node, on two kinds of belief: the published sampled IPF at 64 particles, or exact beliefs, which isolates RTS's search.
+- **Tests:** exact McNemar tests, paired by problem, with Holm correction over the 6 arms.
+
+| Planner | Optimal [95%] | Failures | Max loss | Median CPU per decision | Pairs only I-POMCP / only RTS got right | Holm p |
+|---|---|---|---|---|---|---|
+| **I-POMCP** | **60/60** [0.940, 1] | 0 | 0 | 118 s | — | — |
+| IPF 64 + RTS, K = 2 | 2/60 [0.004, 0.115] | 55 | 52 | 0.1 s | 58 / 0 | 3.5 × 10⁻¹⁷ |
+| IPF 64 + RTS, K = 4 | 1/60 [0.000, 0.089] | 56 | 52 | 0.2 s | 59 / 0 | 2.1 × 10⁻¹⁷ |
+| IPF 64 + RTS, K = 8 | 2/60 [0.004, 0.115] | 57 | 24 | 0.2 s | 58 / 0 | 3.5 × 10⁻¹⁷ |
+| Exact beliefs + RTS, K = 2 | 20/60 [0.217, 0.467] | 0 | 949 | 113 s | 40 / 0 | 5.5 × 10⁻¹² |
+| Exact beliefs + RTS, K = 4 | 23/60 [0.261, 0.518] | 1 | 173 | 104 s | 37 / 0 | 2.9 × 10⁻¹¹ |
+| Exact beliefs + RTS, K = 8 | 28/60 [0.337, 0.600] | 0 | 173 | 90 s | 32 / 0 | 4.7 × 10⁻¹⁰ |
+
+- **The sampled IPF fails on Wumpus**, as on UAV (12.44–12.45). In 55–57 of 60 problems a modeled wumpus's sampled belief cannot explain its own sampled percept (Breeze, Glitter or Footstep after Forward), because deterministic percepts leave no particle with positive likelihood. This is the published method as specified, not a tuning choice.
+- **With exact beliefs, RTS's search is still wrong on 53–67% of problems,** at about the same CPU as I-POMCP. Its errors include a 949 loss, a walk into death. Raising K from 2 to 8 helps only slowly (20 → 28 of 60).
+- **The one exact-belief failure** (K = 4, seed 9 after 4 steps) is the planner's own update. RTS's modeled wumpus gives zero probability to the move the history's exact wumpus made, so the human's observation has zero evidence: opponent-model error made visible.
+- **No pair favours RTS** in any arm.
