@@ -38,3 +38,10 @@ def test_level_two_problems_replay_the_exact_wumpus_history_to_the_planner():
     row = evaluate(1, 2, 64, 50, 1, q, "random", board, 2, 20, taken)
     assert row["level"] == 2 and row["board"] == [3, 3, 1]
     assert "loss" in row or "failure" in row
+
+
+def test_zero_search_particles_searches_exact_beliefs():
+    planner = human(WumpusModel(3, 3, 1), 0, 10, 1, 0, level=2, modeled=10)
+    bank = planner.solver_bank
+    assert bank.search_filter is bank.filter
+    assert bank.search_model(planner.model()) == planner.model()

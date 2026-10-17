@@ -36,7 +36,7 @@ JSON line per (problem, cell); restarts skip finished rows.
 
 Usage:
     python -m ipomdp.experiments.wumpus_qualification --output DIR \\
-        [--board 4 4 2] [--level 1] [--modeled 0] \\
+        [--board 4 4 2] [--level 1] [--modeled 0] [--search-particles ... (0: exact)] \\
         [--seeds 3] [--steps 0 2 4] [--search-particles 64 256 1024 4096] \\
         [--simulations 1000 3000 10000] [--horizon 3] [--script fixed|random] [--workers 6]
 """
@@ -123,8 +123,9 @@ def history(physics, steps, seed, script="fixed", wumpus=None):
 def human(physics, seed, simulations, horizon, search_particles, level=1, modeled=0):
     """The level-``level`` human with exact real beliefs and searches on ``search_particles`` atoms.
 
-    Every modeled intentional level runs I-POMCP with ``modeled`` simulations
-    (0: the human's own budget).
+    ``search_particles`` 0 or None searches exact beliefs at every level (no
+    compression; feasible on small boards). Every modeled intentional level
+    runs I-POMCP with ``modeled`` simulations (0: the human's own budget).
     """
     modeled = modeled or simulations
     config = PlannerConfig(
@@ -135,7 +136,9 @@ def human(physics, seed, simulations, horizon, search_particles, level=1, modele
     )
     # The exact real filter needs more than the default branch guard when the
     # human moves at the 94,500-atom prior (x 3 wumpus actions).
-    bank = SolverBank(seed, search_particles=search_particles, max_branches=REFERENCE_BRANCHES)
+    bank = SolverBank(
+        seed, search_particles=search_particles or None, max_branches=REFERENCE_BRANCHES
+    )
     nested = nested_levels(level)
     return HierarchyBuilder(bank).build(
         "i",
