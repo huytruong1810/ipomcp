@@ -2102,4 +2102,9 @@ The definition is in THEORY.md, "Tie convention".
   1. With scripted human actions, the level-2 wumpus models a near-deterministic level-1 human, and its own observations had zero evidence.
   2. Some modeled humans' only likely action ends the episode. Such problems are recorded as ended and skipped.
   3. With point-mass levels, the exact reference's own lookahead was undefined. A counterfactual human action that the wumpus model gives zero probability, with deterministic percepts, leaves its nested update with zero evidence. Any level-0 weight defines it.
-- **L2 H3** (root 1,000, modeled 400, 4 workers) is running. Its exact references cost 8–13 CPU-min each.
+- **L2 H3** (root 1,000, modeled 400; **interim, n = 13**): 13/13 optimal [0.753, 1] over the problems of seeds 0–4. Only 4 of 13 roots were scored exactly, since exact scoring covers the last two steps (12.14).
+  - **Cost:** a decision costs 334–2,176 CPU-s (median 506), and is most expensive after histories with supports near 1,000 atoms. The 60 exact references cost 9.1 CPU-h (median 486 s).
+  - **Stopped by its kill criterion** (a decision over 30 CPU-min; in-flight decisions reached 38–52). The full 60 would cost about 12 more CPU-h.
+- **The episode agents' configuration** (`results/c15_wumpus3_episodes_20261017/qual`):
+  - **Setup:** L2 H2 with a uniform prior over the opponent's lower levels (`--l0 0.5`, as `suite.hierarchy_agent` builds every agent), root 400, modeled 400, exact search. It was scored against fresh exact references (median 89 s).
+  - **60/60 optimal** [0.940, 1] over 31 distinct beliefs, every root scored exactly, at a median of 112 CPU-s. This is the gate for the episode study (PLAN, October 17).
