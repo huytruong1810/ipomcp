@@ -66,9 +66,19 @@ GAMMA = 0.95
 BOARD = (4, 4, 2)
 
 
-def nested_levels(level):
-    """Each intentional level models the other agent one level below: {k: {k - 1: 1}}."""
-    return {k: {k - 1: 1.0} for k in range(1, level + 1)}
+def nested_levels(level, l0=0.0):
+    """Each intentional level models the other agent one level below, with weight ``l0`` on level 0.
+
+    {1: {0: 1}}, and {k: {k - 1: 1 - l0, 0: l0}} for k >= 2. A level-0 share gives
+    every action of the modeled agent positive probability. With deterministic
+    percepts a near-deterministic modeled policy otherwise leaves some of the
+    modelling agent's counterfactual actions with zero-evidence nested updates,
+    and the exact I-POMDP is undefined there (Wumpus L3; docs/RESULTS.md 12.58).
+    """
+    levels = {1: {0: 1.0}}
+    for k in range(2, level + 1):
+        levels[k] = {k - 1: 1.0 - l0, 0: l0} if l0 else {k - 1: 1.0}
+    return levels
 
 
 class HistoryEnded(ValueError):
@@ -158,7 +168,7 @@ def history(physics, steps, seed, script="fixed", wumpus=None, human=None):
     return out
 
 
-def human(physics, seed, simulations, horizon, search_particles, level=1, modeled=0):
+def human(physics, seed, simulations, horizon, search_particles, level=1, modeled=0, l0=0.0):
     """The level-``level`` human with exact real beliefs and searches on ``search_particles`` atoms.
 
     ``search_particles`` 0 or None searches exact beliefs at every level (no
@@ -177,7 +187,7 @@ def human(physics, seed, simulations, horizon, search_particles, level=1, modele
     bank = SolverBank(
         seed, search_particles=search_particles or None, max_branches=REFERENCE_BRANCHES
     )
-    nested = nested_levels(level)
+    nested = nested_levels(level, l0)
     return HierarchyBuilder(bank).build(
         "i",
         level,
@@ -190,7 +200,7 @@ def human(physics, seed, simulations, horizon, search_particles, level=1, modele
     )
 
 
-def reference(seed, steps, horizon, script="fixed", board=BOARD, level=1):
+def reference(seed, steps, horizon, script="fixed", board=BOARD, level=1, l0=0.0):
     """Exact Q of the problem, the history it conditions on, and the belief's size and digest.
 
     Level 1: the H-step best response at the exact belief. Above level 1: the
@@ -209,11 +219,13 @@ def reference(seed, steps, horizon, script="fixed", board=BOARD, level=1):
         q = exact.q_values(planner.model(), horizon)
         belief = planner.belief
     else:
-        agent = build_exact_agent("i", "j", level, physics, nested_levels(level), horizon, GAMMA)
-        model = agent.belief.mass[0][0].opponent
+        agent = build_exact_agent(
+            "i", "j", level, physics, nested_levels(level, l0), horizon, GAMMA
+        )
+        model = _model_at(agent.belief, level - 1)
         wumpus = ModeledAgent(agent.solver_bank, model)
         # The wumpus's own model of the human (one model at the common prior).
-        believed = ModeledAgent(agent.solver_bank, model.belief.mass[0][0].opponent)
+        believed = ModeledAgent(agent.solver_bank, _model_at(model.belief, level - 2))
         steps_taken = history(
             physics, steps, seed, script, wumpus, believed if script == "modeled" else None
         )
@@ -231,6 +243,12 @@ def reference(seed, steps, horizon, script="fixed", board=BOARD, level=1):
     )
 
 
+def _model_at(belief, level):
+    """The (single) opponent model of ``level`` in a prior belief."""
+    (model,) = {atom.opponent for atom, _ in belief.mass if atom.opponent.frame.level == level}
+    return model
+
+
 def evaluate(
     seed,
     steps,
@@ -243,6 +261,7 @@ def evaluate(
     level=1,
     modeled=0,
     steps_taken=None,
+    l0=0.0,
 ):
     """One decision after the problem's history, scored against ``oracle`` (the exact Q).
 
@@ -250,7 +269,7 @@ def evaluate(
     depends on the exact wumpus); at level 1 it is regenerated when omitted.
     """
     physics = WumpusModel(*board)
-    planner = human(physics, seed, simulations, horizon, search_particles, level, modeled)
+    planner = human(physics, seed, simulations, horizon, search_particles, level, modeled, l0)
     if steps_taken is None:
         steps_taken = history(physics, steps, seed, script)
     row = dict(
@@ -263,6 +282,8 @@ def evaluate(
     )
     if (board, level, modeled) != (BOARD, 1, 0):
         row |= dict(board=list(board), level=level, modeled=modeled)
+    if l0:
+        row["l0"] = l0
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -309,6 +330,7 @@ def main():
     parser.add_argument("--board", type=int, nargs=3, default=list(BOARD))
     parser.add_argument("--level", type=int, default=1)
     parser.add_argument("--modeled", type=int, nargs="+", default=[0])
+    parser.add_argument("--l0", type=float, default=0.0, help="level-0 weight at every level >= 2")
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--steps", type=int, nargs="+", default=[0, 2, 4])
     parser.add_argument("--search-particles", type=int, nargs="+", default=[64, 256, 1024, 4096])
@@ -346,7 +368,7 @@ def main():
             )
     with ProcessPoolExecutor(args.workers, max_tasks_per_child=1) as pool:
         todo = [
-            (s, k, args.horizon, args.script, board, args.level)
+            (s, k, args.horizon, args.script, board, args.level, args.l0)
             for s, k in problems
             if (s, k) not in known and (s, k) not in ended
         ]
@@ -362,6 +384,8 @@ def main():
                 row |= dict(digest=digest, script=args.script, history=steps_taken)
                 if (board, args.level) != (BOARD, 1):
                     row |= dict(board=list(board), level=args.level)
+                if args.l0:
+                    row["l0"] = args.l0
                 log.write(json.dumps(row) + "\n")
                 log.flush()
         cells = [
@@ -377,6 +401,7 @@ def main():
                 args.level,
                 d,
                 taken.get((s, k)),
+                args.l0,
             )
             for (s, k), n, m, d in itertools.product(
                 problems, args.search_particles, args.simulations, args.modeled

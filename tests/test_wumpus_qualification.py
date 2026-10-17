@@ -51,10 +51,17 @@ def test_level_three_histories_from_the_modeled_human_have_positive_evidence():
     from ipomdp.experiments.wumpus_qualification import evaluate, reference
 
     board = (3, 3, 1)
-    q, _, _, _, taken = reference(0, 2, 1, "modeled", board, 3)
+    q, _, _, _, taken = reference(0, 2, 1, "modeled", board, 3, l0=0.1)
     assert len(taken) == 2
-    row = evaluate(0, 2, 0, 10, 1, q, "modeled", board, 3, 5, taken)
-    assert "loss" in row or "failure" in row
+    row = evaluate(0, 2, 0, 10, 1, q, "modeled", board, 3, 5, taken, l0=0.1)
+    assert row["l0"] == 0.1 and ("loss" in row or "failure" in row)
+
+
+def test_level_zero_weight_mixes_every_level_above_one():
+    from ipomdp.experiments.wumpus_qualification import nested_levels
+
+    assert nested_levels(2) == {1: {0: 1.0}, 2: {1: 1.0}}
+    assert nested_levels(3, 0.1) == {1: {0: 1.0}, 2: {1: 0.9, 0: 0.1}, 3: {2: 0.9, 0: 0.1}}
 
 
 def test_a_modeled_human_with_only_ending_actions_ends_the_history():
