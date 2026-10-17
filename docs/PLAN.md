@@ -1,3 +1,18 @@
+# Plan: Wumpus 3 × 3, value of depth in an adversarial domain (October 17, 2026)
+
+**Chosen by Claude** (the user delegated the direction on October 17 while away). Reasoning:
+- Wumpus 3 × 3 is now qualified against the exact I-POMDP at L2 H2 (60/60), L3 H2 (55/55) and, pending, L2 H3 (12.58).
+- Contribution 3 (the value of modeling) rests on two domains so far:
+  - Tiger, where depth pays only with joint payoffs (12.37);
+  - UAV, where a second level pays (12.49).
+- Wumpus is the first adversarial pair: the wumpus hunts the human. Do deeper humans survive more and find more gold, and does a deeper wumpus kill more?
+- The step after this (12.59 or later) is I-POMCP against IPF + RTS on the same board (contribution 2), if the matrix shows depth matters.
+
+**Design:** `results/c15_wumpus3_episodes_20261017/ENDPOINTS.md` (fixed before any run).
+1. Pilot: 9 cells × 2 trials, for cost.
+2. Qualification of the episode agents' own configuration: uniform level priors, 400 simulations.
+3. The matrix at an n sized to stay under 100 CPU-h.
+
 # Plan: the UAV reconnaissance domain of Doshi & Gmytrasiewicz (2009) (October 12, 2026)
 
 ## Status (October 16, 2026)
