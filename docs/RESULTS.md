@@ -2169,4 +2169,13 @@ The definition is in THEORY.md, "Tie convention".
   - This matches Tiger's coordination game (12.37) and UAV (12.49).
 - **A second level does not pay the wumpus** (+30, not significant). The wumpus's lever is pursuit, which a level-1 model of a level-0 human already captures at horizon 2.
 - **Every human of level ≥ 1 opens with Shoot** (100 of 100), killing the wumpus in 31% of episodes whatever its level.
-- **Confirmation on fresh trials 100–199** (the six human L1/L2 cells; primary test fixed before its run in `ENDPOINTS.md`, step 3) is running.
+- **Confirmed on fresh trials 100–199** (the six human L1/L2 cells, with new environment and planner streams; `confirm/`, `confirm_analyze.py`). The primary test was fixed before the run (`ENDPOINTS.md`, step 3) and is analysed on these trials alone.
+
+  | Test | Human L1 → L2 gain [95%] | p |
+  |---|---|---|
+  | **Primary:** against an intentional wumpus (j1 + j2 pooled, 200 pairs) | **+169 [84, 259]** | **0.0004** |
+  | Secondary: against wumpus L2 | +209 [88, 348] | Holm 0.004 |
+  | Secondary: against wumpus L1 | +129 [9, 259] | Holm 0.067 |
+  | Control: against wumpus L0 | +20 [−70, 110] | 0.76 |
+
+  - **The mechanism replicates:** the L2 human is killed by the wumpus in 48% of episodes against 64–67% at L1, and reaches the gold in 19–20% against 12–15%.

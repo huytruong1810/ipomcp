@@ -12,7 +12,11 @@ Last updated October 17, 2026, 06:30. The user was away October 17, about 00:30�
 - level matrix at n = 100: a second level pays the human only against an intentional wumpus (12.60);
 - the compressed filter now uses stratified draws (12.57).
 
-**Running:** the confirmation of 12.60 on fresh trials 100–199, in `results/c15_wumpus3_episodes_20261017/confirm`, driver PID in `pilot.pid`, guard `guard.sh`. Analyse it with `confirm_analyze.py confirm`, using the primary test fixed in `ENDPOINTS.md` step 3, and add the result to 12.60, the Claude Doc and PLAN. Earlier October 16 work: 12.54–12.56 (0.0a done).
+**Confirmed (12.60):** on fresh trials, the human's L1 → L2 gain against an intentional wumpus is +169 [84, 259], p = 0.0004, and the control against a random wumpus is +20, not significant.
+
+**Running:** step 4, a third level for the human (i3 against j0, j1 and j2, trials 0–99), in `results/c15_wumpus3_episodes_20261017/level3`, driver PID in `level3.pid`. Its gate is in `results/c17_wumpus3_level3_gate_20261017/gate`; the guard is `guard_level3b.sh`.
+- Analyse step 4 with `level3_analyze.py` only if the gate is exactly optimal on every scored problem (`ENDPOINTS.md`, step 4).
+- Both runs were stopped once by the memory guard (09:33) and resumed with fewer workers. Earlier October 16 work: 12.54–12.56 (0.0a done).
 
 ## 0. Start here (fresh agent)
 
