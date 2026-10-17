@@ -637,6 +637,7 @@ The Tiger report for reviewers is a Claude Docs document, rewritten October 2 ar
 - **Updated October 11:** an "Update, October 11" paragraph closing the root-vs-modeled-budget section (12.33–12.35: root simulations are nearly free; root 4,000 for gates; episodes keep 1,000).
 - **Updated October 16:** an "Update, October 16: certification standard" paragraph after the "Update, October 6" (residual) paragraph (12.54).
 - **Updated October 16, afternoon:** a "Wumpus level 2" paragraph after "Wumpus, October 15" (12.55).
+- **Updated October 17:** "Wumpus on a 3 × 3 board" (12.58) and "A compression bug, found and fixed" (12.57) paragraphs after "Wumpus level 2".
 - **Updated October 15, evening:** an "Update, October 15 (evening)" paragraph after the cost update (12.52), and "Tie-breaking" (12.51) and "Wumpus" (12.53) paragraphs after the UAV section's data line.
 - **Updated October 3:** a "Level 3 vs the exact I-POMDP" section (12.7), the adaptive-modeled-budget bullet in the allocation section (12.8), the lead's level-3 sentence; the level-3 row was removed from "Not yet measured".
 
