@@ -1,67 +1,119 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.42);
-- [THEORY.md](THEORY.md): what is computed exactly, what is estimated, and the three meanings of "exact";
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.60);
+- [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 certification standard;
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
-- [PLAN.md](PLAN.md): the phases, newest on top.
+- [PLAN.md](PLAN.md): the phases, newest on top (the top one is "Wumpus 3 × 3").
 
-Last updated October 17, 2026, 06:30. The user was away October 17, about 00:30–12:30, and delegated the research direction. **Wumpus 3 × 3 is the current phase** (PLAN, top):
-- qualified at L2 H2 (60/60) and L3 H2 (55/55), and L2 H3 interim at 13/13 (12.58);
-- I-POMCP 60/60 against IPF + RTS at 1–28/60 (12.59);
-- level matrix at n = 100: a second level pays the human only against an intentional wumpus (12.60);
-- the compressed filter now uses stratified draws (12.57).
-
-**Confirmed (12.60):** on fresh trials, the human's L1 → L2 gain against an intentional wumpus is +169 [84, 259], p = 0.0004, and the control against a random wumpus is +20, not significant.
-
-**Running:** step 4, a third level for the human (i3 against j0, j1 and j2, trials 0–99), in `results/c15_wumpus3_episodes_20261017/level3`, driver PID in `level3.pid`. Its gate is in `results/c17_wumpus3_level3_gate_20261017/gate`; the guard is `guard_level3b.sh`.
-- Analyse step 4 with `level3_analyze.py` only if the gate is exactly optimal on every scored problem (`ENDPOINTS.md`, step 4).
-- Both runs were stopped once by the memory guard (09:33) and resumed with fewer workers. Earlier October 16 work: 12.54–12.56 (0.0a done).
+Last updated October 17, 2026, 13:00. Claude is the sole owner of `main`; there are no other agents.
+- **Tiger is complete** (RESULTS 12.1–12.40, 12.47–12.48).
+- **UAV is complete** (12.41–12.50).
+- **Wumpus 3 × 3 is the current phase** (12.57–12.60).
+- One run is in progress (0.0a, item 1).
 
 ## 0. Start here (fresh agent)
 
-### 0.0a Next session (user, October 15: "let's do these in next session")
+### 0.0a Next session (written October 17 at the user's request)
 
-Do these first, in this order. Items 1–2 are checks or user actions; items 3–6 are research, in the order Claude recommends.
+**1. First: finish the running job (step 4 of `results/c15_wumpus3_episodes_20261017/ENDPOINTS.md`).** It tests a third level for the human: i3 against j0, j1 and j2, trials 0–99, paired by trial with the matrix's i2 cells.
+- **Where:** `results/c15_wumpus3_episodes_20261017/level3/`, driver PID in `level3.pid` (10 workers), guard `guard_level3b.sh`. On October 17 at 13:00 it stood at 94 of 300 episodes, about 0.6 per minute. If it is no longer running, resume with `env PYTHONPATH=<run>/src .venv/bin/python <run>/level3.py <run>/level3 10` from the run folder; it skips finished trials.
+- **Its gate passed:** 55/55 (12.58). Analyse with `.venv/bin/python results/c15_wumpus3_episodes_20261017/level3_analyze.py`, which runs the fixed test: human L2 → L3 against each wumpus level, Holm over 3. **Report whatever the sign.**
+- **Write-up:** a new RESULTS section, 12.61, and add it to 12.60's summary; PLAN status; the Claude Doc report (Section 4 map); then commit and push.
+- **Expected,** from Tiger 12.37 and UAV 12.49: a third level is worth little. A null result is a finding: depth pays up to the opponent's level plus one, as in the cognitive-hierarchy literature.
 
-1. **Done October 15, evening (version 24).** Headless Chrome now runs with `libnspr4`, `libnss3` and `libasound2` extracted locally (`apt-get download`, then `LD_LIBRARY_PATH`; no root needed; the browser is `~/.cache/ms-playwright/chromium_headless_shell-1243`). The split axis, the break mark at 0 and the ceiling line under the curves were correct. Two defects were fixed: the grid's bottom tick (−1000) was clipped to ".000", and is now −750 with a wider margin; and on phones the grid stayed 4 columns, because the JS's inline `gridTemplateColumns` overrode the 2-column media query (now a `--cols` CSS variable). Backups: `template_20261015b.bak`, `report_v23_20261015.bak`. *Original item:* **Check the reviewer page's new plots render correctly (version 23).** The split y-axis on "What each agent earns, every pairing" and the dotted exact-ceiling line on every published-Tiger reward panel were never seen rendered: headless Chrome here lacks system libraries (`libnspr4`), and only a script syntax check passed. Open https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB, or ask the user for a screenshot. Check the following, and fix in `results/w4_report_20261007/template.html` (`splitScale`, `pairChart`), rebuild with `build_report.py`, and republish to the same URL:
-   - the upper half shows gains, the lower half losses, and the break mark sits at 0;
-   - tick labels are readable in the compact grid panels;
-   - the ceiling line sits under the curves and does not hide them.
-2. **Remind the user to back up `results/`** (not backed up since September 30). It holds every October dataset, the reviewer-page generator and all run snapshots. Deletions, the legacy `results/` (about 12 GB), stale branches and the `../ipomcp-q2` worktree are the user's call (0.2, item 5).
-3. **Partly done (October 15, evening):** level 6 now covers 81 of 81 chains, all identical to level 5. Level 4 at H3 does not fit this machine: one exact solve run alone reached 12.2 GB after about 30 min, still growing about 0.4 GB a minute, and was stopped. Rows of 9 chains shared one cache, so H3 jobs are now 1 chain each. Running it needs a machine with about 20+ GB free, or a memory-lean exact solver. It stays optional. *Original item:* **Level 4 at H3 in the exact level screen (C1, optional).** `results/c1_level_posterior_20261014/screen_levels.py` resumes from `levels_rows.jsonl`. Level 6 at H2 is done on 72 of 81 sampled chains, all identical to level 5. Level 4 at H3 (27 sampled chains) needs over 4 GB per exact solve: run it with 1 worker on a quiet machine with `guard.sh` (edit the PID inside), then update RESULTS 12.47's table. It only adds H3 evidence; the H2 fixed point already answers the reviewer.
-4. **Done (12.51, option (a)):** tie columns in modeled qualification, a THEORY.md tie convention; the gate rows are identical. *Original item:* **Make modeled agents' tie-breaking explicit (12.50).** On UAV, 75 of 170 queried target models have exact ties (an edge move equals listening). The exact reference has modeled agents play ties uniformly; I-POMCP's modeled solve plays a subset in about half of them. Design options, gated against the current planner:
-   - (a) document the convention and qualify against the real opponent's tie-breaking;
-   - (b) make a modeled solve return a uniform policy over actions whose certified intervals cannot be separated.
+**2. Remind the user to back up `results/`.** It has not been backed up since September 30, and it holds every October dataset, including c12–c17.
 
-   Option (b) changes episode behaviour, so it needs 12.15's replay gate and the U2/U4 panel gates.
-5. **5a done, no code change (12.52):** the update proper is about 20% of self time; exact level-1 models would save at most about 30% at level 3. **5b priced:** a level-4 H3 coordination episode costs about 2–2.5 CPU-h (9× level 3), so n = 50 needs over 100 CPU-h. **User, October 16: not now.** *Original item:* **Then, Claude's recommended research order:**
-   - (a) the solver-level speedup of the exact nested update (about a third of CPU, 12.36), which would make level 4 at H3 and longer UAV horizons affordable;
-   - (b) level 4 on the coordination Tiger at H3;
-   - (c) Wumpus level 1 beyond 3 beliefs. **Done (12.53):** over 52 distinct beliefs, N = 4,096 with 3,000 simulations is 60/60; N = 1,024 misses 2 (one compression error, one search error). **L2 priced (12.55, October 16):** 6–28 CPU-min per decision at sub-qualified budgets; after 4 steps a decision exceeds 8 GB. The cost is in the nested wumpus belief updates (4× the modeled simulations cost 1.07×). Not run further: it needs a memory-lean nested belief first (a design item).
+**3. Goals** (unchanged since September 30; Section 1):
+- **Contribution 1:** an online I-POMDP solver that is exactly optimal wherever exact references exist.
+- **Contribution 2:** it beats the published baseline, IPF + RTS.
+- **Contribution 3:** interpretability and the value of depth.
 
-   UAV at depth 4 in episodes is not needed: the depth-3 UAV does not stall (12.49).
-6. **Resolved October 16 (12.54):** the user adopted ε = 0.05; the residual is 80/80 ε-correct (max loss 0.030, δ = 4.5%), and no other cell changes. *Original item:* **The L3 H4 residual on Tiger** (4/80 at a true gap of 0.03, j's own search; 12.14). The tie convention of 12.50 is ruled out as its cause. A PAC-style certification standard (12.13) is the user's call and has not been asked.
+The evidence now spans three domains: Tiger (published and coordination variants), UAV reconnaissance, and Wumpus (4 × 4 at L1; 3 × 3 at L1–L3). The user's standards: rigour, the analysis fixed before each run, controls and large-n backups for anything a reviewer could call noise, and big-tech code quality.
 
-**Run lessons from October 14–15 (also in Section 6):**
-- (October 16) `wumpus_qualification` uses a spawn pool: its workers are children of the python driver, not of the shell wrapper `$!` may name. Check `ps -o comm -p <pid>` says python. Killing only a wrapper orphans the workers, so kill them by PID.
-- (October 16) Do not write guessed clock times into endpoint amendments; read `date` first.
-- On the shared machine, use each run folder's `wrap.sh`: it waits for 3 GB free and always exits 0, so a killed job never stops xargs.
-- Use `watchdog.sh`, which walks the process tree from the xargs PID and so only ever kills this run's jobs.
+**4. Next steps, Claude's recommended order** (choose and go, as the user asked, October 12 and 17):
+- (a) **The reviewer page: a Wumpus section** (generator in `results/w4_report_20261007`, rebuilt as in 0.6). Contents:
+  - the 3 × 3 level-matrix heat map of each agent's return;
+  - death-cause bars (wumpus, pit, gold) for i1 against i2 per opponent;
+  - the confirmation panel with its control;
+  - the I-POMCP versus IPF + RTS decision table (12.59).
+
+  Back up the template first (`*_<date>.bak`), check the rendering with headless Chrome (0.0a of October 15 explains the `LD_LIBRARY_PATH` trick), and republish to the same URL.
+- (b) **A single summary of contribution 3 across the three domains** for the Claude Doc. The pattern is "depth pays exactly when the opponent's behaviour depends on what it believes about you":
+  - the Tiger coordination game against the published one (12.37, 12.40);
+  - UAV (12.49);
+  - Wumpus, against an intentional versus a random wumpus (12.60).
+- (c) **An interpretability panel for Wumpus,** to explain *how* the level-2 human avoids the wumpus. Use the episode rows' `prob_l*_j` columns (its posterior over the wumpus's level), plus predictions against the wumpus's actual moves, so the mechanism is shown and not only inferred.
+- (d) **Optional,** each priced first and kept under 100 CPU-h:
+  - an RTS planner comparison in Wumpus episodes (i2 with I-POMCP against i2 with IPF + RTS, against j1 or j2). In decisions RTS is already 1–28/60, so episodes add little;
+  - a 4 × 4 Wumpus L2 matrix: priced out, 12.55–12.56.
+
+**5. "Taste in research": directions Claude would pursue, best first** (the user asked for these to be recorded):
+- **The mechanism of "depth pays only against a mind".** A clean theory statement: with a level-k prior that includes level 0, the value of modeling an opponent is zero when the opponent's policy does not depend on its beliefs. All three domains are instances, and the random-opponent controls are the exact backups (THEORY.md material, plus one figure).
+- **Exactness as a design asset.** On small boards, horizon 2 with exact beliefs makes every I-POMCP root exactly scored (12.58), so episode results equal exact-I-POMDP behaviour, not search noise. A reviewer-proof story: "our planner is the exact I-POMDP where that is checkable, and degrades gracefully where it is not."
+- **Deterministic-sensor domains break sampled filters.** IPF fails in 55–57 of 60 Wumpus problems (12.59) and on UAV (12.44–12.45). A short note on why: zero-likelihood particles, and nested consistency under a common prior. Exact or compressed-exact filtering is the remedy; stratified rather than systematic compression is the safe default (12.57).
+- **Level-0 mass is necessary at level 3 and above with deterministic percepts:** without it, the exact I-POMDP is undefined on counterfactual branches (12.58). This is a theoretical point worth a paragraph and a small proof.
+- **Not recommended:**
+  - horizon 3+ on Wumpus (6–36 CPU-min per decision);
+  - the 4 × 4 Wumpus at L2 (12.55–12.56);
+  - more micro-optimisation of exact enumeration (12.56: bit-identical speedups did not pay);
+  - level 4 on the coordination Tiger at H3 (over 100 CPU-h; the user said "not now", October 16).
+
+**6. Files touched October 16–17** (`git diff --stat 562944f..HEAD`):
+- `src/ipomdp/belief/resampling.py`: `stratified_draws`.
+- `src/ipomdp/belief/compressed_filter.py`: compression uses stratified draws (12.57).
+- `src/ipomdp/experiments/oracle.py`: `CERTIFICATION_EPSILON = 0.05`.
+- `src/ipomdp/experiments/panel.py`: the `eps_correct_rate` and `eps_failure_high` summary columns (12.54).
+- `src/ipomdp/experiments/wumpus_qualification.py`, now a general Wumpus qualification driver:
+  - `--board W H P`; `--level 1|2|3` (exact I-POMDP references above L1);
+  - `--modeled`; `--l0 <weight>|uniform` (level priors);
+  - `--search-particles 0` (exact search);
+  - `--script fixed|random|modeled` (histories from the exact wumpus and the wumpus's exact model of the human; `ModeledAgent`, `HistoryEnded`);
+  - `--planner rts --particles N` (IPF + RTS baseline);
+  - search and update failures recorded as rows.
+- Tests: `tests/test_wumpus_qualification.py` (10 tests), `tests/test_bounded_beliefs.py` (the stratified bound, an aliasing regression test), `tests/test_panel.py` (ε columns). 343 tests in all.
+- Docs: RESULTS 12.54–12.60, THEORY (certification standard), PLAN (the Wumpus 3 × 3 plan, on top), the Claude Doc report (Section 4 map).
+
+**7. Run folders October 16–17** (each holds its scripts, `ENDPOINTS.md` and `KILL_CRITERION.txt`):
+
+| Folder | What | RESULTS |
+|---|---|---|
+| `p1_pac_rescore_20261016` | ε re-scoring of every stored grid | 12.54 |
+| `c6_wumpus_l2_pilot_20261016` | 4 × 4 L2 cost pilot | 12.55 |
+| `c7`–`c10_*_20261016` | nested compression, interning, speedup gates (not adopted) | 12.56 |
+| `c11_wumpus3_exact_20261016` | exact 3 × 3 L1–L3 costs | 12.56 |
+| `c12_wumpus3_l2_20261016` | first 3 × 3 L2 grid (systematic compressor), shared references | 12.57 |
+| `c13_compression_ab_20261016` | systematic vs stratified A/B; G1x exact-search L2 H2 | 12.57–12.58 |
+| `c14_wumpus3_qualification_20261016` | L2 H3 (interim), L3 H2 | 12.58 |
+| `c15_wumpus3_episodes_20261017` | gate, matrix, confirmation, level 3 (running) | 12.58, 12.60 |
+| `c16_wumpus3_rts_20261017` | IPF + RTS vs I-POMCP decisions | 12.59 |
+| `c17_wumpus3_level3_gate_20261017` | L3 episode-configuration gate | 12.58 |
+
+**8. Run lessons from October 16–17** (also in Section 6):
+- `wumpus_qualification` uses a spawn pool. Its workers are children of the python driver, so check `ps -o comm -p <pid>` says python before recording a PID. Killing only a shell wrapper orphans the workers.
+- **Never match processes by pattern,** not even with a `while read` over `ps | grep`: the loop matched its own shell and killed it (October 17). Kill listed PIDs only.
+- `pool.map` writes results in order: a slow job hides finished ones behind it, so count running workers, not rows.
+- Wumpus episodes vary in memory: some i2 episodes reach 2.6 GB, against 0.75 GB in the pilot. Size workers from the largest RSS seen, not the pilot's.
+- Read `date` before writing times into notes; two guessed times had to be corrected.
+
+**Run lessons from October 14–15, still binding:**
+- On the shared machine, use a run folder's `wrap.sh`: it waits for 3 GB free and always exits 0, so a killed job never stops xargs.
+- `watchdog.sh` walks the process tree from the xargs PID, so it only ever kills this run's jobs.
 - GNU xargs lowers its parallelism on SIGUSR2; raising it with SIGUSR1 did not take effect here.
 - Two runners over one job list duplicate work where they meet.
-- Never trust CPU recorded under heavy load or memory pressure; rerun one deterministic job before quoting a cost (12.42's correction).
+- Never trust CPU recorded under heavy load or memory pressure. Rerun one deterministic job before quoting a cost (12.42's correction), and compare CPU only within paired runs (12.56).
 - The machine can suspend: the wall clock then jumps, and the jobs pause without harm.
-- (October 15, evening) Never wait with `pgrep -f` in a loop: it matched its own shell and the wait never ended. Wait with `kill -0 <pid>`.
-- (October 15, evening) Do not rewrite a guard's PID with a digit-pattern `sed`: it also rewrote the 3 GB threshold (3145728) to the PID. Replace the old PID literally.
-- (October 15, evening) `R=… && nohup cmd &` puts the assignment in a background subshell, so later lines see an empty `R`. Set variables on their own line first.
+- Never wait with `pgrep -f` in a loop, since it matches its own shell. Wait with `kill -0 <pid>`.
+- Do not rewrite a guard's PID with a digit-pattern `sed`: it also rewrote the 3 GB threshold. Replace the old PID literally.
+- `R=… && nohup cmd &` puts the assignment in a background subshell, so later lines see an empty `R`. Set variables on their own line first (repeated on October 16; still true).
 
+*(The October 15 list, items 1–6, is done: 12.51–12.54, with 5b deferred by the user.)*
 
 ### 0.0 State, rules and how to work
 
 - **Repository.**
-  - `main` is clean at the last HANDOFF commit. 333 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
-  - **Nothing is running** (checked October 15, 06:15; no watchdog, guard or job processes of this project remain).
+  - `main` is clean at the last HANDOFF commit. 343 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
+  - **Running (October 17):** the step-4 level-3 episodes (0.0a, item 1). Nothing else of this project runs.
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
     - `resampling/optimal-fc` (12.28);
@@ -90,13 +142,20 @@ Do these first, in this order. Items 1–2 are checks or user actions; items 3�
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.59.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.61.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 - **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
 ### 0.1 Where the science stands (October 14)
+
+*Since October 14:*
+- **UAV:** 12.41–12.50.
+- **Certification standard:** ε = 0.05 (12.54).
+- **Wumpus:** 4 × 4 L1 qualified at N = 4,096 with 10,000 simulations under stratified compression (12.53, 12.57); 3 × 3 qualified at L2 and L3 (12.58); I-POMCP against IPF + RTS (12.59); value of depth (12.60).
+
+The lists below are as of October 14.
 
 1. **Online solver (I-POMCP with bounded nested beliefs).**
    - **Optimal wherever exact references exist:** L1 H1–H5, 220/220 at H5 (12.1); L2 H3–H4, 380/380 (12.3–12.4); L3 H3, 162/162 (12.7); L4 H2, 486/486 (12.23).
@@ -716,6 +775,11 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Compressed or sampled *real* beliefs on Wumpus | The 94,500-state prior compressed to N atoms loses the true world, and the next deterministic observation has zero evidence | Exact real updates (cheap: at most 2.9 s per step) + `search_particles` |
 | Compressing *nested* beliefs in real updates (Wumpus L2, October 16) | 0/3 jobs: the real update enumerates every outer world, some dropped from the compressed nested belief, whose deterministic percept then has zero evidence (12.56) | Exact nested beliefs; a 3 × 3 board with exact references |
 | Interning, cached hashes and kernel fast paths for Wumpus (October 16) | Bit-identical, but 0.91× CPU and 1.27× RSS, paired: the cost is enumeration volume (12.56) | Not adopted; patch in `results/c9_speedup_gate_20261016/new.diff` |
+| Systematic resampling in canonical order for compression (until October 16) | Aliased on structured uniform beliefs: on the 3 × 3 Wumpus prior it dropped every world with a pit next to the start, at every N from 16 to 1,024 (12.57) | Stratified draws |
+| The sampled IPF (published IPF + RTS) on Wumpus | Fails in 55–57 of 60 L2 problems: deterministic percepts leave no particle that explains an observation (12.59) | Exact or compressed-exact filtering |
+| Random-script human histories at Wumpus L3 | The L2 wumpus models a near-deterministic L1 human, so scripted actions give it zero-evidence observations (12.58) | `--script modeled` |
+| Point-mass level priors at Wumpus L3 | The exact I-POMDP is undefined on counterfactual branches: zero-probability actions plus deterministic percepts (12.58) | A level-0 weight (`--l0 0.1` or `uniform`) |
+| Wumpus 3 × 3 at horizon 3 at scale | 334–2,176 CPU-s per decision; the grid was stopped by its kill criterion at 13/13 (12.58) | Horizon 2, exact (every root scored exactly) |
 | Assuming exact Wumpus L1 is too big | Wrong for filtering: deterministic sensors prune 94,500 → 46 atoms in 8 steps | Exact real filtering |
 | Exact reference with the default 200k-branch guard | Stops at history 6; mistaken for intractability | `REFERENCE_BRANCHES = 50M` (146 s at k = 6) |
 | Raising root simulations to fix H4 L2 misses | No effect; the misses are opponent-model error | Raise the modeled budget (4,000 at depth 4) |
