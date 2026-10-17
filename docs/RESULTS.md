@@ -2108,6 +2108,7 @@ The definition is in THEORY.md, "Tie convention".
 - **The episode agents' configuration** (`results/c15_wumpus3_episodes_20261017/qual`):
   - **Setup:** L2 H2 with a uniform prior over the opponent's lower levels (`--l0 0.5`, as `suite.hierarchy_agent` builds every agent), root 400, modeled 400, exact search. It was scored against fresh exact references (median 89 s).
   - **60/60 optimal** [0.940, 1] over 31 distinct beliefs, every root scored exactly, at a median of 112 CPU-s. This is the gate for the episode study (PLAN, October 17).
+- **The level-3 episode agent's configuration** (`results/c17_wumpus3_level3_gate_20261017/gate`): L3 H2 with a uniform prior over all lower levels (`--l0 uniform`), root 400, modeled 400, exact search, `--script modeled`. It is **55/55 optimal** [0.935, 1] over 23 distinct beliefs; 5 problems ended before a decision. Every root was scored exactly, at a median of 145 CPU-s. This is the gate for 12.60's step 4.
 
 ### 12.59 Wumpus 3 × 3 L2 H2 decisions: I-POMCP 60/60, IPF + RTS 2–47% (October 17, 2026)
 
