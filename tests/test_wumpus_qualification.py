@@ -77,3 +77,14 @@ def test_a_modeled_human_with_only_ending_actions_ends_the_history():
     assert uniform.act(random.Random(0), allowed=["Grab"]) == "Grab"
     with pytest.raises(HistoryEnded):
         uniform.act(random.Random(0), allowed=[])
+
+
+def test_ipf_rts_baseline_is_scored_against_the_same_reference():
+    from ipomdp.experiments.wumpus_qualification import evaluate, reference
+
+    board = (3, 3, 1)
+    q, _, _, _, taken = reference(2, 2, 1, "random", board, 2)
+    for particles in (0, 32):  # exact beliefs, then the sampled IPF
+        row = evaluate(2, 2, 0, 2, 1, q, "random", board, 2, 0, taken, 0.0, "rts", particles)
+        assert row["planner"] == "rts" and row["particles"] == particles
+        assert ("loss" in row and "exact_root" not in row) or "failure" in row

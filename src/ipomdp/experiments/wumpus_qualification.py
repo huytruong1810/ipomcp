@@ -51,6 +51,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+from ipomdp.baselines.rts import RTSConfig
 from ipomdp.belief import canonical
 from ipomdp.belief.finite_filter import UnsupportedObservation
 from ipomdp.domains.wumpus.model import WumpusModel
@@ -168,25 +169,52 @@ def history(physics, steps, seed, script="fixed", wumpus=None, human=None):
     return out
 
 
-def human(physics, seed, simulations, horizon, search_particles, level=1, modeled=0, l0=0.0):
+def human(
+    physics,
+    seed,
+    simulations,
+    horizon,
+    search_particles,
+    level=1,
+    modeled=0,
+    l0=0.0,
+    planner="mcts",
+    particles=0,
+):
     """The level-``level`` human with exact real beliefs and searches on ``search_particles`` atoms.
 
     ``search_particles`` 0 or None searches exact beliefs at every level (no
     compression; feasible on small boards). Every modeled intentional level
     runs I-POMCP with ``modeled`` simulations (0: the human's own budget).
+
+    ``planner`` "rts" is the IPF + RTS baseline instead: every level, real and
+    modeled, runs reachability-tree sampling with ``simulations`` sampled
+    observations per node, on beliefs of ``particles`` samples by the published
+    interactive particle filter (0: exact beliefs, which isolates RTS's search).
     """
     modeled = modeled or simulations
-    config = PlannerConfig(
-        simulations=simulations, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
-    )
-    lower = PlannerConfig(
-        simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
-    )
-    # The exact real filter needs more than the default branch guard when the
-    # human moves at the 94,500-atom prior (x 3 wumpus actions).
-    bank = SolverBank(
-        seed, search_particles=search_particles or None, max_branches=REFERENCE_BRANCHES
-    )
+    if planner == "rts":
+        config = lower = RTSConfig(depth=horizon, observation_samples=simulations, gamma=GAMMA)
+        bank = SolverBank(
+            seed,
+            particles=particles or None,
+            particle_filter="sampled",
+            max_branches=REFERENCE_BRANCHES,
+        )
+    elif planner == "mcts":
+        config = PlannerConfig(
+            simulations=simulations, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
+        )
+        lower = PlannerConfig(
+            simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
+        )
+        # The exact real filter needs more than the default branch guard when the
+        # human moves at the 94,500-atom prior (x 3 wumpus actions).
+        bank = SolverBank(
+            seed, search_particles=search_particles or None, max_branches=REFERENCE_BRANCHES
+        )
+    else:
+        raise ValueError(f"Unknown planner {planner!r}")
     nested = nested_levels(level, l0)
     return HierarchyBuilder(bank).build(
         "i",
@@ -262,6 +290,8 @@ def evaluate(
     modeled=0,
     steps_taken=None,
     l0=0.0,
+    planner_kind="mcts",
+    particles=0,
 ):
     """One decision after the problem's history, scored against ``oracle`` (the exact Q).
 
@@ -269,7 +299,18 @@ def evaluate(
     depends on the exact wumpus); at level 1 it is regenerated when omitted.
     """
     physics = WumpusModel(*board)
-    planner = human(physics, seed, simulations, horizon, search_particles, level, modeled, l0)
+    planner = human(
+        physics,
+        seed,
+        simulations,
+        horizon,
+        search_particles,
+        level,
+        modeled,
+        l0,
+        planner_kind,
+        particles,
+    )
     if steps_taken is None:
         steps_taken = history(physics, steps, seed, script)
     row = dict(
@@ -284,28 +325,37 @@ def evaluate(
         row |= dict(board=list(board), level=level, modeled=modeled)
     if l0:
         row["l0"] = l0
+    if planner_kind != "mcts":
+        row |= dict(planner=planner_kind, particles=particles)
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
     except UnsupportedObservation as error:
         return row | dict(failure=str(error))
     started = time.process_time()
-    planner.policy_for(planner.model())
+    try:
+        planner.policy_for(planner.model())
+    except UnsupportedObservation as error:
+        # A sampled belief inside the search can lose every world that explains an observation.
+        return row | dict(failure=str(error), cpu_seconds=time.process_time() - started)
     cpu = time.process_time() - started
     values = {str(a): v for a, v in planner.recommendation_values.items()}
     best = max(oracle.values())
     chosen = max(values, key=values.get)
-    bounds = planner.scores.bounds
-    return row | dict(
+    scored = dict(
         loss=best - oracle[chosen],
         optimal_q_error=optimal_q_error(values, oracle),
         max_abs_q_error=max(abs(values[a] - oracle[a]) for a in oracle),
-        bound_width=max(hi - lo for lo, hi in bounds.values()),
-        exact_root=planner.scores.exact,
         cpu_seconds=cpu,
         values=values,
         oracle_q=oracle,
     )
+    if planner_kind == "mcts":
+        bounds = planner.scores.bounds
+        scored |= dict(
+            bound_width=max(hi - lo for lo, hi in bounds.values()), exact_root=planner.scores.exact
+        )
+    return row | scored
 
 
 def _reference_job(args):
@@ -331,6 +381,10 @@ def main():
     parser.add_argument("--level", type=int, default=1)
     parser.add_argument("--modeled", type=int, nargs="+", default=[0])
     parser.add_argument("--l0", type=float, default=0.0, help="level-0 weight at every level >= 2")
+    parser.add_argument("--planner", choices=("mcts", "rts"), default="mcts")
+    parser.add_argument(
+        "--particles", type=int, default=0, help="rts: IPF sample count (0: exact beliefs)"
+    )
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--steps", type=int, nargs="+", default=[0, 2, 4])
     parser.add_argument("--search-particles", type=int, nargs="+", default=[64, 256, 1024, 4096])
@@ -402,6 +456,8 @@ def main():
                 d,
                 taken.get((s, k)),
                 args.l0,
+                args.planner,
+                args.particles,
             )
             for (s, k), n, m, d in itertools.product(
                 problems, args.search_particles, args.simulations, args.modeled
