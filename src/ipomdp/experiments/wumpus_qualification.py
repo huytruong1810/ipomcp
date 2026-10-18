@@ -307,6 +307,20 @@ def evaluate(
     depends on the exact wumpus); at level 1 it is regenerated when omitted.
     """
     physics = WumpusModel(*board)
+    if planner_kind == "intmcp":
+        return _evaluate_intmcp(
+            physics,
+            seed,
+            steps,
+            simulations,
+            horizon,
+            oracle,
+            script,
+            board,
+            level,
+            steps_taken,
+            l0,
+        )
     planner = human(
         physics,
         seed,
@@ -369,6 +383,51 @@ def evaluate(
     return row | scored
 
 
+def _evaluate_intmcp(
+    physics, seed, steps, simulations, horizon, oracle, script, board, level, steps_taken, l0
+):
+    """One I-NTMCP decision after the problem's history (``baselines.intmcp``), scored as ``evaluate``.
+
+    I-NTMCP's model class is one opponent level under a common prior, so only
+    point-mass levels qualify (``l0`` 0). It builds each step's beliefs from its
+    own search's particles, so the history is replayed as search, update, ...;
+    ``cpu_seconds`` is the final search, ``history_cpu_seconds`` every search
+    and update before it. Actions its search never tried have no value.
+    """
+    from ipomdp.baselines.intmcp import INTMCPAgent
+
+    if l0:
+        raise ValueError("I-NTMCP models one opponent level: --l0 must be 0")
+    if steps_taken is None:
+        steps_taken = history(physics, steps, seed, script)
+    row = dict(seed=seed, steps=steps, script=script, search_particles=0)
+    row |= dict(simulations=simulations, horizon=horizon, board=list(board), level=level)
+    row |= dict(modeled=0, planner="intmcp")
+    started = time.process_time()
+    agent = INTMCPAgent(physics, level, simulations, horizon, GAMMA, seed)
+    agent.search()
+    for action, observation in steps_taken:
+        agent.update_root(action, observation)
+        agent.search()
+    total = time.process_time() - started
+    chosen = str(max(agent.values, key=agent.values.get))
+    values = {str(a): v for a, v in agent.values.items()}
+    best = max(oracle.values())
+    scored = dict(
+        loss=best - oracle[chosen],
+        cpu_seconds=agent.search_cpu_seconds,
+        history_cpu_seconds=total - agent.search_cpu_seconds,
+        values=values,
+        oracle_q=oracle,
+    )
+    if set(values) == set(oracle):
+        scored |= dict(
+            optimal_q_error=optimal_q_error(values, oracle),
+            max_abs_q_error=max(abs(values[a] - oracle[a]) for a in oracle),
+        )
+    return row | scored
+
+
 def _reference_job(args):
     try:
         return args, reference(*args)
@@ -397,7 +456,7 @@ def main():
         default=0.0,
         help="level-0 weight at every level >= 2, or 'uniform' over all lower levels",
     )
-    parser.add_argument("--planner", choices=("mcts", "rts"), default="mcts")
+    parser.add_argument("--planner", choices=("mcts", "rts", "intmcp"), default="mcts")
     parser.add_argument(
         "--particles", type=int, default=0, help="rts: IPF sample count (0: exact beliefs)"
     )
