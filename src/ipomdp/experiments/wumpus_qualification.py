@@ -300,6 +300,7 @@ def evaluate(
     planner_kind="mcts",
     particles=0,
     particle_filter="sampled",
+    intmcp_variant="published",
 ):
     """One decision after the problem's history, scored against ``oracle`` (the exact Q).
 
@@ -320,6 +321,7 @@ def evaluate(
             level,
             steps_taken,
             l0,
+            intmcp_variant,
         )
     planner = human(
         physics,
@@ -384,7 +386,18 @@ def evaluate(
 
 
 def _evaluate_intmcp(
-    physics, seed, steps, simulations, horizon, oracle, script, board, level, steps_taken, l0
+    physics,
+    seed,
+    steps,
+    simulations,
+    horizon,
+    oracle,
+    script,
+    board,
+    level,
+    steps_taken,
+    l0,
+    variant,
 ):
     """One I-NTMCP decision after the problem's history (``baselines.intmcp``), scored as ``evaluate``.
 
@@ -392,7 +405,9 @@ def _evaluate_intmcp(
     point-mass levels qualify (``l0`` 0). It builds each step's beliefs from its
     own search's particles, so the history is replayed as search, update, ...;
     ``cpu_seconds`` is the final search, ``history_cpu_seconds`` every search
-    and update before it. Actions its search never tried have no value.
+    and update before it; ``forced_share`` the largest share of force-filled
+    particles in any updated belief (``baselines.intmcp``, variants). Actions
+    its search never tried have no value.
     """
     from ipomdp.baselines.intmcp import INTMCPAgent
 
@@ -402,9 +417,9 @@ def _evaluate_intmcp(
         steps_taken = history(physics, steps, seed, script)
     row = dict(seed=seed, steps=steps, script=script, search_particles=0)
     row |= dict(simulations=simulations, horizon=horizon, board=list(board), level=level)
-    row |= dict(modeled=0, planner="intmcp")
+    row |= dict(modeled=0, planner="intmcp", intmcp_variant=variant)
     started = time.process_time()
-    agent = INTMCPAgent(physics, level, simulations, horizon, GAMMA, seed)
+    agent = INTMCPAgent(physics, level, simulations, horizon, GAMMA, seed, variant=variant)
     agent.search()
     for action, observation in steps_taken:
         agent.update_root(action, observation)
@@ -417,6 +432,7 @@ def _evaluate_intmcp(
         loss=best - oracle[chosen],
         cpu_seconds=agent.search_cpu_seconds,
         history_cpu_seconds=total - agent.search_cpu_seconds,
+        forced_share=max(agent.forced_shares, default=0.0),
         values=values,
         oracle_q=oracle,
     )
@@ -465,6 +481,12 @@ def main():
         choices=("sampled", "smoothed"),
         default="sampled",
         help="rts: the published IPF, or the IPF with likelihood smoothing",
+    )
+    parser.add_argument(
+        "--intmcp-variant",
+        choices=("published", "tuned"),
+        default="published",
+        help="intmcp: the authors' defaults, or kernel reinvigoration (baselines.intmcp)",
     )
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--steps", type=int, nargs="+", default=[0, 2, 4])
@@ -540,6 +562,7 @@ def main():
                 args.planner,
                 args.particles,
                 args.particle_filter,
+                args.intmcp_variant,
             )
             for (s, k), n, m, d in itertools.product(
                 problems, args.search_particles, args.simulations, args.modeled

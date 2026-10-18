@@ -59,3 +59,20 @@ def test_invalid_use_is_refused():
     agent = INTMCPAgent(TigerModel(), level=1, simulations=10, horizon=1, gamma=0.95, seed=0)
     with pytest.raises(RuntimeError, match="search first"):
         agent.update_root(LISTEN, ("GL", "S"))
+
+
+def test_tuned_variant_keeps_beliefs_consistent_with_deterministic_senses():
+    physics = WumpusModel(3, 3, 1)
+    agent = INTMCPAgent(
+        physics, 1, simulations=2000, horizon=1, gamma=0.95, seed=17, variant="tuned"
+    )
+    agent.search()
+    for action, observation in [("TurnLeft", ()), ("Forward", ("Breeze",))]:
+        agent.update_root(action, observation)
+        agent.search()
+    assert agent.forced_shares == [0.0, 0.0]
+
+
+def test_variants_are_validated():
+    with pytest.raises(ValueError, match="variant"):
+        INTMCPAgent(TigerModel(), 1, 10, 1, 0.95, 0, variant="other")

@@ -11,10 +11,24 @@ What is adapted, and what is not
 Only the domain is adapted: ``POSGAdapter`` presents a kernel-only domain
 (``model.pomdp``) through I-NTMCP's ``POSGModel`` interface. The planner,
 ``NestedSearchTree``, runs as published, with the authors' defaults:
-``uct_c`` = r_max - r_min, 1/16 extra particles per step, uniformly random
-rollouts, and no domain-specific reinvigoration function (their rejection
-sampling, then forced samples), which matches I-POMCP's use of no domain
-knowledge.
+``uct_c`` = r_max - r_min, 1/16 extra particles per step and uniformly random
+rollouts.
+
+- **Reinvigoration: two variants.** I-NTMCP refills a belief after a real
+  step to about M (1 + 1/16) particles by rejection sampling from the parent
+  node. After 3,000 rejections it *force-fills* the rest with particles whose
+  own observation contradicts the real one. With deterministic senses (Wumpus)
+  and large M this can dominate the belief (RESULTS.md 12.63). The authors'
+  domains supply a domain-specific reinvigoration function to keep this rare.
+  - ``variant="published"``: the authors' code and defaults exactly, with no
+    reinvigoration function.
+  - ``variant="tuned"``, the strong baseline. A reinvigoration function from
+    the kernels draws s' with probability proportional to
+    T(s' | s, a) O_i(o_i | s', a) from the parent particle's state s, and the
+    other agent's observation from its kernel. The rejection budget scales with
+    the target (``TUNED_REJECTIONS`` per particle), so force-filling is rare.
+    This uses our explicit kernels, more than I-NTMCP's generative-model
+    contract, so it favours the baseline.
 
 - **Dynamics.** ``step`` draws s' from the transition kernel and each agent's
   observation from its observation kernel independently given (s', a), the
@@ -38,6 +52,7 @@ knowledge.
   randomisation.
 """
 
+import math
 import random
 import time
 
@@ -80,8 +95,9 @@ class _Observation(_Wrapped, M.Observation):
 class POSGAdapter(M.POSGModel):
     """A two-agent kernel domain as an I-NTMCP POSG; agent index k is ``agents[k]``."""
 
-    def __init__(self, physics, agents, seed):
+    def __init__(self, physics, agents, seed, reinvigorate=False):
         super().__init__(num_agents=2)
+        self._reinvigorates = reinvigorate
         if type(seed) is not int:
             raise TypeError("The adapter needs an explicit integer seed")
         self.physics, self.agents = physics, tuple(agents)
@@ -97,6 +113,10 @@ class POSGAdapter(M.POSGModel):
         self._prior = M.InitialParticleBelief(self.sample_initial_state)
         lows, highs = zip(*(physics.reward_bounds(k) for k in agents))
         self._bounds = (min(lows), max(highs))
+        # The state the latest ``step`` started from: I-NTMCP calls the
+        # reinvigoration function right after stepping a parent particle, with
+        # only the resulting state, so the exact conditional needs this.
+        self._last_source = None
 
     @property
     def state_space(self):
@@ -137,7 +157,36 @@ class POSGAdapter(M.POSGModel):
     def sample_initial_obs(self, state):
         return M.JointObservation.get_joint_null_obs(self.num_agents)
 
+    @property
+    def reinvigorate_fn(self):
+        return self._reinvigorate if self._reinvigorates else None
+
+    def _reinvigorate(self, agent_id, state, action, obs):
+        """A successor of the parent particle consistent with ``obs``: s' ~ T(s' | s, a) O(obs | s', a)."""
+        joint = {k: action.get_agent_action(n).value for n, k in enumerate(self.agents)}
+        observer = self.agents[agent_id]
+        weighted = [
+            (
+                following,
+                p * self.physics.observation_probability(obs.value, following, joint, observer),
+            )
+            for following, p in self.physics.transition_distribution(self._last_source, joint)
+        ]
+        weighted = [(s, w) for s, w in weighted if w > 0]
+        if not weighted:
+            raise IndexError("No successor of this particle explains the observation")
+        states, weights = zip(*weighted)
+        following = self.rng.choices(states, weights=weights, k=1)[0]
+        observations = tuple(
+            obs
+            if n == agent_id
+            else _Observation(self.physics.sample_observation(following, joint, k, self.rng))
+            for n, k in enumerate(self.agents)
+        )
+        return _State(following), M.JointObservation(observations)
+
     def step(self, state, action):
+        self._last_source = state.value
         joint = {k: action.get_agent_action(n).value for n, k in enumerate(self.agents)}
         following = self.physics.sample_transition(state.value, joint, self.rng)
         observations = tuple(
@@ -159,6 +208,12 @@ class POSGAdapter(M.POSGModel):
         return [None] * self.num_agents
 
 
+TUNED_REJECTIONS = 50
+"""The tuned variant's rejection budget per particle of a belief's refill target."""
+
+VARIANTS = ("published", "tuned")
+
+
 class INTMCPAgent:
     """An I-NTMCP agent of this package's ``level`` (their nesting ``level - 1``) at the prior.
 
@@ -167,16 +222,30 @@ class INTMCPAgent:
     real step. I-NTMCP builds the next step's beliefs from the particles its
     search leaves, so a history is replayed as search, update, search, ...
     ``values`` holds the root's action values after the last search, and
-    ``search_cpu_seconds`` its process CPU.
+    ``search_cpu_seconds`` its process CPU. ``forced_shares`` records, per real
+    update, the share of the new root belief whose own history contradicts the
+    real one (force-filled particles).
     """
 
-    def __init__(self, physics, level, simulations, horizon, gamma, seed, agents=("i", "j")):
+    def __init__(
+        self,
+        physics,
+        level,
+        simulations,
+        horizon,
+        gamma,
+        seed,
+        variant="published",
+        agents=("i", "j"),
+    ):
+        if variant not in VARIANTS:
+            raise ValueError(f"variant must be one of {VARIANTS}")
         if level < 1:
             raise ValueError("An I-NTMCP agent models its opponent: level must be at least 1")
         if horizon < 1:
             raise ValueError("horizon must be at least 1")
         random.seed(seed)
-        self.model = POSGAdapter(physics, agents, seed)
+        self.model = POSGAdapter(physics, agents, seed, reinvigorate=variant == "tuned")
         self.tree = NestedSearchTree.initialize(
             model=self.model,
             ego_agent=0,
@@ -185,7 +254,12 @@ class INTMCPAgent:
             num_sims=simulations,
             epsilon=gamma ** (horizon - 1.5),
         )
-        self.values, self.search_cpu_seconds = {}, 0.0
+        if variant == "tuned":
+            target = simulations * 17 / 16
+            limit = math.ceil(TUNED_REJECTIONS * target / NestedSearchTree.SAMPLE_RETRY_LIMIT)
+            for tree in _trees(self.tree):
+                tree.SAMPLE_FAIL_LIMIT = limit
+        self.values, self.search_cpu_seconds, self.forced_shares = {}, 0.0, []
         self._started = False
 
     def search(self):
@@ -204,3 +278,14 @@ class INTMCPAgent:
         if not self._started:
             raise RuntimeError("I-NTMCP updates from the particles of a search: search first")
         self.tree.update(_Action(action), _Observation(observation))
+        particles = self.tree.traverse(self.tree.history).belief.particles
+        own = self.tree.history
+        forced = sum(p.history.get_agent_history(0) != own for p in particles)
+        self.forced_shares.append(forced / len(particles) if particles else 1.0)
+
+
+def _trees(tree):
+    """``tree`` and every tree nested below it."""
+    yield tree
+    for nested in tree.nested_trees.values():
+        yield from _trees(nested)
