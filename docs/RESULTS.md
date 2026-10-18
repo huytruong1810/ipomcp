@@ -2256,7 +2256,7 @@ The definition is in THEORY.md, "Tie convention".
   - Certified bounds change nothing but add a guarantee.
 - **Open row:** level priors with level-0 mass vs a single fixed level. No paired number exists yet (PAPER.md, G4).
 
-### 12.64 The exact screen on Wumpus 3 × 3: a second level is worth 19.7 per decision against an intentional wumpus (October 18, 2026)
+### 12.64 The exact screen on Wumpus 3 × 3: a second level is worth 19.7 per decision against an intentional wumpus and costs 1.7 against a random one (October 18, 2026)
 
 **Why:** contribution 3, sharper (PAPER.md, G5b). Can an exact, episode-free screen say in advance whether depth pays? It exists for Tiger (12.22). This applies it to Wumpus 3 × 3 at H2, where 12.58 has the exact level-2 I-POMDP Q for 60 problems.
 
@@ -2277,6 +2277,11 @@ The definition is in THEORY.md, "Tie convention".
 - **Direction matches 12.60:**
   - Against an intentional wumpus, the value is positive and grows as the history reveals the wumpus (0 → 7.8 → 51 per decision).
   - 12.60's episodes found +169 [84, 259] per episode.
-- **The control is not zero per decision.** Against a random wumpus, a second level costs 9.1 per decision on average, all at 5 histories. 12.60's random-wumpus episodes found +20 (not significant), i.e. no detectable loss.
+- **The cost column is not the matched control.** On these intentional-wumpus histories, a second level would cost 9.1 per decision if the wumpus were random, all at 5 histories. The matched control below uses random-wumpus histories.
 - **Limit on the comparison:** the histories here come from the exact *intentional* wumpus, while 12.60's control episodes run against a random one. The screen therefore bounds the cost at histories an intentional wumpus produces, not at the ones a random wumpus produces.
+- **Matched control** (`control.py`; added after the main screen, with its endpoints fixed before its run). The same 60 problems, but on histories from a uniformly random wumpus, the situation of 12.60's control episodes.
+  - 2 of 60 histories have zero evidence for the exact level-2 human, whose level-1 wumpus model gives the random move probability 0; they are reported, not scored.
+  - On the other 58, the cost of a second level is **1.7 per decision** (positive at 4 of 58; mean 0 at the prior, 0.1 after 2 steps, 5.2 after 4).
+  - The value it would have against an intentional wumpus is 9.2 per decision.
+  - So the 9.1 cost above came from histories an intentional wumpus produces. Where the wumpus really is random, depth costs little, consistent with 12.60's control (+20, not significant).
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
