@@ -2200,3 +2200,32 @@ The definition is in THEORY.md, "Tie convention".
 - **The level-3 human predicts the wumpus better.** Averaged over each episode, it gives the wumpus's actual move probability 0.55 [0.53, 0.58] against a level-1 wumpus and 0.54 [0.52, 0.57] against a level-2 one, against 0.50 and 0.48 for the level-2 human (12.60; `w4_report_20261007/wumpus_section.py`). Against a random wumpus both give 0.33, the best possible. The same pattern held in Tiger: a third level predicts better but earns the same (12.27, 12.32).
 - **Interim numbers were misleading,** and only the final n is reported. At 32 trials per cell, the gains read +312 and +374, with Holm p of 0.02–0.03. This is why the analysis was fixed in advance and run on the full n only.
 - **Across domains,** depth pays up to about one level above the opponent's (Tiger 12.37 and 12.40, UAV 12.49, Wumpus 12.60–12.61), as in the cognitive-hierarchy literature. Whether a longer horizon would let a third level pay in Wumpus is untested: horizon 3 costs 6–36 CPU-min per decision (12.58).
+
+### 12.62 IPF with the standard zero-likelihood repair still loses to I-POMCP: Wumpus 20–26/60, UAV 49–55/80 (October 18, 2026)
+
+**Why:** a reviewer could call 12.59's IPF failure a strawman, because the published filter has no repair for zero-likelihood particles. This adds the standard repair, likelihood smoothing, and re-runs the baseline (PLAN.md, publication gaps, G3).
+
+**Change:** `ParticleInteractiveFilter(smoothing=ε)` weights each particle by (1 − ε) O_i + ε / |Ω_i| at every nesting level. The new filter name `"smoothed"` uses ε = `IPF_SMOOTHING` = 0.01, declared before the runs. `"sampled"` is still the published filter.
+
+**Gate** (`results/g3_ipf_fix_20261018`, `ENDPOINTS.md` fixed before the runs). Identical cases were run under the code before the change (`75ea9e1`) and after it, with the published filter: Wumpus 3 × 3 L2 H2 (60 problems × K = 2, 4, 8) and UAV L2 H2 (80 problems × K = 2, 4, 8). **420/420 rows were identical**, apart from CPU, and also identical to the stored rows of 12.59 and 12.43. There are 350 tests.
+
+**Design:**
+- Smoothed IPF (64 particles) + RTS on the same problems.
+- Paired exact McNemar tests against the published IPF at the same K, and against I-POMCP's qualified cells (Wumpus: 12.58, 60/60; UAV: 12.43, 80/80).
+- Holm correction over the 6 tests against I-POMCP.
+
+| Domain, planner | Optimal [95%] | Failures | Max loss | Median CPU per decision | vs published IPF (pairs only smoothed / only published right) | vs I-POMCP (pairs only I-POMCP / only smoothed right), Holm p |
+|---|---|---|---|---|---|---|
+| Wumpus, I-POMCP | **60/60** [0.940, 1] | 0 | 0 | 118 s | — | — |
+| Wumpus, smoothed IPF + RTS, K = 2 | 22/60 [0.246, 0.501] | 3 | 949 | 0.8 s | 20 / 0 (published 2/60, 55 failures) | 38 / 0, 3.6 × 10⁻¹¹ |
+| Wumpus, K = 4 | 20/60 [0.217, 0.467] | 1 | 949 | 1.0 s | 19 / 0 (published 1/60, 56 failures) | 40 / 0, 1.1 × 10⁻¹¹ |
+| Wumpus, K = 8 | 26/60 [0.306, 0.568] | 1 | 949 | 1.1 s | 24 / 0 (published 2/60, 57 failures) | 34 / 0, 4.7 × 10⁻¹⁰ |
+| UAV, I-POMCP | **80/80** [0.955, 1] | 0 | 0 | 0.4 s | — | — |
+| UAV, smoothed IPF + RTS, K = 2 | 49/80 [0.497, 0.719] | 0 | 43.7 | 0.24 s | 3 / 0 (published 46/80), p = 0.25 | 31 / 0, 2.8 × 10⁻⁹ |
+| UAV, K = 4 | 54/80 [0.561, 0.776] | 0 | 15.0 | 0.34 s | 3 / 0 (published 51/80), p = 0.25 | 26 / 0, 6 × 10⁻⁸ |
+| UAV, K = 8 | 55/80 [0.574, 0.787] | 0 | 14.9 | 0.34 s | 3 / 2 (published 54/80), p = 1 | 25 / 0, 6 × 10⁻⁸ |
+
+- **The repair works where it should.** On Wumpus it removes 54–56 of the 55–57 failures, and lifts the baseline from 1–2/60 to 20–26/60 (McNemar p ≤ 4 × 10⁻⁶). On UAV, where the sensors are already noisy and nothing failed, it changes almost nothing (p ≥ 0.25).
+- **It does not close the gap.** I-POMCP is right on every problem the smoothed baseline gets right, and on 25–40 more per arm (Holm p ≤ 6 × 10⁻⁸ in all six). On Wumpus, the smoothed baseline's 20–26/60 matches RTS on *exact* beliefs (20–28/60, 12.59), as does its 949 maximum loss (a walk into death). Once the filter is repaired, what remains is RTS's search.
+- **The remaining 5 failures** (K = 2: 3; K = 4 and K = 8: 1 each; all after 4 steps) are a nested wumpus model, all of whose particles predicted the episode would end when it had not. With ε > 0 every declared observation has positive weight, so the update's only remaining rejection is this terminal-consistency check, which likelihood smoothing does not address.
+- **Reading, fixed in advance:** the smoothed baseline still loses significantly in both domains, so 12.59's gap is not a strawman artefact. The paper should report the published IPF, the smoothed IPF and I-POMCP side by side (PAPER.md, Table 1).
