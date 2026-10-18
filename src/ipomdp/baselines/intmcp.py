@@ -18,7 +18,7 @@ rollouts.
   step to about M (1 + 1/16) particles by rejection sampling from the parent
   node. After 3,000 rejections it *force-fills* the rest with particles whose
   own observation contradicts the real one. With deterministic senses (Wumpus)
-  and large M this can dominate the belief (RESULTS.md 12.64). The authors'
+  and large M this can dominate the belief (RESULTS.md 12.65). The authors'
   domains supply a domain-specific reinvigoration function to keep this rare.
   - ``variant="published"``: the authors' code and defaults exactly, with no
     reinvigoration function.
