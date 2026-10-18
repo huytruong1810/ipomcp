@@ -1,3 +1,22 @@
+# Plan: publication gaps (October 18, 2026)
+
+**Why:** the user asked on October 17 whether the suite is publication-worthy. Claude's assessment: a strong AAMAS or workshop paper as it stands, borderline for a main track. The gaps reviewers would attack, most serious first:
+- every exactly checked domain is tiny;
+- the baseline can be called a strawman (IPF's zero-likelihood failure; no modern baseline);
+- there is no ablation table;
+- contribution 3 may be judged obvious.
+
+**Status (October 18):** planned; nothing run. Details and the order are in HANDOFF 0.0a, item 2.
+
+| Step | What | CPU | Gate or deliverable |
+|---|---|---|---|
+| G1 | Literature check: modern online I-POMDP planners, and whether the name "I-POMCP" is taken | 0 | `docs/RELATED_WORK.md`; whether a modern baseline joins G3 |
+| G2 | Paper outline: claims → RESULTS → figures, gaps marked | 0 | `docs/PAPER.md` |
+| G3 | Scale beyond exact reach: anytime reward and decision quality against CPU, I-POMCP vs IPF + RTS (published and with a zero-likelihood fix), UAV L2 H4–H5 and/or Wumpus 4 × 4 L1 | price first; ask above 100 CPU-h | IPF fix with ε = 0 reproduces today's rows bit for bit; `ENDPOINTS.md` fixed before runs |
+| G4 | Ablation table of the planner's components, from stored paired results; small paired runs only where none exist | low | one table in `PAPER.md` and RESULTS |
+| G5 | Contribution 3, sharper: prediction gain vs reward gain across domains; the exact screen as an a-priori predictor (UAV, Wumpus 3 × 3 at H2); a figure for THEORY's proposition | low | screen predictions recorded before comparing with 12.49 and 12.60 |
+| (opt.) | Wumpus 3 × 3 at H3, third level | likely > 100 CPU-h | ask the user |
+
 # Plan: Wumpus 3 × 3, value of depth in an adversarial domain (October 17, 2026)
 
 **Chosen by Claude** (the user delegated the direction on October 17 while away). Reasoning:
