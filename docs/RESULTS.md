@@ -2241,7 +2241,7 @@ The definition is in THEORY.md, "Tie convention".
 | Component removed or replaced | Problems (n) | With the component | Without it | Paired test | RESULTS |
 |---|---|---|---|---|---|
 | **Root chance scoring** → raw search values (new) | UAV qualified cells: L1 H4 at 4,000, L2 H2, L2 H3, L3 H2, L1 H5 at 64,000 (560) | 560/560 optimal | 526/560 (L2 H3: 63/80) | 34 fixed, 0 broken; sign test p = 1.2 × 10⁻¹⁰ | this section; 12.41 |
-| Root chance scoring → raw search values | Tiger gates: L2 H3, L2 H4, L3 H3, coordination L2–L4 H2 (1,624) | 1,624/1,624 | 1,624/1,624 | no decision changes; it lowers Q error (L2 H3 k = 0: 0.13 → 0.05) | this section; 11; 12.23 |
+| Root chance scoring → raw search values | Tiger gates: published L2 H4 and L3 H3 (542); coordination L2 H3, L3 H3, L2–L4 H2 (1,244); 1,786 in all | 1,786/1,786 | 1,786/1,786 | no decision changes; it lowers Q error (L2 H3 k = 0: 0.13 → 0.05) | this section; 11; 12.23 |
 | Exact scoring with two steps left → fallback to search Q | L3 H4 residual beliefs × 10 seeds (80) | 4 wrong | 14 wrong | 12 fixed, 2 broken; exact McNemar p = 0.013 | 12.14 |
 | Compressed exact filter → the sampled IPF, same RTS search, Wumpus 3 × 3 L2 H2 | 60 problems × K = 2, 4, 8 | exact beliefs: 20–28/60 | IPF 64: 1–2/60 (55–57 failures) | — | 12.59 |
 | Compressed filter → sampled IPF at equal N (belief error) | Tiger L2 histories | belief error 4–40× smaller at equal N | — | paired over histories | Section 8 |

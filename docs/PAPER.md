@@ -61,7 +61,7 @@
 
 ## 2. Ablation table (G4): RESULTS 12.63
 
-Done, from paired stored results plus one new recomputation: root chance scoring off fixes 0 of 560 UAV decisions it breaks (34 fixed, p = 1.2 × 10⁻¹⁰) and changes no Tiger decision. The table is in RESULTS 12.63.
+Done, from paired stored results plus one new recomputation. Turning root chance scoring off breaks 34 of 560 UAV decisions and fixes none (p = 1.2 × 10⁻¹⁰); it changes none of 1,786 Tiger decisions. The table is in RESULTS 12.63.
 
 | Component | Paired evidence | Status |
 |---|---|---|
