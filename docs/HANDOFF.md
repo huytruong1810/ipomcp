@@ -16,7 +16,26 @@ Last updated October 18, 2026, 10:50. Claude is the sole owner of `main`; there 
 
 ### 0.0a Next session (written October 18 at the user's request)
 
-**State.** `main` is clean and pushed (`eefeb28` plus this HANDOFF commit). Nothing is running, and the machine is idle. 343 tests; `ruff` is clean; there were no `src/` changes on October 17–18. Tiger, UAV and Wumpus 3 × 3 are complete (RESULTS 12.1–12.61). **The next free RESULTS section is 12.62.**
+**Progress, October 18 (later the same day; this list supersedes the state line below):**
+- **G1 done:** `docs/RELATED_WORK.md`.
+  - I-NTMCP (Schwartz, Zhou & Kurniawati, IROS 2022; MIT code at github.com/RDLLab/i-ntmcp, commit `63deec3`) is the closest prior work: a nested MCTS over history particles, one fixed level per agent, a common prior, a generative model only, and no check against exact I-POMDPs.
+  - The name "I-POMCP" is free.
+  - Contribution 1 is reframed as *verified* exactness.
+- **G2 done:** `docs/PAPER.md` (claims → RESULTS → figures; open slots `MISSING`).
+- **G3, step 1 done:** RESULTS 12.62. `particle_filter="smoothed"` is the IPF with likelihood smoothing, ε = `IPF_SMOOTHING` = 0.01.
+  - The gate passed: at ε = 0, 420/420 rows were identical to before the change and to the stored c16 and u5 rows. There are 350 tests.
+  - The repair removes 54–56 of the 55–57 Wumpus failures, but the baseline still loses: Wumpus 20–26/60 and UAV 49–55/80, against 60/60 and 80/80 (Holm p ≤ 6 × 10⁻⁸).
+  - Run folder: `results/g3_ipf_fix_20261018`.
+- **G3, step 2 is blocked on the user:** the I-NTMCP adapter. Adding the authors' repository as a submodule (`third_party/i-ntmcp` at `63deec3`) and running their code was refused by the auto-mode permission classifier ("Code from External"). Ask the user to allow it, or to run `git submodule add https://github.com/RDLLab/i-ntmcp.git third_party/i-ntmcp && git -C third_party/i-ntmcp checkout 63deec3` themselves. Their planner imports need only numpy (check with `PYTHONPATH=third_party/i-ntmcp`).
+- **Adapter design** (`src/ipomdp/baselines/intmcp.py`, not yet written). It drives their `NestedSearchTree` unchanged, through `POSGModel`:
+  - **Wrappers.** Hashable wrappers for state, action and observation. Agents "i", "j" map to 0 and 1. `step` samples s' from our transition kernel and each o_k from our observation kernel independently given (s', a), as the exact filter assumes. Rewards come from `get_reward`; `done = is_terminal(s')`. A null initial joint observation, and `get_init_belief` = the common prior.
+  - **Levels.** Their level 0 is a POMDP planner against a uniform-random opponent, so **their nesting level = our level − 1** (our Wumpus L2 and UAV L2 are their nesting 1).
+  - **Horizon.** Set H through their public `epsilon` so that `ceil(log ε / log γ) = H − 1` (ε = γ^(H − 1.5)). Their `step_limit` does not work for nested trees, which never advance `_step_num`.
+  - **Defaults kept:** `reinvigorate_fn` None (their rejection sampling, then forced samples; no domain knowledge, matching our planner); `uct_c` = r_max − r_min; `extra_particles_prop` 1/16; random rollouts; `random.seed(seed)` per job, since their code uses the global `random`.
+  - **Scoring at a stored history.** `step(null)`, then for each (a, o): `update(a, o)` followed by `get_action()`. Their search at each step builds the next step's particles. Score the final `get_action()` and the root action values against the exact Q; record the CPU of the final search and of the whole history.
+  - **First gate:** I-NTMCP at large M on Tiger L1 H2 (exact alpha vectors) and Wumpus 3 × 3 L2 H2 (12.58's 60 problems). Price it before any CPU-matched curve.
+
+**State at the start of October 18.** `main` was clean and pushed (`eefeb28` plus the HANDOFF commit), and nothing was running. There were 343 tests, and `ruff` was clean. Tiger, UAV and Wumpus 3 × 3 are complete (RESULTS 12.1–12.61). **The next free RESULTS section is now 12.63.**
 
 **First thing to tell the user:** back up `results/`. It has not been copied off the machine since September 30, and it holds every October dataset plus the reviewer-page generator.
 
@@ -221,7 +240,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.62.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.63.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a, item 2 (G1 first). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
@@ -854,6 +873,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Compressed or sampled *real* beliefs on Wumpus | The 94,500-state prior compressed to N atoms loses the true world, and the next deterministic observation has zero evidence | Exact real updates (cheap: at most 2.9 s per step) + `search_particles` |
 | Compressing *nested* beliefs in real updates (Wumpus L2, October 16) | 0/3 jobs: the real update enumerates every outer world, some dropped from the compressed nested belief, whose deterministic percept then has zero evidence (12.56) | Exact nested beliefs; a 3 × 3 board with exact references |
 | Interning, cached hashes and kernel fast paths for Wumpus (October 16) | Bit-identical, but 0.91× CPU and 1.27× RSS, paired: the cost is enumeration volume (12.56) | Not adopted; patch in `results/c9_speedup_gate_20261016/new.diff` |
+| Reading downloaded PDFs with WebFetch (October 18) | It returns raw PDF streams and cannot summarise them | Install `pypdf` and `typing_extensions` into the session scratchpad with `uv pip install --target <scratch>/pylib --python python3`, then extract the text in a script |
+| Cloning and running an external planner (I-NTMCP) in auto mode (October 18) | Refused by the permission classifier ("Code from External") | Ask the user first; HANDOFF 0.0a, "G3, step 2" |
 | Systematic resampling in canonical order for compression (until October 16) | Aliased on structured uniform beliefs: on the 3 × 3 Wumpus prior it dropped every world with a pit next to the start, at every N from 16 to 1,024 (12.57) | Stratified draws |
 | The sampled IPF (published IPF + RTS) on Wumpus | Fails in 55–57 of 60 L2 problems: deterministic percepts leave no particle that explains an observation (12.59) | Exact or compressed-exact filtering |
 | Random-script human histories at Wumpus L3 | The L2 wumpus models a near-deterministic L1 human, so scripted actions give it zero-evidence observations (12.58) | `--script modeled` |

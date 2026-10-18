@@ -12,7 +12,10 @@
   - The name "I-POMCP" is free; Hula et al. (2015) adapted POMCP without naming it.
   - Contribution 1 is reframed as *verified* exactness, not "first online planner".
 - **G2 done** (`docs/PAPER.md`): claims → RESULTS → figures, with open slots marked `MISSING`.
-- **G3 next:** the IPF zero-likelihood fix, then the I-NTMCP adapter.
+- **G3, step 1 done (RESULTS 12.62):**
+  - The IPF with likelihood smoothing (`particle_filter="smoothed"`, ε = 0.01) passed the gate: at ε = 0, 420/420 rows were identical to before the change.
+  - It removes 54–56 of the 55–57 Wumpus failures, yet still loses to I-POMCP: Wumpus 20–26/60, UAV 49–55/80, against 60/60 and 80/80.
+- **G3, step 2 blocked (October 18):** the I-NTMCP adapter. Adding the authors' repository (a submodule pinned at `63deec3`) and running it was refused by the permission classifier, so it waits for the user. Adapter design: HANDOFF 0.0a, item 2.
 
 | Step | What | CPU | Gate or deliverable |
 |---|---|---|---|

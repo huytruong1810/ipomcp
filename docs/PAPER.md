@@ -37,10 +37,10 @@
 | UAV L2 H2–H4: I-POMCP 80/80 against IPF + RTS 46–68%, and cheaper | 12.43, 12.46 |
 | UAV episodes at H3: equal reward at 8–18× less CPU; decision quality against N particles (the 2009 paper's Fig. 16 shape) | 12.44, 12.45 |
 | Wumpus 3 × 3 L2 H2: I-POMCP 60/60 against IPF + RTS 2–47%; the IPF fails on 55–57 of 60 problems (zero-likelihood particles) | 12.59 |
-| **IPF with a standard zero-likelihood fix**, so the failure cannot be called a strawman | `MISSING (G3)` |
+| IPF with the standard zero-likelihood repair (likelihood smoothing, ε = 0.01) still loses: Wumpus 20–26/60, UAV 49–55/80 against 60/60 and 80/80 (Holm p ≤ 6 × 10⁻⁸); once repaired, what remains is RTS's search | 12.62 |
 | **I-NTMCP** (Schwartz et al., IROS 2022; authors' code through an adapter): decisions scored against the exact I-POMDP, and CPU-matched episodes | `MISSING (G3)` |
 
-**Table 1:** decisions against the exact I-POMDP, three planners (I-POMCP, IPF + RTS published and fixed, I-NTMCP) × three domains. Partially stored; the fixed IPF and I-NTMCP are `MISSING (G3)`.
+**Table 1:** decisions against the exact I-POMDP, three planners (I-POMCP, IPF + RTS published and fixed, I-NTMCP) × three domains. Stored except I-NTMCP (`MISSING (G3)`): published IPF 12.43, 12.46, 12.59; smoothed IPF 12.62.
 
 ### C3. Interpretability and the value of depth: a deeper model pays exactly when the opponent's behaviour depends on its beliefs about you
 | Evidence | RESULTS |
@@ -98,6 +98,6 @@ One row per component: the effect with the component removed, from paired stored
    - Wumpus L2 at 4 × 4 out of reach (12.55–12.56).
 
 ## 4. Open slots, in run order
-1. **G3:** the IPF zero-likelihood fix (with an ε = 0 bit-identical gate); the I-NTMCP adapter and its gate; anytime curves (UAV L2 H4–H5, Wumpus 4 × 4 L1). Price first; ask above 100 CPU-h.
+1. **G3:** ~~the IPF zero-likelihood fix~~ (done, 12.62); the I-NTMCP adapter and its gate (blocked: running external code needs the user's permission); anytime curves (UAV L2 H4–H5, Wumpus 4 × 4 L1). Price first; ask above 100 CPU-h.
 2. **G4:** assemble Table 2 from stored rows; run small paired runs only for empty rows.
 3. **G5:** (a) the scatter; (b) the screen on UAV and Wumpus 3 × 3, with predictions recorded before comparing with 12.49 and 12.60; (c) Figure 3.
