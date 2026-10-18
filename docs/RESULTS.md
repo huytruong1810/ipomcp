@@ -2298,3 +2298,29 @@ The definition is in THEORY.md, "Tie convention".
   - **H2, 2 → 3 is a prediction no episode has tested.** A third level would gain as much against a level-2 target as it loses against a level-1 one. So it should pay only when the target really is level 2.
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
+
+### 12.66 Prediction is not reward: one more level predicts better everywhere, but pays only where the payoff depends on the opponent (October 18, 2026)
+
+**Why:** contribution 3, sharper (PAPER.md, G5a). Across the three domains a deeper level often predicts better but earns the same (12.27, 12.32, 12.61). This puts every level step on one plot.
+
+**Data:** stored, 0 CPU (`results/g5a_prediction_reward_20261018/assemble.py`, `rows.csv`). One point per (domain, agent, level step k → k + 1 with k ≥ 1, opponent level), 44 points in all, from:
+- Tiger, published and coordination (12.37 matrix);
+- UAV (12.49);
+- Wumpus 3 × 3, the human's steps (12.60–12.61).
+
+The axes:
+- **Prediction gain:** Tiger and UAV, the drop in log-loss of the agent's prediction of the opponent's next action, as a share of the uniform log-loss; Wumpus, the rise in the probability given to the wumpus's actual move, as a share of the gap from 1/3 (a level-1 human predicts uniformly) to 1.
+- **Reward gain:** each analysis's own paired gain, divided by the agent's one-step reward range (Tiger 110 or 140, UAV 55 or 50, Wumpus 2,000), so the domains share a scale. Significance is each analysis's own Holm p.
+
+**Figure:** `docs/figures/prediction_vs_reward.png`.
+
+| Cluster | Points | Prediction gain | Reward gain | Significant (Holm < 0.05) |
+|---|---|---|---|---|
+| Tiger (published), 1 → 2 against an intentional opponent | 6 | 0.54–0.57 | −0.04 to +0.02 | 0 of 6 |
+| Tiger (coordination), 1 → 2 against an intentional opponent | 6 | 0.52–0.59 | +0.04 to +0.21 | 4 of 6 |
+| UAV, 1 → 2 against an intentional opponent | 3 | 0.38–0.44 | +0.10 to +0.70 | 3 of 3 |
+| Every other step (level 2 → 3, or against level 0) | 29 | −0.11 to +0.26 | −0.13 to +0.47 | 3 of 29 (UAV 1 → 2 against levels 0 (−0.13) and 2 (+0.47); Wumpus 1 → 2 against level 2 (+0.09)) |
+
+- **The same prediction gain can be worth nothing or a great deal.** In the published Tiger and the coordination Tiger, a second level improves prediction by the same amount (about 55% of the gap). It earns nothing in the first, because an agent's payoff there depends only on its own door, and up to +0.21 reward ranges in the second.
+- **So prediction gain is necessary but not sufficient.** It pays only where the payoff depends on the opponent's action (THEORY.md, "When a deeper model can pay"). The exact screen (12.22, 12.64) measures that dependence directly, per decision.
+- **A third level adds little prediction anywhere** (at most +0.10) and no significant reward. The one large reward gain with small prediction gain (UAV against a level-2 target, +0.47 at a prediction gain of 0.11) is a level-2 UAV acting on a better model of evasion, not on better next-action prediction.

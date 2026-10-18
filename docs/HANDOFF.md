@@ -37,7 +37,7 @@ Last updated October 18, 2026, 10:50. Claude is the sole owner of `main`; there 
 - **G4 done:** RESULTS 12.63, the ablation table. New: root chance scoring fixes 34 of 560 UAV decisions and breaks none (p = 1.2 × 10⁻¹⁰), and changes none of 1,786 Tiger decisions. Its last row, level-0 mass vs a single fixed level, comes from 12.39 and 12.58.
 - **G5b, Wumpus part done:** RESULTS 12.64. A second level is worth 19.7 per decision against an intentional wumpus (0 at the prior, 51 after 4 steps). The matched control (histories from a random wumpus) costs 1.7 per decision, at 4 of 58 histories; 2 of 60 have zero evidence. The UAV screen (0 CPU, from the 12.41 gate rows) gives H2 1 → 2 worth 6.0 against 1.6, and 2 → 3 worth 6.1 against 5.8: a third level pays only against a level-2 target, an untested prediction.
 
-**State at the start of October 18.** `main` was clean and pushed (`eefeb28` plus the HANDOFF commit), and nothing was running. There were 343 tests, and `ruff` was clean. Tiger, UAV and Wumpus 3 × 3 are complete (RESULTS 12.1–12.61). **The next free RESULTS section is now 12.66 (12.65 is reserved for I-NTMCP).**
+**State at the start of October 18.** `main` was clean and pushed (`eefeb28` plus the HANDOFF commit), and nothing was running. There were 343 tests, and `ruff` was clean. Tiger, UAV and Wumpus 3 × 3 are complete (RESULTS 12.1–12.61). **The next free RESULTS section is now 12.67 (12.65 is reserved for I-NTMCP).** G5a done: RESULTS 12.66, `docs/figures/prediction_vs_reward.png`.
 
 **First thing to tell the user:** back up `results/`. It has not been copied off the machine since September 30, and it holds every October dataset plus the reviewer-page generator.
 
@@ -242,7 +242,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.66 (12.65 is reserved for I-NTMCP).**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.67 (12.65 is reserved for I-NTMCP).**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a, item 2 (G1 first). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
