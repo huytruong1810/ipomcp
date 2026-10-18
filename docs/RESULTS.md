@@ -2249,12 +2249,14 @@ The definition is in THEORY.md, "Tie convention".
 | Consistent stopping (1/n) → flat cap for modeled solves | L2 H4, L3 H3, L3 H4 near-tie sets (2,016 solves) | same decisions | same decisions | 14–23% fewer simulations; in-situ CPU 0.88×, n.s. | 12.11, 12.15 |
 | Root budget 4,000 → 1,000 | Tiger L2 H4 (380) | 380/380; optimal-action Q error 0.031 | 380/380; 0.121 | Wilcoxon p = 5 × 10⁻³⁹ on Q error; CPU 1.06× | 12.33 |
 | Certified bounds → none | every real decision | intervals contain the exact Q in 1,016/1,016 checked | — | cost negligible (successors cached) | 12.17, 12.41 |
+| Uniform level prior (level 0 included) → a single fixed level | coordination Tiger, i at level 3 against the matrix's level-1 j, n = 100 trials | uniform: −6.0 [−13.1, 1.1] against the correct point prior (Holm 0.41) | wrong point prior: −17.5 (over-estimated, Holm 0.011) or −30.0 (under-estimated, Holm < 0.001) | paired by trial | 12.39 |
+| Level-0 mass → point-mass levels, level 3 with deterministic percepts | Wumpus 3 × 3 L3 H2 | exact I-POMDP defined; 55/55 | the exact reference's nested update has zero evidence (undefined) | — | 12.58 |
 
 - **What the table says:**
   - The components that change *decisions* are chance scoring (on UAV, not Tiger), exact two-step scoring, the compressed exact filter, and stratified compression.
   - The stopping rule and the root budget change only cost or Q error.
   - Certified bounds change nothing but add a guarantee.
-- **Open row:** level priors with level-0 mass vs a single fixed level. No paired number exists yet (PAPER.md, G4).
+- **The level prior** (12.39, imported): when the opponent's level is unknown, a uniform prior that includes level 0 costs little (−6.0, not significant) relative to knowing it. A single fixed level costs 17.5–30.0 when it is wrong, because a point prior can never be revised. With deterministic percepts, level-0 mass is also what keeps the level-3 update defined (12.58; THEORY.md).
 
 ### 12.64 The exact screen on Wumpus 3 × 3 and UAV: a second level is worth 19.7 (Wumpus) and 6.0 (UAV) per decision against an intentional opponent, and costs 1.7 and 1.6 if the opponent is one level lower (October 18, 2026)
 

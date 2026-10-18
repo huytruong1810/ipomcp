@@ -72,7 +72,7 @@ Done, from paired stored results plus one new recomputation. Turning root chance
 | Consistent 1/n stopping rule | 12.11, 12.15 | done |
 | Root budget 1,000 vs 4,000 | 12.33 | done |
 | Certified bounds | 12.17, 12.41 | done |
-| Level priors with level-0 mass vs a single fixed level | none | `MISSING (G4)`: a small paired run |
+| Level priors with level-0 mass vs a single fixed level | 12.39 (uniform −6.0 n.s.; wrong point prior −17.5 / −30.0), 12.58 | done |
 
 ## 3. Paper sections and status
 
