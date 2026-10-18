@@ -26,16 +26,18 @@ Last updated October 18, 2026, 10:50. Claude is the sole owner of `main`; there 
   - The gate passed: at ε = 0, 420/420 rows were identical to before the change and to the stored c16 and u5 rows. There are 350 tests.
   - The repair removes 54–56 of the 55–57 Wumpus failures, but the baseline still loses: Wumpus 20–26/60 and UAV 49–55/80, against 60/60 and 80/80 (Holm p ≤ 6 × 10⁻⁸).
   - Run folder: `results/g3_ipf_fix_20261018`.
-- **G3, step 2 is blocked on the user:** the I-NTMCP adapter. Adding the authors' repository as a submodule (`third_party/i-ntmcp` at `63deec3`) and running their code was refused by the auto-mode permission classifier ("Code from External"). Ask the user to allow it, or to run `git submodule add https://github.com/RDLLab/i-ntmcp.git third_party/i-ntmcp && git -C third_party/i-ntmcp checkout 63deec3` themselves. Their planner imports need only numpy (check with `PYTHONPATH=third_party/i-ntmcp`).
-- **Adapter design** (`src/ipomdp/baselines/intmcp.py`, not yet written). It drives their `NestedSearchTree` unchanged, through `POSGModel`:
-  - **Wrappers.** Hashable wrappers for state, action and observation. Agents "i", "j" map to 0 and 1. `step` samples s' from our transition kernel and each o_k from our observation kernel independently given (s', a), as the exact filter assumes. Rewards come from `get_reward`; `done = is_terminal(s')`. A null initial joint observation, and `get_init_belief` = the common prior.
-  - **Levels.** Their level 0 is a POMDP planner against a uniform-random opponent, so **their nesting level = our level − 1** (our Wumpus L2 and UAV L2 are their nesting 1).
-  - **Horizon.** Set H through their public `epsilon` so that `ceil(log ε / log γ) = H − 1` (ε = γ^(H − 1.5)). Their `step_limit` does not work for nested trees, which never advance `_step_num`.
-  - **Defaults kept:** `reinvigorate_fn` None (their rejection sampling, then forced samples; no domain knowledge, matching our planner); `uct_c` = r_max − r_min; `extra_particles_prop` 1/16; random rollouts; `random.seed(seed)` per job, since their code uses the global `random`.
-  - **Scoring at a stored history.** `step(null)`, then for each (a, o): `update(a, o)` followed by `get_action()`. Their search at each step builds the next step's particles. Score the final `get_action()` and the root action values against the exact Q; record the CPU of the final search and of the whole history.
-  - **First gate:** I-NTMCP at large M on Tiger L1 H2 (exact alpha vectors) and Wumpus 3 × 3 L2 H2 (12.58's 60 problems). Price it before any CPU-matched curve.
+- **G3, step 2 (I-NTMCP), unblocked by the user on October 18 ("I allow"):**
+  - Submodule `third_party/i-ntmcp` at `63deec3`. Adapter `src/ipomdp/baselines/intmcp.py`. Driver `wumpus_qualification --planner intmcp --intmcp-variant published|tuned`. Tests: `tests/test_intmcp.py` (pytest adds the submodule to the path through pyproject). There are 357 tests.
+  - **Levels:** our level L is their nesting L − 1, since their level 0 is a POMDP planner against a random opponent. **H** is set through their ε, as ε = γ^(H − 1.5).
+  - **Finding:** the published variant (no reinvigoration function) force-fills up to 99% of a belief with particles that contradict the agent's own observations. The cause is deterministic senses, a 3,000-rejection cap and a large M. The tuned variant (kernel reinvigoration, a rejection budget of 50 per particle) has 0% forced. Both variants are run and reported, as in 12.62.
+  - **Gate A′ passed (tuned, L1 H1, M = 64,000):** 57/60 optimal, max loss 1.5, median max |ΔQ| 4.7. The adapter is valid.
+  - **Gate A (L1 H2)** climbs slowly with M: tuned 24 → 29 → (interim 37/53) at M = 1,000, 4,000 and 16,000. The cause is MCTS mean backups under the authors' c = r_max − r_min (about 2,000): depth-1 values average over explored actions.
+  - **Running:** `results/g3_intmcp_20261018/run.sh`, runner PID 408358 (`/bin/sh ./run.sh`; its child is the driver). Order: Gate A′, then Gate A (tuned, then published), then Arm B (L2 H2, M = 1,000 to 256,000, tuned then published). Expect about 10 h of wall time; M = 256,000 runs 2 workers of about 6 GB each.
+  - **When it finishes:** run `PYTHONPATH=results/g3_intmcp_20261018/src .venv/bin/python results/g3_intmcp_20261018/analyze.py`, then write **RESULTS 12.65** (the number is reserved in the adapter's docstring). The rows from before the variant split are in `superseded_no_variant/`. `ENDPOINTS.md` has two amendments, both recorded before their runs.
+- **G4 done:** RESULTS 12.63, the ablation table. New: root chance scoring fixes 34 of 560 UAV decisions and breaks none (p = 1.2 × 10⁻¹⁰), and changes none of 1,786 Tiger decisions. Open row: level-0 mass vs a single fixed level.
+- **G5b, Wumpus part done:** RESULTS 12.64. A second level is worth 19.7 per decision against an intentional wumpus (0 at the prior, 51 after 4 steps). The cost if the wumpus is random is 9.1 per decision, at 5 of 60 histories. Next: a control screen on histories from a random wumpus, and a UAV screen.
 
-**State at the start of October 18.** `main` was clean and pushed (`eefeb28` plus the HANDOFF commit), and nothing was running. There were 343 tests, and `ruff` was clean. Tiger, UAV and Wumpus 3 × 3 are complete (RESULTS 12.1–12.61). **The next free RESULTS section is now 12.63.**
+**State at the start of October 18.** `main` was clean and pushed (`eefeb28` plus the HANDOFF commit), and nothing was running. There were 343 tests, and `ruff` was clean. Tiger, UAV and Wumpus 3 × 3 are complete (RESULTS 12.1–12.61). **The next free RESULTS section is now 12.66 (12.65 is reserved for I-NTMCP).**
 
 **First thing to tell the user:** back up `results/`. It has not been copied off the machine since September 30, and it holds every October dataset plus the reviewer-page generator.
 
@@ -240,7 +242,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.63.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.66 (12.65 is reserved for I-NTMCP).**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a, item 2 (G1 first). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.

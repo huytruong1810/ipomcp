@@ -15,7 +15,9 @@
 - **G3, step 1 done (RESULTS 12.62):**
   - The IPF with likelihood smoothing (`particle_filter="smoothed"`, ε = 0.01) passed the gate: at ε = 0, 420/420 rows were identical to before the change.
   - It removes 54–56 of the 55–57 Wumpus failures, yet still loses to I-POMCP: Wumpus 20–26/60, UAV 49–55/80, against 60/60 and 80/80.
-- **G3, step 2 blocked (October 18):** the I-NTMCP adapter. Adding the authors' repository (a submodule pinned at `63deec3`) and running it was refused by the permission classifier, so it waits for the user. Adapter design: HANDOFF 0.0a, item 2.
+- **G3, step 2 running (October 18):** I-NTMCP through the adapter, in two variants (published and tuned). Gate A′ passed. Arm B (Wumpus 3 × 3 L2 H2, M = 1,000 to 256,000) is in `results/g3_intmcp_20261018`; it will become RESULTS 12.65.
+- **G4 done:** RESULTS 12.63 (ablation table).
+- **G5b, Wumpus part done:** RESULTS 12.64 (the exact depth screen).
 
 | Step | What | CPU | Gate or deliverable |
 |---|---|---|---|
