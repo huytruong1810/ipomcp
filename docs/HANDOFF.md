@@ -1,26 +1,27 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.60);
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.61);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 certification standard;
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top (the top one is "Wumpus 3 × 3").
 
-Last updated October 17, 2026, 13:00. Claude is the sole owner of `main`; there are no other agents.
+Last updated October 17, 2026, 22:40. Claude is the sole owner of `main`; there are no other agents.
 - **Tiger is complete** (RESULTS 12.1–12.40, 12.47–12.48).
 - **UAV is complete** (12.41–12.50).
-- **Wumpus 3 × 3 is the current phase** (12.57–12.60).
-- One run is in progress (0.0a, item 1).
+- **Wumpus 3 × 3 is complete** (12.57–12.61).
+- Nothing is running.
 
 ## 0. Start here (fresh agent)
 
 ### 0.0a Next session (written October 17 at the user's request)
 
-**1. First: finish the running job (step 4 of `results/c15_wumpus3_episodes_20261017/ENDPOINTS.md`).** It tests a third level for the human: i3 against j0, j1 and j2, trials 0–99, paired by trial with the matrix's i2 cells.
-- **Where:** `results/c15_wumpus3_episodes_20261017/level3/`, driver PID in `level3.pid` (10 workers), guard `guard_level3b.sh`. On October 17 at 13:00 it stood at 94 of 300 episodes, about 0.6 per minute. If it is no longer running, resume with `env PYTHONPATH=<run>/src .venv/bin/python <run>/level3.py <run>/level3 10` from the run folder; it skips finished trials.
-- **Its gate passed:** 55/55 (12.58). Analyse with `.venv/bin/python results/c15_wumpus3_episodes_20261017/level3_analyze.py`, which runs the fixed test: human L2 → L3 against each wumpus level, Holm over 3. **Report whatever the sign.**
-- **Write-up:** a new RESULTS section, 12.61, and add it to 12.60's summary; PLAN status; the Claude Doc report (Section 4 map); then commit and push.
-- **Expected,** from Tiger 12.37 and UAV 12.49: a third level is worth little. A null result is a finding: depth pays up to the opponent's level plus one, as in the cognitive-hierarchy literature.
+**1. Done October 17, evening (this session):**
+- **Step 4 finished** (300/300, 22:18) and was analysed with the fixed test: **RESULTS 12.61**. Human L2 → L3: −19 against a random wumpus, +80 and +120 against an intentional one, none significant (Holm 0.55–0.86). Level 3 predicts the wumpus better (0.54–0.55 of the probability on its actual move, against 0.48–0.50). It cost about 110 CPU-h for the human, against the pilot's estimate of about 70, because of a heavy tail of 4 CPU-h episodes. The interim numbers at n = 32 (+312, +374) were misleading.
+- **Reviewer page version 25** (same URL): a Wumpus section built by `results/w4_report_20261007/wumpus_section.py` → `wumpus.json`. It contains the RTS decision table, heat maps, paired gains, death-cause bars, the confirmation table, the prediction and level-belief panel, and the level-3 paragraph. All inferential numbers are parsed from the run folders' own analysis scripts. Backups: `*_20261017.bak` and `report_v24_20261017.bak` (the live v24). **Rebuild after 12.61:** `python wumpus_section.py && python build_report.py`, then republish.
+- **Claude Doc:** a new section, "When a second level pays: three domains" (a cross-domain table plus the mechanism), before "Checks behind".
+- **THEORY.md:** "When a deeper model can pay": correct prediction is enough; no gain against a non-intentional opponent (per decision, at the planning horizon); and level-0 mass keeps nested updates defined.
+- **Headless Chrome:** the extracted libraries had gone. Redo it with `apt-get download libnspr4 libnss3 libasound2`, `dpkg -x` into a scratch folder, and `LD_LIBRARY_PATH=<that>/usr/lib/x86_64-linux-gnu`; the browser is `~/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell`. To screenshot one section, inject CSS that hides the others.
 
 **2. Remind the user to back up `results/`.** It has not been backed up since September 30, and it holds every October dataset, including c12–c17.
 
@@ -31,22 +32,13 @@ Last updated October 17, 2026, 13:00. Claude is the sole owner of `main`; there 
 
 The evidence now spans three domains: Tiger (published and coordination variants), UAV reconnaissance, and Wumpus (4 × 4 at L1; 3 × 3 at L1–L3). The user's standards: rigour, the analysis fixed before each run, controls and large-n backups for anything a reviewer could call noise, and big-tech code quality.
 
-**4. Next steps, Claude's recommended order** (choose and go, as the user asked, October 12 and 17):
-- (a) **The reviewer page: a Wumpus section** (generator in `results/w4_report_20261007`, rebuilt as in 0.6). Contents:
-  - the 3 × 3 level-matrix heat map of each agent's return;
-  - death-cause bars (wumpus, pit, gold) for i1 against i2 per opponent;
-  - the confirmation panel with its control;
-  - the I-POMCP versus IPF + RTS decision table (12.59).
-
-  Back up the template first (`*_<date>.bak`), check the rendering with headless Chrome (0.0a of October 15 explains the `LD_LIBRARY_PATH` trick), and republish to the same URL.
-- (b) **A single summary of contribution 3 across the three domains** for the Claude Doc. The pattern is "depth pays exactly when the opponent's behaviour depends on what it believes about you":
-  - the Tiger coordination game against the published one (12.37, 12.40);
-  - UAV (12.49);
-  - Wumpus, against an intentional versus a random wumpus (12.60).
-- (c) **An interpretability panel for Wumpus,** to explain *how* the level-2 human avoids the wumpus. Use the episode rows' `prob_l*_j` columns (its posterior over the wumpus's level), plus predictions against the wumpus's actual moves, so the mechanism is shown and not only inferred.
-- (d) **Optional,** each priced first and kept under 100 CPU-h:
-  - an RTS planner comparison in Wumpus episodes (i2 with I-POMCP against i2 with IPF + RTS, against j1 or j2). In decisions RTS is already 1–28/60, so episodes add little;
-  - a 4 × 4 Wumpus L2 matrix: priced out, 12.55–12.56.
+**4. Next steps, Claude's recommended order:** close the publication gaps. The user asked on October 17 whether the work is publication-worthy. Claude's answer: a strong AAMAS or workshop paper as it stands, borderline for a main track. The gaps, most serious first:
+- (a) **Literature check** (cheap; do it first): modern online I-POMDP planners. Check, among others, a nested-MCTS I-POMDP planner (Schwartz, Zhou & Kurniawati, about 2022, unverified), IPOMDP-Lite (Hoang & Low), and the Han & Gmytrasiewicz particle-filter line. Also check whether the name "I-POMCP" is already taken. This may change how contribution 1 is framed.
+- (b) **A scale experiment beyond exact reach,** e.g. Wumpus 4 × 4 at L1–L2 or UAV at a larger horizon. Plot reward against CPU for I-POMCP and IPF + RTS, CPU-matched. Include IPF with a standard zero-likelihood fix (likelihood smoothing or rejuvenation), so the 12.59 failure cannot be called a strawman.
+- (c) **One ablation table:** the compressed exact filter vs IPF, chance scoring on vs off, the stopping rule, and certified bounds (cost only), drawn from existing A/B results where possible.
+- (d) **Contribution 3, sharper:** the exact screen as an a-priori predictor of when depth pays (extend 12.22 to UAV and Wumpus), and the link between prediction gain and reward gain.
+- (e) **A paper outline,** so the remaining runs fill specific figures.
+- Optional: Wumpus horizon 3 to test whether a third level pays at a longer horizon (6–36 CPU-min per decision; price it first).
 
 **5. "Taste in research": directions Claude would pursue, best first** (the user asked for these to be recorded):
 - **The mechanism of "depth pays only against a mind".** A clean theory statement: with a level-k prior that includes level 0, the value of modeling an opponent is zero when the opponent's policy does not depend on its beliefs. All three domains are instances, and the random-opponent controls are the exact backups (THEORY.md material, plus one figure).
@@ -113,7 +105,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
 
 - **Repository.**
   - `main` is clean at the last HANDOFF commit. 343 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
-  - **Running (October 17):** the step-4 level-3 episodes (0.0a, item 1). Nothing else of this project runs.
+  - **Running:** nothing (October 17, 22:40).
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
     - `resampling/optimal-fc` (12.28);
@@ -142,7 +134,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
   - **Kill criteria.** Write a kill criterion before every run, in `KILL_CRITERION.txt`, and check it.
 - **Results.**
   - Put each run in a new dated folder under `results/` (git-ignored), with its scripts inside.
-  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.61.**
+  - Numbers go into `docs/RESULTS.md`. **The next free section is 12.62.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
 - **Current task (new session):** 0.0a. Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.

@@ -2180,3 +2180,23 @@ The definition is in THEORY.md, "Tie convention".
   | Control: against wumpus L0 | +20 [−70, 110] | 0.76 |
 
   - **The mechanism replicates:** the L2 human is killed by the wumpus in 48% of episodes against 64–67% at L1, and reaches the gold in 19–20% against 12–15%.
+  - **A third level:** see 12.61 (human L2 → L3; not significant against any wumpus level).
+
+### 12.61 Wumpus 3 × 3: a third level for the human predicts better but does not earn significantly more (October 17, 2026)
+
+**Design** (`results/c15_wumpus3_episodes_20261017/level3`, `ENDPOINTS.md` step 4, fixed before the run).
+- **Cells:** a level-3 human against wumpus levels 0, 1 and 2, trials 0–99, on the same snapshot and trial streams as 12.60's matrix, so each episode pairs with the level-2 human's episode of the same trial.
+- **Agent:** the episode configuration of 12.58's level-3 gate (55/55 optimal against the exact I-POMDP): a uniform prior over all lower levels at every nesting, horizon 2, root 400, modeled 400, exact beliefs and exact search.
+- **Test:** human L2 → L3 against each wumpus level, sign-flip permutation, Holm over 3 (`level3_analyze.py`).
+- **Run:** 300 of 300 episodes, every attempt complete, no failures. The human's planning costs a median of 11–17 CPU-min per episode (mean 21–24), with a heavy tail: a few long episodes took about 4 CPU-h. Peak memory 1.5 GB. About 110 CPU-h for the human, more than the pilot's 13–14 CPU-min per episode predicted.
+
+| Wumpus level | Human L2 → L3 gain [95%] | p | Holm | Killed by the wumpus, L3 (L2) | Gold, L3 | Pit, L3 |
+|---|---|---|---|---|---|---|
+| 0 (random) | −19 [−138, 100] | 0.86 | 0.86 | 0.22 (0.18) | 0.30 | 0.01 |
+| 1 | +80 [−80, 239] | 0.36 | 0.72 | 0.36 (0.41) | 0.33 | 0.08 |
+| 2 | +120 [−50, 290] | 0.18 | 0.55 | 0.35 (0.44) | 0.32 | 0.09 |
+
+- **A third level is not significantly better against any wumpus level.** The point estimates against an intentional wumpus are positive (+80, +120), with fewer deaths by the wumpus (0.35–0.36 against 0.41–0.44), but both intervals include zero. Against a random wumpus the gain is −19 (the control).
+- **The level-3 human predicts the wumpus better.** Averaged over each episode, it gives the wumpus's actual move probability 0.55 [0.53, 0.58] against a level-1 wumpus and 0.54 [0.52, 0.57] against a level-2 one, against 0.50 and 0.48 for the level-2 human (12.60; `w4_report_20261007/wumpus_section.py`). Against a random wumpus both give 0.33, the best possible. The same pattern held in Tiger: a third level predicts better but earns the same (12.27, 12.32).
+- **Interim numbers were misleading,** and only the final n is reported. At 32 trials per cell, the gains read +312 and +374, with Holm p of 0.02–0.03. This is why the analysis was fixed in advance and run on the full n only.
+- **Across domains,** depth pays up to about one level above the opponent's (Tiger 12.37 and 12.40, UAV 12.49, Wumpus 12.60–12.61), as in the cognitive-hierarchy literature. Whether a longer horizon would let a third level pay in Wumpus is untested: horizon 3 costs 6–36 CPU-min per decision (12.58).
