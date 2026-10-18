@@ -59,19 +59,20 @@
 
 **Figure 4** `MISSING (G5a)`: a scatter of prediction gain against reward gain, one point per cell.
 
-## 2. Ablation table (G4)
+## 2. Ablation table (G4): RESULTS 12.63
 
-One row per component: the effect with the component removed, from paired stored results where they exist.
+Done, from paired stored results plus one new recomputation: root chance scoring off fixes 0 of 560 UAV decisions it breaks (34 fixed, p = 1.2 × 10⁻¹⁰) and changes no Tiger decision. The table is in RESULTS 12.63.
 
 | Component | Paired evidence | Status |
 |---|---|---|
-| Compressed-exact filter vs the sampled IPF (same planner) | 12.43–12.45, 12.59; Section 8 | stored; collect into one row |
-| Exact chance scoring on vs off | `search_values` kept beside the scored values (12.14); Section 11 | stored; recompute |
-| Consistent 1/n stopping rule for modeled solves | 12.11, 12.15 | stored |
-| Root budget 1,000 vs 4,000 | 12.33–12.34 | stored |
-| Stratified vs systematic compression | 12.57 | stored |
-| Certified bounds: cost and coverage | 12.17 | stored (cost not yet tabulated) |
-| Level priors with level-0 mass vs a single fixed level | 12.39, 12.58 | `MISSING (G4)`: check whether a paired number exists |
+| Root chance scoring | 12.63 (new), 11 | done |
+| Exact scoring with two steps left | 12.14 | done |
+| Compressed exact filter vs sampled IPF | 12.59, Section 8 | done |
+| Stratified vs systematic compression | 12.57 | done |
+| Consistent 1/n stopping rule | 12.11, 12.15 | done |
+| Root budget 1,000 vs 4,000 | 12.33 | done |
+| Certified bounds | 12.17, 12.41 | done |
+| Level priors with level-0 mass vs a single fixed level | none | `MISSING (G4)`: a small paired run |
 
 ## 3. Paper sections and status
 

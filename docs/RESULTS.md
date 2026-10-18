@@ -2229,3 +2229,29 @@ The definition is in THEORY.md, "Tie convention".
 - **It does not close the gap.** I-POMCP is right on every problem the smoothed baseline gets right, and on 25–40 more per arm (Holm p ≤ 6 × 10⁻⁸ in all six). On Wumpus, the smoothed baseline's 20–26/60 matches RTS on *exact* beliefs (20–28/60, 12.59), as does its 949 maximum loss (a walk into death). Once the filter is repaired, what remains is RTS's search.
 - **The remaining 5 failures** (K = 2: 3; K = 4 and K = 8: 1 each; all after 4 steps) are a nested wumpus model, all of whose particles predicted the episode would end when it had not. With ε > 0 every declared observation has positive weight, so the update's only remaining rejection is this terminal-consistency check, which likelihood smoothing does not address.
 - **Reading, fixed in advance:** the smoothed baseline still loses significantly in both domains, so 12.59's gap is not a strawman artefact. The paper should report the published IPF, the smoothed IPF and I-POMCP side by side (PAPER.md, Table 1).
+
+### 12.63 Ablation table: what each component of I-POMCP buys, from paired results (October 18, 2026)
+
+**Why:** the publication-gaps phase (G4) needs one table of the planner's components. Each row compares the planner with one component removed or replaced, on the same problems and seeds. Most rows come from earlier paired A/Bs. One row is new: root chance scoring off, recomputed from stored rows that keep the search-only values beside the scored ones.
+
+**Terms.**
+- *Chance scoring:* after search, the root's values are recomputed with exact chance probabilities, and actions with two steps left are scored exactly over every branch (12.14).
+- *Search-only:* the decision taken from the raw search values instead. Modeled opponents keep their scoring, so this row ablates the root's scoring only.
+
+| Component removed or replaced | Problems (n) | With the component | Without it | Paired test | RESULTS |
+|---|---|---|---|---|---|
+| **Root chance scoring** → raw search values (new) | UAV qualified cells: L1 H4 at 4,000, L2 H2, L2 H3, L3 H2, L1 H5 at 64,000 (560) | 560/560 optimal | 526/560 (L2 H3: 63/80) | 34 fixed, 0 broken; sign test p = 1.2 × 10⁻¹⁰ | this section; 12.41 |
+| Root chance scoring → raw search values | Tiger gates: L2 H3, L2 H4, L3 H3, coordination L2–L4 H2 (1,624) | 1,624/1,624 | 1,624/1,624 | no decision changes; it lowers Q error (L2 H3 k = 0: 0.13 → 0.05) | this section; 11; 12.23 |
+| Exact scoring with two steps left → fallback to search Q | L3 H4 residual beliefs × 10 seeds (80) | 4 wrong | 14 wrong | 12 fixed, 2 broken; exact McNemar p = 0.013 | 12.14 |
+| Compressed exact filter → the sampled IPF, same RTS search, Wumpus 3 × 3 L2 H2 | 60 problems × K = 2, 4, 8 | exact beliefs: 20–28/60 | IPF 64: 1–2/60 (55–57 failures) | — | 12.59 |
+| Compressed filter → sampled IPF at equal N (belief error) | Tiger L2 histories | belief error 4–40× smaller at equal N | — | paired over histories | Section 8 |
+| Stratified → systematic compression | Wumpus 3 × 3 L2 H2, N = 256 / 1,024 (60 each) | 6 / 1 wrong | 19 / 12 wrong | p = 0.011 / 0.0034 (no other grid differs) | 12.57 |
+| Consistent stopping (1/n) → flat cap for modeled solves | L2 H4, L3 H3, L3 H4 near-tie sets (2,016 solves) | same decisions | same decisions | 14–23% fewer simulations; in-situ CPU 0.88×, n.s. | 12.11, 12.15 |
+| Root budget 4,000 → 1,000 | Tiger L2 H4 (380) | 380/380; optimal-action Q error 0.031 | 380/380; 0.121 | Wilcoxon p = 5 × 10⁻³⁹ on Q error; CPU 1.06× | 12.33 |
+| Certified bounds → none | every real decision | intervals contain the exact Q in 1,016/1,016 checked | — | cost negligible (successors cached) | 12.17, 12.41 |
+
+- **What the table says:**
+  - The components that change *decisions* are chance scoring (on UAV, not Tiger), exact two-step scoring, the compressed exact filter, and stratified compression.
+  - The stopping rule and the root budget change only cost or Q error.
+  - Certified bounds change nothing but add a guarantee.
+- **Open row:** level priors with level-0 mass vs a single fixed level. No paired number exists yet (PAPER.md, G4).
