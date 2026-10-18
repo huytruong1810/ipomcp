@@ -84,6 +84,7 @@ from ipomdp.experiments.problems import (
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
+from ipomdp.planning.solver_bank import FILTERS
 
 CELL = (
     "planner",
@@ -301,7 +302,7 @@ def main():
         "--particles", type=int, nargs="+", default=[0], help="0 means exact beliefs"
     )
     parser.add_argument(
-        "--particle-filters", choices=["compressed", "sampled"], nargs="+", default=["compressed"]
+        "--particle-filters", choices=sorted(FILTERS), nargs="+", default=["compressed"]
     )
     parser.add_argument("--history", type=int, nargs="+", default=[0])
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1])

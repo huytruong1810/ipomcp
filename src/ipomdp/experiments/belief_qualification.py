@@ -36,7 +36,7 @@ from ipomdp.domains.tiger import TIGER_LEFT, TigerModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.experiments.oracle import HISTORY_ACTIONS, sample_history
 from ipomdp.planning.config import PlannerConfig
-from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_bank import FILTERS, SolverBank
 
 NESTED = {3: {2: 0.1, 1: 0.8, 0: 0.1}, 2: {1: 0.5, 0: 0.5}, 1: {0: 1.0}}
 
@@ -138,7 +138,7 @@ def main():
     parser.add_argument("--levels", type=int, nargs="+", default=[2, 3])
     parser.add_argument("--particles", type=int, nargs="+", default=[16, 64, 256, 1024])
     parser.add_argument(
-        "--particle-filters", choices=["compressed", "sampled"], nargs="+", default=["compressed"]
+        "--particle-filters", choices=sorted(FILTERS), nargs="+", default=["compressed"]
     )
     parser.add_argument("--histories", type=int, default=12)
     parser.add_argument("--steps", type=int, default=len(HISTORY_ACTIONS))

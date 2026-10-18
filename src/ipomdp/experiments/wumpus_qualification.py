@@ -184,6 +184,7 @@ def human(
     l0=0.0,
     planner="mcts",
     particles=0,
+    particle_filter="sampled",
 ):
     """The level-``level`` human with exact real beliefs and searches on ``search_particles`` atoms.
 
@@ -193,8 +194,10 @@ def human(
 
     ``planner`` "rts" is the IPF + RTS baseline instead: every level, real and
     modeled, runs reachability-tree sampling with ``simulations`` sampled
-    observations per node, on beliefs of ``particles`` samples by the published
-    interactive particle filter (0: exact beliefs, which isolates RTS's search).
+    observations per node, on beliefs of ``particles`` samples by the
+    interactive particle filter ``particle_filter``: "sampled" (published) or
+    "smoothed" (with the zero-likelihood repair). ``particles`` 0 is exact
+    beliefs, which isolates RTS's search.
     """
     modeled = modeled or simulations
     if planner == "rts":
@@ -202,7 +205,7 @@ def human(
         bank = SolverBank(
             seed,
             particles=particles or None,
-            particle_filter="sampled",
+            particle_filter=particle_filter,
             max_branches=REFERENCE_BRANCHES,
         )
     elif planner == "mcts":
@@ -296,6 +299,7 @@ def evaluate(
     l0=0.0,
     planner_kind="mcts",
     particles=0,
+    particle_filter="sampled",
 ):
     """One decision after the problem's history, scored against ``oracle`` (the exact Q).
 
@@ -314,6 +318,7 @@ def evaluate(
         l0,
         planner_kind,
         particles,
+        particle_filter,
     )
     if steps_taken is None:
         steps_taken = history(physics, steps, seed, script)
@@ -331,6 +336,8 @@ def evaluate(
         row["l0"] = l0
     if planner_kind != "mcts":
         row |= dict(planner=planner_kind, particles=particles)
+        if particle_filter != "sampled":
+            row["particle_filter"] = particle_filter
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -393,6 +400,12 @@ def main():
     parser.add_argument("--planner", choices=("mcts", "rts"), default="mcts")
     parser.add_argument(
         "--particles", type=int, default=0, help="rts: IPF sample count (0: exact beliefs)"
+    )
+    parser.add_argument(
+        "--particle-filter",
+        choices=("sampled", "smoothed"),
+        default="sampled",
+        help="rts: the published IPF, or the IPF with likelihood smoothing",
     )
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--steps", type=int, nargs="+", default=[0, 2, 4])
@@ -467,6 +480,7 @@ def main():
                 args.l0,
                 args.planner,
                 args.particles,
+                args.particle_filter,
             )
             for (s, k), n, m, d in itertools.product(
                 problems, args.search_particles, args.simulations, args.modeled

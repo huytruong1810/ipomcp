@@ -35,14 +35,21 @@ the canonical digests of its arguments. The update is therefore a pure
 function, cacheable like the exact one, and modeled opponent policies remain
 pure functions of their (particle) beliefs.
 
-Failure mode (stated, not repaired)
------------------------------------
-If no particle explains o_i, the update raises ``UnsupportedObservation``; the
-same holds for a nested model that cannot explain its own sampled observation.
-With noisy sensors (Tiger, UAV) every observation has positive likelihood under
-every particle, so this cannot happen. With deterministic sensors (Wumpus) the
-particle set can miss the true world; that requires reinvigoration, which is
-not implemented, so such failures surface explicitly.
+Failure mode, and the smoothed variant
+--------------------------------------
+With ``smoothing`` 0 (the published filter), if no particle explains o_i the
+update raises ``UnsupportedObservation``; the same holds for a nested model
+that cannot explain its own sampled observation. With noisy sensors (Tiger,
+UAV) every observation has positive likelihood under every particle, so this
+cannot happen. With deterministic sensors (Wumpus) the particle set can miss
+the true world, and such failures surface explicitly (RESULTS 12.59).
+
+``smoothing`` ε > 0 is the standard likelihood-smoothing repair: every
+particle is weighted by (1 - ε) O_i(o_i | s', a) + ε / |Ω_i|, at every nesting
+level, so no declared observation has zero likelihood and the update never
+raises for lack of support. ``evidence`` then estimates P(o_i | b, a_i) under the
+smoothed sensor. ε = 0 is the published filter, draw for draw: weights are
+deterministic, so the random stream is the same.
 
 Initial beliefs are N draws from the exact prior rows (equal weights merged).
 """
@@ -54,15 +61,23 @@ from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalMo
 from ipomdp.belief.finite_filter import InteractiveFilter, Posterior, UnsupportedObservation
 from ipomdp.belief.resampling import systematic_draws
 
+# The ε of the solver bank's "smoothed" filter, declared before the G3 runs
+# (docs/PLAN.md, publication gaps): a 1% uniform sensor-noise floor.
+IPF_SMOOTHING = 0.01
+
 
 class ParticleInteractiveFilter(InteractiveFilter):
-    def __init__(self, policy, particles: int, seed: int, cache_size: int = 4096):
+    def __init__(
+        self, policy, particles: int, seed: int, cache_size: int = 4096, smoothing: float = 0.0
+    ):
         super().__init__(policy, cache_size)
         if type(particles) is not int or particles < 1:
             raise ValueError("particles must be a positive integer")
         if type(seed) is not int:
             raise TypeError("A particle filter needs an explicit integer seed")
-        self.particles, self.seed = particles, seed
+        if not 0.0 <= smoothing < 1.0:
+            raise ValueError("smoothing must be in [0, 1)")
+        self.particles, self.seed, self.smoothing = particles, seed, smoothing
 
     def initial_belief(self, rows):
         exact = FiniteBelief(tuple(rows))
@@ -82,6 +97,10 @@ class ParticleInteractiveFilter(InteractiveFilter):
             canonical.stable_value(observation),
             terminal,
         )
+        observations = physics.get_all_observations(frame.agent_id)
+        # Smoothing spreads ε over the agent's declared observations only, so an
+        # observation outside them still has no support and still raises.
+        floor = self.smoothing / len(observations) if observation in observations else 0.0
         rows, total_weight = [], 0.0
         for atom in systematic_draws(canonical.canonical_mass(model.belief), self.particles, rng):
             opponent = atom.opponent
@@ -93,6 +112,8 @@ class ParticleInteractiveFilter(InteractiveFilter):
             if terminal is not None and ended != terminal:
                 continue
             weight = physics.observation_probability(observation, following, joint, frame.agent_id)
+            if self.smoothing:
+                weight = (1.0 - self.smoothing) * weight + floor
             if weight == 0:
                 continue
             if opponent.frame.level > 0 and not ended:

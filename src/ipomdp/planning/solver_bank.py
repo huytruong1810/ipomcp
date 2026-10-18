@@ -11,7 +11,7 @@ A real agent and every model nested in its belief share one bank:
   belief, because search randomness is seeded from the bank seed and the
   belief's canonical digest. Cached results are immutable values, so cache
   eviction changes cost only, never behaviour.
-- **Interactive filter.** The belief update (exact, compressed or sampled), parameterised
+- **Interactive filter.** The belief update (exact, compressed, sampled or smoothed), parameterised
   by ``policy`` so that nested opponents act by their own modeled policies.
 - **Expected rewards.** E[R | b, a] over the full joint belief, used by the
   planner at every tree history and at its exact last step.
@@ -24,16 +24,20 @@ import bisect
 import gc
 import itertools
 import math
-from functools import lru_cache
+from functools import lru_cache, partial
 
 from ipomdp.belief import canonical
 from ipomdp.belief.compressed_filter import CompressedInteractiveFilter
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, checked_distribution
-from ipomdp.belief.particle_filter import ParticleInteractiveFilter
+from ipomdp.belief.particle_filter import IPF_SMOOTHING, ParticleInteractiveFilter
 from ipomdp.planning.solver_types import SolverKey
 
-FILTERS = {"compressed": CompressedInteractiveFilter, "sampled": ParticleInteractiveFilter}
+FILTERS = {
+    "compressed": CompressedInteractiveFilter,
+    "sampled": ParticleInteractiveFilter,
+    "smoothed": partial(ParticleInteractiveFilter, smoothing=IPF_SMOOTHING),
+}
 
 
 class SolverBank:
@@ -53,7 +57,9 @@ class SolverBank:
         most ``particles`` atoms, by exact updates compressed to N atoms
         (``particle_filter="compressed"``, the planner's default) or by the
         published sampled interactive particle filter (``"sampled"``, the
-        IPF + RTS baseline's belief).
+        IPF + RTS baseline's belief), or by that filter with likelihood
+        smoothing ε = ``IPF_SMOOTHING`` (``"smoothed"``, the baseline with the
+        standard zero-likelihood repair).
 
         ``search_particles`` bounds the beliefs a search works on, separately
         from the beliefs maintained between real steps: every search starts

@@ -82,7 +82,7 @@ from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
 from ipomdp.planning.policy import greedy_policy
-from ipomdp.planning.solver_bank import SolverBank
+from ipomdp.planning.solver_bank import FILTERS, SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.best_response import BestResponseReference
 from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
@@ -540,9 +540,7 @@ def main():
     parser.add_argument("--modeled", default=EXACT, help="modeled stack, e.g. 400 or 6400s")
     parser.add_argument("--reference", choices=["declared", "exact", "none"], default="declared")
     parser.add_argument("--particles", type=int)
-    parser.add_argument(
-        "--particle-filter", choices=["compressed", "sampled"], default="compressed"
-    )
+    parser.add_argument("--particle-filter", choices=sorted(FILTERS), default="compressed")
     parser.add_argument("--history-steps", type=int, default=0)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=2400)

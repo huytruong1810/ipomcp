@@ -9,7 +9,7 @@ from ipomdp.belief.compressed_filter import CompressedInteractiveFilter
 from ipomdp.belief.finite_belief import InteractiveState, MentalModel
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, UnsupportedObservation
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.belief.particle_filter import ParticleInteractiveFilter
+from ipomdp.belief.particle_filter import IPF_SMOOTHING, ParticleInteractiveFilter
 from ipomdp.domains.tiger import GROWL_LEFT, LISTEN, SILENCE, TIGER_LEFT, TigerModel
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
@@ -35,7 +35,7 @@ def supports(model):
     ]
 
 
-FILTERS = pytest.mark.parametrize("particle_filter", ["compressed", "sampled"])
+FILTERS = pytest.mark.parametrize("particle_filter", ["compressed", "sampled", "smoothed"])
 
 
 @FILTERS
@@ -70,11 +70,56 @@ def test_posterior_agrees_with_the_exact_update_within_monte_carlo_error(particl
     assert abs(left_probability(approximate.belief) - p) < 4 * math.sqrt(p * (1 - p) / 4000) + 1e-3
 
 
-@pytest.mark.parametrize("kind", [CompressedInteractiveFilter, ParticleInteractiveFilter])
-def test_no_explaining_particle_raises_instead_of_repairing(kind):
-    kernel = kind(greedy_one_step, particles=32, seed=0)
+@pytest.mark.parametrize("smoothing", [None, 0.0, IPF_SMOOTHING])
+def test_an_undeclared_observation_raises_under_every_filter(smoothing):
+    kernel = (
+        CompressedInteractiveFilter(greedy_one_step, particles=32, seed=0)
+        if smoothing is None
+        else ParticleInteractiveFilter(greedy_one_step, particles=32, seed=0, smoothing=smoothing)
+    )
     with pytest.raises(UnsupportedObservation):
         kernel.update(fixture(TigerModel()), LISTEN, ("not", "an observation"))
+
+
+def test_zero_smoothing_is_the_published_filter():
+    model = agent(particles=64, particle_filter="sampled").model()
+    published = ParticleInteractiveFilter(greedy_one_step, particles=64, seed=5)
+    unsmoothed = ParticleInteractiveFilter(greedy_one_step, particles=64, seed=5, smoothing=0.0)
+    for observation in [("GL", "S"), ("GR", "CL")]:
+        assert published.update(model, LISTEN, observation) == unsmoothed.update(
+            model, LISTEN, observation
+        )
+
+
+def test_smoothing_repairs_a_deterministic_sensor_miss():
+    # One particle holds one Wumpus world; some declared observation contradicts it.
+    physics = WumpusModel(3, 3, 1)
+    model = MentalModel(
+        AgentFrame("i", 1, physics),
+        ParticleInteractiveFilter(greedy_one_step, particles=1, seed=0).initial_belief(
+            wumpus_prior(physics)
+        ),
+    )
+    published = ParticleInteractiveFilter(greedy_one_step, particles=1, seed=0)
+    smoothed = ParticleInteractiveFilter(
+        greedy_one_step, particles=1, seed=0, smoothing=IPF_SMOOTHING
+    )
+    misses = 0
+    for observation in physics.get_all_observations("i"):
+        try:
+            published.update(model, "Forward", observation)
+        except UnsupportedObservation:
+            misses += 1
+            posterior = smoothed.update(model, "Forward", observation)
+            floor = IPF_SMOOTHING / len(physics.get_all_observations("i"))
+            assert posterior.evidence == pytest.approx(floor)
+            assert len(posterior.belief.mass) == 1
+    assert misses > 0
+
+
+def test_smoothing_is_validated():
+    with pytest.raises(ValueError, match="smoothing"):
+        ParticleInteractiveFilter(greedy_one_step, particles=8, seed=0, smoothing=1.0)
 
 
 def test_sampled_initial_belief_draws_from_the_exact_prior():
@@ -139,6 +184,8 @@ def test_filters_are_chosen_by_name_and_validated():
     assert isinstance(
         SolverBank(0, particles=8, particle_filter="sampled").filter, ParticleInteractiveFilter
     )
+    assert SolverBank(0, particles=8, particle_filter="sampled").filter.smoothing == 0.0
+    assert SolverBank(0, particles=8, particle_filter="smoothed").filter.smoothing == IPF_SMOOTHING
     assert isinstance(SolverBank(0).filter, FiniteInteractiveFilter)
     with pytest.raises(ValueError, match="particle_filter"):
         SolverBank(0, particles=8, particle_filter="other")
