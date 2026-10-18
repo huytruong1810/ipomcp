@@ -53,7 +53,7 @@
 | A third level predicts better (0.54–0.55 against 0.48–0.50) but earns no more | 12.18, 12.61 |
 | Interpretability: belief-hierarchy panels; why j's belief that i is level 1 follows the same curve for every level of i | 12.47, reviewer page |
 | **Prediction gain against reward gain, paired per cell across domains** | `MISSING (G5a)` |
-| The exact screen predicts where depth pays: on Wumpus 3 × 3, a second level is worth 19.7 per decision against an intentional wumpus, 0 at the prior and 51 after 4 steps, and costs 1.7 per decision on random-wumpus histories, matching 12.60 and its control (UAV screen still `MISSING (G5b)`) | 12.22, 12.64 |
+| The exact screen predicts where depth pays: on Wumpus 3 × 3, a second level is worth 19.7 per decision against an intentional wumpus, 0 at the prior and 51 after 4 steps, and costs 1.7 per decision on random-wumpus histories, matching 12.60 and its control On UAV H2, it is worth 6.0 against 1.6, matching 12.49, and it predicts that a third level pays only against a level-2 target (6.1 against 5.8) | 12.22, 12.64 |
 
 **Figure 3** `MISSING (G5c)`: the second-level gain against an intentional opponent vs a random opponent, per domain (the proposition's figure).
 

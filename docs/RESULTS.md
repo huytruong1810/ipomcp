@@ -2256,7 +2256,7 @@ The definition is in THEORY.md, "Tie convention".
   - Certified bounds change nothing but add a guarantee.
 - **Open row:** level priors with level-0 mass vs a single fixed level. No paired number exists yet (PAPER.md, G4).
 
-### 12.64 The exact screen on Wumpus 3 × 3: a second level is worth 19.7 per decision against an intentional wumpus and costs 1.7 against a random one (October 18, 2026)
+### 12.64 The exact screen on Wumpus 3 × 3 and UAV: a second level is worth 19.7 (Wumpus) and 6.0 (UAV) per decision against an intentional opponent, and costs 1.7 and 1.6 if the opponent is one level lower (October 18, 2026)
 
 **Why:** contribution 3, sharper (PAPER.md, G5b). Can an exact, episode-free screen say in advance whether depth pays? It exists for Tiger (12.22). This applies it to Wumpus 3 × 3 at H2, where 12.58 has the exact level-2 I-POMDP Q for 60 problems.
 
@@ -2284,4 +2284,15 @@ The definition is in THEORY.md, "Tie convention".
   - On the other 58, the cost of a second level is **1.7 per decision** (positive at 4 of 58; mean 0 at the prior, 0.1 after 2 steps, 5.2 after 4).
   - The value it would have against an intentional wumpus is 9.2 per decision.
   - So the 9.1 cost above came from histories an intentional wumpus produces. Where the wumpus really is random, depth costs little, consistent with 12.60's control (+20, not significant).
+- **UAV, the same screen for the UAV at no CPU** (`uav_screen.py`). It uses the exact Q stored with the 12.41 gate rows, at the gate's law chains (i's law first; the deeper chain adds the opponent's).
+
+  | Horizon, step | Chains | Value of the extra level: share positive, mean (max) | Cost if the target is one level lower: share positive, mean |
+  |---|---|---|---|
+  | H2, 1 → 2 | 16 | 11/16, **6.0** (21.8) | 8/16, 1.6 |
+  | H3, 1 → 2 | 16 | 7/16, 2.2 (23.1) | 9/16, 2.6 |
+  | H2, 2 → 3 | 64 | 41/64, 6.1 (35.0) | 40/64, 5.8 |
+
+  - **H2, 1 → 2** agrees with 12.49, where a second level pays the UAV (+5.8 against a level-1 target).
+  - **H2, 2 → 3 is a prediction no episode has tested.** A third level would gain as much against a level-2 target as it loses against a level-1 one. So it should pay only when the target really is level 2.
+  - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
