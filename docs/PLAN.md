@@ -7,12 +7,18 @@
 - contribution 3 may be judged obvious.
 
 **Status (October 18):** planned; nothing run. Details and the order are in HANDOFF 0.0a, item 2.
+- **G1 done** (`docs/RELATED_WORK.md`):
+  - I-NTMCP (Schwartz, Zhou & Kurniawati, IROS 2022; MIT code) is the closest prior work, a nested MCTS over history particles. It is not checked against exact I-POMDPs, and it **joins G3 as a modern baseline** through an adapter.
+  - The name "I-POMCP" is free; Hula et al. (2015) adapted POMCP without naming it.
+  - Contribution 1 is reframed as *verified* exactness, not "first online planner".
+- **G2 done** (`docs/PAPER.md`): claims → RESULTS → figures, with open slots marked `MISSING`.
+- **G3 next:** the IPF zero-likelihood fix, then the I-NTMCP adapter.
 
 | Step | What | CPU | Gate or deliverable |
 |---|---|---|---|
 | G1 | Literature check: modern online I-POMDP planners, and whether the name "I-POMCP" is taken | 0 | `docs/RELATED_WORK.md`; whether a modern baseline joins G3 |
 | G2 | Paper outline: claims → RESULTS → figures, gaps marked | 0 | `docs/PAPER.md` |
-| G3 | Scale beyond exact reach: anytime reward and decision quality against CPU, I-POMCP vs IPF + RTS (published and with a zero-likelihood fix), UAV L2 H4–H5 and/or Wumpus 4 × 4 L1 | price first; ask above 100 CPU-h | IPF fix with ε = 0 reproduces today's rows bit for bit; `ENDPOINTS.md` fixed before runs |
+| G3 | Scale beyond exact reach: anytime reward and decision quality against CPU, I-POMCP vs IPF + RTS (published and with a zero-likelihood fix) and I-NTMCP (G1), UAV L2 H4–H5 and/or Wumpus 4 × 4 L1 | price first; ask above 100 CPU-h | IPF fix with ε = 0 reproduces today's rows bit for bit; `ENDPOINTS.md` fixed before runs |
 | G4 | Ablation table of the planner's components, from stored paired results; small paired runs only where none exist | low | one table in `PAPER.md` and RESULTS |
 | G5 | Contribution 3, sharper: prediction gain vs reward gain across domains; the exact screen as an a-priori predictor (UAV, Wumpus 3 × 3 at H2); a figure for THEORY's proposition | low | screen predictions recorded before comparing with 12.49 and 12.60 |
 | (opt.) | Wumpus 3 × 3 at H3, third level | likely > 100 CPU-h | ask the user |
