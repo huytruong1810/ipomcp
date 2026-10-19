@@ -92,6 +92,8 @@ A modeled opponent's solve may stop early when its sampled root value has conver
 | Wumpus 3 × 3 | L2, H2 | 60 | 60/60 | [0.940, 1] | 12.58 |
 | Wumpus 3 × 3 | L3, H2 | 55 | 55/55 | [0.935, 1] | 12.58 |
 
+**Below the qualified budgets, I-POMCP does miss.** On UAV, a target modeled with 100 simulations gives 63/80 at L2 H3 [12.41]. At L2 H4 with the target at 400, *i* is wrong on 16 of 32 problems: that is error in the opponent's model, not in *i*'s search [12.42]. At L1 H5, roots below 64,000 overestimate suboptimal moves [12.41]. Every qualified budget is the smallest rung of a ladder that was 100% on its grid, so the table above selects on the grid it reports. Two checks answer this. First, 12.69 reruns the qualified Tiger configurations, unchanged, on random beliefs and seeds no qualification used. Second, 12.67 scores every decision at histories reached in UAV episodes, which are beliefs no qualification saw: 120/120 per arm (Section 6.2).
+
 Wumpus 4 × 4 at level 1 is qualified on 52 beliefs with *N* = 4,096 atoms [12.53]. The one residual is Tiger L3 H4, where 4 of 80 decisions miss near-ties with gaps of at most 0.03. All 80 are ε-correct [12.14, 12.54]. The certified bounds contained the exact *Q* of the searched model in 1,016 of 1,016 decisions checked [12.17, 12.41].
 
 **Where the error goes.** Without post-search scoring, 98% of the remaining search error at horizon 3 is sampling noise in observation frequencies [12.24]. Exact chance scoring removes it, which takes the L3 H3 optimal-action *Q* error from 0.06 to 0.0006 [12.14]. At horizon 4, a fifth of the error comes from choices deeper in the tree and 9% from rollouts below it, and a qualified root budget removes the rest from the decisions [12.24, 12.33].
@@ -117,7 +119,7 @@ Each baseline decides on the same problems, scored by the same exact reference. 
 | UAV L2 H4 (n = 80) | 80/80, 366 s | 40 / 37 / 40, 601–3,980 s | — | — | 12.46 |
 | Wumpus 3 × 3 L2 H2 (n = 60) | 60/60, 118 s | 2 / 1 / 2 | 22 / 20 / 26 | 40/60 at 97 s (M = 64,000) | 12.59, 12.62, 12.65 |
 
-(CPU is per root decision, nested solves included, from runs in which the compared cells shared one machine state.)
+(CPU is the process CPU time of one root decision, nested solves included, from runs in which the compared cells shared one machine state. All planners, including the authors' I-NTMCP code, are pure Python and run single-threaded in one process per decision, so the CPU comparisons are not confounded by implementation language.)
 
 **Findings.**
 - **I-POMCP is optimal on every problem in every cell.** IPF + RTS misses 0.5–4.7% of Tiger decisions at level 2, 1.9–8.6% at level 3, and 32–54% of UAV decisions. It is never right where I-POMCP is wrong. On Tiger the gap is small: at level 3 it is significant only with K = 2 (Holm p ≤ 0.005; at K = 4–8, Holm p ≥ 0.14), while I-POMCP is also 5–30× cheaper at H3 [12.68]. At UAV H4, I-POMCP is 1.6–11× cheaper [12.46].
@@ -142,19 +144,19 @@ At horizons 4–5 in 20-step UAV episodes from the common prior, no exact soluti
 
 Fix a real opponent *j* and a lookahead *H*. Call two models of *j* *predictively equivalent* on a history when they give *i* the same joint law over the next *H* steps of *j*'s actions and *i*'s observations.
 
-**Proposition 1 (correct prediction is enough).** If *i*'s model is predictively equivalent to the real *j* on every history of the next *H* steps, then *i*'s exact best response maximizes *i*'s true expected *H*-step reward at every decision, and no other model, of any level or prior, does better at that decision.
+**Observation 1 (correct prediction is enough).** If *i*'s model is predictively equivalent to the real *j* on every history of the next *H* steps, then *i*'s exact best response maximizes *i*'s true expected *H*-step reward at every decision, and no other model, of any level or prior, does better at that decision.
 
 *Proof.* *i*'s planning problem is a POMDP over the physical state and *j*'s internal state, whose transition and observation laws are fixed by the predictive law. Equivalent laws give the same POMDP, hence the same *Q_H*, which the exact best response maximizes. ∎
 
 **Corollary (depth cannot pay against a non-intentional opponent).** Call *j* *non-intentional* when its action law depends only on its own history, not on any belief about *i*; level 0 is the extreme case. A level-1 *i* that models *j* by that law is the exact best response to the truth. A level-*k* *i* (*k* ≥ 2) with any prior mass on intentional levels predicts differently, so its loss against the truth is at least zero at every decision.
 
-So a deeper level can pay only when the real opponent's actions depend on its belief about *i*, and even then only when the misspecification changes *i*'s action at a belief *i* reaches. The statement is per decision; receding-horizon episodes add no such guarantee, which is why we test it in episodes.
+The observation is elementary; we state it because it fixes which experiment is the control. A deeper level can pay only when the real opponent's actions depend on its belief about *i*, and even then only when the misspecification changes *i*'s action at a belief *i* reaches. The statement is per decision; receding-horizon episodes add no such guarantee, which is why we test it in episodes.
 
 **Remark (level-0 mass keeps nested updates defined).** With deterministic percepts, a modeled *j* whose model of *i* is a point mass on one level can receive an observation that model gives probability 0. Any positive weight on level 0 restores the update whenever the observation is possible under some action of *i* at some state in *j*'s support [12.58].
 
 ### 7.2 Episodes
 
-**Design.** In each game, both agents at levels 0–2 (Tiger: 0–3) play 20-step episodes. Every agent of level *L* holds a uniform prior over the opponent's levels 0 … *L* − 1, and every model matches the real opponent's configuration. n = 100 trials per cell, paired across cells by trial seed. The primary endpoint is the paired gain of one more level against the same opponent, Holm-corrected within each game [12.37, 12.49, 12.60].
+**Design.** In each game, both agents at levels 0–2 (Tiger: 0–3) play 20-step episodes. The coordination Tiger's payoff (`together_safe` = 40) was chosen by an exact screen for a game in which depth can pay [12.22], so its gain is not independent evidence; the published Tiger is its control. UAV's payoffs follow Zeng and Doshi [2012], and Wumpus's were declared before any depth result, so neither was chosen to make depth pay. Every agent of level *L* holds a uniform prior over the opponent's levels 0 … *L* − 1, and every model matches the real opponent's configuration. n = 100 trials per cell, paired across cells by trial seed. The primary endpoint is the paired gain of one more level against the same opponent, Holm-corrected within each game [12.37, 12.49, 12.60].
 
 **Figure 3** (`docs/figures/depth_gain.png`): *i*'s level 1 → 2 gain against a random (level-0) and an intentional (level-1) opponent, one panel per game.
 
@@ -166,7 +168,7 @@ So a deeper level can pay only when the real opponent's actions depend on its be
 | Published Tiger (control) | −0.2 [−0.6, 0.0], Holm p = 1 | −4.4 [−8.9, 0.1], Holm p = 0.83 | 12.37 |
 
 - **Against an intentional opponent, a second level pays in every game whose payoffs couple the agents.** A level-2 UAV models a level-1 target's flight to the far corner and spots it in 5.0 steps in every episode, against 6.2 for a level-1 UAV [12.49]. A level-2 human in the Wumpus world is killed by the wumpus in 41–44% of episodes, against 57–60% at level 1 [12.60]. The Wumpus result was confirmed on 100 fresh trials, with the test fixed in advance.
-- **Against a random opponent, it pays nothing, and can cost.** As the corollary predicts, no second level is significantly better than the first against a level-0 opponent in any game. On UAV, a level-2 UAV loses 7.2 by anticipating a flight that never comes.
+- **Against a random opponent, it pays nothing, and can cost.** As Observation 1's corollary predicts, no second level is significantly better than the first against a level-0 opponent in any game. On UAV, a level-2 UAV loses 7.2 by anticipating a flight that never comes.
 - **In the published Tiger, depth pays nothing at all** [12.37]. There an agent is paid for its own door only, so modeling *j* hardly changes *i*'s best response. Levels 2–5 coincide exactly at H2 [12.47].
 - **A third level predicts better but earns no more.** On Wumpus, a level-3 human gives the wumpus's actual move probability 0.54–0.55, against 0.48–0.50 for a level-2 human, but its reward gains (+80, +120) are not significant [12.61]. On the coordination Tiger at H3, with a model matched to the opponent's configuration, a third level gains +0.8 [−6.7, 8.6] (n = 50) [12.32].
 
