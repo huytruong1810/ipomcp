@@ -52,6 +52,11 @@ class BestResponseReference:
         self._q = lru_cache(maxsize=cache_size)(self._q)
         self.branches = lru_cache(maxsize=cache_size)(self.branches)
 
+    def clear_caches(self):
+        """Drop cached values and branches (memory only, never results)."""
+        self._q.cache_clear()
+        self.branches.cache_clear()
+
     def q_values(self, model, horizon):
         """{action: Q_horizon(belief, action)} for every action of the agent."""
         self._check_model(model)

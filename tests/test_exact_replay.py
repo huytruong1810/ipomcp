@@ -30,6 +30,9 @@ def test_exact_episodes_replay_with_full_agreement_and_no_error():
         assert all(s["agree"] for s in steps)
         assert max(s["level_tv"] for s in steps) == pytest.approx(0, abs=1e-12)
         assert max(s["prediction_tv"] for s in steps) == pytest.approx(0, abs=1e-12)
+    # Clearing caches between trials changes memory only.
+    replay.clear_caches()
+    assert replay.replay(frames[0]) == ExactReplay(physics, "i", 2, 2).replay(frames[0])
 
 
 def test_a_level_one_planner_against_uniform_play_is_bayes_optimal():

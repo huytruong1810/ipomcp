@@ -56,6 +56,11 @@ class ExactReplay:
         self.actions = {str(a): a for a in physics.get_all_actions(agent)}
         self.observations = {str(o): o for o in physics.get_all_observations(agent)}
 
+    def clear_caches(self):
+        """Drop the exact agent's caches between trials (memory only, never results)."""
+        self.planner.reference.clear_caches()
+        self.planner.solver_bank.clear_caches()
+
     def replay(self, frame):
         """Per decision step of one trial's rows: step, agree, level_tv, prediction_tv, support."""
         rows = frame.sort_values("step").to_dict("records")
