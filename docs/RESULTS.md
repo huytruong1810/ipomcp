@@ -2324,3 +2324,47 @@ The axes:
 - **The same prediction gain can be worth nothing or a great deal.** In the published Tiger and the coordination Tiger, a second level improves prediction by the same amount (about 55% of the gap). It earns nothing in the first, because an agent's payoff there depends only on its own door, and up to +0.21 reward ranges in the second.
 - **So prediction gain is necessary but not sufficient.** It pays only where the payoff depends on the opponent's action (THEORY.md, "When a deeper model can pay"). The exact screen (12.22, 12.64) measures that dependence directly, per decision.
 - **A third level adds little prediction anywhere** (at most +0.10) and no significant reward. The one large reward gain with small prediction gain (UAV against a level-2 target, +0.47 at a prediction gain of 0.11) is a level-2 UAV acting on a better model of evasion, not on better next-action prediction.
+
+### 12.65 I-NTMCP, the modern baseline, against the exact I-POMDP: 40/60 at I-POMCP's CPU, against 60/60 (October 18, 2026)
+
+**Why:** I-NTMCP (Schwartz, Zhou & Kurniawati, IROS 2022) is the closest prior planner: a nested MCTS over history particles, with public code (`docs/RELATED_WORK.md`). Its paper never compared it with exact I-POMDP solutions. This does, on the problems where I-POMCP was qualified (PLAN.md, publication gaps, G3).
+
+**Setup** (`results/g3_intmcp_20261018`; `ENDPOINTS.md` fixed before the runs, with three amendments, each recorded before the cells it changed).
+- The authors' code, unchanged, is pinned as the submodule `third_party/i-ntmcp` (`63deec3`). The adapter, `baselines.intmcp`, presents our kernels as their POSG and uses their defaults (`uct_c` = r_max − r_min, random rollouts).
+- **Level mapping:** our level L is their nesting level L − 1 (their level 0 is a POMDP planner against a random opponent). **Horizon:** H through their discount horizon, ε = γ^(H − 1.5).
+- **A decision:** replay the problem's history (search, update, search, …), then one search. Total CPU counts every search, because I-NTMCP builds each belief from its previous search's particles.
+- **Two variants, as 12.62 does for the IPF:**
+  - *Published:* their code as released, with no reinvigoration function.
+  - *Tuned* (the strong baseline): a reinvigoration function from our exact kernels (s′ ∝ T(s′ | s, a) O(o | s′, a) from the parent particle), and a rejection budget of 50 per particle.
+- **Problems:** Wumpus 3 × 3 (1 pit), common prior, random-script histories of 0, 2 or 4 steps.
+
+**Adapter gate (the stop rule; added as amendment 1 after the original L1 H2 gate proved unable to separate an adapter bug from search bias).** At L1 H1 there is no deeper backup, so the root values are particle means of the immediate reward. Tuned, M = 64,000, 60 problems: **57/60 optimal** (the 3 misses are 1.5-point near-ties at the prior), median max |Q̂ − Q| 4.7 on a reward range of 2,000, and no force-filled particles. The adapter is sound.
+
+**Force-filling (amendment 2).** I-NTMCP refills a belief after a real step by rejection sampling. After 3,000 rejections it fills the rest with particles whose own observation contradicts the real one. With deterministic senses and large M, this dominates the published variant: at L1 H2 the median force-filled share is 0, 0.16, 0.59 and 0.69 at M = 1,000, 4,000, 16,000 and 64,000, with a maximum of 0.99. The tuned variant force-fills nothing.
+
+**L1 H2** (I-NTMCP is then POMCP against the reference's own uniform wumpus):
+
+| Variant | M = 1,000 | 4,000 | 16,000 | 64,000 (median total CPU) |
+|---|---|---|---|---|
+| Tuned | 24/60 | 29/60 | 42/60 | 46/60 (53 s) |
+| Published | 24/60 | 25/60 | 37/60 | 40/60 (49 s) |
+
+Convergence is slow because UCT backs up *means*. With c = r_max − r_min ≈ 2,000 on Wumpus, depth-1 values average over explored bad actions. At the prior, every action's value is biased down by 20–60 against the exact Q.
+
+**L2 H2, the 60 problems of 12.58** (I-POMCP's qualified cell: 60/60, median 118 CPU-s per decision). Exact McNemar tests, paired by problem, with Holm correction over the 7 cells:
+
+| Variant, M | Optimal [95%] | Max loss | Median CPU: final search / total | Force-filled share (median, max) | Pairs only I-POMCP / only I-NTMCP right | Holm p |
+|---|---|---|---|---|---|---|
+| Tuned, 1,000 | 17/60 [0.175, 0.414] | 949 | 0.3 s / 5.2 s | 0, 0 | 43 / 0 | 1.6 × 10⁻¹² |
+| Tuned, 4,000 | 32/60 [0.400, 0.663] | 122 | 1.1 s / 6.2 s | 0, 0 | 28 / 0 | 3 × 10⁻⁸ |
+| Tuned, 16,000 | 34/60 [0.432, 0.694] | 102 | 4.8 s / 25 s | 0, 0 | 26 / 0 | 6 × 10⁻⁸ |
+| **Tuned, 64,000** (CPU-matched) | **40/60** [0.533, 0.783] | 102 | 19.6 s / **97 s** | 0, 0 | **20 / 0** | **1.9 × 10⁻⁶** |
+| Published, 1,000 | 19/60 [0.203, 0.450] | 949 | 0.3 s / 1.9 s | 0, 0.96 | 41 / 0 | 5.5 × 10⁻¹² |
+| Published, 4,000 | 32/60 [0.400, 0.663] | 949 | 1.3 s / 6.4 s | 0.17, 0.98 | 28 / 0 | 3 × 10⁻⁸ |
+| Published, 16,000 | 29/60 [0.352, 0.616] | 949 | 5.9 s / 28 s | 0.43, 0.99 | 31 / 0 | 4.7 × 10⁻⁹ |
+
+- **At matched CPU, I-POMCP is right on 20 problems I-NTMCP gets wrong, and I-NTMCP on none.** Tuned at M = 64,000 uses a median 97 CPU-s per decision in total, against I-POMCP's 118 s.
+- **More simulations help I-NTMCP slowly** (17 → 32 → 34 → 40 of 60 across a 64-fold budget). The published variant stops improving beyond 4,000, as force-filling grows.
+- **Mechanism (descriptive, from the miss rows):** I-NTMCP's root values are nearly flat across actions (−20 to −33), while the exact Q singles out one safe action (about −2) against dangerous ones (−45 to −123). It underrates the wumpus's attack. Its nested wumpus samples actions by a softmax over visit counts, which is near-uniform at thinly visited histories, and its mean backups blur the safe action.
+- **Cost:** 17.8 CPU-h for the reported cells. The M = 256,000 cells were dropped before they ran (amendment 3), because they were projected at about 70 CPU-h for the tuned variant.
+- **Reading, fixed in advance:** I-NTMCP at its largest budget is significantly worse than I-POMCP, so contribution 2 extends to the modern baseline on this domain. The scale comparison beyond exact reach (UAV episodes from the common prior) is next (HANDOFF 0.0a).

@@ -38,9 +38,10 @@
 | UAV episodes at H3: equal reward at 8–18× less CPU; decision quality against N particles (the 2009 paper's Fig. 16 shape) | 12.44, 12.45 |
 | Wumpus 3 × 3 L2 H2: I-POMCP 60/60 against IPF + RTS 2–47%; the IPF fails on 55–57 of 60 problems (zero-likelihood particles) | 12.59 |
 | IPF with the standard zero-likelihood repair (likelihood smoothing, ε = 0.01) still loses: Wumpus 20–26/60, UAV 49–55/80 against 60/60 and 80/80 (Holm p ≤ 6 × 10⁻⁸); once repaired, what remains is RTS's search | 12.62 |
-| **I-NTMCP** (Schwartz et al., IROS 2022; authors' code through an adapter): decisions scored against the exact I-POMDP, and CPU-matched episodes | `MISSING (G3)` |
+| I-NTMCP (Schwartz et al., IROS 2022; authors' code through an adapter), against the exact I-POMDP on Wumpus 3 × 3 L2 H2: 40/60 at matched CPU (tuned, M = 64,000; median 97 CPU-s) against 60/60; 20 pairs favour I-POMCP and none favour I-NTMCP (Holm 1.9 × 10⁻⁶). The published variant force-fills up to 99% of its beliefs | 12.65 |
+| CPU-matched episodes beyond exact reach (UAV from the common prior, H4–H5), every planner | `MISSING (G3)` |
 
-**Table 1:** decisions against the exact I-POMDP, three planners (I-POMCP, IPF + RTS published and fixed, I-NTMCP) × three domains. Stored except I-NTMCP (`MISSING (G3)`): published IPF 12.43, 12.46, 12.59; smoothed IPF 12.62.
+**Table 1:** decisions against the exact I-POMDP, three planners (I-POMCP, IPF + RTS published and fixed, I-NTMCP) × three domains. Wumpus complete: published IPF 12.59, smoothed IPF 12.62, I-NTMCP 12.65. UAV has both IPF variants (12.43, 12.46, 12.62); I-NTMCP is out of scope for UAV panel problems, whose beliefs are not from a common prior.
 
 ### C3. Interpretability and the value of depth: a deeper model pays exactly when the opponent's behaviour depends on its beliefs about you
 | Evidence | RESULTS |
