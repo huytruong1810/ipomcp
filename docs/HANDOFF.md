@@ -38,8 +38,8 @@ Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).
 
 **Next, in Claude's order:**
 1. ~~Figure 1~~ done: `docs/figures/exactness.png` (script `results/g2_figure1_20261019/figure.py`).
-2. **Open every reference marked *cited* in RELATED_WORK.md** before the draft cites it for anything specific, and complete the bibliography.
-3. **A skeptical read of the draft** for reviewer objections not yet on record. One candidate: why the Tiger L3 H2 RTS misses do not shrink with K. A diagnosis would cost about 1 CPU-h: rerun those 4–14 problems with RTS on compressed beliefs, as 12.20's ablation did.
+2. ~~References~~ checked October 19 (RELATED_WORK.md); Panella & Gmytrasiewicz recast as model learning. Volume and page numbers remain for the JAIR, JAAMAS and IJCAI entries.
+3. **A skeptical read of the draft** for reviewer objections not yet on record. (The Tiger L3 H2 RTS misses are diagnosed in 12.68: search error at K = 2, particle error at K = 4–8.)
 4. **Optional:** the H5 uniform-prior episodes at root 64,000 (0.000, item 3).
 5. **LaTeX conversion** (the AAMAS template) once the user confirms the venue.
 

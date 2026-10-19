@@ -2331,7 +2331,17 @@ The definition is in THEORY.md, "Tie convention".
 - **IPF + RTS is optimal on 91–98% of decisions, and never right where I-POMCP is wrong** (0 such pairs in all 12 cells). Its 3–14 misses per cell lose up to 27.
 - **By the reading fixed in advance, C2 does not fully extend to level 3.** The gap is significant only at K = 2 (H2 with both filters, H3 published; Holm p ≤ 0.005). At K = 4–8 the 3–7 misses per cell are not significant after the correction (Holm p ≥ 0.14). Tiger is the easy domain for this baseline, as at level 2 (12.20: 95–99.5%), so this matches what level 2 showed. The large gaps are on UAV and Wumpus (12.43, 12.46, 12.59, 12.62).
 - **At H3, I-POMCP is also 5–30× cheaper** (5.3 s against 24–161 s per decision), so a more accurate baseline costs more, not less.
-- **At H2 the misses do not shrink beyond K = 4, and both filters miss exactly the same problems.** So they are not the zero-likelihood failure that smoothing repairs (12.62), and more samples per node do not remove them. Their cause was not diagnosed. Candidates, untested: the 64-particle representation of point nested beliefs (masses move in steps of 1/64), or the nested RTS solves.
+- **At H2 the misses do not shrink from K = 4 to K = 8, and both filters miss exactly the same problems,** so they are not the zero-likelihood failure that smoothing repairs (12.62).
+- **Diagnosis** (`DIAGNOSIS.md`, written before the run; `diagnose.py`, `diagnosis.txt`; 72 extra jobs, under 0.1 CPU-h). The same 162 H2 problems were rerun with RTS on compressed beliefs (N = 64, so these point and small-support beliefs stay exact) at K = 2, 4 and 8, and with IPF + RTS at K = 32.
+
+  | Arm | K = 2 | K = 4 | K = 8 | K = 32 |
+  |---|---|---|---|---|
+  | IPF + RTS (published) | 148/162 | 158/162 | 158/162 | **162/162** |
+  | RTS on compressed (exact) beliefs | 150/162 | **162/162** | **162/162** | — |
+
+  - **At K = 2, the misses are RTS's search error.** On exact beliefs RTS misses 12 of the IPF arm's 14 problems, with the same losses (13 and 27).
+  - **At K = 4–8, the misses are the particle filter's.** On exact beliefs RTS makes no miss. The IPF's 4 misses fall on different problems at K = 4 and K = 8 (all seed 1), so they follow the particle draws. At K = 32 they vanish.
+  - **Every miss in every arm is on a problem where i and j are both confident about the tiger** (i's belief 0.1–0.2 or 0.8–0.9, j's 0.085 or 0.915, on the same side).
 - **Smoothing helps only at H3 with K = 2** (7 problems only the smoothed filter gets right, 0 the other way; uncorrected p = 0.016, a secondary test). It changes nothing elsewhere.
 - **Cost:** 25.0 CPU-h (re-priced from the pilot's 14 at a measured 1.8× load factor; kill line amended before it was reached, `KILL_CRITERION.txt`).
 
