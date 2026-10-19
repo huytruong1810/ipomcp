@@ -11,7 +11,11 @@ Read this first: Section 0.00000 is enough to start. Then, as needed:
 Last updated October 19, 2026, evening, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
 - `main` is clean and pushed. There are 390 tests, and ruff is clean.
 - **N1 is done (October 19; PLAN.md N1 status). Nothing is running.** N1(d) found no cache worth building (RESULTS 12.70).
-- **N2 was priced from data on disk (RESULTS 12.71).** PLAN N3's half-width targets cost about 25,000 CPU-h on the coordination Tiger. The tiered designs A–D cost 97–3,019 CPU-h. **The user chooses the design (all of them exceed 100 CPU-h).**
+- **N2 was priced from data on disk (RESULTS 12.71). The user chose design B at 10 steps (October 19).**
+- **N3 is running:** `results/n5_level_grid_20261019` (`ENDPOINTS.md`, `KILL_CRITERION.txt`: 420 CPU-h; xargs PID in `runner.pid`; `cpu_now.sh`; 6,810 chunk jobs, 14 workers, watchdog and memlog on the xargs PID).
+  - n: levels ≤ 2 at 15,000 (coordination) and 2,500 (published); level-3 row 700; level-4 row 100; 10 steps.
+  - Held 12.37/12.40 trials are **not** reused: today's code does not reproduce their compressed beliefs (`gate/`).
+  - Next: progress checks with `cpu_now.sh`; when done, `analyze.py` (to write: primary paired gains on `rb_cum_reward` at step 10, Holm), RESULTS 12.72, then N4.
 
 ## 0. Start here (fresh agent)
 
