@@ -22,6 +22,7 @@
 | UAV: L1 H2–H5, L2 H2–H4, L3 H2 all optimal at qualified budgets | 12.41–12.42 |
 | Wumpus 4 × 4 L1 qualified (52 beliefs, N = 4,096); 3 × 3 L2 H2 60/60, L3 H2 55/55 (every root exactly scored) | 12.53, 12.58 |
 | Certified per-action bounds contain the exact Q in 1,016/1,016 decisions checked | 12.17, 12.41 |
+| Held out: the qualified Tiger configurations on 960 random beliefs and seeds no qualification used, 960/960 optimal (L2 H3 and L3 H3, both games); UAV's held-out evidence is 12.67's exactly scored episode decisions | 12.69, 12.67 |
 | The L3 H4 residual (4/80 near-ties, gaps ≤ 0.03) is 80/80 ε-correct | 12.14, 12.54 |
 | **Beyond exact reach** (UAV episodes from the common prior, H4–H5): I-POMCP is exactly optimal on every scored H4 decision (histories 0–4) from root 4,000 or own budget 1,000, and near the best reward from 1.4 s per decision. L2 H5 with the uniform prior needs root 64,000 (diagnosed: root-search error; fixed in replays, not yet in episodes). Only the first 5 (H4) or 2 (H5) decisions per episode are exactly scored | 12.67 |
 

@@ -8,10 +8,10 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top (the top one is "publication gaps").
 
-Last updated October 19, 2026, about 11:40 (0.0000). Claude is the sole owner of `main`; there are no other agents.
+Last updated October 19, 2026, about 13:10 (0.0000). Claude is the sole owner of `main`; there are no other agents.
 - **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
 - **Publication gaps (since October 18):** G1–G5 are done (12.62–12.67).
-- **Reviewer readiness is done, and paper draft 1 is written** (October 19, 0.0000; RESULTS 12.68). Nothing is running. **Next: the references and a skeptical read of the draft (0.0000).**
+- **Reviewer readiness is done, and paper draft 1 is written** (October 19, 0.0000; RESULTS 12.68–12.69). Nothing is running. **Next: the references and a skeptical read of the draft (0.0000).**
 
 ## 0. Start here (fresh agent)
 
@@ -19,7 +19,7 @@ Last updated October 19, 2026, about 11:40 (0.0000). Claude is the sole owner of
 
 Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).
 
-**State.** `main` is clean and pushed, with no code change, so 369 tests still pass. Nothing is running. **The next free RESULTS section is 12.69.**
+**State.** `main` is clean and pushed, with no code change, so 369 tests still pass. Nothing is running. **The next free RESULTS section is 12.70.**
 
 **Done:**
 - **Item 1, the Claude Doc** (now rev 100):
@@ -35,6 +35,17 @@ Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).
 - **Item 4:** equilibria are future work (**user's decision, October 19**), now in the PAPER outline and the draft.
 - **Figure 3:** `docs/figures/depth_gain.png` (script `results/g5c_figure3_20261019/figure.py`, values copied from 12.37, 12.49 and 12.60).
 - **Item 5, paper draft 1:** `docs/paper/draft.md` (Markdown; there is no LaTeX template or toolchain on this machine). Every claim cites RESULTS. Table 1 includes 12.68.
+
+**Afternoon, after "go ahead":**
+- **References checked** against their own abstracts (RELATED_WORK.md). Panella & Gmytrasiewicz (2017) is model learning, not a solver; the draft is fixed.
+- **12.68 diagnosis:** the L3 H2 RTS misses are search error at K = 2 and particle error at K = 4–8. RTS on exact beliefs makes none at K ≥ 4, and IPF + RTS makes none at K = 32 (under 0.1 CPU-h).
+- **Skeptical read: four objections answered in the draft.**
+  - The failing budgets are now shown.
+  - Selection on the grid is answered by **RESULTS 12.69, a held-out check:** 960/960 optimal on random beliefs with fresh seeds, at the qualified Tiger L2 H3 and L3 H3 configurations, both games; 4.6 CPU-h.
+  - The screened coordination payoff is disclosed.
+  - Proposition 1 is now Observation 1.
+  - CPU comparability: all planners are pure Python and single-threaded.
+- **Figure 1** now has the two held-out rows. The Claude Doc has a held-out paragraph (rev 101+).
 
 **Next, in Claude's order:**
 1. ~~Figure 1~~ done: `docs/figures/exactness.png` (script `results/g2_figure1_20261019/figure.py`).

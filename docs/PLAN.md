@@ -33,6 +33,7 @@
   - IPF + RTS at level 3 (RESULTS 12.68): coordination Tiger, 162/162 against 91–98%; significant only at K = 2; 25 CPU-h.
   - The 12.67 weak spots are stated in PAPER.md. Equilibria are future work (user's decision).
   - Figure 3 is done. Paper draft 1 is in `docs/paper/draft.md`.
+  - Afternoon: held-out check (RESULTS 12.69, 960/960); references checked; 12.68 diagnosis; reviewer objections answered in the draft.
 - **G4 done:** RESULTS 12.63 (ablation table).
 - **G5b, Wumpus part done:** RESULTS 12.64 (the exact depth screen).
 

@@ -2299,6 +2299,28 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.69 Held-out check: the qualified Tiger configurations are optimal on 960 of 960 random beliefs no qualification used (October 19, 2026)
+
+**Why:** every qualified budget is the smallest rung of a ladder that was 100% optimal on its grid, and the paper then reports that grid. A reviewer can call this selection on the test set. This reruns the qualified configurations, unchanged, on problems no qualification or gate used.
+
+**Design** (`results/g7_heldout_20261019`; `ENDPOINTS.md` fixed before the main run; `job.py`, `analyze.py`, `analysis.txt`):
+- **Problems:** beliefs drawn uniformly from [0.02, 0.98] (3 decimals) by a generator seeded with (game, level, seed), on seeds 100 and above, which no earlier run used. History 0. Every decision is scored against the exact I-POMDP.
+- **L2 H3:** root 1,000, modeled `400`, exact beliefs (the configuration of 12.3 and 12.23). Per seed, 10 beliefs of i × 3 of j; seeds 100–109, so n = 300 per game.
+- **L3 H3:** root 1,000, modeled `6400s/100`, exact beliefs (12.7, 12.23). Per seed, 6 × 3 × 2 beliefs; seeds 100–104, so n = 180 per game.
+- **Games:** the published and the coordination Tiger.
+
+| Game, cell | n | Optimal [95%] | ε-correct | Median CPU per decision |
+|---|---|---|---|---|
+| Published Tiger, L2 H3 | 300 | **300/300** [0.988, 1] | 300/300 | 1.2 s |
+| Coordination Tiger, L2 H3 | 300 | **300/300** [0.988, 1] | 300/300 | 1.2 s |
+| Published Tiger, L3 H3 | 180 | **180/180** [0.980, 1] | 180/180 | 31 s |
+| Coordination Tiger, L3 H3 | 180 | **180/180** [0.980, 1] | 180/180 | 22 s |
+
+- **The qualification carries over to held-out beliefs.** All 960 decisions are optimal. By the reading fixed in advance, the qualified Tiger configurations are not an artefact of selecting on their own grids.
+- **UAV's held-out evidence is 12.67.** There, every decision at histories 0–4 reached in H4 episodes was scored exactly (120/120 per I-POMCP arm). Those beliefs were never used for qualification.
+- **CPU is higher than in 12.23's L3 gate** (22–31 s against 8.4 s per decision). Random beliefs reach more distinct nested beliefs than the grid's symmetric points, and the machine ran at load 12–14.
+- **Cost:** 4.6 CPU-h, against a pilot price of about 3 and a kill line of 8.
+
 ### 12.68 IPF + RTS at level 3 on the coordination Tiger: 91–98% optimal against I-POMCP's 162/162, never right where I-POMCP is wrong; significant only at K = 2 (October 19, 2026)
 
 **Why:** PAPER C2's comparison with the published baseline against the exact I-POMDP covered level 2 only. A reviewer could ask whether it holds at level 3 (HANDOFF 0.000, item 2).
