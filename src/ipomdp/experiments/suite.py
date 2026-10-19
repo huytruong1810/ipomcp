@@ -303,6 +303,7 @@ def anytime_comparison(
     depth=4,
     opponent_simulations=4000,
     ipomcp_simulations=(1000, 4000, 16000),
+    ipomcp_own_simulations=(),
     rts_samples=(2, 4, 8),
     rts_filters=("sampled", "smoothed"),
     intmcp_simulations=(1000, 4000, 16000, 64000),
@@ -320,6 +321,10 @@ def anytime_comparison(
     - ``ipomcp-<n>``: I-POMCP at root n with the matrix's uniform prior over j's
       level; ``ipomcp-pm-<n>`` with a point mass on level 1, I-NTMCP's model
       class. Both model j with exactly the real j's solve.
+    - ``ipomcp-pm-own-<n>``: I-POMCP at root n with a point mass on level 1,
+      modeling j with its own budget n rather than the real j's. Like I-NTMCP
+      and RTS, it then pays for its opponent model at its own budget, which
+      traces the anytime curve below the real j's cost.
     - ``rts-<filter>-k<K>``: IPF + RTS on the sampled (published) or smoothed
       (repaired, 12.62) IPF, every level with RTS at K.
     - ``intmcp-<variant>-<M>``: I-NTMCP, which models j with its own nested trees.
@@ -331,6 +336,10 @@ def anytime_comparison(
         arms[f"ipomcp-{n}"] = hierarchy_agent(2, ipomcp(n, depth), modeled, particles)
         arms[f"ipomcp-pm-{n}"] = hierarchy_agent(
             2, ipomcp(n, depth), modeled, particles, level_weights={1: 1.0}
+        )
+    for n in ipomcp_own_simulations:
+        arms[f"ipomcp-pm-own-{n}"] = hierarchy_agent(
+            2, ipomcp(n, depth), str(n), particles, level_weights={1: 1.0}
         )
     for particle_filter in rts_filters:
         for samples in rts_samples:

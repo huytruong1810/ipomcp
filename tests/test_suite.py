@@ -164,6 +164,7 @@ def test_anytime_comparison_runs_every_planner_against_one_real_opponent():
         depth=3,
         opponent_simulations=400,
         ipomcp_simulations=(100,),
+        ipomcp_own_simulations=(50,),
         rts_samples=(2,),
         intmcp_simulations=(500,),
         intmcp_variants=("tuned", "published"),
@@ -171,6 +172,7 @@ def test_anytime_comparison_runs_every_planner_against_one_real_opponent():
     assert set(spec.cells) == {
         "ipomcp-100",
         "ipomcp-pm-100",
+        "ipomcp-pm-own-50",
         "rts-sampled-k2",
         "rts-smoothed-k2",
         "intmcp-tuned-500",
@@ -183,6 +185,9 @@ def test_anytime_comparison_runs_every_planner_against_one_real_opponent():
         i = spec.cells[label].agents["i"]
         assert i.modeled == "400" and i.planner["simulations"] == 100
     assert spec.cells["ipomcp-pm-100"].agents["i"].level_weights == {1: 1.0}
+    own = spec.cells["ipomcp-pm-own-50"].agents["i"]
+    assert own.modeled == "50" and own.planner["simulations"] == 50
+    assert own.level_weights == {1: 1.0}
     assert spec.cells["ipomcp-100"].agents["i"].level_weights == {0: 0.5, 1: 0.5}
     assert spec.cells["rts-smoothed-k2"].agents["i"].particle_filter == "smoothed"
     intmcp_i = spec.cells["intmcp-published-500"].agents["i"]
