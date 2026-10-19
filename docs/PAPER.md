@@ -56,7 +56,7 @@
 | Prediction is not reward: the same prediction gain (about 55% of the gap) earns nothing in the published Tiger and up to +0.21 reward ranges with coordination payoffs; it pays only where the payoff depends on the opponent | 12.66 |
 | The exact screen predicts where depth pays: on Wumpus 3 × 3, a second level is worth 19.7 per decision against an intentional wumpus, 0 at the prior and 51 after 4 steps, and costs 1.7 per decision on random-wumpus histories, matching 12.60 and its control. On UAV H2, it is worth 6.0 against 1.6, matching 12.49, and it predicts that a third level pays only against a level-2 target (6.1 against 5.8) | 12.22, 12.64 |
 
-**Figure 3** `MISSING (G5c)`: the second-level gain against an intentional opponent vs a random opponent, per domain (the proposition's figure).
+**Figure 3** (done, October 19): `docs/figures/depth_gain.png` (script `results/g5c_figure3_20261019/figure.py`), i's paired level 1 → 2 gain against a random (level-0) and an intentional (level-1) opponent, one panel per game: coordination Tiger −2.6 / +27.2 (12.37), UAV −7.2 / +5.8 (12.49), Wumpus 3 × 3 −70 / +179 (12.60 main trials; the fresh-trial confirmation is +169 against an intentional wumpus and +20 against a random one), published Tiger (control) −0.2 / −4.4 (12.37). n = 100 pairs each, 95% trial bootstrap.
 
 **Figure 4** (done, 12.66): `docs/figures/prediction_vs_reward.png`, prediction gain against reward gain, one point per level step and opponent.
 
