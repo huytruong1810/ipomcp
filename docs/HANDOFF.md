@@ -28,7 +28,7 @@ Last updated October 19, 2026, 09:25. Claude is the sole owner of `main`; there 
 
 | When | Concern | Answered by |
 |---|---|---|
-| Oct 7 (0.10/0.11 below) | Tiger does not reward deeper reasoning | Coordination Tiger 12.22–12.37; UAV 12.49; Wumpus 12.60 (fresh-trial confirmation and a control); prediction is not reward, 12.66 |
+| Oct 7 (0.10 below) | Tiger does not reward deeper reasoning | Coordination Tiger 12.22–12.37; UAV 12.49; Wumpus 12.60 (fresh-trial confirmation and a control); prediction is not reward, 12.66 |
 | Oct 11 (PLAN, UAV phase) | Every result is on Tiger (2 states) | UAV and Wumpus, 12.41–12.61 |
 | Oct 14, C1 (0.1a) | j's belief that i is level 1 is one curve for every i level | 12.47 (exact fixed point of levels 2–5, level-0 control, level-3 j, exact replay); reviewer page v22 |
 | Oct 14, C2 (0.1a) | Reward curves above the 2.72 ceiling at step 3 | 12.48 (exact ceiling, 15,600 fresh trials) |
@@ -59,7 +59,7 @@ Last updated October 19, 2026, 09:25. Claude is the sole owner of `main`; there 
 **Where things are:**
 - G3 run folder: `results/g3_uav_episodes_20261018` (`ENDPOINTS.md`, `analyze.py`, `analysis.txt`, `score.py`, `ref.py`, `diag_h5.py`, `figure.py`).
 - Reviewer page v27: https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB. Rebuild with `results/w4_report_20261007/g3_section.py`, then `build_report.py`, and republish `report.html` by URL (backups `*_20261019.bak`).
-- The October 14 reviewer concerns in full: 0.1a below. The October 7 weak point: "Assessment and next steps" in Section 4.
+- The October 14 reviewer concerns in full: 0.1a below. The October 7 weak point: 0.10 below.
 
 ### 0.00 Session of October 18–19: G3 done (RESULTS 12.67)
 
