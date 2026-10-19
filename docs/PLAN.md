@@ -13,6 +13,12 @@
   - The enumeration reaches about 6 steps for L1 pairs (1.5M nodes).
 - **Bug found:** `ExactIPOMDPPlanner.get_action` calls `sample_policy` without its `rng`. It was never exercised, because exact agents had only been references.
 
+**Status (October 19, night): N1(a)–(c) done; N1(d) measuring.**
+- (a) `study.ExactConfig` (planner kind `exact`), the tie-stream fix, and the exact window in `episodes` (`Window` rows, NaN rewards). Commit e61afaf.
+- (b) `analysis.rao_blackwell`: it matches N0's `rb.py` to 1e-14 and brute-force path enumeration on Tiger and UAV, and reproduces 2.23 / 1.39 / 1.84 on 12.48's 10,000 trials. Commit 7a52d4a.
+- (c) `analysis.exact_curves.exact_pair_curve`: −91t/3 for uniform pairs; 2.148 / 1.308 for L1 against L1; 300 exact episodes agree with it. Commit f1f7feb.
+- (d) running in `results/n3_repeat_work_20261019` (`ENDPOINTS.md`). Under per-trial seeds nothing seeded can be reused bit-identically (searches and compression draw from the trial's bank seed), so only the cell-seeded regime is measured.
+
 **Plan:**
 
 | Step | What | Gate or deliverable |

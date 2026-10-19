@@ -70,18 +70,20 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 ### `reference`: exact solutions for measuring error
 
 - `BestResponseReference` is the exact finite-horizon best response to the opponents declared in a bank, for any finite domain and level.
-- `ExactIPOMDPPlanner` / `build_exact_agent` make every level exact recursively, so the same reference then solves the exact I-POMDP.
+- `ExactIPOMDPPlanner` / `build_exact_agent` make every level exact recursively, so the same reference then solves the exact I-POMDP. A real exact agent breaks ties from a tie stream seeded by `build_exact_agent(seed=...)`, and its real-step updates stop at `max_branches` (`InferenceBudgetExceeded`).
 - `ExactPOMDPSolver` is alpha-vector value iteration for the two-state L1 problem. It is an independent algorithm used to cross-check the others.
 
 ### `experiments`
 
-- **Studies are declarative.** A `StudySpec` gives the domain, each agent's level, planner (`ipomcp` or `rts`), belief representation (exact or IPF particles) and level priors, and the trial design. Specifications load from TOML; see `studies/`.
+- **Studies are declarative.** A `StudySpec` gives the domain, each agent's level, planner (`ipomcp`, `rts`, `intmcp` or `exact`), belief representation (exact or IPF particles) and level priors, and the trial design. Specifications load from TOML; see `studies/`.
 - `HierarchyBuilder` builds an agent and all lower-level models in one bank, under declared level priors.
 - `episodes.run_episode` runs one trial, symmetric in the two agents. Each row records, per agent:
   - actions, observations and rewards;
   - planning and belief-update CPU and wall time;
   - belief support, the level posterior and the physical marginal;
   - optionally the nested hierarchy.
+
+  Exact agents (`study.ExactConfig`) play only inside their exact window: past the declared `max_steps`, or once an update exceeds its enumeration budget, rows have status `Window` and NaN rewards.
 - `runner.run_study` executes trials under supervision. It writes atomic per-trial checkpoints and a manifest of the spec plus source hashes, resumes only when both match, and writes a completion marker bound to the CSV bytes.
 - **Suites** (`experiments.suite`): a `SuiteSpec` is a set of named `StudySpec` cells on shared trial ids, so cells pair by trial. `run_suite` schedules trials round-robin over cells, one supervised process per episode, checkpoints `trials/<cell>/<trial>.csv`, and resumes against a manifest in which only `trials` may grow. Builders, generic over the domain: `level_matrix` (every level pair, level 0 included, uniform priors over lower levels at every nesting), `planner_comparison` (I-POMCP against IPF + RTS at level 2), `prior_sensitivity` (correct, over-, under-estimated and uniform priors over the opponent's level). Their endpoints are in `analysis.endpoints`.
 - **Qualification drivers:** `l1_qualification`, `belief_qualification`, `oracle` (one decision problem vs exact best response or exact I-POMDP; levels 1–4, the published Tiger or a payoff variant; planners `mcts` and `rts`; exact or particle beliefs) and `panel` (grids of planners, levels 1–4, budgets, modeled budgets and particle counts vs the exact I-POMDP, or at level 1 the exact best response: the allocation and baseline studies; each level's problems come from `experiments.problems` as named `Problem`s, `tiger_problems` or `uav_problems`), and `modeled_qualification` (the modeled level below a level-2 or level-3 agent, scored against its exact reference at the beliefs it is queried at, over a ladder of modeled stacks).
@@ -99,6 +101,8 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 - `statistics`: paired comparisons, Holm correction and Clopper–Pearson intervals.
 - `endpoints`: the suites' pre-registered endpoints (paired differences by trial, the one-level endpoint of a level matrix, arm differences, per-cell tables with prediction misses).
 - `error_attribution`: an additive decomposition of search-tree error.
+- `rao_blackwell`: each sampled episode reward replaced by its exact expectation given both agents' actions and observations (forward–backward over the physical state with the domain's kernels): the same estimand at lower variance. `endpoints.final_rewards(..., column="rb_cum_reward")` reads it.
+- `exact_curves`: the exact expected cumulative reward curve of a pair of exact agents, by forward enumeration of (state, belief i, belief j) with merging, up to a node cap.
 
 ### `infra`
 

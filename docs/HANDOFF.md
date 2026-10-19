@@ -9,8 +9,9 @@ Read this first: Section 0.00000 is enough to start. Then, as needed:
 - [RELATED_WORK.md](RELATED_WORK.md): the literature check.
 
 Last updated October 19, 2026, evening, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
-- `main` is clean and pushed. There are 369 tests, and ruff is clean. **Nothing is running.**
-- **Next: N1 (engineering) of the level-grid phase, below.**
+- `main` is clean and pushed. There are 390 tests, and ruff is clean.
+- **N1(a)–(c) are done (October 19, night; PLAN.md N1 status). N1(d)'s measurement is running:** `results/n3_repeat_work_20261019` (xargs PID in `runner.pid`; `cpu_now.sh`; kill line 25 CPU-h).
+- **Next: finish N1(d) (analyze, RESULTS 12.70), then N2.**
 
 ## 0. Start here (fresh agent)
 
