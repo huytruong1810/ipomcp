@@ -219,7 +219,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
 
 - **Repository.**
   - `main` is clean at the last HANDOFF commit. 343 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
-  - **Running:** nothing (October 18, 10:50).
+  - **Running:** nothing (October 18, 21:00; the I-NTMCP grid of 12.65 is complete).
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
     - `resampling/optimal-fc` (12.28);
