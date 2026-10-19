@@ -2299,6 +2299,42 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.68 IPF + RTS at level 3 on the coordination Tiger: 91–98% optimal against I-POMCP's 162/162, never right where I-POMCP is wrong; significant only at K = 2 (October 19, 2026)
+
+**Why:** PAPER C2's comparison with the published baseline against the exact I-POMDP covered level 2 only. A reviewer could ask whether it holds at level 3 (HANDOFF 0.000, item 2).
+
+**Design** (`results/g6_rts_l3_20261019`; `ENDPOINTS.md` fixed before the main run; `job.py`, `analyze.py`, `analysis.txt`):
+- **Problems:** the coordination Tiger (`together_safe = 40`) at level 3 (i-L3 → j-L2 → i-L1), on 12.23's grid: i's belief 0.1–0.9 (9) × j's 0.085/0.5/0.915 × the level-1 i below j 0.085/0.5/0.915, seeds 0–1, so n = 162 per cell. History 0. Every decision is scored against the exact level-3 I-POMDP.
+- **IPF + RTS:** K = 2, 4, 8 observation samples per node at every level, 64 particles, with the published filter and with the smoothed filter of 12.62 (ε = 0.01), at H2 and H3.
+- **I-POMCP:** 12.23's gate configurations (H3: root 1,000, modeled `6400s/100`, exact beliefs; H2: root 100, modeled `100`, compressed 32).
+- **Tests:** paired exact McNemar tests, each RTS cell against I-POMCP at the same horizon, with Holm correction over 12 tests.
+- **CPU:** per root decision, nested solves included. Every cell ran in the same run at machine load about 20.
+
+| Planner | H | K | Filter | Optimal [95%] | Mean loss | Max loss | Optimal-action Q error | Median CPU (s) | Pairs only I-POMCP / only RTS right, Holm p |
+|---|---|---|---|---|---|---|---|---|---|
+| **I-POMCP** | 2 | — | compressed 32 | **162/162** [0.977, 1] | 0 | 0 | 0 | 0.09 | — |
+| IPF + RTS | 2 | 2 | published | 148/162 [0.859, 0.952] | 1.73 | 27.0 | 7.05 | 0.42 | 14 / 0, **0.0015** |
+| IPF + RTS | 2 | 2 | smoothed | 148/162 [0.859, 0.952] | 1.73 | 27.0 | 6.28 | 0.41 | 14 / 0, **0.0015** |
+| IPF + RTS | 2 | 4 | published | 158/162 [0.938, 0.993] | 0.49 | 27.0 | 2.27 | 0.71 | 4 / 0, 0.75 |
+| IPF + RTS | 2 | 4 | smoothed | 158/162 [0.938, 0.993] | 0.49 | 27.0 | 1.96 | 0.70 | 4 / 0, 0.75 |
+| IPF + RTS | 2 | 8 | published | 158/162 [0.938, 0.993] | 0.49 | 27.0 | 1.80 | 0.93 | 4 / 0, 0.75 |
+| IPF + RTS | 2 | 8 | smoothed | 158/162 [0.938, 0.993] | 0.49 | 27.0 | 1.98 | 0.91 | 4 / 0, 0.75 |
+| **I-POMCP** | 3 | — | exact | **162/162** [0.977, 1] | 0 | 0 | 0 | **5.3** | — |
+| IPF + RTS | 3 | 2 | published | 150/162 [0.874, 0.961] | 0.73 | 21.8 | 7.40 | 25 | 12 / 0, **0.0049** |
+| IPF + RTS | 3 | 2 | smoothed | 157/162 [0.929, 0.990] | 0.26 | 21.8 | 6.49 | 24 | 5 / 0, 0.44 |
+| IPF + RTS | 3 | 4 | published | 156/162 [0.921, 0.986] | 0.35 | 25.7 | 4.13 | 68 | 6 / 0, 0.25 |
+| IPF + RTS | 3 | 4 | smoothed | 155/162 [0.913, 0.982] | 0.16 | 6.58 | 3.95 | 72 | 7 / 0, 0.14 |
+| IPF + RTS | 3 | 8 | published | 159/162 [0.947, 0.996] | 0.09 | 6.58 | 4.50 | 146 | 3 / 0, 0.75 |
+| IPF + RTS | 3 | 8 | smoothed | 158/162 [0.938, 0.993] | 0.10 | 6.58 | 3.01 | 161 | 4 / 0, 0.75 |
+
+- **I-POMCP reproduces 12.23: 162/162 at both horizons.** Its optimal-action Q error is 0 (below 10⁻¹⁵).
+- **IPF + RTS is optimal on 91–98% of decisions, and never right where I-POMCP is wrong** (0 such pairs in all 12 cells). Its 3–14 misses per cell lose up to 27.
+- **By the reading fixed in advance, C2 does not fully extend to level 3.** The gap is significant only at K = 2 (H2 with both filters, H3 published; Holm p ≤ 0.005). At K = 4–8 the 3–7 misses per cell are not significant after the correction (Holm p ≥ 0.14). Tiger is the easy domain for this baseline, as at level 2 (12.20: 95–99.5%), so this matches what level 2 showed. The large gaps are on UAV and Wumpus (12.43, 12.46, 12.59, 12.62).
+- **At H3, I-POMCP is also 5–30× cheaper** (5.3 s against 24–161 s per decision), so a more accurate baseline costs more, not less.
+- **At H2 the misses do not shrink beyond K = 4, and both filters miss exactly the same problems.** So they are not the zero-likelihood failure that smoothing repairs (12.62), and more samples per node do not remove them. Their cause was not diagnosed. Candidates, untested: the 64-particle representation of point nested beliefs (masses move in steps of 1/64), or the nested RTS solves.
+- **Smoothing helps only at H3 with K = 2** (7 problems only the smoothed filter gets right, 0 the other way; uncorrected p = 0.016, a secondary test). It changes nothing elsewhere.
+- **Cost:** 25.0 CPU-h (re-priced from the pilot's 14 at a measured 1.8× load factor; kill line amended before it was reached, `KILL_CRITERION.txt`).
+
 ### 12.67 UAV episodes beyond exact reach, every planner: I-POMCP leads at matched CPU wherever the planners differ, and is exactly optimal on every scored H4 decision from root 4,000 or own budget 1,000 (October 18–19, 2026)
 
 **Why:** this is the last piece of G3 (PLAN.md, publication gaps). Every exactly checked domain so far is small, so this run tests the planners in episodes, at horizons where exact solutions run out.

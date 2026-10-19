@@ -8,25 +8,44 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top (the top one is "publication gaps").
 
-Last updated October 19, 2026, about 10:10 (0.0000). Claude is the sole owner of `main`; there are no other agents.
+Last updated October 19, 2026, about 11:40 (0.0000). Claude is the sole owner of `main`; there are no other agents.
 - **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
 - **Publication gaps (since October 18):** G1–G5 are done (12.62–12.67).
-- Nothing is running. **Next: close the reviewer-readiness gaps (0.000), then draft the paper.**
+- **Reviewer readiness is done, and paper draft 1 is written** (October 19, 0.0000; RESULTS 12.68). Nothing is running. **Next: Figure 1, the references, and a skeptical read of the draft (0.0000).**
 
 ## 0. Start here (fresh agent)
 
-### 0.0000 Session of October 19 (in progress): reviewer readiness, then the paper draft
+### 0.0000 Session of October 19: reviewer readiness done, paper draft 1 written
 
-Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5, in order).
-- **Done:**
-  - Item 1: the Claude Doc is now at rev 96. The lead's stale sentence and old baseline numbers, the metrics table's "pending" row and the benchmark bullet are fixed. "Not yet measured" became "Still open", with two rows: IPF + RTS at L3, and equilibria.
-  - Item 3: the 12.67 weak spots are stated in PAPER.md (C1/C2 and Limitations). Equilibria went to Future work (**user's decision, October 19: future work, no run**).
-  - Figure 3: `docs/figures/depth_gain.png` (script `results/g5c_figure3_20261019/figure.py`).
-  - Item 5: draft 1 is in `docs/paper/draft.md`. Table 1's level-3 row is marked `PENDING 12.68`.
-- **Running:** item 2, IPF + RTS at L3 on the coordination Tiger (`results/g6_rts_l3_20261019`; `ENDPOINTS.md`, `KILL_CRITERION.txt` with a dated amendment, `analyze.py`, `cpu_now.sh`).
-  - 14 cells × 162 problems, one process per (cell, seed, belief); xargs PID in `xargs.pid`.
-  - Re-priced at about 25 CPU-h (pilot 14, ×1.8 under load). Kill line 40 CPU-h, running jobs included.
-  - When it finishes: run `analyze.py` → RESULTS 12.68 → Table 1's L3 row in the draft, PAPER C2, the doc's "Still open" row and its benchmark bullet → commit and push.
+Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).
+
+**State.** `main` is clean and pushed, with no code change, so 369 tests still pass. Nothing is running. **The next free RESULTS section is 12.69.**
+
+**Done:**
+- **Item 1, the Claude Doc** (now rev 100):
+  - fixed the lead's stale sentence and old baseline numbers, the metrics table's "pending" row and the benchmark bullet;
+  - added a level-3 paragraph after "In full episodes";
+  - renamed "Not yet measured" to "Still open", which now has one row: equilibria.
+- **Item 2, IPF + RTS at level 3** (RESULTS 12.68; `results/g6_rts_l3_20261019`):
+  - Coordination Tiger L3 H2–H3, n = 162 per cell. I-POMCP is 162/162 at both horizons (it reproduces 12.23).
+  - IPF + RTS is 91–98%, never right where I-POMCP is wrong. **By the fixed reading, C2 does not fully extend to L3 on Tiger:** the gap is significant only at K = 2 (Holm p ≤ 0.005); at K = 4–8, Holm p ≥ 0.14. I-POMCP is 5–30× cheaper at H3.
+  - At H2 the misses are identical under both filters and do not shrink beyond K = 4. The cause is undiagnosed (candidates in 12.68).
+  - **Cost: 25.0 CPU-h.** The pilot priced it at 14; the main run measured a 1.8× load factor. The kill line was amended from 21 to 40 *before* it was reached and recorded in `KILL_CRITERION.txt`. Cumulative CPU, running jobs included, was tracked every 10 minutes with `cpu_now.sh`.
+- **Item 3:** the 12.67 weak spots are in PAPER.md (C1/C2 and Limitations).
+- **Item 4:** equilibria are future work (**user's decision, October 19**), now in the PAPER outline and the draft.
+- **Figure 3:** `docs/figures/depth_gain.png` (script `results/g5c_figure3_20261019/figure.py`, values copied from 12.37, 12.49 and 12.60).
+- **Item 5, paper draft 1:** `docs/paper/draft.md` (Markdown; there is no LaTeX template or toolchain on this machine). Every claim cites RESULTS. Table 1 includes 12.68.
+
+**Next, in Claude's order:**
+1. **Figure 1** (optimal rate by domain × level × horizon, I-POMCP against the baselines, from the tables in draft Sections 5.2 and 6.1). The draft marks it "to be drawn".
+2. **Open every reference marked *cited* in RELATED_WORK.md** before the draft cites it for anything specific, and complete the bibliography.
+3. **A skeptical read of the draft** for reviewer objections not yet on record. One candidate: why the Tiger L3 H2 RTS misses do not shrink with K. A diagnosis would cost about 1 CPU-h: rerun those 4–14 problems with RTS on compressed beliefs, as 12.20's ablation did.
+4. **Optional:** the H5 uniform-prior episodes at root 64,000 (0.000, item 3).
+5. **LaTeX conversion** (the AAMAS template) once the user confirms the venue.
+
+**Lessons:**
+- **Tiger panel rows carry `problem = None`.** Pair them by (seed, belief_p, opponent_belief, nested_beliefs), and assert the pair count. `analyze.py` first paired on `problem` and silently collapsed 162 pairs to 18.
+- **Price CPU under the load the run will see.** A pilot of 14 concurrent jobs at load 14 under-priced 16 workers at load 20 (other users' jobs) by 1.8×.
 
 ### 0.000 Next session (written October 19, 09:25, at the user's request): reviewer readiness before the paper draft
 

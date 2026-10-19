@@ -33,6 +33,7 @@
 | Evidence | RESULTS |
 |---|---|
 | Tiger L2 H3–H4: I-POMCP 380/380 against IPF + RTS 95.3–99.5%, RTS 3–5× slower at H4 | 12.20 |
+| Coordination Tiger L3 H2–H3: I-POMCP 162/162 against IPF + RTS 91–98% (published and smoothed, K = 2–8); never right where I-POMCP is wrong, but significant only at K = 2 (Holm p ≤ 0.005); I-POMCP 5–30× cheaper at H3. Tiger is the easy domain for the baseline at both levels | 12.68 |
 | Tiger episodes against IPF + RTS | 12.38 |
 | UAV L2 H2–H4: I-POMCP 80/80 against IPF + RTS 46–68%, and cheaper | 12.43, 12.46 |
 | UAV episodes at H3: equal reward at 8–18× less CPU; decision quality against N particles (the 2009 paper's Fig. 16 shape) | 12.44, 12.45 |

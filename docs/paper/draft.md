@@ -110,7 +110,8 @@ Each baseline decides on the same problems, scored by the same exact reference. 
 |---|---|---|---|---|---|
 | Tiger L2 H3 (n = 380) | 380/380, 1.5 s | 98.4 / 98.9 / 99.5%, 1.0–4.0 s | — | — | 12.20 |
 | Tiger L2 H4 (n = 380) | 380/380, 16.7 s | 95.3 / 95.3 / 96.8%, 12–92 s | — | — | 12.20 |
-| Coordination Tiger L3 H2–H3 (n = 162) | `PENDING 12.68` | `PENDING 12.68` | `PENDING 12.68` | — | 12.68 |
+| Coordination Tiger L3 H2 (n = 162) | 162/162, 0.09 s | 148 / 158 / 158, 0.4–0.9 s | 148 / 158 / 158 | — | 12.68 |
+| Coordination Tiger L3 H3 (n = 162) | 162/162, 5.3 s | 150 / 156 / 159, 25–146 s | 157 / 155 / 158, 24–161 s | — | 12.68 |
 | UAV L2 H2 (n = 80) | 80/80, 0.6 s | 46 / 51 / 54 | 49 / 54 / 55 | — | 12.43, 12.62 |
 | UAV L2 H3 (n = 80) | 80/80, 11.8 s | 42 / 44 / 48, 24–47 s | — | — | 12.43 |
 | UAV L2 H4 (n = 80) | 80/80, 366 s | 40 / 37 / 40, 601–3,980 s | — | — | 12.46 |
@@ -119,7 +120,7 @@ Each baseline decides on the same problems, scored by the same exact reference. 
 (CPU is per root decision, nested solves included, from runs in which the compared cells shared one machine state.)
 
 **Findings.**
-- **I-POMCP is optimal on every problem in every cell.** IPF + RTS misses 0.5–4.7% of Tiger decisions and 32–54% of UAV decisions. At UAV H4, I-POMCP is also 1.6–11× cheaper [12.46].
+- **I-POMCP is optimal on every problem in every cell.** IPF + RTS misses 0.5–4.7% of Tiger decisions at level 2, 1.9–8.6% at level 3, and 32–54% of UAV decisions. It is never right where I-POMCP is wrong. On Tiger the gap is small: at level 3 it is significant only with K = 2 (Holm p ≤ 0.005; at K = 4–8, Holm p ≥ 0.14), while I-POMCP is also 5–30× cheaper at H3 [12.68]. At UAV H4, I-POMCP is 1.6–11× cheaper [12.46].
 - **The sampled filter breaks under deterministic sensors.** On Wumpus, where every percept is deterministic, the published IPF fails on 55–57 of 60 problems: every particle is inconsistent with an observation, and the update is undefined [12.59]. Likelihood smoothing removes 54–56 of these failures and lifts the baseline to 20–26/60. That matches RTS on *exact* beliefs (20–28/60), so once the filter is repaired, what remains is RTS's search error [12.59, 12.62]. I-POMCP is right on every problem the smoothed baseline gets right, and on 25–40 more per arm (Holm p ≤ 6 × 10⁻⁸ in all six tests).
 - **The error of IPF + RTS is search error.** RTS on compressed exact beliefs makes about the same decisions as on the IPF, at a fraction of the CPU [12.20, 12.43]. On UAV it converges only at K = 128 [12.45].
 - **I-NTMCP at matched CPU is optimal on 40 of 60 Wumpus problems,** against 60 of 60. In 20 pairs only I-POMCP is right, and in none only I-NTMCP (Holm p = 1.9 × 10⁻⁶) [12.65]. The published variant force-fills up to 99% of its beliefs, because its history particles run out under deterministic percepts.

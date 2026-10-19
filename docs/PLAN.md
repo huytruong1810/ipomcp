@@ -29,6 +29,10 @@
     - Tuned I-NTMCP reached 35 only at M = 64,000.
     - Published I-NTMCP force-fills up to 99.9% of its beliefs on UAV.
     - I-POMCP's cost does not depend on its root budget here, because the modeled target dominates it. That is why the own-budget arms were added.
+- **Reviewer readiness (October 19, HANDOFF 0.0000):**
+  - IPF + RTS at level 3 (RESULTS 12.68): coordination Tiger, 162/162 against 91–98%; significant only at K = 2; 25 CPU-h.
+  - The 12.67 weak spots are stated in PAPER.md. Equilibria are future work (user's decision).
+  - Figure 3 is done. Paper draft 1 is in `docs/paper/draft.md`.
 - **G4 done:** RESULTS 12.63 (ablation table).
 - **G5b, Wumpus part done:** RESULTS 12.64 (the exact depth screen).
 
