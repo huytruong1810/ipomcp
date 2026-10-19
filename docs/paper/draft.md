@@ -96,7 +96,7 @@ Wumpus 4 × 4 at level 1 is qualified on 52 beliefs with *N* = 4,096 atoms [12.5
 
 **Where the error goes.** Without post-search scoring, 98% of the remaining search error at horizon 3 is sampling noise in observation frequencies [12.24]. Exact chance scoring removes it, which takes the L3 H3 optimal-action *Q* error from 0.06 to 0.0006 [12.14]. At horizon 4, a fifth of the error comes from choices deeper in the tree and 9% from rollouts below it, and a qualified root budget removes the rest from the decisions [12.24, 12.33].
 
-**Figure 1** (to be drawn from the table above): optimal rate by domain, level and horizon, with Clopper–Pearson intervals.
+**Figure 1** (`docs/figures/exactness.png`): the optimal rate of every checked cell, I-POMCP against each baseline at its best K, with exact Clopper–Pearson 95% intervals.
 
 ## 6. Against the baselines
 

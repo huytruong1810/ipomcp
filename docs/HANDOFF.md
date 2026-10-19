@@ -11,7 +11,7 @@ Read this first (Section 0 is enough to start). Then, as needed:
 Last updated October 19, 2026, about 11:40 (0.0000). Claude is the sole owner of `main`; there are no other agents.
 - **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
 - **Publication gaps (since October 18):** G1–G5 are done (12.62–12.67).
-- **Reviewer readiness is done, and paper draft 1 is written** (October 19, 0.0000; RESULTS 12.68). Nothing is running. **Next: Figure 1, the references, and a skeptical read of the draft (0.0000).**
+- **Reviewer readiness is done, and paper draft 1 is written** (October 19, 0.0000; RESULTS 12.68). Nothing is running. **Next: the references and a skeptical read of the draft (0.0000).**
 
 ## 0. Start here (fresh agent)
 
@@ -37,7 +37,7 @@ Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).
 - **Item 5, paper draft 1:** `docs/paper/draft.md` (Markdown; there is no LaTeX template or toolchain on this machine). Every claim cites RESULTS. Table 1 includes 12.68.
 
 **Next, in Claude's order:**
-1. **Figure 1** (optimal rate by domain × level × horizon, I-POMCP against the baselines, from the tables in draft Sections 5.2 and 6.1). The draft marks it "to be drawn".
+1. ~~Figure 1~~ done: `docs/figures/exactness.png` (script `results/g2_figure1_20261019/figure.py`).
 2. **Open every reference marked *cited* in RELATED_WORK.md** before the draft cites it for anything specific, and complete the bibliography.
 3. **A skeptical read of the draft** for reviewer objections not yet on record. One candidate: why the Tiger L3 H2 RTS misses do not shrink with K. A diagnosis would cost about 1 CPU-h: rerun those 4–14 problems with RTS on compressed beliefs, as 12.20's ablation did.
 4. **Optional:** the H5 uniform-prior episodes at root 64,000 (0.000, item 3).

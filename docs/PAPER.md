@@ -25,7 +25,7 @@
 | The L3 H4 residual (4/80 near-ties, gaps ≤ 0.03) is 80/80 ε-correct | 12.14, 12.54 |
 | **Beyond exact reach** (UAV episodes from the common prior, H4–H5): I-POMCP is exactly optimal on every scored H4 decision (histories 0–4) from root 4,000 or own budget 1,000, and near the best reward from 1.4 s per decision. L2 H5 with the uniform prior needs root 64,000 (diagnosed: root-search error; fixed in replays, not yet in episodes). Only the first 5 (H4) or 2 (H5) decisions per episode are exactly scored | 12.67 |
 
-**Figure 1:** optimal rate by domain × level × horizon, with Clopper–Pearson intervals; a single panel of bars (from stored rows).
+**Figure 1** (done, October 19): `docs/figures/exactness.png` (script `results/g2_figure1_20261019/figure.py`, counts copied from RESULTS): the optimal rate of every checked cell with Clopper–Pearson 95% intervals, I-POMCP against each baseline at its best K.
 
 **Figure 2** (`docs/figures/anytime_uav.png`, 12.67): anytime curves, i's 20-step reward against median CPU per decision, UAV H4 and H5, for every planner. Exact decision quality at H4 is in 12.67's Endpoint 3 table, which could become a second row of panels. Wumpus 4 × 4 was not run.
 
