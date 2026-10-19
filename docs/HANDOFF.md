@@ -15,6 +15,17 @@ Last updated October 19, 2026, about 13:10 (0.0000). Claude is the sole owner of
 
 ## 0. Start here (fresh agent)
 
+### 0.00000 New direction (user, October 19, evening): the definitive Tiger level grid
+
+- **Venue:** the closest open top AI/ML deadline. "NeurIPS 2026" closed on May 6, 2026, and the user answered "any track in AI/ML that is the closest". That means IJCAI 2027 (about January 15–19) or ICML 2027 (about January 22), both projected.
+- **Priorities:** low variance (their example: Tiger's step-3 reward near 2.7), and modeling shown correct against the Bayes-optimal benchmark across i at levels 0–4 against j at levels 0–4.
+- **Plan:** PLAN.md, the top phase (N0 done; next N1).
+- **Key facts:**
+  - The exact window is about 8 steps at L2, 4 at L3 and 3 at L4.
+  - Rao-Blackwellized rewards cut variance by 2.3–3.8×.
+  - The exact pair curve for L1 vs L1 is 2.148 at step 3; 2.72 is the single-agent ceiling.
+  - `ExactIPOMDPPlanner.get_action` misses its `rng` argument (to fix in N1).
+
 ### 0.0000 Session of October 19: reviewer readiness done, paper draft 1 written
 
 Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).

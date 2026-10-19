@@ -1,3 +1,28 @@
+# Plan: the definitive Tiger level grid (from October 19, 2026)
+
+**Why:** the user's direction (October 19). The venue is the closest open top AI/ML deadline. NeurIPS 2026, ICLR 2027, AISTATS 2027 and AAMAS 2027 have passed, so that is IJCAI 2027 (about January 15–19) or ICML 2027 (about January 22); both dates are projected. The user named two priorities:
+1. **Low statistical variance.** For example, Tiger's step-3 cumulative reward against the 2.72 the user expects.
+2. **Opponent modeling shown correct against the Bayes-optimal benchmark,** across i at levels 0–4 against j at levels 0–4.
+
+**N0, feasibility (done October 19; `results/n1_exact_grid_pilot_20261019`, `results/n2_rao_blackwell_20261019`):**
+- **Exact Bayes-optimal agents cannot play whole episodes.** Exact beliefs grow about 3× per step. The exact window is about 8 steps at L2 (step 8: 13,800 atoms, 33 s per decision), 4 at L3 (step 4: 109 s; then out of memory at 5 GB) and 3 at L4 (step 3: 154 s; then out of memory).
+- **Rao-Blackwellized rewards** cut variance by 2.3–3.8× on 12.48's 10,000 L1-vs-L1 trials, with the same estimand. Each sampled reward is replaced by its exact expectation given both agents' actions and observations, by forward–backward over the tiger's position.
+- **The exact expected curve of the pair actually played** has zero variance: the joint process is enumerated, merging equal (state, belief i, belief j) nodes.
+  - L1 vs L1, published Tiger: steps 3/4/5 are exactly 2.148 / 1.308 / 1.750. The Rao-Blackwellized estimates (2.23 ± 0.19 / 1.39 ± 0.19 / 1.84 ± 0.20) contain all three. The sampled ones (i: 2.49 ± 0.29, 1.63 ± 0.30, 2.01 ± 0.34) miss at step 3 and graze at step 4.
+  - **2.72 is the ceiling for a single agent playing alone, not the expectation of this pair:** j's opens reset the tiger.
+  - The enumeration reaches about 6 steps for L1 pairs (1.5M nodes).
+- **Bug found:** `ExactIPOMDPPlanner.get_action` calls `sample_policy` without its `rng`. It was never exercised, because exact agents had only been references.
+
+**Plan:**
+
+| Step | What | Gate or deliverable |
+|---|---|---|
+| N1 | Engineering. (a) An `exact` planner kind for episodes, fixing the `get_action` bug, with a test. (b) Rao-Blackwellized reward columns in `analysis.endpoints`, for any domain with explicit kernels. (c) The exact pair evaluator in the package, with tests. (d) Measure the work repeated across trials. If it is large, add a cross-trial shared cache, gated to bit-identical rows. | Tests. (d)'s gate: identical rows with and without the cache on 50 trials per cell. |
+| N2 | Price every cell of the grid (levels 0–4 × 0–4, published and coordination Tiger, H2, N = 64) at n = 20 after N1. The games are symmetric in the agents, so 15 cells (a ≤ b) give all 25 by reading both agents. | Price per cell; ask the user above 100 CPU-h. |
+| N3 | The grid at a tiered n. The target is a Rao-Blackwellized 95% half-width of about 0.5 at step 3 and 1.0 at step 20 (n ≈ 1,500–2,000 where affordable), paired by trial. | `ENDPOINTS.md` fixed before the run. |
+| N4 | **Bayes-optimal benchmark.** (a) In the exact window, replay each agent's realized history through the exact filter and exact solves: action agreement with the exact agent, total variation of the level posterior, and of the predicted opponent action. (b) Beyond the window: convergence in N (64 against 256 and 1,024) on a subsample. (c) Exact expected reward curves of each pair over the window, overlaid on the Monte Carlo curves, with the published-Tiger ceiling. | A RESULTS section per item. |
+| N5 | Figures and write-up: grid heatmaps with intervals; reward curves with the exact overlay; posteriors against exact; the agreement table. Then reframe the draft for the chosen venue. | PAPER.md slots. |
+
 # Plan: publication gaps (October 18, 2026)
 
 **Why:** the user asked on October 17 whether the suite is publication-worthy. Claude's assessment: a strong AAMAS or workshop paper as it stands, borderline for a main track. The gaps reviewers would attack, most serious first:
