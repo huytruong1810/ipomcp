@@ -158,6 +158,15 @@ def test_one_level_endpoint_compares_each_agent_against_the_same_opponent():
     assert summary.loc[0, "cpu_per_step"] == pytest.approx(0.75)
 
 
+def test_one_level_endpoint_reads_the_rao_blackwellized_column():
+    cells = {(0, 0): _frame([0, 0, 0], [0, 0, 0]), (1, 0): _frame([5, 6, 7], [1, 1, 1])}
+    for frame in cells.values():
+        frame["rb_cum_reward_i"] = frame["cum_reward_i"] / 2
+        frame["rb_cum_reward_j"] = frame["cum_reward_j"] / 2
+    table = one_level_endpoint(cells, column="rb_cum_reward")
+    assert table.loc[0, "mean"] == pytest.approx(3.0)
+
+
 def test_anytime_comparison_runs_every_planner_against_one_real_opponent():
     spec = anytime_comparison(
         "uav",

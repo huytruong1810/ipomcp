@@ -60,11 +60,11 @@ def paired_difference(a, b, seed=0):
     return {"n": len(difference), "mean": mean, "low": low, "high": high, "p": p}
 
 
-def one_level_endpoint(cells):
+def one_level_endpoint(cells, column="cum_reward"):
     """Paired one-level gains over a level matrix {(level_i, level_j): frame}.
 
     Rows: agent, step ("k->k+1"), opponent level, n, mean, low, high, p, p_holm.
-    The family is every comparison present.
+    The family is every comparison present. ``column`` as in ``final_rewards``.
     """
     rows = []
     for (li, lj), frame in sorted(cells.items()):
@@ -75,7 +75,7 @@ def one_level_endpoint(cells):
             if own < 1 or lower not in cells:
                 continue
             difference = paired_difference(
-                final_rewards(frame, agent), final_rewards(cells[lower], agent)
+                final_rewards(frame, agent, column), final_rewards(cells[lower], agent, column)
             )
             rows.append(
                 {"agent": agent, "step": f"{own - 1}->{own}", "opponent": opponent, **difference}
