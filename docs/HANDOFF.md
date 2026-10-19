@@ -8,12 +8,25 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top (the top one is "publication gaps").
 
-Last updated October 19, 2026, 09:25. Claude is the sole owner of `main`; there are no other agents.
+Last updated October 19, 2026, about 10:10 (0.0000). Claude is the sole owner of `main`; there are no other agents.
 - **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
 - **Publication gaps (since October 18):** G1–G5 are done (12.62–12.67).
 - Nothing is running. **Next: close the reviewer-readiness gaps (0.000), then draft the paper.**
 
 ## 0. Start here (fresh agent)
+
+### 0.0000 Session of October 19 (in progress): reviewer readiness, then the paper draft
+
+Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5, in order).
+- **Done:**
+  - Item 1: the Claude Doc is now at rev 96. The lead's stale sentence and old baseline numbers, the metrics table's "pending" row and the benchmark bullet are fixed. "Not yet measured" became "Still open", with two rows: IPF + RTS at L3, and equilibria.
+  - Item 3: the 12.67 weak spots are stated in PAPER.md (C1/C2 and Limitations). Equilibria went to Future work (**user's decision, October 19: future work, no run**).
+  - Figure 3: `docs/figures/depth_gain.png` (script `results/g5c_figure3_20261019/figure.py`).
+  - Item 5: draft 1 is in `docs/paper/draft.md`. Table 1's level-3 row is marked `PENDING 12.68`.
+- **Running:** item 2, IPF + RTS at L3 on the coordination Tiger (`results/g6_rts_l3_20261019`; `ENDPOINTS.md`, `KILL_CRITERION.txt` with a dated amendment, `analyze.py`, `cpu_now.sh`).
+  - 14 cells × 162 problems, one process per (cell, seed, belief); xargs PID in `xargs.pid`.
+  - Re-priced at about 25 CPU-h (pilot 14, ×1.8 under load). Kill line 40 CPU-h, running jobs included.
+  - When it finishes: run `analyze.py` → RESULTS 12.68 → Table 1's L3 row in the draft, PAPER C2, the doc's "Still open" row and its benchmark bullet → commit and push.
 
 ### 0.000 Next session (written October 19, 09:25, at the user's request): reviewer readiness before the paper draft
 
