@@ -21,7 +21,7 @@ Last updated October 19, 2026 (morning; G3 done). Claude is the sole owner of `m
 - `main` is clean and pushed. There are 369 tests, and ruff is clean.
 - Nothing of this project is running.
 - **The next free RESULTS section is 12.68.**
-- **First thing to tell the user:** back up `results/`. It now also holds `g3_uav_episodes_20261018`.
+- **Do not remind the user to back up `results/`** (user, October 19: "there is no need"). Older sections below still say to; ignore them.
 
 **What happened (RESULTS 12.67; `results/g3_uav_episodes_20261018`, `ENDPOINTS.md` fixed before the main run, with one dated amendment).**
 - **Episodes:** UAV, 20 steps, from the common prior, at H4 and H5, n = 30 per arm (IPF + RTS: H4 only, n = 10).
