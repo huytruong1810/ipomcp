@@ -8,35 +8,61 @@ Read this first (Section 0 is enough to start). Then, as needed:
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top (the top one is "publication gaps").
 
-Last updated October 18, 2026, 21:10. Claude is the sole owner of `main`; there are no other agents.
+Last updated October 19, 2026 (morning; G3 done). Claude is the sole owner of `main`; there are no other agents.
 - **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
-- **Publication gaps (since October 18):** G1, G2, G4 and G5 are done, and G3 is two-thirds done (12.62–12.66).
-- Nothing is running. **Next: G3's last piece, UAV episodes beyond exact reach for every planner (0.0a, item 2).**
+- **Publication gaps (since October 18):** G1–G5 are done (12.62–12.67).
+- **G3 done (October 19, RESULTS 12.67).** Nothing is running. **Next: the paper draft (0.00).**
 
 ## 0. Start here (fresh agent)
 
-### 0.00 Running now (October 18, 23:05): G3 UAV episodes
-- **Folder:** `results/g3_uav_episodes_20261018`. Read its `ENDPOINTS.md` (fixed before the main run, with one dated amendment to the pairing rule) and `KILL_CRITERION.txt`.
-- **Runners** (each has a `*.pid`):
-  - `run_main.sh`: `h4` and `h5` to n = 30;
-  - `own/chain.sh`: `own/h4` and `own/h5` to n = 30, then `own/rts_h4` to n = 10;
-  - `refs_h4.pid` and `refs_h5.pid`: the xargs of the exact references.
-- **After the episodes finish:**
-  1. Regenerate the reference jobs for every suite: `score.py jobs <suite> refs_h4 <jobs> 4 4`, and `... refs_h5 <jobs> 5 1` for H5, then run them through `wrap_ref.sh`.
-  2. `score.py rows` for each suite.
-  3. `analyze.py rows_h4.csv rows_h5.csv`.
-  4. Write RESULTS 12.67, PAPER Figure 2, the Claude Doc, the reviewer page and this file.
-- **Code added this session:**
+### 0.00 Session of October 18–19: G3 done (RESULTS 12.67)
+
+**State.**
+- `main` is clean and pushed. There are 369 tests, and ruff is clean.
+- Nothing of this project is running.
+- **The next free RESULTS section is 12.68.**
+- **First thing to tell the user:** back up `results/`. It now also holds `g3_uav_episodes_20261018`.
+
+**What happened (RESULTS 12.67; `results/g3_uav_episodes_20261018`, `ENDPOINTS.md` fixed before the main run, with one dated amendment).**
+- **Episodes:** UAV, 20 steps, from the common prior, at H4 and H5, n = 30 per arm (IPF + RTS: H4 only, n = 10).
+- **Arms:**
+  - I-POMCP, uniform and point-mass priors, modeling the target as configured;
+  - I-POMCP at its own budget (`ipomcp-pm-own-<n>`);
+  - I-NTMCP, tuned and published, M = 1,000 to 64,000;
+  - IPF + RTS, K = 2.
+- **Matched CPU:** I-POMCP beats tuned I-NTMCP by +42.3 (M = 4,000, H4), +4.7 (M = 16,000, H4) and +3.5 (M = 16,000, H5). They tie at M = 64,000, where both earn 35 in every episode (about 55 s per decision).
+- **Exact scoring at H4** (every decision of i at histories 0–4):
+  - I-POMCP: 120/120 per arm from root 4,000 or own budget 1,000;
+  - tuned I-NTMCP: 64–82% at M ≤ 16,000, 120/120 at 64,000;
+  - IPF + RTS: 62–70%.
+- **H5 with the uniform prior:** I-POMCP at root ≤ 16,000 misses near-ties (37–46/60, gap 0.67). The diagnosis (`diag_h5.py`) shows root-search error. Root 64,000 fixes it (19/19) at the same CPU, because the modeled target dominates the cost.
+- **Published I-NTMCP force-fills 31–49% of its beliefs on UAV.**
+- **Write-up:** PAPER Figure 2 (`docs/figures/anytime_uav.png`), and the C1 and C2 rows are filled. One paragraph went into the Claude Doc. The reviewer page is at version 27, with a new section "Beyond exact reach" built by `results/w4_report_20261007/g3_section.py`.
+- **Code:**
   - `baselines/intmcp.INTMCPPlanner`;
   - the study kind `"intmcp"`;
-  - `suite.anytime_comparison`, including the `ipomcp-pm-own-<n>` arms;
-  - `oracle.episode_reference_q`.
-- **Pilot facts:**
-  - I-POMCP scored 35 in every episode.
-  - Tuned I-NTMCP needs M = 64,000.
-  - Published I-NTMCP force-fills up to 99.9% of its beliefs on UAV.
-  - Exact cost: about ×3 per history step, and H6 costs 55 min at the prior.
+  - `suite.anytime_comparison` (with the `ipomcp-pm-own-<n>` arms);
+  - `oracle.episode_reference_q`;
+  - `forced_share_<agent>` in episode rows.
 
+**Cost: 173 CPU-h, over the user's 100 CPU-h ask line and the run's own 120 CPU-h kill line.**
+- The fixed price was about 95 CPU-h plus about 20 for the pilots.
+- The overrun came from the exact references (48 against about 25) and from IPF + RTS (32 against about 15; its decisions cost about twice 12.46's CPU under load).
+- Cumulative CPU was not tracked during the run, so the kill line was never checked. Say so to the user.
+
+**Next, Claude's order:**
+1. Write the paper draft from PAPER.md: every claim now has a RESULTS section.
+2. **Optional:** re-run the H5 uniform-prior I-POMCP arms at root 64,000, to show the qualified configuration in episodes (cheap: same CPU per decision).
+3. **Optional:** the untested screen prediction (12.64) and Wumpus 3 × 3 at H3 (0.0a item 3).
+
+**Lessons (also in Section 6):**
+- **Track cumulative CPU against the kill line during a run.** Sum `planning_cpu` plus `update_cpu` across finished trials, and the reference CPU, at every progress check.
+- **Price exact references by history length, from measured points.** The exact cost about triples per history step (H4: 10, 24, 73, 211, 615 and 1,989 s at histories 0–5), so cap scoring by history before the run.
+- **On this machine, `date` jumped about 40 minutes** (a WSL clock re-sync). Judge durations by `ps -o etime`, not by differences of `date`.
+- **GNU xargs did not lower its parallelism on SIGUSR2 here.** To throttle, kill the xargs (its running jobs finish), then relaunch the remaining list.
+- **A spawned worker's main script needs `if __name__ == "__main__"`,** or every spawned worker exits at once (`run_suite` uses spawn).
+- **A pairing rule written in haste ("the cheapest arm at no more CPU") was not a matched comparison.** I amended it before the main-run analysis and recorded the amendment. Write the rule, then test it on the pilot rows before fixing it.
+- **The CPU per decision of every planner on UAV is dominated by its model of the target.** I-POMCP's root budget barely changes its cost, so budget-only anytime arms are flat.
 
 ### 0.0a Next session (written October 18, evening, at the user's request)
 
@@ -1000,6 +1026,9 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 
 | Tried | What happened | What replaced it |
 |---|---|---|
+| An episode run without tracking cumulative CPU against its kill line (G3, October 18–19) | It used 173 CPU-h against a 120 CPU-h kill line and a 100 CPU-h ask line, and nobody noticed until the end | Sum the recorded CPU of finished trials and references at every progress check |
+| Pricing exact references from the prior alone (G3) | References cost about ×3 per history step: 48 CPU-h, against about 25 priced | Price per history length from measured points; cap scoring by history |
+| SIGUSR2 to throttle a running xargs (G3) | Parallelism did not drop | Kill the xargs (its running jobs finish), then relaunch the rest |
 | Repository default estimator (sampled rewards, no exact tail) | Passed every test while 61–88% optimal | The estimator in Section 2 |
 | Sampled IPF as the planner's belief | Quantizes small nested beliefs to 1/N steps and flips greedy modeled opponents (Q 3.3 → 6.3 at N = 64). Error accumulates with history. Slower than exact beliefs where exact is tractable | Compressed filter |
 | Multinomial resampling | Noisier than systematic at every N (paired over 12 histories) | Systematic resampling |

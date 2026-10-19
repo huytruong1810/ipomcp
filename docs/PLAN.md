@@ -16,7 +16,7 @@
   - The IPF with likelihood smoothing (`particle_filter="smoothed"`, ε = 0.01) passed the gate: at ε = 0, 420/420 rows were identical to before the change.
   - It removes 54–56 of the 55–57 Wumpus failures, yet still loses to I-POMCP: Wumpus 20–26/60, UAV 49–55/80, against 60/60 and 80/80.
 - **G3, step 2 done (RESULTS 12.65):** I-NTMCP against the exact I-POMDP on Wumpus 3 × 3 L2 H2. At matched CPU (tuned, M = 64,000) it is 40/60, against I-POMCP's 60/60 (Holm p = 1.9 × 10⁻⁶).
-- **G3, step 3 running (October 18, 23:02):** UAV episodes from the common prior at H4–H5 for every planner, in `results/g3_uav_episodes_20261018`. `ENDPOINTS.md` and `KILL_CRITERION.txt` were fixed after the n = 10 pilots and before the main run.
+- **G3, step 3 done (October 19, RESULTS 12.67):** UAV episodes from the common prior at H4–H5 for every planner, in `results/g3_uav_episodes_20261018`. `ENDPOINTS.md` and `KILL_CRITERION.txt` were fixed after the n = 10 pilots and before the main run.
   - **Arms:**
     - I-POMCP at root 1,000, 4,000 and 16,000, uniform and point-mass priors, modeling the target as configured;
     - I-POMCP modeling the target at its own budget n = 50–1,000 (`ipomcp-pm-own-<n>`; added after the pilot);
