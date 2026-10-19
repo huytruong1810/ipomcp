@@ -23,7 +23,15 @@
 | **Dynamic particle allocation**, Vallam et al. (**opened**, AAMAS 2019) | 2019, AAMAS | IPF whose particle counts per agent adapt to prediction accuracy | IPF-based | 1–2 | Repeated public-goods game with humans | None | Not checked | An IPF variant for behaviour modeling; no planning benchmark and no zero-likelihood repair |
 | **Second-order ToM learner**, Callaghan, Simmons & Admoni (**opened**: abstract, arXiv 2605.12745) | 2026, CogSci (to appear) | I-POMDP (details not in the abstract) | Not stated | 2 | Human–agent teaching study | None | Not linked | Shows I-POMDPs remain in current use. Not a planner contribution |
 
-**Exact and offline lineage (*cited*, via I-NTMCP and Hoang & Low; not opened):** exact solutions by behavioural equivalence (Rathnasabapathy, Doshi & Gmytrasiewicz, AAMAS 2006); interactive point-based value iteration (Doshi & Perez, AAAI 2008); interactive bounded policy iteration (Sonu & Doshi, JAAMAS 2015); finite-state models of others (Panella & Gmytrasiewicz, JAAMAS 2017); I-DIDs with model equivalence (Zeng & Doshi, JAIR 2012; used for the UAV parameters, PLAN.md, UAV section); Bayes-adaptive I-POMDPs (Ng et al., AAAI 2012). All are offline. None checks an online planner against exact solutions.
+**Checked October 19 (abstracts opened, for the paper draft):**
+- Rathnasabapathy, Doshi & Gmytrasiewicz, AAMAS 2006, pp. 1025–1032 (OpenAlex record): exact I-POMDP solutions by grouping the other agent's models into behavioural-equivalence classes, which makes the interactive state space finite; demonstrated on Tiger, solution as a policy graph.
+- Doshi & Perez, AAAI 2008, pp. 63–68 (mlanthology): an interactive generalization of point-based value iteration for finitely nested I-POMDPs.
+- Sonu & Doshi, JAAMAS 29(3), 2015 (abstract via Springer listing and OpenAlex): bounded policy iteration generalized to I-POMDPs; controllers predict other agents' actions; anytime.
+- Panella & Gmytrasiewicz, JAAMAS 2017 (abstract via an aggregator listing): **not a solver.** It models the other agents as probabilistic deterministic finite controllers learned by Bayesian nonparametric inference (MCMC), without modeling their beliefs. The draft now cites it as model learning.
+- Schwartz, Kurniawati & Hutter, arXiv 2306.06067 (opened): POTMMCP, as in the table.
+- Hula, Montague & Dayan 2015: published in PLOS Comput. Biol., doi:10.1371/journal.pcbi.1004254 (arXiv page).
+
+**Exact and offline lineage (*cited*, via I-NTMCP and Hoang & Low; not opened unless listed above):** exact solutions by behavioural equivalence (Rathnasabapathy, Doshi & Gmytrasiewicz, AAMAS 2006); interactive point-based value iteration (Doshi & Perez, AAAI 2008); interactive bounded policy iteration (Sonu & Doshi, JAAMAS 2015); finite-state models of others (Panella & Gmytrasiewicz, JAAMAS 2017); I-DIDs with model equivalence (Zeng & Doshi, JAIR 2012; used for the UAV parameters, PLAN.md, UAV section); Bayes-adaptive I-POMDPs (Ng et al., AAAI 2012). All are offline. None checks an online planner against exact solutions.
 
 **Searches that found nothing:** no 2023–2026 online I-POMDP planner beyond I-NTMCP and POTMMCP (searches over AAMAS, IJCAI and arXiv). No paper compares a sampled I-POMDP filter with exact nested beliefs. No paper repairs IPF's zero-likelihood failure.
 

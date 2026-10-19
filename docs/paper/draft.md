@@ -20,7 +20,7 @@ We take the opposite route: make the planner exact wherever exactness is afforda
 
 ## 2. Related work
 
-**Exact and offline solvers.** Exact solutions use behavioural equivalence to merge opponent models [Rathnasabapathy et al. 2006]. Approximate offline solvers include interactive point-based value iteration [Doshi and Perez 2008], interactive bounded policy iteration [Sonu and Doshi 2015], finite-state controllers of others [Panella and Gmytrasiewicz 2017] and interactive dynamic influence diagrams [Zeng and Doshi 2012]. They are offline, and none checks an online planner against exact solutions. We use full enumeration of the finite-horizon I-POMDP as our reference (Section 5.1).
+**Exact and offline solvers.** Exact solutions group the opponent's models into behavioural equivalence classes, which makes the interactive state space finite; they were demonstrated on the multi-agent Tiger [Rathnasabapathy et al. 2006]. Approximate offline solvers include interactive point-based value iteration [Doshi and Perez 2008], bounded policy iteration generalized to I-POMDPs [Sonu and Doshi 2015] and interactive dynamic influence diagrams with model equivalences [Zeng and Doshi 2012]. They are offline, and none checks an online planner against exact solutions. A related line learns models of the other agent instead of solving for its beliefs, for example finite-state controllers inferred by Bayesian nonparametrics [Panella and Gmytrasiewicz 2017]. We use full enumeration of the finite-horizon I-POMDP as our reference (Section 5.1).
 
 **Sampling planners.** IPF + RTS [Doshi and Gmytrasiewicz 2009] represents each nesting level by N sampled particles weighted by the agent's observation likelihood, and looks ahead by sampling K observations per node of a reachability tree. It is our published baseline. I-POMDP Lite [Hoang and Low 2013] assumes the opponent observes the state, so it cannot represent the opponent's beliefs about us. Hula et al. [2015] adapted POMCP to I-POMDPs to model human behaviour in a trust game. I-NTMCP [Schwartz et al. 2022] is the closest work. It builds one UCT tree per nesting level over history-state particles, samples the opponent's action by a softmax over visit counts one level down, and fixes one opponent level. It needs only a generative model, while we need explicit kernels. It reports returns, not decision quality against exact solutions; it is our modern baseline. POTMMCP [Schwartz et al. 2023] scales online planning to large partially observable games against fixed-policy types, not agents that model us.
 
@@ -210,15 +210,15 @@ Online I-POMDP planning can be checked, and when it is checked, it can be exact.
 ## References (to be completed)
 
 - Doshi, P., and Gmytrasiewicz, P. J. 2009. Monte Carlo sampling methods for approximating interactive POMDPs. JAIR 34.
-- Doshi, P., and Perez, D. 2008. Generalized point based value iteration for interactive POMDPs. AAAI.
+- Doshi, P., and Perez, D. 2008. Generalized point based value iteration for interactive POMDPs. In *Proc. AAAI*, 63–68.
 - Gmytrasiewicz, P. J., and Doshi, P. 2005. A framework for sequential planning in multi-agent settings. JAIR 24.
 - Hoang, T. N., and Low, K. H. 2013. Interactive POMDP Lite. IJCAI.
-- Hula, A., Montague, P. R., and Dayan, P. 2015. Monte Carlo planning method estimates planning horizons during interactive social exchange. PLOS Computational Biology.
-- Panella, A., and Gmytrasiewicz, P. 2017. Interactive POMDPs with finite-state models of other agents. JAAMAS.
-- Rathnasabapathy, B., Doshi, P., and Gmytrasiewicz, P. 2006. Exact solutions of interactive POMDPs using behavioral equivalence. AAMAS.
+- Hula, A., Montague, P. R., and Dayan, P. 2015. Monte Carlo planning method estimates planning horizons during interactive social exchange. *PLOS Computational Biology*. doi:10.1371/journal.pcbi.1004254.
+- Panella, A., and Gmytrasiewicz, P. 2017. Interactive POMDPs with finite-state models of other agents. *Autonomous Agents and Multi-Agent Systems*.
+- Rathnasabapathy, B., Doshi, P., and Gmytrasiewicz, P. J. 2006. Exact solutions of interactive POMDPs using behavioral equivalence. In *Proc. AAMAS*, 1025–1032.
 - Schwartz, J., Zhou, R., and Kurniawati, H. 2022. Online planning for interactive-POMDPs using nested Monte Carlo tree search. IROS.
-- Schwartz, J., Kurniawati, H., and Hutter, M. 2023. Combining a meta-policy and Monte-Carlo planning for scalable type-based reasoning in partially observable environments. AAMAS / arXiv 2306.06067.
-- Sonu, E., and Doshi, P. 2015. Scalable solutions of interactive POMDPs using generalized and bounded policy iteration. JAAMAS.
+- Schwartz, J., Kurniawati, H., and Hutter, M. 2023. Combining a meta-policy and Monte-Carlo planning for scalable type-based reasoning in partially observable environments. arXiv:2306.06067.
+- Sonu, E., and Doshi, P. 2015. Scalable solutions of interactive POMDPs using generalized and bounded policy iteration. *Autonomous Agents and Multi-Agent Systems* 29(3).
 - Zeng, Y., and Doshi, P. 2012. Exploiting model equivalences for solving interactive dynamic influence diagrams. JAIR 43.
 
-*Several entries are known only through other papers' related-work sections (RELATED_WORK.md, "cited"). Open each before citing it for anything specific.*
+*Every entry was checked against its own abstract or full text (RELATED_WORK.md; October 19 for Rathnasabapathy et al., Doshi and Perez, Sonu and Doshi, Panella and Gmytrasiewicz, and Schwartz et al. 2023). Still to fill before submission: volume and page numbers from the publishers' pages for the JAIR, JAAMAS and IJCAI entries.*
