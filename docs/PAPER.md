@@ -23,7 +23,7 @@
 | Wumpus 4 × 4 L1 qualified (52 beliefs, N = 4,096); 3 × 3 L2 H2 60/60, L3 H2 55/55 (every root exactly scored) | 12.53, 12.58 |
 | Certified per-action bounds contain the exact Q in 1,016/1,016 decisions checked | 12.17, 12.41 |
 | The L3 H4 residual (4/80 near-ties, gaps ≤ 0.03) is 80/80 ε-correct | 12.14, 12.54 |
-| **Beyond exact reach** (UAV episodes from the common prior, H4–H5): I-POMCP is exactly optimal on every scored H4 decision (histories 0–4) from root 4,000 or own budget 1,000, and near the best reward from 1.4 s per decision. L2 H5 with the uniform prior needs root 64,000 (diagnosed: root-search error) | 12.67 |
+| **Beyond exact reach** (UAV episodes from the common prior, H4–H5): I-POMCP is exactly optimal on every scored H4 decision (histories 0–4) from root 4,000 or own budget 1,000, and near the best reward from 1.4 s per decision. L2 H5 with the uniform prior needs root 64,000 (diagnosed: root-search error; fixed in replays, not yet in episodes). Only the first 5 (H4) or 2 (H5) decisions per episode are exactly scored | 12.67 |
 
 **Figure 1:** optimal rate by domain × level × horizon, with Clopper–Pearson intervals; a single panel of bars (from stored rows).
 
@@ -39,7 +39,7 @@
 | Wumpus 3 × 3 L2 H2: I-POMCP 60/60 against IPF + RTS 2–47%; the IPF fails on 55–57 of 60 problems (zero-likelihood particles) | 12.59 |
 | IPF with the standard zero-likelihood repair (likelihood smoothing, ε = 0.01) still loses: Wumpus 20–26/60, UAV 49–55/80 against 60/60 and 80/80 (Holm p ≤ 6 × 10⁻⁸); once repaired, what remains is RTS's search | 12.62 |
 | I-NTMCP (Schwartz et al., IROS 2022; authors' code through an adapter), against the exact I-POMDP on Wumpus 3 × 3 L2 H2: 40/60 at matched CPU (tuned, M = 64,000; median 97 CPU-s) against 60/60; 20 pairs favour I-POMCP and none favour I-NTMCP (Holm 1.9 × 10⁻⁶). The published variant force-fills up to 99% of its beliefs | 12.65 |
-| CPU-matched episodes beyond exact reach (UAV from the common prior, H4–H5), every planner: at no more CPU, I-POMCP beats tuned I-NTMCP by +42.3 (M = 4,000, H4) and +3.5 to +4.7 (M = 16,000); both earn 35 in every episode at M = 64,000 (about 55 s per decision). IPF + RTS K = 2 earns 30.0 at 1,130–1,340 s per decision. At H4, I-NTMCP is exactly optimal on 64–82% of decisions at M ≤ 16,000 | 12.67 |
+| CPU-matched episodes beyond exact reach (UAV from the common prior, H4–H5), every planner: at no more CPU, I-POMCP beats tuned I-NTMCP by +42.3 (M = 4,000, H4) and +3.5 to +4.7 (M = 16,000); both earn 35 in every episode at M = 64,000 (about 55 s per decision): a tie, stated as such. IPF + RTS K = 2 earns 30.0 at 1,130–1,340 s per decision. At H4, I-NTMCP is exactly optimal on 64–82% of decisions at M ≤ 16,000 | 12.67 |
 
 **Table 1:** decisions against the exact I-POMDP, three planners (I-POMCP, IPF + RTS published and fixed, I-NTMCP) × three domains. Wumpus complete: published IPF 12.59, smoothed IPF 12.62, I-NTMCP 12.65. UAV has both IPF variants (12.43, 12.46, 12.62); I-NTMCP is out of scope for UAV panel problems, whose beliefs are not from a common prior.
 
@@ -93,11 +93,14 @@ Done, from paired stored results plus one new recomputation. Turning root chance
 6. **Against baselines** (C2, Table 1, Figure 2).
 7. **The value of depth** (C3, Figures 3–4; theory statement and proof of the level-0 remark).
 8. **Ablations** (Table 2).
-9. **Limitations:**
+9. **Limitations** (state each plainly; reviewer readiness, October 19):
    - two agents;
    - explicit kernels;
-   - exact references limited to small horizons;
+   - exact references limited to small horizons. In the UAV episodes (12.67) only the first 5 decisions (H4) or 2 decisions (H5) of each 20-step episode are exactly scored; later decisions are judged by reward alone;
+   - at H5 with the uniform prior, I-POMCP below root 64,000 misses near-ties (37–46/60 exact, gap 0.67). The diagnosis is root-search error, and root 64,000 fixes it (19/19) at the same CPU, but only in single-decision replays, not yet in episodes (12.67);
+   - on UAV, tuned I-NTMCP ties I-POMCP at M = 64,000 (both earn 35 in every episode, about 55 s per decision). I-POMCP's UAV advantage is at lower CPU; its decision-quality advantage at matched CPU is on Wumpus (12.65);
    - Wumpus L2 at 4 × 4 out of reach (12.55–12.56).
+10. **Future work:** equilibria. `docs/EQUILIBRIA.md` defines a measure, and the episodes record the predictions it needs, but no result reports it (user's decision, October 19: future work, no run).
 
 ## 4. Open slots, in run order
 1. **G3:** ~~the IPF zero-likelihood fix~~ (done, 12.62); the I-NTMCP adapter and its gate (blocked: running external code needs the user's permission); anytime curves (UAV L2 H4–H5, Wumpus 4 × 4 L1). Price first; ask above 100 CPU-h.
