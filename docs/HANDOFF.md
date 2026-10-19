@@ -15,6 +15,29 @@ Last updated October 18, 2026, 21:10. Claude is the sole owner of `main`; there 
 
 ## 0. Start here (fresh agent)
 
+### 0.00 Running now (October 18, 23:05): G3 UAV episodes
+- **Folder:** `results/g3_uav_episodes_20261018`. Read its `ENDPOINTS.md` (fixed before the main run, with one dated amendment to the pairing rule) and `KILL_CRITERION.txt`.
+- **Runners** (each has a `*.pid`):
+  - `run_main.sh`: `h4` and `h5` to n = 30;
+  - `own/chain.sh`: `own/h4` and `own/h5` to n = 30, then `own/rts_h4` to n = 10;
+  - `refs_h4.pid` and `refs_h5.pid`: the xargs of the exact references.
+- **After the episodes finish:**
+  1. Regenerate the reference jobs for every suite: `score.py jobs <suite> refs_h4 <jobs> 4 4`, and `... refs_h5 <jobs> 5 1` for H5, then run them through `wrap_ref.sh`.
+  2. `score.py rows` for each suite.
+  3. `analyze.py rows_h4.csv rows_h5.csv`.
+  4. Write RESULTS 12.67, PAPER Figure 2, the Claude Doc, the reviewer page and this file.
+- **Code added this session:**
+  - `baselines/intmcp.INTMCPPlanner`;
+  - the study kind `"intmcp"`;
+  - `suite.anytime_comparison`, including the `ipomcp-pm-own-<n>` arms;
+  - `oracle.episode_reference_q`.
+- **Pilot facts:**
+  - I-POMCP scored 35 in every episode.
+  - Tuned I-NTMCP needs M = 64,000.
+  - Published I-NTMCP force-fills up to 99.9% of its beliefs on UAV.
+  - Exact cost: about ×3 per history step, and H6 costs 55 min at the prior.
+
+
 ### 0.0a Next session (written October 18, evening, at the user's request)
 
 **State.**
