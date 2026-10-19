@@ -2299,6 +2299,64 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.71 Pricing the definitive Tiger level grid from data on disk: the planned half-widths cost about 25,000 CPU-h on the coordination Tiger; paired gains and tiers bring it to 100–800 (October 19, 2026)
+
+**Why:** PLAN N2. Before spending CPU on pricing runs, the 12.37 (levels 0–3, both games, n = 100) and 12.40 (level 4 against 0–4, coordination, n = 40) episodes already give each cell's CPU and, through `analysis.rao_blackwell`, its Rao-Blackwellized (RB) variance. RB means each sampled reward is replaced by its exact expectation given both agents' actions and observations; the estimand is unchanged.
+
+**Scripts:** `results/n4_grid_price_20261019/from_existing.py` (→ `from_existing.txt`) and `options.py` (→ `options.txt`). No new episodes were run. The games are symmetric, so cells with i's level ≥ j's cover the grid.
+
+**Per-cell spread of the cumulative reward** (RB standard deviation over trials, intentional agents only; a level-0 agent's own reward is not an endpoint):
+
+| Game | Step 3 | Step 20 | RB variance ÷ sampled variance | n for a 95% half-width of 0.5 at step 3 and 1.0 at step 20 |
+|---|---|---|---|---|
+| Published Tiger, levels 1–3 | 8.6–8.7 | 20–26 | 0.2–0.5 | 2,100–2,600 |
+| Coordination Tiger, levels 1–4 | 18–21 | 53–64 | 0.6–1.07 | 12,000–16,000 |
+
+- **RB helps much less on the coordination Tiger.** Its spread comes mostly from the agents' own action draws (who opens which door, and whether together), which RB does not condition out. The published Tiger's spread comes mostly from the tiger's position, which RB integrates.
+- **At PLAN N3's targets, the cell means cost about 24,500 CPU-h on the coordination Tiger and 330 on the published Tiger (levels 0–3 only).** That is not feasible on the shared machine.
+
+**The grid's endpoint is a paired one-level gain, which is much tighter** (RB, step 20, i at a against a − 1, the same j level, paired by trial):
+
+| Gain | Coordination: SD, n for ±1 | Published: SD, n for ±1 |
+|---|---|---|
+| 1 → 2 against j0 / j1 | 23 / 55: 2,027 / 11,798 | 1.5 / 11.3: 9 / 490 |
+| 2 → 3 against j0 / j1 / j2 | 15 / 33 / 24: 821 / 4,084 / 2,247 | 2.7 / 8.9 / 14.2: 28 / 305 / 770 |
+| 3 → 4 against j0–j3 (n = 40) | 13–27: 659–2,707 | no data |
+
+(The 0 → 1 gain is about +570 against an SD of about 150, so it needs no precision.)
+
+**CPU per episode is concentrated late:** on level-4 cells, steps 1–8 take 12–13% of an episode's CPU (12.70's trials). A 10-step episode costs about a fifth of a 20-step one at level 4 (`options.txt`). Held 20-step trials also serve a 10-step design, because their first 10 rows are exactly a 10-step episode.
+
+**Tiered designs** (CPU-h for the trials still missing, quiet-machine process CPU; × about 1.8 at load 20, as 12.68 measured; the published level-4 row is priced at the coordination row × the published/coordination ratio at level 3):
+
+| Design | 20 steps | 10 steps |
+|---|---|---|
+| A: levels 0–2 at n = 2,500 (published) and 15,000 (coordination); level-3 row n = 700; level-4 row n = 200 | 794 | 243 |
+| B: as A, level-4 row n = 100 | 520 | 177 |
+| C: as A, level-3 row n = 400, level-4 row n = 40 | 242 | 97 |
+| D: every cell n = 1,000 | 3,019 | 772 |
+
+### 12.70 N1(d): a cache shared across trials would save 27–33% of a level-3 or level-4 episode's CPU, so no cache is built (October 19, 2026)
+
+**Why:** PLAN N1(d). Each episode builds fresh solver banks, so modeled solves are recomputed in every trial. The question was whether sharing them across trials would make large n affordable.
+
+**Design** (`results/n3_repeat_work_20261019`; `ENDPOINTS.md` and `KILL_CRITERION.txt` fixed before the run; `job.py`, `analyze.py`, `analysis.txt`):
+- Coordination Tiger in the level grid's configuration (12.37: H2, 100 simulations, N = 64 compressed, uniform nested priors, 20 steps). Cells i2_j2, i3_j3, i4_j2 and i4_j4, trials 0–7, one process per episode.
+- **One planner seed per cell.** Under the grid's per-trial seeds, no seeded result can be reused bit-identically, because searches and compression draw from the trial's bank seed. So only this regime could profit.
+- Every modeled policy (one nested search) and every filter update was logged with its key and CPU. The endpoint for trial k is the inclusive CPU of the calls whose key occurred in trials 0..k − 1 and whose ancestors' keys did not (a hit skips its subtree), as a share of trial k's episode CPU.
+
+| Cell | Episode CPU (min, mean) | Saved with 1 / 3 / 5 / 7 earlier trials | Speedup with 7 |
+|---|---|---|---|
+| i2_j2 | 0.08 | 39% / 50% / 49% / 60% | 2.5× |
+| i3_j3 | 2.1 | 19% / 31% / 31% / 32% | 1.46× |
+| i4_j2 | 17 | 14% / 18% / 24% / 32% | 1.46× |
+| i4_j4 | 45 | 12% / 22% / 23% / 27% | 1.36× |
+
+- **Decision, by the rule fixed before the run: no cache.** The cells that cost CPU (levels 3–4) plateau at 1.4–1.5× from about four earlier trials on. The only cell above 2× is i2_j2, which costs 5 s per episode.
+- **Two further costs would come with a cache.** First, about 1.7 million new keys per i4_j4 episode, so its memory grows without bound unless it is capped, and a cap lowers the saving. Second, one seed per cell correlates trials through shared nested approximations, so trials would no longer be independent draws of the planner.
+- Nearly all of the saving is in modeled policies (94–99%), not in filter updates.
+- **Cost:** 8.6 CPU-h (kill line 25). Six workers, peak 1.9 GB per level-4 job, and no watchdog kills.
+
 ### 12.69 Held-out check: the qualified Tiger configurations are optimal on 960 of 960 random beliefs no qualification used (October 19, 2026)
 
 **Why:** every qualified budget is the smallest rung of a ladder that was 100% optimal on its grid, and the paper then reports that grid. A reviewer can call this selection on the test set. This reruns the qualified configurations, unchanged, on problems no qualification or gate used.

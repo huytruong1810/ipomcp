@@ -13,11 +13,12 @@
   - The enumeration reaches about 6 steps for L1 pairs (1.5M nodes).
 - **Bug found:** `ExactIPOMDPPlanner.get_action` calls `sample_policy` without its `rng`. It was never exercised, because exact agents had only been references.
 
-**Status (October 19, night): N1(a)–(c) done; N1(d) measuring.**
+**Status (October 19, evening): N1 done; N2 priced from data on disk (RESULTS 12.71); the design awaits the user.**
 - (a) `study.ExactConfig` (planner kind `exact`), the tie-stream fix, and the exact window in `episodes` (`Window` rows, NaN rewards). Commit e61afaf.
 - (b) `analysis.rao_blackwell`: it matches N0's `rb.py` to 1e-14 and brute-force path enumeration on Tiger and UAV, and reproduces 2.23 / 1.39 / 1.84 on 12.48's 10,000 trials. Commit 7a52d4a.
 - (c) `analysis.exact_curves.exact_pair_curve`: −91t/3 for uniform pairs; 2.148 / 1.308 for L1 against L1; 300 exact episodes agree with it. Commit f1f7feb.
-- (d) running in `results/n3_repeat_work_20261019` (`ENDPOINTS.md`). Under per-trial seeds nothing seeded can be reused bit-identically (searches and compression draw from the trial's bank seed), so only the cell-seeded regime is measured.
+- (d) RESULTS 12.70: even with one seed per cell, a cache shared across trials saves only 27–33% at levels 3–4 (1.36–1.46× after 7 earlier trials, and flattening). So there is no cache, by the rule fixed before the run.
+- N2 (RESULTS 12.71): N3's targets cost about 25,000 CPU-h on the coordination Tiger, where RB cuts variance by only 0–40%. The paired one-level gains need far fewer trials. Steps 1–8 hold 12% of a level-4 episode's CPU. Priced designs A–D: 97–3,019 CPU-h.
 
 **Plan:**
 

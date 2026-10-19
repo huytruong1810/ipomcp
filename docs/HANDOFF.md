@@ -2,7 +2,7 @@
 
 Read this first: Section 0.00000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "the definitive Tiger level grid" (N0–N5).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.68–12.69, and the next free one is 12.70.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.71, and the next free one is 12.72.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1. Draft 1 is written for AAMAS and will be reframed in N5.
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 standard.
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
@@ -10,8 +10,8 @@ Read this first: Section 0.00000 is enough to start. Then, as needed:
 
 Last updated October 19, 2026, evening, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
 - `main` is clean and pushed. There are 390 tests, and ruff is clean.
-- **N1(a)–(c) are done (October 19, night; PLAN.md N1 status). N1(d)'s measurement is running:** `results/n3_repeat_work_20261019` (xargs PID in `runner.pid`; `cpu_now.sh`; kill line 25 CPU-h).
-- **Next: finish N1(d) (analyze, RESULTS 12.70), then N2.**
+- **N1 is done (October 19; PLAN.md N1 status). Nothing is running.** N1(d) found no cache worth building (RESULTS 12.70).
+- **N2 was priced from data on disk (RESULTS 12.71).** PLAN N3's half-width targets cost about 25,000 CPU-h on the coordination Tiger. The tiered designs A–D cost 97–3,019 CPU-h. **The user chooses the design (all of them exceed 100 CPU-h).**
 
 ## 0. Start here (fresh agent)
 
