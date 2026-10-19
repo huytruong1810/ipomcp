@@ -96,7 +96,9 @@ def _step(
         decisions[f"bounds_{agent}"] = json.dumps(stats.get("bounds"), sort_keys=True)
         if "forced_share" in stats:
             decisions[f"forced_share_{agent}"] = stats["forced_share"]
-        decisions[f"prediction_{agent}"] = json.dumps(_prediction(planners[agent]), sort_keys=True)
+        decisions[f"prediction_{agent}"] = json.dumps(
+            predicted_opponent_action(planners[agent]), sort_keys=True
+        )
     following = physics.sample_transition(state, joint, env_transition)
     rewards = {a: physics.get_reward(state, joint, following, a) for a in AGENTS}
     for agent in AGENTS:
@@ -132,7 +134,7 @@ def _step(
     return row, following, terminal
 
 
-def _prediction(planner):
+def predicted_opponent_action(planner):
     """The agent's predicted distribution of the opponent's next action, or None at level 0.
 
     sum over (s, m_j) of b(s, m_j) pi_j(a_j | m_j), with the same modeled policies
