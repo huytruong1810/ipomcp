@@ -1,32 +1,83 @@
 # Handoff
 
-Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.67);
-- [PAPER.md](PAPER.md): the paper outline, claims → RESULTS → figures, with the open slots marked `MISSING`;
-- [RELATED_WORK.md](RELATED_WORK.md): the literature check (I-NTMCP is the closest prior work);
-- [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 certification standard;
-- [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
-- [PLAN.md](PLAN.md): the phases, newest on top (the top one is "publication gaps").
+Read this first: Section 0.00000 is enough to start. Then, as needed:
+- [PLAN.md](PLAN.md): the phases, newest on top. The top one is "the definitive Tiger level grid" (N0–N5).
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.68–12.69, and the next free one is 12.70.
+- [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1. Draft 1 is written for AAMAS and will be reframed in N5.
+- [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 standard.
+- [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
+- [RELATED_WORK.md](RELATED_WORK.md): the literature check.
 
-Last updated October 19, 2026, about 13:10 (0.0000). Claude is the sole owner of `main`; there are no other agents.
-- **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
-- **Publication gaps (since October 18):** G1–G5 are done (12.62–12.67).
-- **Reviewer readiness is done, and paper draft 1 is written** (October 19, 0.0000; RESULTS 12.68–12.69). Nothing is running. **Next: the references and a skeptical read of the draft (0.0000).**
+Last updated October 19, 2026, evening, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
+- `main` is clean and pushed. There are 369 tests, and ruff is clean. **Nothing is running.**
+- **Next: N1 (engineering) of the level-grid phase, below.**
 
 ## 0. Start here (fresh agent)
 
-### 0.00000 New direction (user, October 19, evening): the definitive Tiger level grid
+### 0.00000 Start here: the definitive Tiger level grid (user's direction, October 19, evening)
 
-- **Venue:** the closest open top AI/ML deadline. "NeurIPS 2026" closed on May 6, 2026, and the user answered "any track in AI/ML that is the closest". That means IJCAI 2027 (about January 15–19) or ICML 2027 (about January 22), both projected.
-- **Priorities:** low variance (their example: Tiger's step-3 reward near 2.7), and modeling shown correct against the Bayes-optimal benchmark across i at levels 0–4 against j at levels 0–4.
-- **Plan:** PLAN.md, the top phase (N0 done; next N1).
-- **Key facts:**
-  - The exact window is about 8 steps at L2, 4 at L3 and 3 at L4.
-  - Rao-Blackwellized rewards cut variance by 2.3–3.8×.
-  - The exact pair curve for L1 vs L1 is 2.148 at step 3; 2.72 is the single-agent ceiling.
-  - `ExactIPOMDPPlanner.get_action` misses its `rng` argument (to fix in N1).
+**The task.** Build the experiment suite for the paper around the two priorities the user named:
+1. **Low statistical variance.** "Getting the number of trials up so we get less statistical variance (for example, for optimal policy in tiger game at time 3, the expected cumulative reward should be 2.7)."
+2. **Correct modeling of the other agent against the Bayes-optimal benchmark,** "across the grid of agent i lv0->4 vs agent j lv0->4".
 
-### 0.0000 Session of October 19: reviewer readiness done, paper draft 1 written
+The user wants the experiments to be "the most optimal and explainable".
+
+**Venue.** The user first said NeurIPS 2026, whose deadline passed on May 6, 2026. Asked, they answered "any track in AI/ML that is the closest".
+- ICLR 2027, AISTATS 2027 and AAMAS 2027 have also passed.
+- The closest are **IJCAI 2027 (about January 15–19)** and **ICML 2027 (about January 22)**. Neither call was published on October 19, so the dates are projections.
+- Claude recommended IJCAI (earlier, and the better fit). The user has not confirmed. Check the official calls once they are out.
+
+**What N0 established** (October 19, details in PLAN.md N0):
+- **Exact Bayes-optimal agents cannot play whole episodes.**
+  - Pilot: `results/n1_exact_grid_pilot_20261019/exact_episode.py` (exact agents, coordination Tiger, H2; logs `pilot_*.log`).
+  - Exact beliefs grow about 3× per step. The window is about 8 steps at L2 (step 8: 13,800 atoms, 33 s per decision, 0.7 GB; step 9 hits the 100,000-branch budget), 4 at L3 (step 4: 109 s; then out of memory at 5 GB) and 3 at L4 (step 3: 154 s; then out of memory).
+  - **So the benchmark is exact inside that window, and convergence in N beyond it.**
+- **Rao-Blackwellized (RB) rewards:** `results/n2_rao_blackwell_20261019/rb.py`.
+  - Each sampled reward is replaced by its exact expectation given both agents' actions and observations over the whole episode, by forward–backward over the tiger's position with the package's kernels.
+  - The estimand is unchanged (tower property), and variance falls 2.3–3.8× on 12.48's 10,000 L1-vs-L1 trials.
+  - The policies depend on the state only through observations, which is why conditioning on actions and observations leaves a plain HMM.
+- **Exact expected curve of the pair actually played:** `results/n2_rao_blackwell_20261019/exact_pair.py`.
+  - It enumerates (state, belief i, belief j) forward, merging equal nodes; ties are uniform and level 0 is uniform.
+  - L1 vs L1, published Tiger: steps 3/4/5 are exactly 2.148 / 1.308 / 1.750. The RB estimates contain all three; the sampled ones miss at step 3.
+  - Nodes grow about 10× per step (1.5M at step 6 for L1), so expect fewer steps at higher levels.
+  - **2.72 is the single-agent ceiling (12.48), not this pair's expectation:** j's opens reset the tiger. Say this plainly to the user and in the paper.
+- **Bug:** `src/ipomdp/reference/exact_agent.py`, `ExactIPOMDPPlanner.get_action` calls `sample_policy(policy)` without the required `rng`. The pilot worked around it with `sample_policy(planner.policy_for(planner.model()), random.Random(f"{trial}/exact/ties"))`.
+
+**N1, what to build first** (each with tests, then commit and push):
+- **(a) An `exact` planner kind for episodes.**
+  - `experiments/study.py`, `_planner_config` and `build_agents`: build with `reference.exact_agent.build_exact_agent(agent_id, opponent_id, level, physics, nested, horizon, gamma)`, where `nested = {n: {k: 1/n for k in range(n)}}` as `suite.hierarchy_agent` uses.
+  - Fix `get_action` to take an rng seeded from the trial, so ties are reproducible.
+  - It must also report the episode columns `run_episode` reads: `belief`, `key.level`, `solver_bank.filter` for level posteriors, and predictions (`episodes._prediction`).
+  - Exact agents must stop or raise cleanly at their window. The filter raises `InferenceBudgetExceeded`; memory needs a guard.
+- **(b) RB reward columns** in `analysis/endpoints`, generalizing `rb.py`. It works for any domain with explicit kernels: forward–backward over physical states given both agents' actions and observations. Note: Tiger rewards ignore `next_state`, but other domains may not, so condition properly on (s_{t−1}, s_t).
+- **(c) The exact pair evaluator** in the package (for example `analysis/exact_curves.py`), generalizing `exact_pair.py`, with a node cap and a test against a hand-computed Tiger value.
+- **(d) A cross-trial cache, so large n is affordable.**
+  - Today each episode is one process with a fresh `SolverBank` seeded per trial (`study.build_agents`), so modeled solves are recomputed in every trial. 12.40 measured 13–45 CPU-min per episode for level-4 cells.
+  - First measure how much modeled-solve work repeats across trials (count distinct nested-belief digests over about 20 trials per cell).
+  - If it is large, share the cache across trials in one process.
+  - **Caveat:** at H2, chance scoring makes modeled decisions exact for any seed *except tie-breaking*, which depends on the bank's search stream. A shared cache can change tie choices. Gate it as identical rows on 50 trials per cell, or identical except documented tie choices, and decide which before the run.
+- **N2:** price every cell at n = 20 after N1, then ask the user (the full grid surely exceeds 100 CPU-h).
+  - The grid: both Tiger games, levels 0–4 × 0–4, H2, N = 64 compressed, uniform priors over lower levels at every nesting (12.37 and 12.40's configuration).
+  - Both games are symmetric in the agents, so the 15 cells with i's level ≤ j's give all 25.
+- **Then N3–N5** as PLAN.md describes: a tiered n with an RB half-width target of about 0.5 at step 3 and 1.0 at step 20 (n ≈ 1,500–2,000 where affordable); the Bayes-optimal benchmark; figures; the reframe for the venue.
+
+**Existing data to reuse:**
+- 12.37 (levels 0–3, both games, n = 100) and 12.40 (level 4 against 0–4, coordination, n = 40): `results/m1_level_matrix_20261011`, `results/m2_level4_20261011`.
+- 12.48's large-n trials (L1/L2, published, up to 10,000 fresh): `results/c2_tiger_ceiling_20261014/grid_*`.
+- 12.47's exact replay of j's level posterior: `results/c1_level_posterior_20261014/replay_j.py`.
+- Trial rows are CSVs under `<run>/trials/<cell>/<trial>.csv`, with columns `action_*`, `observation_*`, `reward_*`, `prob_l{k}_{other}`, `prediction_*` and `physical_*`.
+
+**Rules that bind this work:**
+- Commit and push to `origin main` after every implementation, without asking. Never force-push.
+- Ask the user before any run above 100 CPU-h, and before deleting anything. Do not remind the user to back up `results/`.
+- For every run: write `ENDPOINTS.md` and `KILL_CRITERION.txt` before the main run; snapshot `src` into the run folder and check the import path; run one process per episode or job with `timeout` wraps and the watchdog on the **xargs** PID.
+- **Track cumulative CPU, running jobs included, at every progress check** (`results/g6_rts_l3_20261019/cpu_now.sh`).
+- Price under the load the run will see: pilots under-priced by 1.8× at load 20.
+- Tiger panel rows carry `problem = None`. Pair them by (seed, belief_p, opponent_belief, nested_beliefs), and assert pair counts.
+- Report style: chosen method only, n beside numbers, jargon defined. Reviewer patterns need exact, control or large-n backups, never "noise".
+- Section 0.0 below has the machine rules (shared 24-core, 23 GB machine; `jepa_ipomdp` runs there; kill by PID only).
+
+### 0.0000 Session of October 19: reviewer readiness done, paper draft 1 written (history)
 
 Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).
 
@@ -69,7 +120,7 @@ Plan: `~/.claude/plans/pick-up-handoff-and-keen-cat.md` (0.000's items 1–5).
 - **Tiger panel rows carry `problem = None`.** Pair them by (seed, belief_p, opponent_belief, nested_beliefs), and assert the pair count. `analyze.py` first paired on `problem` and silently collapsed 162 pairs to 18.
 - **Price CPU under the load the run will see.** A pilot of 14 concurrent jobs at load 14 under-priced 16 workers at load 20 (other users' jobs) by 1.8×.
 
-### 0.000 Next session (written October 19, 09:25, at the user's request): reviewer readiness before the paper draft
+### 0.000 Next session (written October 19, 09:25): reviewer readiness before the paper draft (history; done)
 
 **The user's question (October 19):** before drafting, have the reviewer's questions and skepticism all been answered? The user asked to work through the answer below in this new session.
 
