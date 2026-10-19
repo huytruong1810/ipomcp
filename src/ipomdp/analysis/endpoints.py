@@ -28,10 +28,14 @@ from ipomdp.analysis.statistics import clopper_pearson, holm
 DRAWS = 4000
 
 
-def final_rewards(frame, agent):
-    """Cumulative reward at the last step, indexed by trial."""
+def final_rewards(frame, agent, column="cum_reward"):
+    """Cumulative reward at the last step, indexed by trial.
+
+    ``column="rb_cum_reward"`` reads the Rao-Blackwellized curve
+    (``analysis.rao_blackwell``): the same estimand at lower variance.
+    """
     last = frame[frame["step"] == frame["step"].max()]
-    return last.set_index("trial")[f"cum_reward_{agent}"]
+    return last.set_index("trial")[f"{column}_{agent}"]
 
 
 def bootstrap_interval(values, seed=0, draws=DRAWS, level=0.95):
