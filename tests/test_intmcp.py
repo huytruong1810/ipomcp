@@ -1,5 +1,7 @@
 """The I-NTMCP baseline adapter: the authors' planner on this package's domains."""
 
+import json
+
 import pytest
 
 pytest.importorskip("intmcp", reason="third_party/i-ntmcp is not on the path")
@@ -76,3 +78,73 @@ def test_tuned_variant_keeps_beliefs_consistent_with_deterministic_senses():
 def test_variants_are_validated():
     with pytest.raises(ValueError, match="variant"):
         INTMCPAgent(TigerModel(), 1, 10, 1, 0.95, 0, variant="other")
+
+
+def _uav_spec(variant="tuned", **i_options):
+    from ipomdp.experiments.study import AgentSpec, StudySpec
+    from ipomdp.experiments.suite import hierarchy_agent, ipomcp
+
+    planner = {"kind": "intmcp", "simulations": 60, "depth": 2, "variant": variant}
+    return StudySpec(
+        name="uav-intmcp",
+        domain="uav",
+        trials=1,
+        steps=3,
+        agents={
+            "i": AgentSpec(level=2, planner=planner, **i_options),
+            "j": hierarchy_agent(1, ipomcp(30, 2), None, 16),
+        },
+    )
+
+
+def test_an_intmcp_agent_plays_uav_episodes_reproducibly():
+    from ipomdp.experiments.episodes import run_episode
+
+    def play():
+        return [
+            {
+                k: v
+                for k, v in row.items()
+                if not k.endswith(("_cpu_i", "_wall_i", "_cpu_j", "_wall_j", "rss_mb"))
+            }
+            for row in run_episode(_uav_spec(), 3)
+        ]
+
+    rows = play()
+    assert rows == play()
+    decisions = [row for row in rows[1:] if "forced_share_i" in row]
+    assert decisions and all(0 <= row["forced_share_i"] <= 1 for row in decisions)
+    assert decisions[0]["forced_share_i"] == 0.0  # the prior
+    assert all(json.loads(row["action_values_i"]) for row in decisions)
+    assert all(row["prediction_i"] == "null" for row in decisions)
+
+
+def test_the_episode_planner_sees_only_its_own_steps():
+    from ipomdp.baselines.intmcp import INTMCPPlanner
+    from ipomdp.domains.uav import UAVModel
+    from ipomdp.experiments.study import build_agents
+
+    physics, planners = build_agents(_uav_spec(), 0)
+    planner = planners["i"]
+    assert isinstance(planner, INTMCPPlanner)
+    # Agent index 0 of the adapter is the planner's own agent.
+    assert planner.agent.model.agents == ("i", "j")
+    assert isinstance(physics, UAVModel)
+
+
+@pytest.mark.parametrize(
+    "options, message",
+    [
+        ({"modeled": "100"}, "modeled"),
+        ({"particles": 64}, "particles"),
+        ({"particle_filter": "sampled"}, "particle_filter"),
+        ({"level_weights": {0: 0.5, 1: 0.5}}, "one opponent level"),
+    ],
+)
+def test_intmcp_specs_outside_its_model_class_are_refused(options, message):
+    with pytest.raises(ValueError, match=message):
+        _uav_spec(**options)
+
+
+def test_a_point_mass_on_the_level_below_is_accepted():
+    _uav_spec(level_weights={1: 1.0})

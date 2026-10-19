@@ -59,6 +59,8 @@ import time
 import intmcp.model as M
 from intmcp.tree.nst import NestedSearchTree
 
+from ipomdp.planning.planner import Planner
+
 
 class _Wrapped:
     """A domain value presented as an I-NTMCP state, action or observation."""
@@ -282,6 +284,32 @@ class INTMCPAgent:
         own = self.tree.history
         forced = sum(p.history.get_agent_history(0) != own for p in particles)
         self.forced_shares.append(forced / len(particles) if particles else 1.0)
+
+
+class INTMCPPlanner(Planner):
+    """An ``INTMCPAgent`` behind the episode interface of ``experiments.episodes``.
+
+    It holds no ``belief`` attribute, so episodes record no belief columns or
+    prediction for it. ``get_detailed_stats`` reports the root action values of
+    the last search and ``forced_share``, the share of force-filled particles in
+    the belief that search started from (0 at the prior).
+    """
+
+    def __init__(self, agent):
+        self.agent = agent
+
+    def get_action(self, belief=None):
+        return self.agent.search()
+
+    def update_root(self, action, observation):
+        self.agent.update_root(action, observation)
+
+    def get_detailed_stats(self):
+        shares = self.agent.forced_shares
+        return {
+            "action_values": {str(a): v for a, v in self.agent.values.items()},
+            "forced_share": shares[-1] if shares else 0.0,
+        }
 
 
 def _trees(tree):

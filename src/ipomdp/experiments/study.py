@@ -57,13 +57,36 @@ AGENTS = ("i", "j")
 
 
 @dataclass(frozen=True)
+class INTMCPConfig:
+    """I-NTMCP (``baselines.intmcp``): root ``simulations`` M, lookahead ``depth``, and its variant."""
+
+    simulations: int
+    depth: int
+    gamma: float = 0.95
+    variant: str = "tuned"
+
+    def __post_init__(self):
+        for name in ("simulations", "depth"):
+            if type(getattr(self, name)) is not int or getattr(self, name) < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        if not 0 < self.gamma < 1:
+            raise ValueError("I-NTMCP needs a discount strictly between 0 and 1")
+        if self.variant not in ("published", "tuned"):
+            raise ValueError("variant must be 'published' or 'tuned'")
+
+
+@dataclass(frozen=True)
 class AgentSpec:
     """One real agent.
 
     Attributes:
         level: Reasoning level (0 = uniform random).
-        planner: ``{"kind": "ipomcp", ...PlannerConfig fields}`` or
-            ``{"kind": "rts", ...RTSConfig fields}``; unused at level 0.
+        planner: ``{"kind": "ipomcp", ...PlannerConfig fields}``,
+            ``{"kind": "rts", ...RTSConfig fields}`` or
+            ``{"kind": "intmcp", ...INTMCPConfig fields}``; unused at level 0.
+            I-NTMCP models one opponent level from the common prior with its
+            own nested trees, so it takes no modeled stack, no belief bound and
+            no level prior other than a point mass on ``level - 1``.
         modeled: How each intentional level below this agent is solved, as a
             stack label of ``experiments.modeled_levels`` (top-down, e.g.
             ``"6400s/100"`` at level 3: every level-2 model with stopping capped
@@ -96,8 +119,10 @@ class AgentSpec:
         if self.particle_filter not in FILTERS:
             raise ValueError(f"particle_filter must be one of {sorted(FILTERS)}")
         if self.level > 0:
-            _planner_config(self.planner)
-            if self.modeled is not None:
+            config = _planner_config(self.planner)
+            if isinstance(config, INTMCPConfig):
+                _check_intmcp(self)
+            elif self.modeled is not None:
                 _modeled_configs(self)
 
 
@@ -171,6 +196,24 @@ def build_agents(spec: StudySpec, seed: int):
             rng = random.Random(bank_seed)
             planners[agent] = RandomPlanner(physics.get_all_actions(agent), rng)
             continue
+        config = _planner_config(agent_spec.planner)
+        if isinstance(config, INTMCPConfig):
+            # Imported here: the baseline needs the third_party/i-ntmcp submodule.
+            from ipomdp.baselines.intmcp import INTMCPAgent, INTMCPPlanner
+
+            planners[agent] = INTMCPPlanner(
+                INTMCPAgent(
+                    physics,
+                    agent_spec.level,
+                    config.simulations,
+                    config.depth,
+                    config.gamma,
+                    bank_seed,
+                    variant=config.variant,
+                    agents=(agent, other),
+                )
+            )
+            continue
         bank = SolverBank(
             bank_seed,
             particles=agent_spec.particles,
@@ -182,7 +225,7 @@ def build_agents(spec: StudySpec, seed: int):
             agent_spec.level,
             physics,
             other,
-            config=_planner_config(agent_spec.planner),
+            config=config,
             modeled_configs=_modeled_configs(agent_spec),
             level_weights=agent_spec.level_weights,
             nested_level_weights=agent_spec.nested_level_weights,
@@ -198,7 +241,25 @@ def _planner_config(entry):
         return PlannerConfig(**options)
     if entry["kind"] == "rts":
         return RTSConfig(**options)
+    if entry["kind"] == "intmcp":
+        return INTMCPConfig(**options)
     raise ValueError(f"Unknown planner kind {entry['kind']!r}")
+
+
+def _check_intmcp(agent_spec):
+    """Refuse what I-NTMCP's model class cannot express (one opponent level, common prior)."""
+    unsupported = [
+        name
+        for name in ("modeled", "particles", "search_particles", "nested_level_weights")
+        if getattr(agent_spec, name) is not None
+    ]
+    if agent_spec.particle_filter != "compressed":
+        unsupported.append("particle_filter")
+    if unsupported:
+        raise ValueError(f"I-NTMCP agents take no {', '.join(unsupported)}")
+    weights = agent_spec.level_weights
+    if weights is not None and weights != {agent_spec.level - 1: 1.0}:
+        raise ValueError("I-NTMCP models exactly one opponent level: level - 1")
 
 
 def _modeled_configs(agent_spec):

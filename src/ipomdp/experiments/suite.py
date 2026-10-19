@@ -24,7 +24,10 @@ experiment suite"); each takes the domain as a parameter:
 - ``planner_comparison``: i at level 2 with I-POMCP or IPF + RTS against the
   same real opponent;
 - ``prior_sensitivity``: i's prior over the opponent's level, correct or
-  misspecified, against one real opponent.
+  misspecified, against one real opponent;
+- ``anytime_comparison``: i at level 2 with every planner (I-POMCP, IPF + RTS,
+  I-NTMCP) at several budgets against one real level-1 opponent, for anytime
+  curves (RESULTS 12.67).
 
 Every model of the opponent matches the real opponent's whole configuration
 (depth, budgets, belief bound, nested priors; RESULTS 12.30), except where the
@@ -294,6 +297,74 @@ def planner_comparison(
     return SuiteSpec(name=f"{domain}-planner-comparison-h{depth}", cells=cells, trials=trials)
 
 
+def anytime_comparison(
+    domain="uav",
+    *,
+    depth=4,
+    opponent_simulations=4000,
+    ipomcp_simulations=(1000, 4000, 16000),
+    rts_samples=(2, 4, 8),
+    rts_filters=("sampled", "smoothed"),
+    intmcp_simulations=(1000, 4000, 16000, 64000),
+    intmcp_variants=("tuned",),
+    particles=64,
+    steps=20,
+    trials=100,
+    domain_options=None,
+    timeout_seconds=14400.0,
+    max_rss_mb=3072.0,
+):
+    """i at level 2 with every planner and budget against one real level-1 I-POMCP j.
+
+    Cells:
+    - ``ipomcp-<n>``: I-POMCP at root n with the matrix's uniform prior over j's
+      level; ``ipomcp-pm-<n>`` with a point mass on level 1, I-NTMCP's model
+      class. Both model j with exactly the real j's solve.
+    - ``rts-<filter>-k<K>``: IPF + RTS on the sampled (published) or smoothed
+      (repaired, 12.62) IPF, every level with RTS at K.
+    - ``intmcp-<variant>-<M>``: I-NTMCP, which models j with its own nested trees.
+    """
+    opponent = hierarchy_agent(1, ipomcp(opponent_simulations, depth), None, particles)
+    modeled = str(opponent_simulations)
+    arms = {}
+    for n in ipomcp_simulations:
+        arms[f"ipomcp-{n}"] = hierarchy_agent(2, ipomcp(n, depth), modeled, particles)
+        arms[f"ipomcp-pm-{n}"] = hierarchy_agent(
+            2, ipomcp(n, depth), modeled, particles, level_weights={1: 1.0}
+        )
+    for particle_filter in rts_filters:
+        for samples in rts_samples:
+            rts = hierarchy_agent(
+                2,
+                {"kind": "rts", "depth": depth, "observation_samples": samples},
+                str(samples),
+                particles,
+            )
+            arms[f"rts-{particle_filter}-k{samples}"] = replace(
+                rts, particle_filter=particle_filter
+            )
+    for variant in intmcp_variants:
+        for m in intmcp_simulations:
+            arms[f"intmcp-{variant}-{m}"] = AgentSpec(
+                level=2,
+                planner={"kind": "intmcp", "simulations": m, "depth": depth, "variant": variant},
+            )
+    cells = {
+        label: StudySpec(
+            name=f"{domain}-anytime-{label}-h{depth}",
+            domain=domain,
+            domain_options=dict(domain_options or {}),
+            trials=1,
+            steps=steps,
+            agents={"i": agent, "j": opponent},
+            trial_timeout_seconds=timeout_seconds,
+            max_trial_rss_mb=max_rss_mb,
+        )
+        for label, agent in arms.items()
+    }
+    return SuiteSpec(name=f"{domain}-anytime-comparison-h{depth}", cells=cells, trials=trials)
+
+
 def prior_arms(level, opponent_level):
     """{arm: i's prior over j's level}: correct, over- and under-estimated, uniform."""
     arms = {"correct": {opponent_level: 1.0}}
@@ -352,6 +423,7 @@ def prior_sensitivity(
 BUILDERS = {
     "level-matrix": level_matrix,
     "planner-comparison": planner_comparison,
+    "anytime-comparison": anytime_comparison,
     "prior-sensitivity": prior_sensitivity,
 }
 

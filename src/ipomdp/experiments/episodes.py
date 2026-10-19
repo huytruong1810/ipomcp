@@ -15,6 +15,8 @@ Every row is one step; step 0 is the prior. Per agent (suffix ``_i``/``_j``):
 - ``prob_l{k}_{opponent}``: the agent's posterior over the opponent's level;
 - ``physical``: the agent's physical-state marginal (JSON);
 - ``action_values``: the root action values of its last decision (JSON);
+- ``forced_share`` (I-NTMCP only): the share of force-filled particles in the
+  belief the decision searched from;
 - ``hierarchy`` (JSON, when the study records hierarchies).
 
 After the episode ends, rows are padded to the declared length with zero
@@ -57,6 +59,8 @@ def run_episode(spec, trial_id):
                 stats.get("action_values", {}), sort_keys=True
             )
             decisions[f"bounds_{agent}"] = json.dumps(stats.get("bounds"), sort_keys=True)
+            if "forced_share" in stats:
+                decisions[f"forced_share_{agent}"] = stats["forced_share"]
             decisions[f"prediction_{agent}"] = json.dumps(
                 _prediction(planners[agent]), sort_keys=True
             )
