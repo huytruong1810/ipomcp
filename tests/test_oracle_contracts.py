@@ -107,3 +107,34 @@ def test_exact_reference_scores_a_finite_opponent_planner_against_the_exact_ipom
     assert finite_vs_declared["reference"] == "declared"
     with pytest.raises(ValueError, match="reference"):
         evaluate_case("mcts", 1, 10, 0, 0.5, reference="oracle")
+
+
+@pytest.mark.parametrize("history_steps", [0, 1, 2])
+def test_episode_reference_is_the_exact_ipomdp_at_the_common_prior(history_steps):
+    import random
+
+    from ipomdp.experiments.oracle import episode_reference_q, sample_history
+
+    case = evaluate_case(
+        "mcts", 2, 100, 3, 0.5, level=2, opponent_depth=2, history_steps=history_steps
+    )[0]
+    history = sample_history(TigerModel(), history_steps, random.Random("history/3/0.5/0.5"))
+    q = episode_reference_q(TigerModel(), 2, history, 2, level_weights={1: 1.0})
+    assert q == pytest.approx(case["oracle_q"])
+
+
+def test_episode_reference_weights_the_opponent_levels():
+    from ipomdp.domains.tiger import JointTigerModel
+    from ipomdp.experiments.oracle import episode_reference_q
+
+    # The coordination Tiger: j's action enters i's payoff, so j's level matters.
+    model = JointTigerModel(together_safe=40.0)
+    point = episode_reference_q(model, 2, [], 2, level_weights={1: 1.0})
+    uniform = episode_reference_q(model, 2, [], 2)
+    random_j = episode_reference_q(model, 2, [], 2, level_weights={0: 1.0})
+    assert uniform != point
+    for action in point:
+        assert min(point[action], random_j[action]) - 1e-9 <= uniform[action]
+        assert uniform[action] <= max(point[action], random_j[action]) + 1e-9
+    with pytest.raises(ValueError, match="level >= 2"):
+        episode_reference_q(model, 1, [], 2)

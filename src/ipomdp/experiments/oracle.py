@@ -68,6 +68,7 @@ from functools import partial
 from pathlib import Path
 
 from ipomdp.belief.finite_belief import MentalModel
+from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TigerModel
 from ipomdp.experiments.modeled_levels import (
     EXACT,
@@ -359,6 +360,35 @@ def _exact_ipomdp_q(model, prior_model, history, seed, gamma, opponent_depth, ho
         posterior = bank.filter.update(agent_model, action, observation, terminal=False).belief
         agent_model = MentalModel(agent_model.frame, posterior)
     return best_response.q_values(agent_model, horizon)
+
+
+def episode_reference_q(physics, level, history, horizon, *, level_weights=None, gamma=0.95):
+    """Q* of the exact I-POMDP for a study's agent i at ``level`` after its realised ``history``.
+
+    The prior is the one an episode's i holds (``experiments.bootstrapper``): the
+    domain's common physical prior, ``level_weights`` over j's level (default
+    uniform) and uniform level priors in the nested models. Every intentional
+    level below i is exact at depth ``horizon``. ``history`` is i's own
+    (action, observation) pairs, so a realised decision of any planner is scored
+    against the I-POMDP it was declared to solve.
+    """
+    from ipomdp.experiments.bootstrapper import HierarchyBuilder
+    from ipomdp.planning.config import PlannerConfig
+
+    if level < 2:
+        raise ValueError("The exact I-POMDP reference needs an intentional opponent: level >= 2")
+    # The builder only lays out the prior; its planners are never queried.
+    solver = HierarchyBuilder(SolverBank(0)).build(
+        "i",
+        level,
+        physics,
+        "j",
+        config=PlannerConfig(simulations=1, depth=horizon, modeled_simulations=1, gamma=gamma),
+        level_weights=level_weights,
+        nested_level_weights={n: dict.fromkeys(range(n), 1 / n) for n in range(1, level)},
+    )
+    prior_model = MentalModel(AgentFrame("i", level, physics), solver.initial_belief)
+    return _exact_ipomdp_q(physics, prior_model, history, 0, gamma, horizon, horizon, level)
 
 
 def _nested_chain(level, nested_beliefs):
