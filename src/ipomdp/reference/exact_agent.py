@@ -28,9 +28,11 @@ TIE_TOLERANCE = 1e-9
 
 
 class ExactIPOMDPPlanner(Planner):
-    def __init__(self, key, physics, bank, reference, horizon):
+    def __init__(self, key, physics, bank, reference, horizon, tie_rng=None):
         self.key, self.pomdp_model, self.solver_bank = key, physics, bank
         self.reference, self.horizon = reference, horizon
+        # The real agent's draws among tied maximizers; models only need policies.
+        self.tie_rng = tie_rng
         self.belief = self.initial_belief = None
         self.last_q = {}
 
@@ -53,7 +55,9 @@ class ExactIPOMDPPlanner(Planner):
         return {a: 1.0 / len(chosen) for a in chosen}
 
     def get_action(self, belief=None):
-        return sample_policy(self.policy_for(self.model(belief)))
+        if self.tie_rng is None:
+            raise ValueError("An exact planner needs a tie_rng to act")
+        return sample_policy(self.policy_for(self.model(belief)), self.tie_rng)
 
     def update_root(self, action, observation):
         # Exact policies are pure functions of immutable models, so caches stay
@@ -66,14 +70,20 @@ class ExactIPOMDPPlanner(Planner):
         return {"action_values": {str(a): q for a, q in self.last_q.items()}}
 
 
-def build_exact_agent(agent_id, opponent_id, level, physics, nested, horizon, gamma):
+def build_exact_agent(
+    agent_id, opponent_id, level, physics, nested, horizon, gamma, *, seed=0, max_branches=100_000
+):
     """Build an exact agent and its exact nested models in a fresh bank.
 
     Args:
         nested: {level: {opponent level: weight}} for every intentional level.
         horizon: Receding lookahead of every exact agent in the hierarchy.
+        seed: Seeds the real agent's tie-breaking stream only; exact policies
+            consume no search randomness, so modeled policies do not depend on it.
+        max_branches: Budget of each real-step belief update; above it the update
+            raises ``InferenceBudgetExceeded`` (the end of the exact window).
     """
-    bank = SolverBank(seed=0)  # exact policies consume no search randomness
+    bank = SolverBank(seed=seed, max_branches=max_branches)
     reference = BestResponseReference(
         physics, bank, gamma, max_branches=10_000_000, cache_size=200_000
     )
@@ -102,7 +112,8 @@ def build_exact_agent(agent_id, opponent_id, level, physics, nested, horizon, ga
                 AgentFrame(other, lower, physics), solver.initial_belief if lower else None
             )
             rows += [(InteractiveState(state, opponent), p * mass / total) for state, p in prior]
-        solver = ExactIPOMDPPlanner(key, physics, bank, reference, horizon)
+        tie_rng = random.Random(bank.stream_seed("exact/ties", who, lvl))
+        solver = ExactIPOMDPPlanner(key, physics, bank, reference, horizon, tie_rng)
         solver.set_initial_belief(FiniteBelief(tuple(rows)))
         bank.register_solver(key, solver)
         return solver

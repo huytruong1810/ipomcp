@@ -22,14 +22,22 @@ Every row is one step; step 0 is the prior. Per agent (suffix ``_i``/``_j``):
 After the episode ends, rows are padded to the declared length with zero
 rewards and carried cumulative rewards, so every trial contributes a full
 panel and early termination is not silently averaged away.
+
+Exact agents play only inside their exact window (``study.ExactConfig``):
+from the first step past the declared ``max_steps``, or the first step whose
+decision or belief update exceeds the enumeration budget, every row has
+status ``"Window"`` and NaN rewards, so an unplayed tail can never be read as
+reward.
 """
 
 import json
+import math
 import random
 import time
 
 from ipomdp.analysis.hierarchy import level_posterior, nested_hierarchy
-from ipomdp.experiments.study import AGENTS, build_agents
+from ipomdp.belief.finite_filter import InferenceBudgetExceeded
+from ipomdp.experiments.study import AGENTS, build_agents, exact_window
 from ipomdp.infra.resources import process_rss_mb
 
 
@@ -46,59 +54,82 @@ def run_episode(spec, trial_id):
     cumulative = dict.fromkeys(AGENTS, 0.0)
     rows = [_row(trial_id, 0, state, "Active", planners, spec, cumulative)]
     terminal = physics.is_terminal(state)
+    window = exact_window(spec)
     for step in range(1, spec.steps + 1):
         if terminal:
             rows.append(_padding(rows[-1], step))
             continue
-        timings, joint, decisions = {}, {}, {}
-        for agent in AGENTS:
-            joint[agent] = _timed(planners[agent].get_action, timings, "planning", agent)
-            # Read before update_root, which clears the decision's statistics.
-            stats = planners[agent].get_detailed_stats()
-            decisions[f"action_values_{agent}"] = json.dumps(
-                stats.get("action_values", {}), sort_keys=True
+        if window is not None and step > window:
+            rows += [_window(trial_id, later) for later in range(step, spec.steps + 1)]
+            break
+        try:
+            row, state, terminal = _step(
+                trial_id,
+                step,
+                state,
+                physics,
+                planners,
+                spec,
+                cumulative,
+                env_transition,
+                env_observation,
             )
-            decisions[f"bounds_{agent}"] = json.dumps(stats.get("bounds"), sort_keys=True)
-            if "forced_share" in stats:
-                decisions[f"forced_share_{agent}"] = stats["forced_share"]
-            decisions[f"prediction_{agent}"] = json.dumps(
-                _prediction(planners[agent]), sort_keys=True
-            )
-        following = physics.sample_transition(state, joint, env_transition)
-        rewards = {a: physics.get_reward(state, joint, following, a) for a in AGENTS}
-        for agent in AGENTS:
-            cumulative[agent] += rewards[agent]
-        terminal = physics.is_terminal(following)
-        observations = dict.fromkeys(AGENTS)
-        for agent in AGENTS:
-            if terminal:
-                timings[f"update_cpu_{agent}"] = timings[f"update_wall_{agent}"] = 0.0
-                continue
-            observations[agent] = physics.sample_observation(
-                following, joint, agent, env_observation[agent]
-            )
-            update = planners[agent].update_root
-            _timed(lambda: update(joint[agent], observations[agent]), timings, "update", agent)
-        row = _row(
-            trial_id,
-            step,
-            following,
-            "Terminal" if terminal else "Active",
-            planners,
-            spec,
-            cumulative,
-        )
-        for agent in AGENTS:
-            row[f"action_{agent}"] = str(joint[agent])
-            row[f"observation_{agent}"] = (
-                None if observations[agent] is None else str(observations[agent])
-            )
-            row[f"reward_{agent}"] = rewards[agent]
-        row.update(timings)
-        row.update(decisions)
+        except InferenceBudgetExceeded:
+            rows += [_window(trial_id, later) for later in range(step, spec.steps + 1)]
+            break
         rows.append(row)
-        state = following
     return rows
+
+
+def _step(
+    trial_id, step, state, physics, planners, spec, cumulative, env_transition, env_observation
+):
+    """Play one joint step: (row, next state, whether it is terminal)."""
+    timings, joint, decisions = {}, {}, {}
+    for agent in AGENTS:
+        joint[agent] = _timed(planners[agent].get_action, timings, "planning", agent)
+        # Read before update_root, which clears the decision's statistics.
+        stats = planners[agent].get_detailed_stats()
+        decisions[f"action_values_{agent}"] = json.dumps(
+            stats.get("action_values", {}), sort_keys=True
+        )
+        decisions[f"bounds_{agent}"] = json.dumps(stats.get("bounds"), sort_keys=True)
+        if "forced_share" in stats:
+            decisions[f"forced_share_{agent}"] = stats["forced_share"]
+        decisions[f"prediction_{agent}"] = json.dumps(_prediction(planners[agent]), sort_keys=True)
+    following = physics.sample_transition(state, joint, env_transition)
+    rewards = {a: physics.get_reward(state, joint, following, a) for a in AGENTS}
+    for agent in AGENTS:
+        cumulative[agent] += rewards[agent]
+    terminal = physics.is_terminal(following)
+    observations = dict.fromkeys(AGENTS)
+    for agent in AGENTS:
+        if terminal:
+            timings[f"update_cpu_{agent}"] = timings[f"update_wall_{agent}"] = 0.0
+            continue
+        observations[agent] = physics.sample_observation(
+            following, joint, agent, env_observation[agent]
+        )
+        update = planners[agent].update_root
+        _timed(lambda: update(joint[agent], observations[agent]), timings, "update", agent)
+    row = _row(
+        trial_id,
+        step,
+        following,
+        "Terminal" if terminal else "Active",
+        planners,
+        spec,
+        cumulative,
+    )
+    for agent in AGENTS:
+        row[f"action_{agent}"] = str(joint[agent])
+        row[f"observation_{agent}"] = (
+            None if observations[agent] is None else str(observations[agent])
+        )
+        row[f"reward_{agent}"] = rewards[agent]
+    row.update(timings)
+    row.update(decisions)
+    return row, following, terminal
 
 
 def _prediction(planner):
@@ -181,6 +212,14 @@ def _padding(previous, step):
                 f"update_wall_{agent}": 0.0,
             }
         )
+    return row
+
+
+def _window(trial_id, step):
+    """A step past the exact window: nothing was played, so nothing is recorded as reward."""
+    row = {"trial": trial_id, "step": step, "status": "Window"}
+    for agent in AGENTS:
+        row.update({f"reward_{agent}": math.nan, f"cum_reward_{agent}": math.nan})
     return row
 
 

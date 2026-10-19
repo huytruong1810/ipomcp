@@ -46,6 +46,7 @@ from ipomdp.experiments.modeled_levels import parse_stack, planner_config
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
+from ipomdp.reference.exact_agent import build_exact_agent
 
 DOMAINS = {
     "tiger": TigerModel,
@@ -76,17 +77,46 @@ class INTMCPConfig:
 
 
 @dataclass(frozen=True)
+class ExactConfig:
+    """The exact Bayes-optimal agent (``reference.exact_agent``), recursively exact to L0.
+
+    ``horizon`` is the receding lookahead of every agent in its hierarchy.
+    Exact beliefs grow about 3x per step, so an episode is played only inside
+    its exact window: ``max_steps`` decisions (None: no declared limit), and
+    each real-step update enumerates at most ``max_branches`` branches. The
+    episode stops at the window (``experiments.episodes``).
+    """
+
+    horizon: int
+    gamma: float = 0.95
+    max_steps: Optional[int] = None
+    max_branches: int = 100_000
+
+    def __post_init__(self):
+        for name in ("horizon", "max_branches"):
+            if type(getattr(self, name)) is not int or getattr(self, name) < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        if self.max_steps is not None and (type(self.max_steps) is not int or self.max_steps < 1):
+            raise ValueError("max_steps must be None or a positive integer")
+        if not 0 < self.gamma <= 1:
+            raise ValueError("gamma must lie in (0, 1]")
+
+
+@dataclass(frozen=True)
 class AgentSpec:
     """One real agent.
 
     Attributes:
         level: Reasoning level (0 = uniform random).
         planner: ``{"kind": "ipomcp", ...PlannerConfig fields}``,
-            ``{"kind": "rts", ...RTSConfig fields}`` or
-            ``{"kind": "intmcp", ...INTMCPConfig fields}``; unused at level 0.
+            ``{"kind": "rts", ...RTSConfig fields}``,
+            ``{"kind": "intmcp", ...INTMCPConfig fields}`` or
+            ``{"kind": "exact", ...ExactConfig fields}``; unused at level 0.
             I-NTMCP models one opponent level from the common prior with its
             own nested trees, so it takes no modeled stack, no belief bound and
-            no level prior other than a point mass on ``level - 1``.
+            no level prior other than a point mass on ``level - 1``. An exact
+            agent models every level exactly, so it takes no modeled stack and
+            no belief bound.
         modeled: How each intentional level below this agent is solved, as a
             stack label of ``experiments.modeled_levels`` (top-down, e.g.
             ``"6400s/100"`` at level 3: every level-2 model with stopping capped
@@ -122,6 +152,8 @@ class AgentSpec:
             config = _planner_config(self.planner)
             if isinstance(config, INTMCPConfig):
                 _check_intmcp(self)
+            elif isinstance(config, ExactConfig):
+                _check_exact(self)
             elif self.modeled is not None:
                 _modeled_configs(self)
 
@@ -214,6 +246,23 @@ def build_agents(spec: StudySpec, seed: int):
                 )
             )
             continue
+        if isinstance(config, ExactConfig):
+            nested = dict(agent_spec.nested_level_weights or {})
+            nested[agent_spec.level] = agent_spec.level_weights or {
+                k: 1 / agent_spec.level for k in range(agent_spec.level)
+            }
+            planners[agent] = build_exact_agent(
+                agent,
+                other,
+                agent_spec.level,
+                physics,
+                nested,
+                config.horizon,
+                config.gamma,
+                seed=bank_seed,
+                max_branches=config.max_branches,
+            )
+            continue
         bank = SolverBank(
             bank_seed,
             particles=agent_spec.particles,
@@ -243,6 +292,8 @@ def _planner_config(entry):
         return RTSConfig(**options)
     if entry["kind"] == "intmcp":
         return INTMCPConfig(**options)
+    if entry["kind"] == "exact":
+        return ExactConfig(**options)
     raise ValueError(f"Unknown planner kind {entry['kind']!r}")
 
 
@@ -260,6 +311,31 @@ def _check_intmcp(agent_spec):
     weights = agent_spec.level_weights
     if weights is not None and weights != {agent_spec.level - 1: 1.0}:
         raise ValueError("I-NTMCP models exactly one opponent level: level - 1")
+
+
+def _check_exact(agent_spec):
+    """Refuse approximations: an exact agent's every belief and model is exact."""
+    unsupported = [
+        name
+        for name in ("modeled", "particles", "search_particles")
+        if getattr(agent_spec, name) is not None
+    ]
+    if agent_spec.particle_filter != "compressed":
+        unsupported.append("particle_filter")
+    if unsupported:
+        raise ValueError(f"Exact agents take no {', '.join(unsupported)}")
+
+
+def exact_window(spec: StudySpec):
+    """The last step both agents can play: the smallest declared exact ``max_steps``, else None."""
+    limits = [
+        config.max_steps
+        for agent_spec in spec.agents.values()
+        if agent_spec.level > 0
+        for config in [_planner_config(agent_spec.planner)]
+        if isinstance(config, ExactConfig) and config.max_steps is not None
+    ]
+    return min(limits, default=None)
 
 
 def _modeled_configs(agent_spec):
