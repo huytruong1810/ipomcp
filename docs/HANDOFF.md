@@ -1,20 +1,124 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.61);
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.66);
+- [PAPER.md](PAPER.md): the paper outline, claims → RESULTS → figures, with the open slots marked `MISSING`;
+- [RELATED_WORK.md](RELATED_WORK.md): the literature check (I-NTMCP is the closest prior work);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 certification standard;
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
-- [PLAN.md](PLAN.md): the phases, newest on top (the top one is "Wumpus 3 × 3").
+- [PLAN.md](PLAN.md): the phases, newest on top (the top one is "publication gaps").
 
-Last updated October 18, 2026, 10:50. Claude is the sole owner of `main`; there are no other agents.
-- **Tiger is complete** (RESULTS 12.1–12.40, 12.47–12.48).
-- **UAV is complete** (12.41–12.50).
-- **Wumpus 3 × 3 is complete** (12.57–12.61).
-- Nothing is running. **Next: the publication-gaps phase (0.0a, item 2).**
+Last updated October 18, 2026, 21:10. Claude is the sole owner of `main`; there are no other agents.
+- **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
+- **Publication gaps (since October 18):** G1, G2, G4 and G5 are done, and G3 is two-thirds done (12.62–12.66).
+- Nothing is running. **Next: G3's last piece, UAV episodes beyond exact reach for every planner (0.0a, item 2).**
 
 ## 0. Start here (fresh agent)
 
-### 0.0a Next session (written October 18 at the user's request)
+### 0.0a Next session (written October 18, evening, at the user's request)
+
+**State.**
+- `main` is clean and pushed. The last commit is this HANDOFF commit.
+- Nothing is running.
+- There are 357 tests. `ruff check` and `ruff format --check` are clean; the `third_party` submodule is excluded from ruff.
+- **The next free RESULTS section is 12.67.**
+
+**First thing to tell the user:** back up `results/`. It has not been copied off the machine since September 30. It holds every October dataset, the reviewer-page generator, and today's run folders (12.62–12.66).
+
+**New in the repository today:**
+- **The submodule `third_party/i-ntmcp`,** pinned at `63deec3`. A fresh clone needs `git submodule update --init`. The user approved running it on October 18 ("I allow").
+
+#### 1. Goals (unchanged; Section 1)
+- **Contribution 1:** an online I-POMDP solver that is *verifiably* exact wherever exact references exist, and degrades gracefully where they do not. "First online I-POMDP planner" is not claimable (RELATED_WORK.md).
+- **Contribution 2:** it beats the published baseline (IPF + RTS, as published and with the standard repair) and the modern one (I-NTMCP, as published and tuned).
+- **Contribution 3:** interpretability and the value of depth. Depth pays exactly when the opponent's behaviour depends on its beliefs about you *and* the payoff depends on the opponent's action. Prediction gain alone is not enough (12.66).
+- **The current aim:** make the suite publication-worthy for AAMAS (main track), and for AAAI or IJCAI if G3 lands. The user's standards hold: analysis fixed before each run, controls and large-n backups, big-tech code quality, and reports in the user's style.
+
+#### 2. Next steps, Claude's recommended order
+1. **G3, last piece: UAV episodes from the common prior, beyond exact reach, for every planner.** This is the most serious remaining reviewer gap: every exactly checked domain is small, and on Wumpus 3 × 3 at H2 every root is scored exactly.
+   - **Why UAV episodes, not panel problems:** I-NTMCP's model class is a common prior with one opponent level. The UAV panel problems (arbitrary law chains per agent) are outside it.
+   - **Cells:** the UAV at level 2 against the matrix's level-1 target (12.49's agents), 20 steps, at H4 and H5. At H4, exact references exist on the realised histories, which anchors the curve; H5 is beyond exact reach.
+   - **The I-POMCP arm needs a point-mass prior on the target's level** (`level_weights={1: 1}`) to match I-NTMCP's single level. The matrix's agents hold uniform priors (`suite.hierarchy_agent`). Report the uniform-prior arm too.
+   - **Arms:**
+     - I-POMCP at root 1,000, 4,000 and 16,000;
+     - IPF + RTS, published and smoothed, K = 2, 4, 8;
+     - I-NTMCP tuned, M = 1,000 to 64,000.
+     - Published I-NTMCP is optional: UAV's senses are noisy, so force-filling should be rare. Check `forced_shares` in the pilot.
+   - **Endpoints:**
+     - the UAV's 20-step reward and spotting time against median CPU per decision (anytime curves), paired by trial seed;
+     - at H4, the share of realised decisions that are exactly optimal.
+   - **Engineering:** an episode-planner wrapper around `INTMCPAgent` (`src/ipomdp/baselines/intmcp.py`). `experiments/episodes.run_episode` calls:
+     - `get_action()`, which is `search()`;
+     - `get_detailed_stats()`, which should return `{"action_values": values}`;
+     - `update_root(action, observation)`, which exists.
+     - `_prediction(planner)` reads `planner.belief` and returns None without it. I-NTMCP has no explicit belief, so return None, or add a prediction from its nested tree's softmax.
+     - The wrapper must see only its own actions and observations. Then register it in `build_agents` and the study spec (`experiments/study.py`), and test it like `tests/test_intmcp.py`.
+   - **Price first** (12.61's lesson): pilot at least 10 episodes per arm, including the hardest cell (I-NTMCP at M = 64,000 at H5, and I-POMCP at 16,000 at H5). Price from the mean plus the tail before writing `ENDPOINTS.md`. **Ask the user if it is over 100 CPU-h.**
+   - Results go to RESULTS 12.67 and onward, PAPER.md Figure 2, the Claude Doc and the reviewer page.
+2. **Write the paper draft from PAPER.md** once G3 is in. Every claim already has a RESULTS section.
+3. **Optional, cheap:**
+   - Test the screen's untested prediction (12.64): a third UAV level pays only against a level-2 target. That is a small episode run of UAV L3 against target L1 and L2, priced first.
+   - Wumpus 3 × 3 at H3 (third level, longer lookahead): likely over 100 CPU-h, so ask.
+
+#### 3. What happened October 18 (RESULTS 12.62–12.66)
+- **G1, literature** (`docs/RELATED_WORK.md`):
+  - I-NTMCP (IROS 2022) is the closest prior work. Hula, Montague & Dayan (2015) adapted POMCP to I-POMDPs without naming it, so "I-POMCP" is free. No paper checks an online I-POMDP planner against exact solutions.
+- **G2, outline** (`docs/PAPER.md`).
+- **12.62, the repaired IPF:**
+  - `particle_filter="smoothed"` (ε = 0.01) passed the gate: at ε = 0, 420/420 rows were identical.
+  - It removes 54–56 of 55–57 Wumpus failures but still loses: Wumpus 20–26/60 and UAV 49–55/80, against 60/60 and 80/80.
+- **12.63, the ablation table:**
+  - Root chance scoring off breaks 34 of 560 UAV decisions and fixes none (p = 1.2 × 10⁻¹⁰), and changes none of 1,786 Tiger decisions.
+  - The other rows come from stored A/Bs; the level-prior row comes from 12.39 and 12.58.
+- **12.64, the exact depth screen:**
+  - Wumpus: a second level is worth 19.7 per decision against an intentional wumpus and costs 1.7 on random-wumpus histories.
+  - UAV H2: worth 6.0 against a cost of 1.6.
+  - The screen predicts that a third UAV level pays only against a level-2 target (6.1 against 5.8).
+- **12.65, I-NTMCP against the exact I-POMDP** (Wumpus 3 × 3 L2 H2):
+  - Tuned, at matched CPU (M = 64,000; median 97 CPU-s): 40/60, against 60/60, with 20 pairs to 0 (Holm 1.9 × 10⁻⁶).
+  - Published: 19–32/60, force-filling up to 99% of its beliefs.
+  - The adapter gate at H1 was 57/60.
+- **12.66, prediction is not reward:**
+  - The same prediction gain from a second level (about 55% of the gap) earns nothing in the published Tiger and up to +0.21 reward ranges with coordination payoffs.
+  - Figure: `docs/figures/prediction_vs_reward.png`.
+
+#### 4. Files touched October 18 (`git diff --stat b411729..HEAD`)
+- **New:**
+  - `src/ipomdp/baselines/intmcp.py` (the adapter: `POSGAdapter`, `INTMCPAgent`, variants `published` and `tuned`, `forced_shares`);
+  - `tests/test_intmcp.py`;
+  - `.gitmodules` and `third_party/i-ntmcp`;
+  - `docs/RELATED_WORK.md`, `docs/PAPER.md`, `docs/figures/prediction_vs_reward.png`.
+- **Changed:**
+  - `src/ipomdp/belief/particle_filter.py`: `smoothing=`, `IPF_SMOOTHING`.
+  - `src/ipomdp/planning/solver_bank.py`: the filter name `"smoothed"`.
+  - `src/ipomdp/experiments/wumpus_qualification.py`: `--particle-filter`, `--planner intmcp`, `--intmcp-variant`, `_evaluate_intmcp`.
+  - `oracle.py`, `panel.py`, `belief_qualification.py`: they list `sorted(FILTERS)`.
+  - `tests/test_bounded_beliefs.py`.
+  - `pyproject.toml`: pytest `pythonpath` for the submodule; ruff excludes `third_party`.
+  - Docs: RESULTS 12.62–12.66, PLAN, this file.
+- **Claude Doc report:** four new paragraphs (12.62 baseline repair, 12.63 components, 12.64 screen, 12.65 I-NTMCP).
+- **The reviewer page was not changed today** (still version 26).
+
+#### 5. Run folders October 18 (each holds its scripts, `ENDPOINTS.md` and, for the long ones, `KILL_CRITERION.txt`)
+| Folder | What | RESULTS |
+|---|---|---|
+| `g3_ipf_fix_20261018` | smoothing gate (`old/`, `new/`, `compare.py`) and smoothed arms (`analyze.py`) | 12.62 |
+| `g3_intmcp_20261018` | I-NTMCP grid, `analyze.py`, `analysis.txt`. `superseded_no_variant/` holds the rows from before the variant split (published defaults only); not reported | 12.65 |
+| `g5_wumpus_screen_20261018` | `screen.py` (intentional histories), `control.py` (random-wumpus histories), `uav_screen.py` | 12.64 |
+| `g5a_prediction_reward_20261018` | `assemble.py`, `rows.csv`, `figure.py` | 12.66 |
+
+#### 6. Failed paths and lessons from October 18 (also in Section 6)
+- **Running an external baseline with only its defaults, under a different sensor model.** I-NTMCP's published refill force-filled up to 99% of its beliefs on Wumpus. Before scoring a baseline on a new domain, measure its belief consistency (here `forced_shares`), and report a tuned variant beside the published one.
+- **A gate that cannot separate an adapter bug from the method's own bias.** The first gate (L1 H2) failed for a legitimate reason: MCTS mean backups. The H1 gate, where values are plain particle means, is the clean adapter check. Design adapter gates where the method has no approximation of its own.
+- **A hand-written consistency check gave a wrong count** (it reported most particles inconsistent when they were not). Instrument the library's own path, here a counter around the reinvigoration function and the particle's stored history, before trusting a diagnostic.
+- **Pricing from the median problem.** The 4-step histories cost 30× the others at L2 (684 s against 13–23 s at M = 16,000). The planned grid would have been about 100 CPU-h. Price from the hardest stratum, and amend endpoints before the expensive cells, never after.
+- **Capturing a PID with a pattern** (`ps | grep run.sh`) returned three PIDs. Record `$!` from a plain `nohup … &` line, or select by exact `comm` and `ppid`.
+- **Scripted string edits after `ruff format`.** Ruff had rewrapped a call, so an exact-match replacement found nothing. The script asserted and wrote nothing, which is the safe failure. Re-read the file after formatting before scripting another edit.
+- **WebFetch cannot read PDFs.** Install `pypdf` and `typing_extensions` into the scratchpad with `uv pip install --target <scratch>/pylib --python python3`, and extract with a script. The Read tool needs `pdftoppm`, which is not installed.
+- **Claims written before checking.** "Depth pays after the wumpus is sensed" was false: 17 of 19 such histories had no stench. Check every mechanism sentence against the rows before committing.
+- **Still binding:** kill by listed PID only, wait on `kill -0`, snapshot `src/` into long runs, one process per episode with `wrap.sh` and `watchdog.sh` on the shared machine, read `date` before writing times, never trust CPU recorded under load.
+
+### 0.0b Session of October 18, in progress notes and the morning plan (history; superseded by 0.0a)
 
 **Progress, October 18 (later the same day; this list supersedes the state line below):**
 - **G1 done:** `docs/RELATED_WORK.md`.
@@ -128,7 +232,7 @@ Each step gets a run folder, an `ENDPOINTS.md` fixed before any run, and a `KILL
   - Read `date` before writing times.
   - Never trust CPU recorded under load.
 
-### 0.0b Previous next-session notes (October 17; history)
+### 0.0c Next-session notes of October 17 (history)
 
 **1. Done October 17, evening (this session):**
 - **Step 4 finished** (300/300, 22:18) and was analysed with the fixed test: **RESULTS 12.61**. Human L2 → L3: −19 against a random wumpus, +80 and +120 against an intentional one, none significant (Holm 0.55–0.86). Level 3 predicts the wumpus better (0.54–0.55 of the probability on its actual move, against 0.48–0.50). It cost about 110 CPU-h for the human, against the pilot's estimate of about 70, because of a heavy tail of 4 CPU-h episodes. The interim numbers at n = 32 (+312, +374) were misleading.
@@ -218,7 +322,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
 ### 0.0 State, rules and how to work
 
 - **Repository.**
-  - `main` is clean at the last HANDOFF commit. 343 tests (`.venv/bin/python -m pytest -q`; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
+  - `main` is clean at the last HANDOFF commit. 357 tests (`.venv/bin/python -m pytest -q`; the submodule must be checked out for `tests/test_intmcp.py`, which otherwise skips; about 3 minutes on a quiet machine, over an hour at load 20, because the qualification tests spawn one process per belief), and `ruff check` and `ruff format --check` are clean. The four timing tests in `test_process_supervisor.py` fail while the machine is heavily loaded (load 16–20) and pass on a quiet machine (6/6 at load 0.5, October 14): a load artifact, not a defect.
   - **Running:** nothing (October 18, 20:53; the I-NTMCP grid of 12.65 is complete).
   - **Standing rule (user, October 11): after every implementation, commit and push (`git push origin main`) without asking.** That covers code, docs, plan and write-ups. Never force-push. `main` was pushed to `origin` (github.com/huytruong1810/ipomcp) on October 11. Candidate branches stay local unless asked.
   - Two branches hold candidates that were **not adopted**; do not merge either without a new gate:
@@ -251,7 +355,7 @@ The evidence now spans three domains: Tiger (published and coordination variants
   - Numbers go into `docs/RESULTS.md`. **The next free section is 12.67.**
   - When results land, update this file, PLAN.md's status, the Claude Doc report (Section 4) and, if relevant, the reviewer page (0.6).
   - `results/` has not been backed up since September 30. It holds every October dataset and the reviewer-page generator; remind the user to copy it off the machine.
-- **Current task (new session):** 0.0a, item 2 (G1 first). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
+- **Current task (new session):** 0.0a, item 2 (G3's UAV episodes). Suite tools: `python -m ipomdp.experiments.suite`; each run folder holds its launcher, `analyze.py` and `KILL_CRITERION.txt`.
 - **Lesson (October 12–13): do not end a turn waiting on background-task notifications while unattended work remains.** About 21 hours were lost when every run had finished but no turn resumed. Wait inside a turn on a PID or output file (a background `until …; do sleep 60; done` you then block on), or keep working.
 
 ### 0.1 Where the science stands (October 14)
@@ -883,6 +987,10 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | Interning, cached hashes and kernel fast paths for Wumpus (October 16) | Bit-identical, but 0.91× CPU and 1.27× RSS, paired: the cost is enumeration volume (12.56) | Not adopted; patch in `results/c9_speedup_gate_20261016/new.diff` |
 | Reading downloaded PDFs with WebFetch (October 18) | It returns raw PDF streams and cannot summarise them | Install `pypdf` and `typing_extensions` into the session scratchpad with `uv pip install --target <scratch>/pylib --python python3`, then extract the text in a script |
 | Cloning and running an external planner (I-NTMCP) in auto mode (October 18) | Refused by the permission classifier ("Code from External") | Ask the user first; HANDOFF 0.0a, "G3, step 2" |
+| I-NTMCP with its published defaults on a deterministic-sensor domain (October 18) | Its rejection-sampling refill stops after 3,000 rejections and force-fills the rest: up to 99% of a belief contradicted the agent's own observations (12.65) | Report it, plus the tuned variant (kernel reinvigoration, a rejection budget of 50 per particle) |
+| An adapter gate at L1 H2 for an MCTS baseline (October 18) | It failed for the method's own reason (mean backups under c ≈ 2,000), so it could not reveal an adapter bug | A gate at H1, where values are particle means of the immediate reward |
+| Pricing the I-NTMCP grid from one problem (October 18) | 4-step histories cost 30× the others; the full grid projected to about 100 CPU-h | Price from the hardest stratum; amendment 3 dropped M = 256,000 before it ran |
+| Capturing a runner PID with `ps | grep` (October 18) | Matched three processes | Record `$!` or select by exact comm and ppid |
 | Systematic resampling in canonical order for compression (until October 16) | Aliased on structured uniform beliefs: on the 3 × 3 Wumpus prior it dropped every world with a pit next to the start, at every N from 16 to 1,024 (12.57) | Stratified draws |
 | The sampled IPF (published IPF + RTS) on Wumpus | Fails in 55–57 of 60 L2 problems: deterministic percepts leave no particle that explains an observation (12.59) | Exact or compressed-exact filtering |
 | Random-script human histories at Wumpus L3 | The L2 wumpus models a near-deterministic L1 human, so scripted actions give it zero-evidence observations (12.58) | `--script modeled` |
