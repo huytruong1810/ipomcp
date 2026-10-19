@@ -16,7 +16,19 @@
   - The IPF with likelihood smoothing (`particle_filter="smoothed"`, ε = 0.01) passed the gate: at ε = 0, 420/420 rows were identical to before the change.
   - It removes 54–56 of the 55–57 Wumpus failures, yet still loses to I-POMCP: Wumpus 20–26/60, UAV 49–55/80, against 60/60 and 80/80.
 - **G3, step 2 done (RESULTS 12.65):** I-NTMCP against the exact I-POMDP on Wumpus 3 × 3 L2 H2. At matched CPU (tuned, M = 64,000) it is 40/60, against I-POMCP's 60/60 (Holm p = 1.9 × 10⁻⁶).
-- **G3, step 3 next:** UAV episodes from the common prior at H4–H5 for every planner (HANDOFF 0.0a).
+- **G3, step 3 running (October 18, 23:02):** UAV episodes from the common prior at H4–H5 for every planner, in `results/g3_uav_episodes_20261018`. `ENDPOINTS.md` and `KILL_CRITERION.txt` were fixed after the n = 10 pilots and before the main run.
+  - **Arms:**
+    - I-POMCP at root 1,000, 4,000 and 16,000, uniform and point-mass priors, modeling the target as configured;
+    - I-POMCP modeling the target at its own budget n = 50–1,000 (`ipomcp-pm-own-<n>`; added after the pilot);
+    - I-NTMCP tuned and published, M = 1,000 to 64,000, at n = 30;
+    - IPF + RTS at K = 2, sampled and smoothed, at H4 only, n = 10.
+  - **Exact scoring:** at H4 up to history 4, at H5 up to history 1 (`oracle.episode_reference_q`).
+  - **Price:** about 95 CPU-h.
+  - **Pilot:**
+    - I-POMCP scored 35 in all 120 episodes.
+    - Tuned I-NTMCP reached 35 only at M = 64,000.
+    - Published I-NTMCP force-fills up to 99.9% of its beliefs on UAV.
+    - I-POMCP's cost does not depend on its root budget here, because the modeled target dominates it. That is why the own-budget arms were added.
 - **G4 done:** RESULTS 12.63 (ablation table).
 - **G5b, Wumpus part done:** RESULTS 12.64 (the exact depth screen).
 
