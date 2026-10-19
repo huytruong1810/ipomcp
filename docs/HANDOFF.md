@@ -1,19 +1,65 @@
 # Handoff
 
 Read this first (Section 0 is enough to start). Then, as needed:
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.66);
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference (the latest section is 12.67);
 - [PAPER.md](PAPER.md): the paper outline, claims → RESULTS → figures, with the open slots marked `MISSING`;
 - [RELATED_WORK.md](RELATED_WORK.md): the literature check (I-NTMCP is the closest prior work);
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 certification standard;
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together;
 - [PLAN.md](PLAN.md): the phases, newest on top (the top one is "publication gaps").
 
-Last updated October 19, 2026 (morning; G3 done). Claude is the sole owner of `main`; there are no other agents.
+Last updated October 19, 2026, 09:25. Claude is the sole owner of `main`; there are no other agents.
 - **Tiger, UAV and Wumpus 3 × 3 are complete** (RESULTS 12.1–12.61).
 - **Publication gaps (since October 18):** G1–G5 are done (12.62–12.67).
-- **G3 done (October 19, RESULTS 12.67).** Nothing is running. **Next: the paper draft (0.00).**
+- Nothing is running. **Next: close the reviewer-readiness gaps (0.000), then draft the paper.**
 
 ## 0. Start here (fresh agent)
+
+### 0.000 Next session (written October 19, 09:25, at the user's request): reviewer readiness before the paper draft
+
+**The user's question (October 19):** before drafting, have the reviewer's questions and skepticism all been answered? The user asked to work through the answer below in this new session.
+
+**State.**
+- `main` is clean and pushed. There are 369 tests, and ruff is clean.
+- Nothing is running. The next free RESULTS section is 12.68.
+- **Do not remind the user to back up `results/`** (user, October 19).
+
+**Every reviewer concern on record has an answer** (checked October 19):
+
+| When | Concern | Answered by |
+|---|---|---|
+| Oct 7 (0.10/0.11 below) | Tiger does not reward deeper reasoning | Coordination Tiger 12.22–12.37; UAV 12.49; Wumpus 12.60 (fresh-trial confirmation and a control); prediction is not reward, 12.66 |
+| Oct 11 (PLAN, UAV phase) | Every result is on Tiger (2 states) | UAV and Wumpus, 12.41–12.61 |
+| Oct 14, C1 (0.1a) | j's belief that i is level 1 is one curve for every i level | 12.47 (exact fixed point of levels 2–5, level-0 control, level-3 j, exact replay); reviewer page v22 |
+| Oct 14, C2 (0.1a) | Reward curves above the 2.72 ceiling at step 3 | 12.48 (exact ceiling, 15,600 fresh trials) |
+| Oct 14, C3 (0.1a) | Level-grid plot flattened by level 0 | Split y-axis, page v22 |
+| Oct 17, G1–G5 (Claude's anticipated objections) | Strawman baseline; no ablations; "depth pays" is obvious; tiny exact domains | 12.62, 12.65, 12.67; 12.63; 12.64, 12.66; 12.67 |
+
+**What is still open, in Claude's recommended order:**
+1. **Fix the stale Claude Doc table first (cheap, high value).**
+   - The report (https://claude.ai/code/artifact/96fa514f-dc7c-477c-8f97-b31eb1b8fca7, tab body node `213f45dc-b495`) still has a section "Not yet measured" (heading block `met1kpn5tgz.28231`, doc rev 90 on October 19).
+   - Its table lists episode rewards, CPU per step, level posteriors and sunbursts as unmeasured. All four were measured on October 7 (12.18, reviewer page). Error attribution is measured (12.24).
+   - Only "IPF + RTS at level 3" and "equilibria" are really open.
+   - Rewrite the table to what is open now, with RESULTS references. Load the docs skill first, guard whole-block edits with `ifHash`/`ifRev`, and follow the report style (chosen method only, n beside numbers, jargon defined).
+   - Also skim the doc for other stale statements written before October 18 (the sections listed in memory `tiger-report-doc`).
+2. **IPF + RTS at level 3: price it first, then run if it is cheap.**
+   - The baseline claim (PAPER C2) covers level 2 only, and the doc lists level 3 as unmeasured.
+   - Suggested cell: the coordination Tiger, L3 H2, against the exact I-POMDP (12.23's level-3 problems, where I-POMCP is exact). Arms: IPF + RTS, published and smoothed, K = 2, 4, 8, N = 64.
+   - **Tooling:** `oracle.evaluate_case(..., planner_kind="rts", level=3, particle_filter=...)` and the panel drivers support level 3 (HANDOFF Section 8, "L3 panel").
+   - Fix `ENDPOINTS.md` before the run. Ask the user above 100 CPU-h.
+   - **Track cumulative CPU against the kill line at every progress check** (G3 overran to 173 CPU-h unnoticed).
+3. **Say the 12.67 weak spots plainly in PAPER.md** (no new runs needed):
+   - (a) At lookahead 5 with the uniform prior, I-POMCP below root 64,000 misses near-ties. This was diagnosed as root-search error and fixed at root 64,000 in single-decision replays, not in episodes.
+   - (b) On UAV, tuned I-NTMCP ties I-POMCP at about 55 s per decision.
+   - (c) Only the first 5 decisions (H4) or 2 decisions (H5) of each episode are exactly scored.
+   - **Optional, cheap:** re-run the H5 uniform-prior episodes at root 64,000 (same CPU per decision as root 1,000; about 30 × 1 h CPU per arm at H5, so price it).
+4. **Equilibria:** `docs/EQUILIBRIA.md` defines the measure, and the episodes record predictions. No RESULTS section reports it. Recommend stating it as future work in the paper rather than running anything, but ask the user.
+5. **Then draft the paper from PAPER.md** (G2's outline; every claim has a RESULTS section; Figure 2 is `docs/figures/anytime_uav.png`).
+
+**Where things are:**
+- G3 run folder: `results/g3_uav_episodes_20261018` (`ENDPOINTS.md`, `analyze.py`, `analysis.txt`, `score.py`, `ref.py`, `diag_h5.py`, `figure.py`).
+- Reviewer page v27: https://claude.ai/artifact/PqpRuTLcuSq5afJdSSxoCB. Rebuild with `results/w4_report_20261007/g3_section.py`, then `build_report.py`, and republish `report.html` by URL (backups `*_20261019.bak`).
+- The October 14 reviewer concerns in full: 0.1a below. The October 7 weak point: "Assessment and next steps" in Section 4.
 
 ### 0.00 Session of October 18–19: G3 done (RESULTS 12.67)
 
