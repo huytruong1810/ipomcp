@@ -2299,6 +2299,86 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.67 UAV episodes beyond exact reach, every planner: I-POMCP leads at matched CPU wherever the planners differ, and is exactly optimal on every scored H4 decision from root 4,000 or own budget 1,000 (October 18–19, 2026)
+
+**Why:** this is the last piece of G3 (PLAN.md, publication gaps). Every exactly checked domain so far is small, so this run tests the planners in episodes, at horizons where exact solutions run out.
+
+**Design** (`results/g3_uav_episodes_20261018`; `ENDPOINTS.md` and `KILL_CRITERION.txt` were fixed after n = 10 pilots and before the main run, with one dated amendment to the pairing rule):
+- **Episodes:** UAV, 20 steps, from the common prior (I-NTMCP's model class). Spotting ends an episode; 35 means spotted after 4 steps, the most any episode earned.
+- **Real target j:** level-1 I-POMCP at root 4,000, N = 64, depth H, the same agent in every arm.
+- **i:** the level-2 UAV at depth H = 4 or 5. Arms pair by trial seed.
+
+| Arm | What it is | n per H |
+|---|---|---|
+| `ipomcp-<n>`, `ipomcp-pm-<n>` | I-POMCP, root n = 1,000 / 4,000 / 16,000, uniform or point-mass prior on j's level. It models j exactly as configured (4,000), so its cost is set by j's model, not by n | 30 |
+| `ipomcp-pm-own-<n>` | I-POMCP, point-mass prior, root n = 50 / 100 / 250 / 1,000, modeling j at its own budget n, as I-NTMCP and RTS do. Added after the pilot, which showed the arm above has no point below about 75 s per decision | 30 |
+| `intmcp-tuned-<M>`, `intmcp-published-<M>` | I-NTMCP (12.65's adapter), M = 1,000 / 4,000 / 16,000 / 64,000 | 30 |
+| `rts-sampled-k2`, `rts-smoothed-k2` | IPF + RTS, K = 2, on the published and the repaired (12.62) IPF; H4 only, because K = 4–8, or any K at H5, costs 2,000 to over 40,000 s per decision (12.46) | 10 |
+
+- **Exact scoring:** every decision of i whose own history has at most 4 steps (H4) or 1 step (H5) is scored against the exact I-POMDP the arm solves (`oracle.episode_reference_q`: its prior, every lower level exact).
+- **Why the caps:** the exact cost about triples per history step: 10, 24, 73, 211, 615 and 1,989 CPU-s at H4 histories 0–5. At H5 it is 165 s at the prior and 490 s after one step, and at H6 3,284 s at the prior.
+- **No decision was unscorable:** the real target never played an action the exact target never plays.
+- **Cost:** 173 CPU-h: 118 for episodes (32 of them IPF + RTS), 48 for exact references and 7.5 for the diagnosis below. The price fixed before the run was about 95 CPU-h to grow to n = 30, plus about 20 for the pilots. The overrun (the exact references, and IPF + RTS decisions at about twice 12.46's CPU under this load) passed the 120 CPU-h kill line without being caught, because cumulative CPU was not tracked during the run.
+
+**Endpoint 1, anytime curves** (Figure: `docs/figures/anytime_uav.png`; i's mean 20-step reward [bootstrap 95%] at its median CPU per decision; n = 30):
+
+| H | Planner (budget) | Median CPU per decision (s) | Reward |
+|---|---|---|---|
+| 4 | I-NTMCP tuned (1,000 / 4,000 / 16,000 / 64,000) | 0.9 / 4.2 / 13 / 54 | −2.7 / −7.5 / 30.2 / **35.0** |
+| 4 | I-NTMCP published (same) | 0.9 / 3.7 / 13 / 50 | 17.5 / 20.8 / 32.2 / **35.0** |
+| 4 | I-POMCP, own budget (50 / 100 / 250 / 1,000) | 1.4 / 1.8 / 2.9 / 15 | 33.5 / 34.7 / 34.8 / **35.0** |
+| 4 | I-POMCP, target as configured (6 arms) | 81–94 | **35.0** each |
+| 4 | IPF + RTS K = 2 (sampled / smoothed) | 1,344 / 1,130 | 30.0 / 30.0 |
+| 5 | I-NTMCP tuned | 1.0 / 4.4 / 15 / 58 | −11.0 / 11.0 / 31.0 / **35.0** |
+| 5 | I-NTMCP published | 0.9 / 4.2 / 14 / 56 | 9.0 / 28.2 / 32.0 / **35.0** |
+| 5 | I-POMCP, own budget | 5.5 / 5.6 / 8.4 / 29 | 31.7 / 33.3 / 34.5 / **35.0** |
+| 5 | I-POMCP, target as configured | 66–78 | 35.0 in 5 arms; 33.8 (uniform, root 1,000) |
+
+**Endpoint 2, matched CPU** (each tuned I-NTMCP arm against the most expensive point-mass I-POMCP arm with no more median CPU; paired by trial; Holm over 8):
+
+| H | I-NTMCP | I-POMCP arm (CPU ratio) | Difference [95%] | Holm p |
+|---|---|---|---|---|
+| 4 | M = 4,000 | own-250 (0.69) | **+42.3** [23.7, 63.2] | 0.002 |
+| 4 | M = 16,000 | own-250 (0.22) | **+4.7** [3.3, 6.3] | < 0.001 |
+| 4 | M = 64,000 | own-1,000 (0.29) | 0 (both 35 in all 30) | 1 |
+| 5 | M = 16,000 | own-250 (0.57) | **+3.5** [2.2, 4.8] | < 0.001 |
+| 5 | M = 64,000 | own-1,000 (0.51) | 0 (both 35 in all 30) | 1 |
+| 4 / 5 | M = 1,000 | own-50 (1.6 / 5.8; *more* CPU) | +36.2 / +42.7 | 0.002 / < 0.001 |
+| 5 | M = 4,000 | own-50 (1.3; *more* CPU) | +20.7 [8.3, 36.3] | 0.026 |
+
+**Endpoint 3, exact decision quality** (exactly optimal = loss ≤ 10⁻⁹; Wilson 95%):
+
+| Arm | H4 (histories 0–4) | H5 (histories 0–1) |
+|---|---|---|
+| I-POMCP point mass: root 1,000 / 4,000 / 16,000 with the target as configured, and own budget 1,000 (4 arms) | **120/120** each [0.969, 1] | **60/60** each |
+| I-POMCP uniform, root 4,000 / 16,000 | **120/120** each | 40/60, 46/60 (max loss 0.67) |
+| I-POMCP uniform, root 1,000 | 106/120 (max loss 0.46) | 37/60 |
+| I-POMCP own 50 / 100 / 250 | 115/126, 120/122, 120/121 | 45, 49, 57 of 60 |
+| I-NTMCP tuned 1,000 / 4,000 / 16,000 / 64,000 | 96/144, 93/145, 117/143, **120/120** | 57, 60, 60, 60 of 60 |
+| I-NTMCP published (same) | 104/143, 112/141, 119/136, **120/120** | 60/60 each |
+| IPF + RTS K = 2, sampled / smoothed | 29/47 [0.47, 0.74], 32/46 [0.55, 0.81] | not run |
+
+(Arms differ in the number of scored decisions because weaker planners play longer episodes. The ε = 0.05 counts equal the exact counts in every arm except own-50 and own-100 at H5, at 47 and 51 of 60.)
+
+- **Below about 15 s per decision, I-POMCP earns near the maximum where I-NTMCP does not.**
+  - At H4, I-POMCP with 2.9 s per decision earns 34.8. Tuned I-NTMCP earns −7.5 at 4.2 s and 30.2 at 13 s.
+  - At matched or lower CPU, I-POMCP's advantage is +42.3 at M = 4,000 and +4.7 at M = 16,000 (H4), and +3.5 at M = 16,000 (H5).
+  - At M = 64,000 (about 55 s) both reach 35 in every episode, so the planners tie there.
+- **Decision quality explains the reward gap.** At H4, tuned I-NTMCP at M ≤ 16,000 is exactly optimal on 64–82% of scored decisions (losses up to 15.5), against 120/120 for I-POMCP's own-1,000 at a similar CPU (15 s against 13 s for M = 16,000).
+- **Published I-NTMCP force-fills 31–49% of its beliefs on average at M ≥ 4,000 (up to 100%), and about 1% at M = 1,000.**
+  - The HANDOFF expected this to be rare on UAV, whose senses are noisy, but it is not.
+  - It still earns more than the tuned variant at every M ≤ 16,000 (for example 17.5 against −2.7 at M = 1,000, H4), and the same (35) at 64,000. Why was not investigated. Its exact shares at H4 are also higher (73–88% against 64–82%).
+- **IPF + RTS at K = 2 costs 1,130–1,340 s per decision and earns 30.0,** below every I-POMCP arm. Its exactly optimal share at H4 is 62–70% (12.46, over 80 decision problems at the prior with K = 2–8: 46–50%).
+- **H5 uniform-prior misses: I-POMCP's own search error, diagnosed** (exploratory, `diag_h5.py`). The misses are 37–46/60 at root 1,000–16,000. The diagnosis replayed four missed histories, at 5 seeds per rung:
+  - The gap is 0.67, on values near 22: continue North after a first North move, or East after East.
+  - **Root 1,000:** optimal on 6/20 as run (64 atoms, target at 4,000). Exact beliefs give 6/20, an exact target 4/20, and both 5/19, so neither removes the miss.
+  - **Root 16,000:** fixed after North (10/10), not after East (2/10).
+  - **Root 64,000:** **19/19**, at the same CPU per decision (55–82 s), because the modeled target dominates the cost.
+  - So, like 12.41's L1 H5 (root 64,000), **L2 H5 with the uniform prior needs root 64,000.** The point-mass arms are exact at root 1,000.
+- **What this does and does not show.**
+  - It shows the planners beyond exact reach (rewards over 20-step episodes at H4–H5), anchored by exact scoring of every decision in the first five steps at H4.
+  - It does not show a gap at large budgets on this domain: once I-NTMCP has about 55 s per decision, UAV is easy enough that both planners spot the target in 4 steps every time.
+
 ### 12.66 Prediction is not reward: one more level predicts better everywhere, but pays only where the payoff depends on the opponent (October 18, 2026)
 
 **Why:** contribution 3, sharper (PAPER.md, G5a). Across the three domains a deeper level often predicts better but earns the same (12.27, 12.32, 12.61). This puts every level step on one plot.

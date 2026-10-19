@@ -23,11 +23,11 @@
 | Wumpus 4 × 4 L1 qualified (52 beliefs, N = 4,096); 3 × 3 L2 H2 60/60, L3 H2 55/55 (every root exactly scored) | 12.53, 12.58 |
 | Certified per-action bounds contain the exact Q in 1,016/1,016 decisions checked | 12.17, 12.41 |
 | The L3 H4 residual (4/80 near-ties, gaps ≤ 0.03) is 80/80 ε-correct | 12.14, 12.54 |
-| **Beyond exact reach: anytime decision quality and reward against CPU** | `MISSING (G3)` |
+| **Beyond exact reach** (UAV episodes from the common prior, H4–H5): I-POMCP is exactly optimal on every scored H4 decision (histories 0–4) from root 4,000 or own budget 1,000, and near the best reward from 1.4 s per decision. L2 H5 with the uniform prior needs root 64,000 (diagnosed: root-search error) | 12.67 |
 
 **Figure 1:** optimal rate by domain × level × horizon, with Clopper–Pearson intervals; a single panel of bars (from stored rows).
 
-**Figure 2** `MISSING (G3)`: anytime curves, reward and decision quality against CPU per decision. Exact references anchor the curve at the largest checkable horizon (UAV L2 H4), and the curve extends beyond it (UAV L2 H5; Wumpus 4 × 4).
+**Figure 2** (`docs/figures/anytime_uav.png`, 12.67): anytime curves, i's 20-step reward against median CPU per decision, UAV H4 and H5, for every planner. Exact decision quality at H4 is in 12.67's Endpoint 3 table, which could become a second row of panels. Wumpus 4 × 4 was not run.
 
 ### C2. It beats the published baseline (IPF + RTS) and the modern one (I-NTMCP)
 | Evidence | RESULTS |
@@ -39,7 +39,7 @@
 | Wumpus 3 × 3 L2 H2: I-POMCP 60/60 against IPF + RTS 2–47%; the IPF fails on 55–57 of 60 problems (zero-likelihood particles) | 12.59 |
 | IPF with the standard zero-likelihood repair (likelihood smoothing, ε = 0.01) still loses: Wumpus 20–26/60, UAV 49–55/80 against 60/60 and 80/80 (Holm p ≤ 6 × 10⁻⁸); once repaired, what remains is RTS's search | 12.62 |
 | I-NTMCP (Schwartz et al., IROS 2022; authors' code through an adapter), against the exact I-POMDP on Wumpus 3 × 3 L2 H2: 40/60 at matched CPU (tuned, M = 64,000; median 97 CPU-s) against 60/60; 20 pairs favour I-POMCP and none favour I-NTMCP (Holm 1.9 × 10⁻⁶). The published variant force-fills up to 99% of its beliefs | 12.65 |
-| CPU-matched episodes beyond exact reach (UAV from the common prior, H4–H5), every planner | `MISSING (G3)` |
+| CPU-matched episodes beyond exact reach (UAV from the common prior, H4–H5), every planner: at no more CPU, I-POMCP beats tuned I-NTMCP by +42.3 (M = 4,000, H4) and +3.5 to +4.7 (M = 16,000); both earn 35 in every episode at M = 64,000 (about 55 s per decision). IPF + RTS K = 2 earns 30.0 at 1,130–1,340 s per decision. At H4, I-NTMCP is exactly optimal on 64–82% of decisions at M ≤ 16,000 | 12.67 |
 
 **Table 1:** decisions against the exact I-POMDP, three planners (I-POMCP, IPF + RTS published and fixed, I-NTMCP) × three domains. Wumpus complete: published IPF 12.59, smoothed IPF 12.62, I-NTMCP 12.65. UAV has both IPF variants (12.43, 12.46, 12.62); I-NTMCP is out of scope for UAV panel problems, whose beliefs are not from a common prior.
 
