@@ -13,7 +13,7 @@
   - The enumeration reaches about 6 steps for L1 pairs (1.5M nodes).
 - **Bug found:** `ExactIPOMDPPlanner.get_action` calls `sample_policy` without its `rng`. It was never exercised, because exact agents had only been references.
 
-**Status (October 19, evening): N1 done; N2 priced (RESULTS 12.71); the user chose design B at 10 steps; N3 running (`results/n5_level_grid_20261019`); N4(c) done (RESULTS 12.72); N4(a) running (`results/n7_exact_replay_20261019`).**
+**Status (October 19, evening): N1 done; N2 priced (RESULTS 12.71); the user chose design B at 10 steps; N3 running (`results/n5_level_grid_20261019`); N4(c) done (RESULTS 12.72); N4(a) running (`results/n7_exact_replay_20261019`); N4(b) running (`results/n8_convergence_20261019`): N = 256 and 1,024 over the exact window, the test of the compression diagnosis.**
 - (a) `study.ExactConfig` (planner kind `exact`), the tie-stream fix, and the exact window in `episodes` (`Window` rows, NaN rewards). Commit e61afaf.
 - (b) `analysis.rao_blackwell`: it matches N0's `rb.py` to 1e-14 and brute-force path enumeration on Tiger and UAV, and reproduces 2.23 / 1.39 / 1.84 on 12.48's 10,000 trials. Commit 7a52d4a.
 - (c) `analysis.exact_curves.exact_pair_curve`: −91t/3 for uniform pairs; 2.148 / 1.308 for L1 against L1; 300 exact episodes agree with it. Commit f1f7feb.

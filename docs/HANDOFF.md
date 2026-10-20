@@ -20,7 +20,12 @@ Last updated October 19, 2026, evening, for a fresh session. Claude is the sole 
 - **N4(a) is running:** `results/n7_exact_replay_20261019` (`ENDPOINTS.md`; 2 workers; kill line 60).
   - It replays N3 agents through the exact agent (`analysis.exact_replay`). Its jobs skip N3 trials not yet written, so **rerun `run.sh` once N3 is done** to fill the sample (finished trials are skipped).
   - Pilot: every replayed decision agrees with the exact maximizers (L2: 160/160; L3: 40/40; L4: 12/12), with level TV ≤ 0.044.
-  - Result → RESULTS 12.74.
+  - Result → RESULTS 12.74. Diagnosis of every disagreement: `diagnose_all.sh` (`diagnosis.jsonl`). As of 23:13, 9 of 9 are reproduced as configured and fixed by exact beliefs: belief compression at N = 64.
+- **N4(b) is running:** `results/n8_convergence_20261019` (`ENDPOINTS.md`; the kill line was amended from 90 to 100 before it was reached).
+  - It reruns cells with i at level 2–4 for the exact window at N = 256 (and N = 1,024 at level 2), then replays i through the exact agent.
+  - At 02:37 it stopped when a hand kill of a `timeout` wrapper aborted xargs (Section 6). It was relaunched at 02:45 with `watchdog2.sh`; all three runs now use `watchdog2.sh`.
+  - **Rerun `run.sh` at the end** to fill any skipped chunk. Result → RESULTS 12.75.
+- **Draft figures** (on interim data): `results/n5_level_grid_20261019/figures.py` → `grid_curves.png`, `grid_heatmap.png`. Rerun without `--partial` when N3 is done.
 
 ## 0. Start here (fresh agent)
 
@@ -1190,6 +1195,8 @@ Everything under `src/ipomdp`, `tests`, `docs` and `studies` was rewritten or re
 | An episode run without tracking cumulative CPU against its kill line (G3, October 18–19) | It used 173 CPU-h against a 120 CPU-h kill line and a 100 CPU-h ask line, and nobody noticed until the end | Sum the recorded CPU of finished trials and references at every progress check |
 | Pricing exact references from the prior alone (G3) | References cost about ×3 per history step: 48 CPU-h, against about 25 priced | Price per history length from measured points; cap scoring by history |
 | SIGUSR2 to throttle a running xargs (G3) | Parallelism did not drop | Kill the xargs (its running jobs finish), then relaunch the rest |
+| Killing a job's `timeout` wrapper, or a watchdog that kills xargs's youngest child (N4(b), October 20) | GNU xargs stops the whole run when a child dies of a signal ("terminated by signal 15"); the old `watchdog.sh` kills exactly that child | Kill the Python grandchild (`timeout` then exits with 143 and xargs carries on): `watchdog2.sh` in the run folders. Relaunch `run.sh`; jobs skip finished outputs |
+| Replaying many trials through the exact agent in one process without clearing caches (N4(a) pilot, N4(b)) | Level-2 replays grow to 3–4 GB within about 6–25 trials | `ExactReplay.clear_caches()` when RSS passes 1.5 GB (memory only) |
 | Repository default estimator (sampled rewards, no exact tail) | Passed every test while 61–88% optimal | The estimator in Section 2 |
 | Sampled IPF as the planner's belief | Quantizes small nested beliefs to 1/N steps and flips greedy modeled opponents (Q 3.3 → 6.3 at N = 64). Error accumulates with history. Slower than exact beliefs where exact is tractable | Compressed filter |
 | Multinomial resampling | Noisier than systematic at every N (paired over 12 histories) | Systematic resampling |
