@@ -2,7 +2,7 @@
 
 Read this first: Section 0.00000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "the definitive Tiger level grid" (N0–N5).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.77, and the next free one is 12.78.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.78, and the next free one is 12.79.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1. Draft 1 is written for AAMAS and will be reframed in N5.
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 standard.
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
@@ -26,7 +26,7 @@ Last updated October 19, 2026, evening, for a fresh session. Claude is the sole 
   - At 02:37 it stopped when a hand kill of a `timeout` wrapper aborted xargs (Section 6). It was relaunched at 02:45 with `watchdog2.sh`; all three runs now use `watchdog2.sh`.
   - **Rerun `run.sh` at the end** to fill any skipped chunk. Result → RESULTS 12.75.
 - **N5 write-up done October 20:** Figure 5 (`docs/figures/bayes_optimal.png`), Figures 6–7 (grid curves, heatmap), PAPER.md (C1 and C3 rows), draft 1.1 (Sections 5.3 and 7.3), and the Claude Doc (rev 104: lead paragraph plus the section "The definitive level grid", with two uploaded figures).
-- **Next phase, Claude's choice (PLAN.md top): an adaptive belief bound with a certified compression error.** A1 (12.76): the compression error does not predict the misses (AUC 0.50). **A1b (12.77): the planner's own top-two gap does (AUC 0.996; gap ≤ 1 catches 93.5% and flags 1.5%).** Next: A2, near-tie escalation.
+- **Next phase, Claude's choice (PLAN.md top): an adaptive belief bound with a certified compression error.** A1 (12.76): the compression error does not predict the misses (AUC 0.50). **A1b (12.77): the planner's own top-two gap does (AUC 0.996; gap ≤ 1 catches 93.5% and flags 1.5%).** A2a (12.78): a larger real-step bound alone fixes 40% of the miss trials. Next: A2, a shadow agent at the larger bound that decides on near-ties.
 - **Draft figures** (on interim data): `results/n5_level_grid_20261019/figures.py` → `grid_curves.png`, `grid_heatmap.png`. Rerun without `--partial` when N3 is done.
 
 ## 0. Start here (fresh agent)

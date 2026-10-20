@@ -2299,6 +2299,27 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.78 A2a: a larger bound on the real-step belief alone fixes only 40% of the miss trials (0 of 24 at level 3), so escalation must re-decide with the larger bound throughout (October 20, 2026)
+
+**Why:** PLAN A2a. The package bounds real-step beliefs (`particles`) and search beliefs (`search_particles`) separately. If the harmful compression were in the real-step belief only, escalation would need just a larger real bound.
+
+**Design** (`results/n10_split_bound_20261020`; `ENDPOINTS.md` with the reading fixed before the run; `job.py`, `analyze.py` → `analysis.txt`):
+- **Trials:** every trial 0–99, in N4(b)'s cells, with a miss at N = 64, plus one seeded agreeing control per miss in the same cell.
+- **Bounds:** real-step beliefs at N = 1,024 (level 2) or 256 (levels 3–4), search beliefs at S = 64, over the exact window.
+- **Replay:** agent i through the exact agent.
+- **Cost:** 3.5 CPU-h.
+
+| Level | Miss trials fixed | Controls broken |
+|---|---|---|
+| 2 | 15 / 23 | 1 / 23 |
+| 3 | **0 / 24** | 0 / 24 |
+| 4 | 7 / 8 | 0 / 8 |
+| All | 22 / 55 (40%) | 1 / 55 |
+
+- **By the reading fixed in advance (under 50% fixed), the search must escalate too.** At level 3 the harmful compression is in the nested beliefs the search builds; at levels 2 and 4 it is mostly in the real-step belief.
+- **The split bound was not cheaper:** per trial it cost 55–178 CPU-s, against 48–152 for N = S at the larger bound (one trial per cell, so noisy).
+- **Next (A2):** a shadow agent at the larger bound, with the same seeds and the same realized history, decides whenever the base planner's top-two gap is at most 1.
+
 ### 12.77 A1b: the planner's own top-two action-value gap flags the misses: AUC 0.996; gap ≤ 1 catches 93.5% of them while flagging 1.5% of decisions (October 20, 2026)
 
 **Why:** 12.76 found that the compression error does not predict the misses, which are near-ties. The planner records its own action values at every decision, so a near-tie trigger can be tested from data on disk.
