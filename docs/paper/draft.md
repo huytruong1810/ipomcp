@@ -1,10 +1,10 @@
 # Exact Where Checkable: Online Planning for Interactive POMDPs with Verified Nested Beliefs
 
-*Draft 1, October 19, 2026. Built from `docs/PAPER.md`. Every number cites its section of `docs/RESULTS.md` in brackets, for example [12.20]; the citations are for the authors and are removed before submission. Target: AAMAS main track.*
+*Draft 1.1, October 20, 2026 (draft 1 of October 19, plus the definitive Tiger level grid: Sections 5.3 and 7.3). Built from `docs/PAPER.md`. Every number cites its section of `docs/RESULTS.md` in brackets, for example [12.20]; the citations are for the authors and are removed before submission. Target: the closest open AI/ML deadline, IJCAI 2027 (about January 15–19, projected) or ICML 2027; the reframe for the venue is pending.*
 
 ## Abstract
 
-Interactive POMDPs (I-POMDPs) let an agent plan against opponents that plan in turn, by holding beliefs over the opponent's beliefs. Exact solutions are intractable beyond toy problems, so practice relies on sampling planners. Their decisions have never been checked against exact I-POMDP solutions. We present I-POMCP, an online Monte Carlo tree search planner whose nested beliefs are exact, or compressed from exact updates, and whose search values are rescored with the exact chance law after search. Each decision carries per-action intervals that contain the exact action values of the searched model. Against exact I-POMDP solutions in three domains (multi-agent Tiger, UAV reconnaissance and a two-agent Wumpus world) and at nesting levels 1–4, I-POMCP's decisions at qualified budgets are optimal on every problem of every gate we ran, for example 486 of 486 at level 4, and on 960 of 960 held-out random beliefs. The published baseline (an interactive particle filter with reachability-tree sampling) is optimal on 1.7–99.5% of the same problems. A modern nested MCTS planner (I-NTMCP) is optimal on 40 of 60 at matched CPU. The sampled filters fail outright when sensors are deterministic, and a standard repair does not close the gap. Beyond exact reach, in 20-step UAV episodes, I-POMCP earns more than I-NTMCP at matched CPU up to about 13 s per decision, and both reach the best reward at about 55 s. Finally, we show both by proposition and in paired episodes in four games that one more level of reasoning pays exactly when the opponent's actions depend on its beliefs about the agent, and not against a random opponent.
+Interactive POMDPs (I-POMDPs) let an agent plan against opponents that plan in turn, by holding beliefs over the opponent's beliefs. Exact solutions are intractable beyond toy problems, so practice relies on sampling planners. Their decisions have never been checked against exact I-POMDP solutions. We present I-POMCP, an online Monte Carlo tree search planner whose nested beliefs are exact, or compressed from exact updates, and whose search values are rescored with the exact chance law after search. Each decision carries per-action intervals that contain the exact action values of the searched model. Against exact I-POMDP solutions in three domains (multi-agent Tiger, UAV reconnaissance and a two-agent Wumpus world) and at nesting levels 1–4, I-POMCP's decisions at qualified budgets are optimal on every problem of every gate we ran, for example 486 of 486 at level 4, and on 960 of 960 held-out random beliefs. In whole episodes over a 5 × 5 grid of reasoning levels, replayed against the Bayes-optimal agent, its decisions agree on all 96,000 at level 1 and on 97.7–100% at levels 2–4. Every remaining miss is belief compression, and a larger belief bound removes all of them. The published baseline (an interactive particle filter with reachability-tree sampling) is optimal on 1.7–99.5% of the same problems. A modern nested MCTS planner (I-NTMCP) is optimal on 40 of 60 at matched CPU. The sampled filters fail outright when sensors are deterministic, and a standard repair does not close the gap. Beyond exact reach, in 20-step UAV episodes, I-POMCP earns more than I-NTMCP at matched CPU up to about 13 s per decision, and both reach the best reward at about 55 s. Finally, we show both by proposition and in paired episodes in four games that one more level of reasoning pays exactly when the opponent's actions depend on its beliefs about the agent, and not against a random opponent.
 
 ## 1. Introduction
 
@@ -14,7 +14,7 @@ Online sampling planners make I-POMDPs usable at all: the interactive particle f
 
 We take the opposite route: make the planner exact wherever exactness is affordable, and check it against exact solutions wherever they can be computed. Our contributions:
 
-1. **I-POMCP, a planner that is exact where checkable** (Sections 4–5). It searches over the agent's private histories with Bellman backups and exact expected rewards. It holds nested beliefs exactly or compressed from exact updates, and rescores the tree with the exact chance law after search. At qualified budgets, on every gate grid we ran across three domains and levels 1–4, and on held-out beliefs no qualification used, its decisions are optimal against the exact I-POMDP. Its decisions carry certified per-action bounds, which contained the exact value in 1,016 of 1,016 decisions checked.
+1. **I-POMCP, a planner that is exact where checkable** (Sections 4–5). It searches over the agent's private histories with Bellman backups and exact expected rewards. It holds nested beliefs exactly or compressed from exact updates, and rescores the tree with the exact chance law after search. At qualified budgets, on every gate grid we ran across three domains and levels 1–4, and on held-out beliefs no qualification used, its decisions are optimal against the exact I-POMDP. Its decisions carry certified per-action bounds, which contained the exact value in 1,016 of 1,016 decisions checked. In whole episodes over levels 0–4 for both agents, its decisions match the Bayes-optimal agent's along the realized histories wherever exact replay is possible, up to belief compression that a larger bound removes.
 2. **A decision-level comparison with the published and the modern baselines** (Section 6). IPF + RTS misses 0.5–54% of decisions where its filter works. Its interactive particle filter fails on 55–57 of 60 problems when sensors are deterministic, and the standard likelihood-smoothing repair does not close the gap. I-NTMCP, run with the authors' code, is optimal on 40 of 60 Wumpus problems at I-POMCP's CPU. Beyond exact reach, I-POMCP earns more than tuned I-NTMCP in UAV episodes at matched CPU, until both saturate.
 3. **When a deeper model pays** (Section 7). A proposition shows that against an opponent whose actions do not depend on its beliefs about the agent, no model beats the level-1 best response. Paired episodes in four games confirm both directions: a second level gains 5.8–179 in reward against an intentional opponent where payoffs couple the agents, and nothing against a random one. The same prediction gain earns nothing when payoffs do not depend on the opponent.
 
@@ -101,6 +101,27 @@ Wumpus 4 × 4 at level 1 is qualified on 52 beliefs with *N* = 4,096 atoms [12.5
 
 **Figure 1** (`docs/figures/exactness.png`): the optimal rate of every checked cell, I-POMCP against each baseline at its best K, with exact Clopper–Pearson 95% intervals.
 
+### 5.3 In whole episodes, against the Bayes-optimal agent
+
+The gates above check single decisions at chosen beliefs. A reviewer can ask whether the planner stays Bayes-optimal along the beliefs it actually reaches in play, against opponents of every level. We therefore ran the full level grid, *i* at levels 0–4 against *j* at levels 0–4, on both Tiger games. We used the episode configuration of Section 7 (H2, 100 simulations, *N* = 64 compressed beliefs, uniform priors over lower levels at every nesting, 10-step episodes), at n = 15,000 trials per cell at levels ≤ 2, 700 for the level-3 row and 100 for the level-4 row [12.73].
+
+**Replay against the exact agent.** Each agent's realized actions and observations are fed to the exact agent of the same level: the same frames, priors and lookahead, with exact beliefs and exactly solved nested models. Three things are compared at every decision: whether the agent's action is an exact maximizer, the total variation (TV) of its level posterior, and the TV of its predicted opponent action. Exact beliefs grow about threefold per step, so the replay covers an *exact window*: 10 steps at level 1, 8 at level 2, 4 at level 3 and 3 at level 4 [12.74].
+
+| Game | Level | Window | Decisions that are exact maximizers | Level-posterior TV, mean / max |
+|---|---|---|---|---|
+| Both | 1 | 10 | 96,000 / 96,000 | 0 / 0 |
+| Coordination / published | 2 | 8 | 8,779 / 8,800; 8,739 / 8,800 | 0.006 / 0.27 |
+| Coordination / published | 3 | 4 | 8,361 / 8,400; 8,329 / 8,400 | 0.005 / 0.09 |
+| Coordination / published | 4 | 3 | 1,793 / 1,800; 1,799 / 1,800 | 0.011 / 0.09 |
+
+**Every miss is belief compression.**
+- The misses are near-ties: the median exact gap is 0.065–0.09 reward units [12.74].
+- For each of 148 misses (all 118 at levels 3–4 and a seeded sample at level 2), we rebuilt the agent with its trial's seeds at the missed step. Each reproduces the recorded action as configured, and each picks an exact maximizer when given exact beliefs [12.74].
+- To test this on fixed trials rather than on the misses alone, we reran the cells with *i* at levels 2–4 over their windows with a larger bound: *N* = 256 at levels 3–4, *N* = 1,024 at level 2. **No decision missed:** 0 of 2,400 cell-trial windows, against 38 distinct histories with a miss at *N* = 64 (two-sided sign test p = 7 × 10⁻¹²). At levels 3–4, *N* = 256 leaves the belief uncompressed inside the window, and the level-posterior TV falls to 10⁻¹⁶ [12.75].
+- **Figure 5** (`docs/figures/bayes_optimal.png`) shows the agreement rate by level at both bounds.
+
+**Expected reward against the exact pair.** Over the same windows, the exact expected reward curve of each pair of exact agents can be enumerated with zero variance [12.72]. The I-POMCP pairs' Rao-Blackwellized means (Section 7.3) contain it in 182 of 200 agent-steps. The level-0 control, which is exact by construction, shows a similar rate (76 of 84), because cells share trial seeds. The one systematic shift is the published Tiger's level-3 row at step 3, the place where the compression misses concentrate [12.73]. **Figure 6** (`docs/figures/grid_curves.png`) overlays the two.
+
 ## 6. Against the baselines
 
 ### 6.1 Decisions against the exact I-POMDP
@@ -178,6 +199,20 @@ The observation is elementary; we state it because it fixes which experiment is 
 **An exact screen predicts where depth pays.** Before running episodes, the exact value of one more level can be computed on reachable beliefs. On Wumpus 3 × 3 it is worth 19.7 per decision against an intentional wumpus and costs 1.7 per decision against a random one, matching the episodes. On UAV at H2 it is worth 6.0 against 1.6, matching 12.49 [12.22, 12.64].
 
 **Interpretability.** Because nested beliefs are exact or compressed from exact updates, the full hierarchy of beliefs can be read at every step: which level the agent thinks the opponent is, what that model believes about the agent, and what each model believes about the world. One check matters for reading these plots. In the published Tiger, a level-2 *j* converges to "*i* is level 1" whatever *i*'s true level. This is not a bug: levels ≥ 1 of *i* act identically there, which an exact fixed-point computation over levels 2–5 confirms. A level-0 *i* is identified as such (posterior 0.986 by step 20, n = 100) [12.47].
+
+### 7.3 The definitive level grid
+
+The episodes above use n = 100 per cell. To give the depth profile at low variance, and with a fourth level, we ran the grid of Section 5.3 [12.73].
+- **Variance reduction:** every sampled reward is replaced by its exact expectation given both agents' actions and observations, by forward–backward over the tiger's position (*Rao-Blackwellization*). The estimand is unchanged. The variance falls by a factor of 1.8–8.5 on the published Tiger (median about 3) and 1.1–5.3 on the coordination Tiger (median about 1.4), where most of the spread is the agents' own action draws [12.71, 12.73].
+- **Design:** n = 15,000 per cell at levels ≤ 2 (published Tiger: 2,500), 700 for the level-3 row and 100 for the level-4 row. Gains are paired by trial, with Holm correction within each game.
+
+- **On the coordination Tiger, depth pays once.**
+  - From level 1 to 2, *i* gains +7.6 to +9.2 by step 10 against opponents of levels 1–3 (Holm p < 10⁻⁴), and +7.0 against level 4 (n = 100, Holm p = 0.06). It loses 0.9 against a uniform opponent.
+  - No 2 → 3 or 3 → 4 gain is significant.
+  - The exact Bayes-optimal pairs give the same profile with zero variance: rising to level 3 and flat from level 3 to level 4 [12.72].
+- **On the published Tiger, depth buys nothing by step 10,** as in Section 7.2.
+- **At step 3, the example most often quoted for Tiger, the exact pair earns 2.148 at levels 1–2 and 2.663 at levels 3–4.** The single-agent optimum is 2.72; a pair cannot reach it, because the other agent's door openings reset the tiger. The I-POMCP pairs earn 2.34 [1.98, 2.67] (n = 2,500) and 3.08 [2.43, 3.66] (n = 700) [12.72, 12.73].
+- **Figure 7** (`docs/figures/grid_heatmap.png`) shows *i*'s reward by step 10 over the whole grid.
 
 ## 8. Ablations
 
