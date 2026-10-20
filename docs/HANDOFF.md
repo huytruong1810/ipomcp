@@ -2,7 +2,7 @@
 
 Read this first: Section 0.00000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "the definitive Tiger level grid" (N0–N5).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.71, and the next free one is 12.72.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.72, and the next free one is 12.73.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1. Draft 1 is written for AAMAS and will be reframed in N5.
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 standard.
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
@@ -15,7 +15,12 @@ Last updated October 19, 2026, evening, for a fresh session. Claude is the sole 
 - **N3 is running:** `results/n5_level_grid_20261019` (`ENDPOINTS.md`, `KILL_CRITERION.txt`: 420 CPU-h; xargs PID in `runner.pid`; `cpu_now.sh`; 6,810 chunk jobs, 14 workers, watchdog and memlog on the xargs PID).
   - n: levels ≤ 2 at 15,000 (coordination) and 2,500 (published); level-3 row 700; level-4 row 100; 10 steps.
   - Held 12.37/12.40 trials are **not** reused: today's code does not reproduce their compressed beliefs (`gate/`).
-  - Next: progress checks with `cpu_now.sh`; when done, `analyze.py` (to write: primary paired gains on `rb_cum_reward` at step 10, Holm), RESULTS 12.72, then N4.
+  - Projected 228 CPU-h; expected to finish around 09:00 on October 20. When done: `PYTHONPATH=<run>/src python analyze.py` (written and tested on interim data) → RESULTS 12.73.
+- **N4(c) is done (RESULTS 12.72):** exact curves of the Bayes-optimal pairs, `results/n6_exact_curves_20261019/summary.txt`. On the published Tiger, step 3 is 2.663 for a pair at level 3 or above, and 2.148 at levels 1–2.
+- **N4(a) is running:** `results/n7_exact_replay_20261019` (`ENDPOINTS.md`; 2 workers; kill line 60).
+  - It replays N3 agents through the exact agent (`analysis.exact_replay`). Its jobs skip N3 trials not yet written, so **rerun `run.sh` once N3 is done** to fill the sample (finished trials are skipped).
+  - Pilot: every replayed decision agrees with the exact maximizers (L2: 160/160; L3: 40/40; L4: 12/12), with level TV ≤ 0.044.
+  - Result → RESULTS 12.74.
 
 ## 0. Start here (fresh agent)
 

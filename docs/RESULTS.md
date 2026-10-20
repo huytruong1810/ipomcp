@@ -2299,6 +2299,46 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.72 N4(c): exact expected reward curves of the Bayes-optimal pairs over the level grid; on the published Tiger a pair at level 3 or above earns exactly 2.663 by step 3 (October 19, 2026)
+
+**Why:** PLAN N4(c). These are the zero-variance benchmark curves that N3's Monte Carlo curves of the I-POMCP pairs are overlaid on (N5).
+
+**Design** (`results/n6_exact_curves_20261019`; `ENDPOINTS.md` fixed before the run, one amendment recorded there; `job.py`, `summarize.py` → `summary.txt`):
+- Every cell of the grid (i's level a ≥ j's level b, 0–4), both games. Exact agents throughout: H2, γ = 0.95, uniform priors over lower levels at every nesting, level 0 uniform, ties uniform over the exact maximizers.
+- `analysis.exact_curves.exact_pair_curve`, up to 10 steps. A cell stops at 2,000,000 nodes, an exact update's budget of 100,000 branches, or its memory cap.
+- **Amendment:** the four cells i4_j3 and i4_j4 (both games) were stopped by the operator during step 4, when the machine's available memory fell to 1 GB beside N3. The remaining cells ran at a 3 GB cap.
+
+**Exact window reached** (steps; why it stopped):
+
+| Pair | Steps | Stop |
+|---|---|---|
+| L0 against L0; L1 against L0 | 10 | none |
+| L1 against L1 | 6 | 2,000,000 nodes |
+| L2 against L0–L2 | 4–5 | branch budget or 3 GB |
+| L3 against L0–L3 | 4 | 3 GB |
+| L4 against L0–L4 | 3 | 3 GB, or the operator at step 4 |
+
+**Published Tiger, cumulative reward at step 3 (i / j):**
+- Level 1 or 2 against level 1 or 2: **2.148 / 2.148.**
+- Level 3 or 4 against level 1 or 2: **2.663 / 2.148.**
+- Level 3 or 4 against level 3 or 4: **2.663 / 2.663.**
+
+So the 2.7 the user expects at step 3 is approached only from level 3 on: 2.663, against the single-agent ceiling of 2.72 (12.48). The other agent's door openings reset the tiger, so a pair cannot reach the ceiling.
+
+**Coordination Tiger, cumulative reward at step 3 (i / j):**
+
+| | j at L1 | j at L2 | j at L3 | j at L4 |
+|---|---|---|---|---|
+| i at L1 | 14.833 / 14.833 | — | — | — |
+| i at L2 | 16.616 / 16.101 | 18.011 / 18.011 | — | — |
+| i at L3 | 16.814 / 16.242 | 18.224 / 18.166 | 18.380 / 18.380 | — |
+| i at L4 | 16.814 / 16.242 | 18.224 / 18.166 | 18.380 / 18.380 | 18.380 / 18.380 |
+
+- **On the coordination Tiger the exact value of depth is positive and monotone to level 3,** for both agents, in every column.
+- **Level 4 adds nothing over level 3** through step 3, in either game. This matches 12.40's finding that level 4 does not pay.
+- **Against level 0 on the published Tiger, depth costs a little by step 3:** −1.376 at levels 1–2, −1.893 at levels 3–4. The mechanism is not diagnosed. On the coordination Tiger, depth gains against level 0 (0.933 at level 1, 1.394 at level 2, 2.315 at levels 3–4).
+- **Cost:** about 4.6 CPU-h (4.0 logged, plus the four level-4 jobs started before CPU logging was added; their per-step CPU is in their curves). Kill line 30.
+
 ### 12.71 Pricing the definitive Tiger level grid from data on disk: the planned half-widths cost about 25,000 CPU-h on the coordination Tiger; paired gains and tiers bring it to 100–800 (October 19, 2026)
 
 **Why:** PLAN N2. Before spending CPU on pricing runs, the 12.37 (levels 0–3, both games, n = 100) and 12.40 (level 4 against 0–4, coordination, n = 40) episodes already give each cell's CPU and, through `analysis.rao_blackwell`, its Rao-Blackwellized (RB) variance. RB means each sampled reward is replaced by its exact expectation given both agents' actions and observations; the estimand is unchanged.
