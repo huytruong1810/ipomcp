@@ -25,6 +25,8 @@ Last updated October 19, 2026, evening, for a fresh session. Claude is the sole 
   - It reruns cells with i at level 2–4 for the exact window at N = 256 (and N = 1,024 at level 2), then replays i through the exact agent.
   - At 02:37 it stopped when a hand kill of a `timeout` wrapper aborted xargs (Section 6). It was relaunched at 02:45 with `watchdog2.sh`; all three runs now use `watchdog2.sh`.
   - **Rerun `run.sh` at the end** to fill any skipped chunk. Result → RESULTS 12.75.
+- **N5 write-up done October 20:** Figure 5 (`docs/figures/bayes_optimal.png`), Figures 6–7 (grid curves, heatmap), PAPER.md (C1 and C3 rows), draft 1.1 (Sections 5.3 and 7.3), and the Claude Doc (rev 104: lead paragraph plus the section "The definitive level grid", with two uploaded figures).
+- **Next phase, Claude's choice (PLAN.md top): an adaptive belief bound with a certified compression error.** A1 (measurement) is under way in `results/n9_compression_tv_20261020`.
 - **Draft figures** (on interim data): `results/n5_level_grid_20261019/figures.py` → `grid_curves.png`, `grid_heatmap.png`. Rerun without `--partial` when N3 is done.
 
 ## 0. Start here (fresh agent)

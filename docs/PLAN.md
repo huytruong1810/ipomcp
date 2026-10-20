@@ -1,3 +1,21 @@
+# Plan: an adaptive belief bound with a certified compression error (from October 20, 2026)
+
+**Why (Claude's choice; the user delegated the direction on October 19, away 8 h):**
+- The level grid's only departure from Bayes-optimal play inside the exact window is belief compression at N = 64 (12.74: 148 of 148 misses). A larger N removes it (12.75: 0 of 2,400 windows at N = 256 or 1,024).
+- A uniform larger N is expensive: level-4 episodes cost several times more.
+- The compressed filter computes the exact update before compressing, so the error each compression introduces (its total variation, TV) is known exactly at no extra cost.
+- A bound that grows only where the dropped mass is large would keep N = 64's cost where compression is harmless and carry a per-step certificate of belief error. This turns the diagnosis into a method feature, in the spirit of the certified action bounds (12.17).
+- **Evidence so far:** the root level-posterior TV separates misses from agreements at levels 2 and 4 (AUC 0.80 and 0.78) but not at level 3 (AUC 0.51). There the error sits in nested beliefs, so the signal must be measured inside the hierarchy, not only at the root.
+
+| Step | What | Gate or deliverable |
+|---|---|---|
+| A1 | Measure. Rebuild the 148 diagnosed misses and as many matched agreeing decisions (same cell and step, other trials), recording every compression's TV during the decision and the real updates before it. | Does max or summed compression TV separate misses from agreements, per level? AUC with a bootstrap interval; reading fixed in `ENDPOINTS.md` before the run. Under 10 CPU-h. |
+| A2 | If A1 separates: an adaptive rule in `CompressedInteractiveFilter` (double N until the compression TV ≤ δ, capped), with the per-step certificate recorded. | Bit-identical rows when δ = ∞. Tests. |
+| A3 | A/B on the grid's exact windows: the adaptive rule against N = 64 and N = 256. | Agreement with the exact agent (as 12.75) and CPU, paired by trial. Ask the user above 100 CPU-h. |
+| A4 | Write-up: a method subsection and a figure; PAPER.md C1. | |
+
+If A1 does not separate, stop: the paper reports N4(b)'s result (a larger N removes every miss) and its cost, and states the adaptive rule as future work.
+
 # Plan: the definitive Tiger level grid (from October 19, 2026)
 
 **Why:** the user's direction (October 19). The venue is the closest open top AI/ML deadline. NeurIPS 2026, ICLR 2027, AISTATS 2027 and AAMAS 2027 have passed, so that is IJCAI 2027 (about January 15–19) or ICML 2027 (about January 22); both dates are projected. The user named two priorities:
