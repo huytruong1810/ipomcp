@@ -32,7 +32,7 @@ id, so the two agents never share randomness and a trial is reproducible.
 import math
 import random
 import tomllib
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -44,6 +44,7 @@ from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.experiments.modeled_levels import parse_stack, planner_config
 from ipomdp.planning.config import PlannerConfig
+from ipomdp.planning.escalation import EscalatingPlanner
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
 from ipomdp.reference.exact_agent import build_exact_agent
@@ -132,6 +133,10 @@ class AgentSpec:
             with deterministic sensors, bounded search).
         level_weights: Prior over the opponent's levels ({level: weight}).
         nested_level_weights: {level: {level: weight}} for nested models.
+        escalation: None, or ``{"gap": g, "particles": n}``: an I-POMCP agent
+            with a belief bound keeps a shadow at bound ``n`` (same seeds,
+            same history) that decides whenever the agent's top-two action-value
+            gap is at most ``g`` (``planning.escalation``).
     """
 
     level: int
@@ -142,6 +147,7 @@ class AgentSpec:
     search_particles: Optional[int] = None
     level_weights: Optional[Dict[int, float]] = None
     nested_level_weights: Optional[Dict[int, Dict[int, float]]] = None
+    escalation: Optional[Dict] = None
 
     def __post_init__(self):
         if type(self.level) is not int or self.level < 0:
@@ -156,6 +162,8 @@ class AgentSpec:
                 _check_exact(self)
             elif self.modeled is not None:
                 _modeled_configs(self)
+        if self.escalation is not None:
+            _check_escalation(self)
 
 
 @dataclass(frozen=True)
@@ -210,6 +218,7 @@ class StudySpec:
                     if "nested_level_weights" in entry
                     else None
                 ),
+                escalation=entry.get("escalation"),
             )
             for agent, entry in data.pop("agents").items()
         }
@@ -263,23 +272,54 @@ def build_agents(spec: StudySpec, seed: int):
                 max_branches=config.max_branches,
             )
             continue
-        bank = SolverBank(
-            bank_seed,
-            particles=agent_spec.particles,
-            particle_filter=agent_spec.particle_filter,
-            search_particles=agent_spec.search_particles,
-        )
-        planners[agent] = HierarchyBuilder(bank).build(
-            agent,
-            agent_spec.level,
-            physics,
-            other,
-            config=config,
-            modeled_configs=_modeled_configs(agent_spec),
-            level_weights=agent_spec.level_weights,
-            nested_level_weights=agent_spec.nested_level_weights,
-        )
+        planners[agent] = _hierarchy(agent_spec, agent, other, physics, config, bank_seed)
+        if agent_spec.escalation is not None:
+            shadow = replace(
+                agent_spec, particles=agent_spec.escalation["particles"], escalation=None
+            )
+            planners[agent] = EscalatingPlanner(
+                planners[agent],
+                _hierarchy(shadow, agent, other, physics, config, bank_seed),
+                agent_spec.escalation["gap"],
+            )
     return physics, planners
+
+
+def _hierarchy(agent_spec, agent, other, physics, config, bank_seed):
+    """An I-POMCP or RTS agent and its modeled levels, in a bank seeded for this trial and agent."""
+    bank = SolverBank(
+        bank_seed,
+        particles=agent_spec.particles,
+        particle_filter=agent_spec.particle_filter,
+        search_particles=agent_spec.search_particles,
+    )
+    return HierarchyBuilder(bank).build(
+        agent,
+        agent_spec.level,
+        physics,
+        other,
+        config=config,
+        modeled_configs=_modeled_configs(agent_spec),
+        level_weights=agent_spec.level_weights,
+        nested_level_weights=agent_spec.nested_level_weights,
+    )
+
+
+def _check_escalation(agent_spec):
+    """Escalation needs an I-POMCP agent with a belief bound and a larger shadow bound."""
+    escalation = agent_spec.escalation
+    if set(escalation) != {"gap", "particles"}:
+        raise ValueError("escalation takes exactly 'gap' and 'particles'")
+    if agent_spec.level < 1 or not isinstance(_planner_config(agent_spec.planner), PlannerConfig):
+        raise ValueError("Escalation needs an intentional I-POMCP agent")
+    if agent_spec.particles is None:
+        raise ValueError("Escalation needs a belief bound (particles) to escalate from")
+    shadow = escalation["particles"]
+    if type(shadow) is not int or shadow <= agent_spec.particles:
+        raise ValueError("The shadow's particles must be an integer above the agent's")
+    gap = escalation["gap"]
+    if not isinstance(gap, (int, float)) or not math.isfinite(gap) or gap < 0:
+        raise ValueError("The escalation gap must be finite and nonnegative")
 
 
 def _planner_config(entry):

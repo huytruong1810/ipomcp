@@ -17,6 +17,8 @@ Every row is one step; step 0 is the prior. Per agent (suffix ``_i``/``_j``):
 - ``action_values``: the root action values of its last decision (JSON);
 - ``forced_share`` (I-NTMCP only): the share of force-filled particles in the
   belief the decision searched from;
+- ``escalated`` and ``base_gap`` (escalating agents only): whether the shadow
+  at the larger bound decided, and the base planner's top-two gap;
 - ``hierarchy`` (JSON, when the study records hierarchies).
 
 After the episode ends, rows are padded to the declared length with zero
@@ -96,6 +98,9 @@ def _step(
         decisions[f"bounds_{agent}"] = json.dumps(stats.get("bounds"), sort_keys=True)
         if "forced_share" in stats:
             decisions[f"forced_share_{agent}"] = stats["forced_share"]
+        if "escalated" in stats:
+            decisions[f"escalated_{agent}"] = stats["escalated"]
+            decisions[f"base_gap_{agent}"] = stats["base_gap"]
         decisions[f"prediction_{agent}"] = json.dumps(
             predicted_opponent_action(planners[agent]), sort_keys=True
         )
