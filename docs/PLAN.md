@@ -1,6 +1,9 @@
 # Plan: an adaptive belief bound with a certified compression error (from October 20, 2026)
 
-**Status (October 20, 16:10): stopped at A1 by its pre-fixed reading (RESULTS 12.76).** Compression error does not predict the misses (pooled AUC 0.50 [0.43, 0.56]). The adaptive bound is future work, with a near-tie trigger (the action-value gap or the certified bounds) as the candidate.
+**Status (October 20, 16:30):**
+- A1 (RESULTS 12.76): the compression error does not predict the misses (AUC 0.50), so that trigger is dropped.
+- A1b (12.77): the planner's own top-two action-value gap does predict them (AUC 0.996; gap ≤ 1 catches 93.5% of misses and flags 1.5% of decisions).
+- **A2 is redesigned around this near-tie trigger:** re-decide a flagged decision with a larger belief bound.
 
 **Why (Claude's choice; the user delegated the direction on October 19, away 8 h):**
 - The level grid's only departure from Bayes-optimal play inside the exact window is belief compression at N = 64 (12.74: 148 of 148 misses). A larger N removes it (12.75: 0 of 2,400 windows at N = 256 or 1,024).

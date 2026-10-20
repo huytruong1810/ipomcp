@@ -2299,6 +2299,26 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.77 A1b: the planner's own top-two action-value gap flags the misses: AUC 0.996; gap ≤ 1 catches 93.5% of them while flagging 1.5% of decisions (October 20, 2026)
+
+**Why:** 12.76 found that the compression error does not predict the misses, which are near-ties. The planner records its own action values at every decision, so a near-tie trigger can be tested from data on disk.
+
+**Design** (`results/n9_compression_tv_20261020`, `ENDPOINTS.md` section A1b, with the reading fixed before the analysis; `gap_analysis.py` → `gap_analysis.txt`, `gaps.csv`):
+- **Decisions:** all 38,000 decisions replayed in 12.74 at levels 2–4, both games (200 misses).
+- **Gap:** the planner's largest minus its second-largest recorded action value (N3's `action_values`).
+- **Cost:** no CPU.
+
+| Level | Decisions (misses) | AUC [95%] | Median gap, miss / agree | Gap ≤ 0.5: misses caught / decisions flagged | Gap ≤ 1: misses caught / decisions flagged |
+|---|---|---|---|---|---|
+| Pooled | 38,000 (200) | **0.996** [0.994, 0.997] | 0.16 / 21.4 | 89.5% / 1.2% | **93.5% / 1.5%** |
+| 2 | 17,600 (82) | 0.990 [0.985, 0.995] | 0.12 / 14.1 | 79.3% / 1.0% | 85.4% / 1.7% |
+| 3 | 16,800 (110) | 0.999 [0.998, 0.999] | 0.16 / 22.8 | 100% / 1.4% | 100% / 1.5% |
+| 4 | 3,600 (8) | 0.994 [0.990, 0.998] | 0.47 / 23.0 | 50% / 0.9% | 87.5% / 1.2% |
+
+- **By the reading fixed in advance** (pooled AUC lower bound above 0.85; a threshold that catches at least 90% of misses while flagging at most 20%), **the trigger is worth building.**
+- **Gap ≤ 1 qualifies:** 93.5% of misses caught, 1.5% of decisions flagged.
+- **Next (PLAN A2):** re-decide flagged decisions with a larger belief bound, then A/B it against N = 64 and N = 256 over the exact windows (A3).
+
 ### 12.76 A1: the exact compression error does not predict which decisions miss (AUC 0.50), so no adaptive belief bound is built (October 20, 2026)
 
 **Why:** PLAN, "adaptive belief bound", step A1. N = 64 compression causes every miss of 12.74, and a larger N removes them (12.75). A bound that grows only where a compression drops much mass would be cheaper than a uniformly larger N, but only if the dropped mass predicts the misses.
