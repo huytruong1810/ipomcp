@@ -2299,6 +2299,61 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.73 N3, the definitive Tiger level grid: depth pays once (level 1 → 2) on the coordination Tiger and not again; inside the exact window, the I-POMCP pairs match the Bayes-optimal pairs except where N = 64 compression bites at level 3 on the published Tiger (October 20, 2026)
+
+**Why:** PLAN N3, the user's two priorities. First, low variance at the step the user named (step 3 of the published Tiger, where the user expected about 2.7). Second, a level grid i L0–4 × j L0–4 checked against the Bayes-optimal benchmark. The design (B, 10 steps) is the user's choice of October 19 (12.71).
+
+**Design** (`results/n5_level_grid_20261019`; `ENDPOINTS.md` fixed before the run; `job.py`, `analyze.py` → `analysis.txt`, `gains.csv`, `cells.csv`; `compare_exact.py` → `compare_exact.txt`; `figures.py`):
+- 12.37's configuration: H2, 100 simulations, N = 64 compressed beliefs, uniform priors over lower levels at every nesting. Episodes of 10 steps, both games, the 15 cells with i's level ≥ j's (the others are read mirrored).
+- **n per cell:** levels ≤ 2 at 15,000 (coordination) and 2,500 (published); the level-3 row at 700; the level-4 row at 100.
+- **Rewards are Rao-Blackwellized (RB):** each sampled reward is replaced by its exact expectation given both agents' actions and observations. Same estimand, lower variance (sampled beside it in `cells.csv`).
+- **Held 12.37 trials were not reused:** today's code compresses beliefs differently (`gate/`).
+- **Cost:** 231.7 CPU-h (price 207; kill line 420). No watchdog kills.
+
+**Precision reached** (RB 95% half-width of a cell mean):
+
+| Cells | Step 3 | Step 10 |
+|---|---|---|
+| Levels ≤ 2, coordination (n = 15,000) | ±0.35 | ±0.65 |
+| Levels ≤ 2, published (n = 2,500) | ±0.35 | ±0.6 |
+| Level-3 row (n = 700) | ±0.6 (published), ±1.5 (coordination) | ±1.1 (published), ±2.8 (coordination) |
+| Level-4 row (n = 100) | ±1.7 (published), ±4.1 (coordination) | ±3.2 (published), ±8 (coordination; ±4.1 against j0) |
+
+**The user's example, step 3 of the published Tiger** (agent i, RB mean [95%], against the exact pair of 12.72):
+
+| Pair | I-POMCP, N3 | Exact Bayes-optimal |
+|---|---|---|
+| L1 or L2 against L1 or L2 (n = 2,500) | 2.34 [1.98, 2.67] | 2.148 |
+| L3 against L1–L3 (n = 700) | 3.08 [2.43, 3.66] | 2.663 |
+| L4 against L1–L4 (n = 100) | 3.88 [2.04, 5.39] | 2.663 |
+
+The single-agent ceiling of 2.72 (12.48) is not the pair's expectation: the other agent's door openings reset the tiger.
+
+**Primary endpoint: paired one-level gains of i at step 10** (RB; Holm within game; n is the number of paired trials):
+
+| Gain | Coordination Tiger | Published Tiger |
+|---|---|---|
+| 1 → 2 against j0 | −0.89 [−1.11, −0.68], Holm p < 10⁻⁴ (n = 15,000) | −0.14 [−0.26, −0.04], 0.19 |
+| 1 → 2 against j1 / j2 | **+7.84 / +7.57**, Holm p < 10⁻⁴ (n = 15,000) | −0.34 [−0.55, −0.11], 0.036 / −0.27, n.s. |
+| 1 → 2 against j3 / j4 | **+9.23** (n = 700), p < 10⁻⁴ / +7.02 [2.26, 11.84] (n = 100), Holm 0.060 | +0.01 / +0.17, n.s. |
+| 2 → 3 against j0–j4 | −0.84 to +1.39, none significant (smallest Holm p 0.16) | −0.26 to +0.46, none significant |
+| 3 → 4 against j0–j4 (n = 100) | −0.36 to +1.62, none significant | −0.40 to −0.07, none significant |
+
+- **Depth pays once, from level 1 to 2, on the coordination Tiger**, by about 8 by step 10 against any intentional opponent. It costs about 0.9 against a uniform opponent. Levels 3 and 4 add nothing measurable by step 10, at n = 700 and n = 100. This is 12.37's profile, now at 15,000 trials per cell and with level 4.
+- **On the published Tiger, depth buys nothing by step 10**, as 12.37 found. The one significant gain is a small loss: −0.34 for 1 → 2 against j1.
+- **At step 3 (secondary),** the coordination Tiger's 1 → 2 gain is +1.88 [1.74, 2.03] against j1, where the exact value is 1.78. The published Tiger's 2 → 3 gain is +0.34 [0.20, 0.48] against j1 or j2, below the exact 0.515 (next bullet).
+
+**Against the exact Bayes-optimal pairs inside their window** (`compare_exact.txt`; every cell, both agents, every step the exact curve reaches):
+- The exact expectation lies inside the RB 95% interval for **182 of 200** intentional agent-steps. The control, uniform level-0 agents (exact by construction), is 76 of 84. Both fall below 95% for the same reason: rows repeat across cells, which share trial ids, and across steps.
+- **Systematic deviation: the published Tiger's level-3 row.**
+  - i3 against j0 earns −1.28 [−1.66, −0.89] by step 3, against the exact −1.893 (z = 3.1; z = 3.3 at step 4).
+  - When i is at level 3, j at level 1 or 2 earns 2.97 against the exact 2.148 (z = 2.7).
+  - The step-3 gain from 2 to 3 is 0.34 against the exact 0.515.
+  - This matches N4(a)'s diagnosis: at step 3, level-3 agents with N = 64 compressed beliefs sometimes listen where the exact agent opens, and with exact beliefs they open. N4(b) (12.75) tests it on fixed trials.
+- **Other exclusions are one sample counted several times.** On the published Tiger, j at L1/L2 in i1_j1, i2_j1 and i2_j2 shows identical trajectories (z ≈ 2.2–2.3, steps 3–5). On the coordination Tiger, the level-4 row's step 3 (n = 100, z ≈ 2.0) repeats the same 100 trials. 12.48's 10,000 fresh L1-against-L1 trials (RB 2.23 ± 0.19 at step 3) contain the exact 2.148.
+
+**Figures:** `docs/figures/grid_curves.png` (i's expected cumulative reward by step for L1–L4 diagonal pairs, both games, with the exact pair's curve over its window and the 2.72 ceiling) and `docs/figures/grid_heatmap.png` (i's RB reward by step 10 over the 5 × 5 grid).
+
 ### 12.72 N4(c): exact expected reward curves of the Bayes-optimal pairs over the level grid; on the published Tiger a pair at level 3 or above earns exactly 2.663 by step 3 (October 19, 2026)
 
 **Why:** PLAN N4(c). These are the zero-variance benchmark curves that N3's Monte Carlo curves of the I-POMCP pairs are overlaid on (N5).
