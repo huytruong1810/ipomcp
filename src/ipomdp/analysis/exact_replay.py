@@ -4,7 +4,8 @@ At every step of the exact window, the exact agent of the same level, frames,
 priors and lookahead holds the exact belief given the agent's own realized
 actions and observations, and is compared with what the agent recorded:
 
-- ``agree``: the agent's action is one of the exact maximizers;
+- ``agree``: the agent's action is one of the exact maximizers, and ``q_gap``
+  the exact value it gives up (0 when it agrees up to the tie tolerance);
 - ``level_tv``: total variation between the agent's posterior over the
   opponent's level and the exact one (both before the decision);
 - ``prediction_tv``: total variation between the agent's predicted opponent
@@ -83,6 +84,7 @@ class ExactReplay:
                 {
                     "step": row["step"],
                     "agree": action in maximizers,
+                    "q_gap": best - q[self.actions[action]],
                     "unique_maximizer": len(maximizers) == 1,
                     "level_tv": _tv(
                         {k: before[f"prob_l{k}_{other}"] for k in range(self.level)}, exact_levels

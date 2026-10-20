@@ -28,6 +28,7 @@ def test_exact_episodes_replay_with_full_agreement_and_no_error():
         steps = replay.replay(frame)
         assert [s["step"] for s in steps] == [1, 2, 3, 4]
         assert all(s["agree"] for s in steps)
+        assert max(s["q_gap"] for s in steps) == pytest.approx(0, abs=1e-9)
         assert max(s["level_tv"] for s in steps) == pytest.approx(0, abs=1e-12)
         assert max(s["prediction_tv"] for s in steps) == pytest.approx(0, abs=1e-12)
     # Clearing caches between trials changes memory only.
