@@ -2,7 +2,7 @@
 
 Read this first: Section 0.00000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "the definitive Tiger level grid" (N0–N5).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.74, and the next free one is 12.75.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.75, and the next free one is 12.76.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1. Draft 1 is written for AAMAS and will be reframed in N5.
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 standard.
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
@@ -21,7 +21,7 @@ Last updated October 19, 2026, evening, for a fresh session. Claude is the sole 
   - It replays N3 agents through the exact agent (`analysis.exact_replay`). Its jobs skip N3 trials not yet written, so **rerun `run.sh` once N3 is done** to fill the sample (finished trials are skipped).
   - Pilot: every replayed decision agrees with the exact maximizers (L2: 160/160; L3: 40/40; L4: 12/12), with level TV ≤ 0.044.
   - Result → RESULTS 12.74. Diagnosis of every disagreement: `diagnose_all.sh` (`diagnosis.jsonl`). As of 23:13, 9 of 9 are reproduced as configured and fixed by exact beliefs: belief compression at N = 64.
-- **N4(b) is running:** `results/n8_convergence_20261019` (`ENDPOINTS.md`; the kill line was amended from 90 to 100 before it was reached).
+- **N4(b) is done (RESULTS 12.75):** at N = 256 (levels 3–4) or 1,024 (level 2) no replayed decision disagrees with the exact agent (0 of 2,400 windows, against 38 histories at N = 64). History notes: `results/n8_convergence_20261019` (`ENDPOINTS.md`; the kill line was amended from 90 to 100 before it was reached).
   - It reruns cells with i at level 2–4 for the exact window at N = 256 (and N = 1,024 at level 2), then replays i through the exact agent.
   - At 02:37 it stopped when a hand kill of a `timeout` wrapper aborted xargs (Section 6). It was relaunched at 02:45 with `watchdog2.sh`; all three runs now use `watchdog2.sh`.
   - **Rerun `run.sh` at the end** to fill any skipped chunk. Result → RESULTS 12.75.

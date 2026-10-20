@@ -2299,6 +2299,37 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.75 N4(b): every disagreement with the Bayes-optimal agent disappears when the belief bound N is raised (0 of 2,400 trial windows at N = 256 or 1,024, against 38 distinct trial histories with a miss at N = 64) (October 20, 2026)
+
+**Why:** PLAN N4(b). It tests 12.74's diagnosis, that N = 64 belief compression causes the misses, on fixed trials rather than on the misses alone.
+
+**Design** (`results/n8_convergence_20261019`; `ENDPOINTS.md` fixed before the main run, kill line amended from 90 to 100 before it was reached; `job.py`, `analyze.py` → `analysis.txt`, `table.csv`):
+- **Cells:** those with i at level 2–4 (i2_j0..2, i3_j0..3, i4_j0..4), both games, trial ids 0–99.
+- **Rerun:** each cell for i's exact window (8, 4 and 3 steps at levels 2, 3 and 4), with every intentional agent's belief bound at N = 256. Level-2 cells also run at N = 1,024, because their 8-step window outgrows 256 atoms.
+- **Replay:** agent i through the exact agent (`analysis.exact_replay`).
+- **The N = 64 arm is N3 itself.** A window-length run reproduces N3's first rows exactly (checked).
+- **Cost:** 79.1 CPU-h. One chunk whose replay a hand kill cut short was regenerated; its played columns and the replays it had written were identical to the first run (`superseded/`).
+
+| Game | Level | Distinct trial histories | With a miss at N = 64 | With a miss at the largest N | Exact McNemar p (Holm over 6) |
+|---|---|---|---|---|---|
+| Coordination | 2 (N = 1,024) | 224 | 5 | **0** | 0.062 (0.12) |
+| Coordination | 3 (N = 256) | 185 | 9 | **0** | 0.0039 (0.023) |
+| Coordination | 4 (N = 256) | 180 | 7 | **0** | 0.016 (0.064) |
+| Published | 2 (N = 1,024) | 209 | 9 | **0** | 0.0039 (0.023) |
+| Published | 3 (N = 256) | 185 | 7 | **0** | 0.016 (0.064) |
+| Published | 4 (N = 256) | 180 | 1 | **0** | 1 |
+
+(Cells of a row often replay the same history, because j1–j3 behave alike, so each distinct history is counted once.)
+
+- **No replayed decision disagrees with the exact maximizers at the largest N:** 0 of 2,400 cell-trial windows.
+  - Pooled: 38 discordant histories against 0, two-sided sign test p = 7 × 10⁻¹².
+  - With 12.74's diagnosis (148 of 148), the evidence is consistent and complete: **inside the exact window, I-POMCP's only departure from Bayes-optimal play in the grid is belief compression, and a larger N removes it.**
+- **At levels 3–4, N = 256 does not compress i's belief inside the window.** The level-posterior TV against the exact agent is about 10⁻¹⁶: the agent is exactly Bayes-optimal there.
+- **At level 2, N = 256 is not enough for an 8-step window.**
+  - Published i2_j1 and i2_j2 still miss in 9 trials each at N = 256.
+  - At N = 1,024 there are no misses, and the level TV falls to at most 0.012.
+- **What N3 keeps:** N3's grid stays at N = 64 (its configuration since 12.37). Its level-3 deviations (12.73) are this compression error, small and in near-ties. The paper reports them as such, with this test as the evidence.
+
 ### 12.74 N4(a): N3's agents against the Bayes-optimal agent along their own histories: level 1 is Bayes-optimal on all 96,000 decisions; levels 2–4 agree on 97.7–100% per cell, and every diagnosed miss is belief compression at N = 64 (October 20, 2026)
 
 **Why:** PLAN N4(a), the user's second priority: is the opponent modeling in the grid correct against the Bayes-optimal benchmark?
