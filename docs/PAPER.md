@@ -24,6 +24,7 @@
 | Certified per-action bounds contain the exact Q in 1,016/1,016 decisions checked | 12.17, 12.41 |
 | Held out: the qualified Tiger configurations on 960 random beliefs and seeds no qualification used, 960/960 optimal (L2 H3 and L3 H3, both games); UAV's held-out evidence is 12.67's exactly scored episode decisions | 12.69, 12.67 |
 | The L3 H4 residual (4/80 near-ties, gaps ≤ 0.03) is 80/80 ε-correct | 12.14, 12.54 |
+| **In whole episodes against the Bayes-optimal agent** (the definitive Tiger grid, levels 1–4, both games). Each agent is replayed along its own history through the exact agent over the exact window (10 / 8 / 4 / 3 steps at levels 1–4). Level 1 agrees on all 96,000 decisions; levels 2–4 on 97.7–100% per cell at the grid's N = 64. Every miss diagnosed (148 of 148) is belief compression, and at N = 256 (levels 3–4) or 1,024 (level 2) none remains: 0 of 2,400 trial windows, against 38 histories at N = 64 (p = 7 × 10⁻¹²) | 12.74, 12.75 |
 | **Beyond exact reach** (UAV episodes from the common prior, H4–H5): I-POMCP is exactly optimal on every scored H4 decision (histories 0–4) from root 4,000 or own budget 1,000, and near the best reward from 1.4 s per decision. L2 H5 with the uniform prior needs root 64,000 (diagnosed: root-search error; fixed in replays, not yet in episodes). Only the first 5 (H4) or 2 (H5) decisions per episode are exactly scored | 12.67 |
 
 **Figure 1** (done, October 19): `docs/figures/exactness.png` (script `results/g2_figure1_20261019/figure.py`, counts copied from RESULTS): the optimal rate of every checked cell with Clopper–Pearson 95% intervals, I-POMCP against each baseline at its best K.
@@ -50,6 +51,7 @@
 |---|---|
 | THEORY.md, "When a deeper model can pay": correct prediction is enough; no gain against a non-intentional opponent; level-0 mass keeps nested updates defined | THEORY.md |
 | Tiger: depth pays only with joint payoffs (the coordination Tiger: level 1→2 gains 27–30, Holm p < 0.001; 2→3 not significant) | 12.22, 12.27, 12.37 |
+| **The definitive Tiger grid** (i L0–4 × j L0–4, both games, n up to 15,000 per cell, Rao-Blackwellized rewards). The coordination Tiger's 1→2 gain by step 10 is +7.6 to +9.2 against levels 1–3 (Holm p < 10⁻⁴) and +7.0 against level 4 (n = 100, Holm p = 0.06); 2→3 and 3→4 are not significant. The published Tiger shows no gain. The exact Bayes-optimal pairs (zero variance, over their window) give the same profile: monotone to level 3, nothing at level 4. On the published Tiger at step 3 they earn 2.148 (levels 1–2) and 2.663 (levels 3–4), against the single-agent 2.72 | 12.72, 12.73 |
 | Tiger: a third level with a matched model of j neither gains nor loses (+0.8 [−6.7, 8.6]) | 12.32 |
 | UAV: a second level pays for both agents | 12.49 |
 | Wumpus 3 × 3: a second level pays the human against an intentional wumpus (+169 [84, 259], p = 0.0004) and not against a random one (+20, n.s.) | 12.60 |
@@ -59,6 +61,12 @@
 | The exact screen predicts where depth pays: on Wumpus 3 × 3, a second level is worth 19.7 per decision against an intentional wumpus, 0 at the prior and 51 after 4 steps, and costs 1.7 per decision on random-wumpus histories, matching 12.60 and its control. On UAV H2, it is worth 6.0 against 1.6, matching 12.49, and it predicts that a third level pays only against a level-2 target (6.1 against 5.8) | 12.22, 12.64 |
 
 **Figure 3** (done, October 19): `docs/figures/depth_gain.png` (script `results/g5c_figure3_20261019/figure.py`), i's paired level 1 → 2 gain against a random (level-0) and an intentional (level-1) opponent, one panel per game: coordination Tiger −2.6 / +27.2 (12.37), UAV −7.2 / +5.8 (12.49), Wumpus 3 × 3 −70 / +179 (12.60 main trials; the fresh-trial confirmation is +169 against an intentional wumpus and +20 against a random one), published Tiger (control) −0.2 / −4.4 (12.37). n = 100 pairs each, 95% trial bootstrap.
+
+**Figure 5** (done, October 20): `docs/figures/bayes_optimal.png` (script `results/n8_convergence_20261019/figure.py`): the share of replayed decisions that are exact maximizers by agent level, at N = 64 and at the larger N, both games (12.74–12.75).
+
+**Figure 6** (done, October 20): `docs/figures/grid_curves.png` (script `results/n5_level_grid_20261019/figures.py`): i's expected cumulative reward by step for the diagonal pairs L1–L4, I-POMCP (Rao-Blackwellized mean, 95% band) with the exact pair's curve over its window and the 2.72 single-agent ceiling (12.72–12.73).
+
+**Figure 7** (done, October 20): `docs/figures/grid_heatmap.png`: i's reward by step 10 over the 5 × 5 grid, per game (12.73).
 
 **Figure 4** (done, 12.66): `docs/figures/prediction_vs_reward.png`, prediction gain against reward gain, one point per level step and opponent.
 

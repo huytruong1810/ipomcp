@@ -2404,7 +2404,7 @@ The single-agent ceiling of 2.72 (12.48) is not the pair's expectation: the othe
 | 2 → 3 against j0–j4 | −0.84 to +1.39, none significant (smallest Holm p 0.16) | −0.26 to +0.46, none significant |
 | 3 → 4 against j0–j4 (n = 100) | −0.36 to +1.62, none significant | −0.40 to −0.07, none significant |
 
-- **Depth pays once, from level 1 to 2, on the coordination Tiger**, by about 8 by step 10 against any intentional opponent. It costs about 0.9 against a uniform opponent. Levels 3 and 4 add nothing measurable by step 10, at n = 700 and n = 100. This is 12.37's profile, now at 15,000 trials per cell and with level 4.
+- **Depth pays once, from level 1 to 2, on the coordination Tiger**: by step 10, +7.6 to +9.2 against levels 1–3 (Holm p < 10⁻⁴), and +7.0 against level 4 (n = 100, Holm p = 0.06). It costs about 0.9 against a uniform opponent. Levels 3 and 4 add nothing measurable by step 10, at n = 700 and n = 100. This is 12.37's profile, now at 15,000 trials per cell and with level 4.
 - **On the published Tiger, depth buys nothing by step 10**, as 12.37 found. The one significant gain is a small loss: −0.34 for 1 → 2 against j1.
 - **At step 3 (secondary),** the coordination Tiger's 1 → 2 gain is +1.88 [1.74, 2.03] against j1, where the exact value is 1.78. The published Tiger's 2 → 3 gain is +0.34 [0.20, 0.48] against j1 or j2, below the exact 0.515 (next bullet).
 
