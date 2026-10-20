@@ -2299,6 +2299,28 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.76 A1: the exact compression error does not predict which decisions miss (AUC 0.50), so no adaptive belief bound is built (October 20, 2026)
+
+**Why:** PLAN, "adaptive belief bound", step A1. N = 64 compression causes every miss of 12.74, and a larger N removes them (12.75). A bound that grows only where a compression drops much mass would be cheaper than a uniformly larger N, but only if the dropped mass predicts the misses.
+
+**Design** (`results/n9_compression_tv_20261020`; `ENDPOINTS.md` with the reading fixed before the run; `measure.py`, `analyze.py` → `analysis.txt`, `summary.csv`):
+- **Items:** the 148 diagnosed misses of 12.74, each with one matched agreeing decision: same game, cell, agent and step, another trial agreeing at every step so far, drawn with seed 20261020.
+- **Measure:** each agent is rebuilt with its trial's seeds at N = 64 and replays its history. Every compression records its exact TV, between the exact posterior and its compression. All 296 rebuilt decisions reproduce the recorded action.
+- **Cost:** 0.6 CPU-h.
+
+| Items | n | AUC of max compression TV, miss vs agree [95%] | Median max TV, miss / agree |
+|---|---|---|---|
+| Pooled | 296 | **0.50** [0.43, 0.56] | 0.218 / 0.218 |
+| Level 2 | 60 | 0.39 [0.25, 0.54] | 0.080 / 0.143 |
+| Level 3 | 220 | 0.51 [0.44, 0.59] | 0.226 / 0.222 |
+| Level 4 | 16 | 0.25 [0.00, 0.53] | 0.267 / 0.313 |
+
+The summed TV (pooled AUC 0.41) and the TV during the decision alone (0.50) separate no better.
+
+- **By the reading fixed in advance (pooled lower bound above 0.75, no level below 0.6), the signal is not usable. A2–A4 are not run.**
+- **Interpretation:** the agreeing decisions see as much compression error as the misses. A decision misses when it is a near-tie (12.74: median exact gap 0.065–0.09), so any perturbation can flip it; how much mass a compression drops does not decide it.
+- **The paper reports 12.75 as it stands:** a larger N removes every miss inside the window, at its cost. An adaptive bound would need a different trigger, such as the planner's own action-value gap or its certified bounds; that is stated as future work.
+
 ### 12.75 N4(b): every disagreement with the Bayes-optimal agent disappears when the belief bound N is raised (0 of 2,400 trial windows at N = 256 or 1,024, against 38 distinct trial histories with a miss at N = 64) (October 20, 2026)
 
 **Why:** PLAN N4(b). It tests 12.74's diagnosis, that N = 64 belief compression causes the misses, on fixed trials rather than on the misses alone.

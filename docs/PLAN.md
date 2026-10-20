@@ -1,5 +1,7 @@
 # Plan: an adaptive belief bound with a certified compression error (from October 20, 2026)
 
+**Status (October 20, 16:10): stopped at A1 by its pre-fixed reading (RESULTS 12.76).** Compression error does not predict the misses (pooled AUC 0.50 [0.43, 0.56]). The adaptive bound is future work, with a near-tie trigger (the action-value gap or the certified bounds) as the candidate.
+
 **Why (Claude's choice; the user delegated the direction on October 19, away 8 h):**
 - The level grid's only departure from Bayes-optimal play inside the exact window is belief compression at N = 64 (12.74: 148 of 148 misses). A larger N removes it (12.75: 0 of 2,400 windows at N = 256 or 1,024).
 - A uniform larger N is expensive: level-4 episodes cost several times more.
