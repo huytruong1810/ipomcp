@@ -2,7 +2,7 @@
 
 Read this first: Section 0.00000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "the definitive Tiger level grid" (N0–N5).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.73, and the next free one is 12.74.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.74, and the next free one is 12.75.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1. Draft 1 is written for AAMAS and will be reframed in N5.
 - [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 standard.
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
@@ -17,7 +17,7 @@ Last updated October 19, 2026, evening, for a fresh session. Claude is the sole 
   - Held 12.37/12.40 trials are **not** reused: today's code does not reproduce their compressed beliefs (`gate/`).
   - Projected 228 CPU-h; expected to finish around 09:00 on October 20. When done: `PYTHONPATH=<run>/src python analyze.py` (written and tested on interim data) → RESULTS 12.73.
 - **N4(c) is done (RESULTS 12.72):** exact curves of the Bayes-optimal pairs, `results/n6_exact_curves_20261019/summary.txt`. On the published Tiger, step 3 is 2.663 for a pair at level 3 or above, and 2.148 at levels 1–2.
-- **N4(a) is running:** `results/n7_exact_replay_20261019` (`ENDPOINTS.md`; 2 workers; kill line 60).
+- **N4(a) is done (RESULTS 12.74).** Level 1 agrees on all 96,000 decisions; levels 2–4 on 97.7–100% per cell. All 148 diagnosed misses are compression at N = 64. History notes: `results/n7_exact_replay_20261019` (`ENDPOINTS.md`; 2 workers; kill line 60).
   - It replays N3 agents through the exact agent (`analysis.exact_replay`). Its jobs skip N3 trials not yet written, so **rerun `run.sh` once N3 is done** to fill the sample (finished trials are skipped).
   - Pilot: every replayed decision agrees with the exact maximizers (L2: 160/160; L3: 40/40; L4: 12/12), with level TV ≤ 0.044.
   - Result → RESULTS 12.74. Diagnosis of every disagreement: `diagnose_all.sh` (`diagnosis.jsonl`). As of 23:13, 9 of 9 are reproduced as configured and fixed by exact beliefs: belief compression at N = 64.

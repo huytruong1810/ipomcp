@@ -2299,6 +2299,40 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.74 N4(a): N3's agents against the Bayes-optimal agent along their own histories: level 1 is Bayes-optimal on all 96,000 decisions; levels 2–4 agree on 97.7–100% per cell, and every diagnosed miss is belief compression at N = 64 (October 20, 2026)
+
+**Why:** PLAN N4(a), the user's second priority: is the opponent modeling in the grid correct against the Bayes-optimal benchmark?
+
+**Design** (`results/n7_exact_replay_20261019`; `ENDPOINTS.md` fixed before the main run, with two recorded amendments; `job.py`, `analyze.py` → `analysis.txt`, `table.csv`, `disagreements.csv`; `diagnose.py` → `diagnosis.jsonl`):
+- Every intentional agent of every N3 cell, both games, is replayed along its own realized actions and observations through the exact agent of the same level (`analysis.exact_replay`). The exact agent uses the same frames, priors and H2 lookahead, with exact beliefs and exact nested models.
+- **Window and sample:** level 1 for 10 steps, trials 0–999; level 2 for 8 steps, trials 0–199; level 3 for 4 steps, trials 0–399; level 4 for 3 steps, trials 0–99.
+- **Measures at each decision:** whether the action is an exact maximizer; the total variation (TV) of the level posterior; the TV of the predicted opponent action.
+- **Amendment:** the published level-4 replays needed a 5 GB cap and ran after N3 (all succeeded).
+- **Cost:** 40.5 CPU-h of replays (kill line 60), plus 7.5 CPU-h of diagnosis.
+
+**Agreement with the exact maximizers** (decisions pooled over the 6 cell-agents of each game and level; cells of a row often replay the same history, so the pooled counts are not independent):
+
+| Game | Level | Window | Decisions agreeing | Range over cells | Level-posterior TV, mean / max | Prediction TV, mean / max |
+|---|---|---|---|---|---|---|
+| Coordination | 1 | 10 | **48,000 / 48,000** | 100% | 0 / 0 | 0 / 0 |
+| Coordination | 2 | 8 | 8,779 / 8,800 | 99.6–99.9% | 0.006 / 0.27 | 0.010 / 0.18 |
+| Coordination | 3 | 4 | 8,361 / 8,400 | 97.8–100% | 0.005 / 0.08 | 0.002 / 0.08 |
+| Coordination | 4 | 3 | 1,793 / 1,800 | 97.7–100% | 0.011 / 0.09 | 0.006 / 0.05 |
+| Published | 1 | 10 | **48,000 / 48,000** | 100% | 0 / 0 | 0 / 0 |
+| Published | 2 | 8 | 8,739 / 8,800 | 99.0–99.9% | 0.006 / 0.25 | 0.009 / 0.17 |
+| Published | 3 | 4 | 8,329 / 8,400 | 98.8–99.3% | 0.005 / 0.09 | 0.002 / 0.06 |
+| Published | 4 | 3 | 1,799 / 1,800 | 99.7–100% | 0.011 / 0.08 | 0.007 / 0.06 |
+
+- **Level 1 is exactly Bayes-optimal** on every replayed decision: its beliefs over a uniform level-0 opponent are exact at N = 64.
+- **The 200 disagreements are near-ties.**
+  - Exact Q gaps have a median of 0.065 (published) and 0.09 (coordination). The largest is 6.0, at level 2 in the late steps.
+  - By step: 117 at step 3 (levels 3–4), and the rest at steps 4–8 (level 2).
+- **Diagnosis: 148 of 148 diagnosed disagreements have one cause.**
+  - Each disagreement is rebuilt with its trial's seeds at the disagreement step and decided three ways: as configured, with exact beliefs, and with exact beliefs at budgets 1,000.
+  - Every one is reproduced as configured, and every one picks an exact maximizer with exact beliefs. **Belief compression at N = 64 causes the misses, not search.**
+  - Coverage: all 118 at levels 3–4, and 30 of the 82 at level 2 (every one diagnosed before the sample, plus a seeded sample, `diagnose_jobs_sample.txt`). Cost: 7.5 CPU-h logged.
+- N4(b) (12.75) tests this on fixed trials, rather than on the disagreements alone.
+
 ### 12.73 N3, the definitive Tiger level grid: depth pays once (level 1 → 2) on the coordination Tiger and not again; inside the exact window, the I-POMCP pairs match the Bayes-optimal pairs except where N = 64 compression bites at level 3 on the published Tiger (October 20, 2026)
 
 **Why:** PLAN N3, the user's two priorities. First, low variance at the step the user named (step 3 of the published Tiger, where the user expected about 2.7). Second, a level grid i L0–4 × j L0–4 checked against the Bayes-optimal benchmark. The design (B, 10 steps) is the user's choice of October 19 (12.71).
