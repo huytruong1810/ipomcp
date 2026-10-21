@@ -2299,6 +2299,53 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.80 A3b: on held-out trials, near-tie escalation at gap ≤ 3 removes 60 of 62 miss histories at 0.38× the larger bound's CPU; both pre-fixed bars pass, so escalation becomes the recommended configuration (October 21, 2026)
+
+**Why:** 12.79 missed its miss bar narrowly at gap ≤ 1, and every miss it left had a base gap of 1.01–2.19. So the threshold was fixed at 3 (12.77: 97.5% of misses caught, 3.6% of decisions flagged) and the test was moved to trials that no analysis had used.
+
+**Design** (`results/n12_escalation_heldout_20261020`; `ENDPOINTS.md` with one amendment, both before any escalation result was read; `job.py`, `analyze.py` → `analysis.txt`):
+- **Why these trials:** 12.77's gap analysis used every decision of n7, so its trials are not held out.
+- **Held-out trials** (N3's cells and configuration):
+  - level 2: trials 200–299 (N3's own rows, replayed here for the first time);
+  - level 3: trials 400–599 (same);
+  - level 4: trials 100–199 (new windows; trials 0–1 reproduce N3's rows exactly).
+- **Arms:**
+  - base: N = 64;
+  - escalation: the shadow at N = 1,024 (level 2) or 256 (levels 3–4) decides when the base top-two gap is ≤ 3;
+  - CPU subsample: the first 10 held-out trials per cell, also run plain at N = 64 and at the larger N, in the same run.
+- **Replay reuse:** a replay reads only agent i's rows, so an escalation trial whose rows for i match the base's reuses the base replay. That covered 3,088 of 3,200 trials. Each chunk recomputed its first reused trial as a check: 580 of 580 identical.
+- **Cost:** 57.9 CPU-h logged, plus at most about 2 CPU-h lost in a restart (the amendment: a watchdog kill stopped GNU xargs; the run was restarted at 12 workers with a signal-safe wrapper). The kill line was 95.
+
+**Miss histories of agent i** (distinct histories, exact McNemar against base):
+
+| Game | Level | Distinct histories | Misses at N = 64 | With escalation | p |
+|---|---|---|---|---|---|
+| Coordination | 2 | 225 | 9 | 2 | 0.016 |
+| Coordination | 3 | 372 | 22 | **0** | 5 × 10⁻⁷ |
+| Coordination | 4 | 182 | 3 | **0** | 0.25 |
+| Published | 2 | 209 | 9 | **0** | 0.0039 |
+| Published | 3 | 370 | 17 | **0** | 1.5 × 10⁻⁵ |
+| Published | 4 | 182 | 2 | **0** | 0.5 |
+| All | | 1,540 | 62 | **2 (3%)** | |
+
+Escalation created no new miss (0 discordant pairs against it).
+
+**CPU over the window** (both agents; subsample, 10 trials per cell; ratio of means [95% bootstrap]):
+
+| Level | Trials | Escalation / larger N | Escalation / N = 64 |
+|---|---|---|---|
+| 2 | 60 | 0.68 [0.64, 0.72] | 4.6 [4.4, 4.8] |
+| 3 | 80 | 0.43 [0.42, 0.45] | 2.1 [2.0, 2.2] |
+| 4 | 100 | **0.35** [0.31, 0.39] | 1.5 [1.3, 1.7] |
+| All | 240 | **0.38** | 1.7 |
+
+- 3.3% of decisions were escalated (694 of 20,800), close to 12.77's 3.6%.
+- **By the reading fixed in advance** (at most 10% of base's misses left, at most 0.6 of the larger N's CPU), **both bars pass: 3% and 0.38.** Escalation at gap ≤ 3 becomes the recommended configuration.
+- **The two remaining misses are both coordination level 2:**
+  - **Trial 220, step 7** (the same history in cells j1 and j2): not escalated. Its base gap was 3.25, just over the threshold, and the exact loss is 2.59, so this is not a near-tie: compression made the base confidently wrong.
+  - **Trial 263, step 8:** escalated (gap 1.77), but the shadow at N = 1,024 chose the same action (loss 0.32). So the larger bound itself misses one held-out decision, which 12.75's trials (0 of 2,400) never showed.
+- **Cost where it lands:** escalation is cheapest relative to the larger bound where the larger bound is dearest (level 4: 0.35×). At level 2 the shadow's real-step updates dominate, so it costs 4.6× N = 64 there.
+
 ### 12.79 A3: near-tie escalation removes 34 of 38 miss histories at 0.34× the larger bound's CPU, missing the pre-fixed 10% bar narrowly (11% left); not adopted, and the paper reports the larger N (October 20, 2026)
 
 **Why:** PLAN A3. A shadow agent at the larger bound decides only when the planner's own top-two gap is at most 1 (`planning.escalation`, 12.77–12.78). Does it match the larger bound's agreement at a fraction of its cost?

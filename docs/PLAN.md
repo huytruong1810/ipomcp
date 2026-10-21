@@ -1,14 +1,9 @@
 # Plan: an adaptive belief bound with a certified compression error (from October 20, 2026)
 
-**Status (October 20, 23:00): A3b running.** A3 (RESULTS 12.79) narrowly missed its bar (11% of misses left against 10%) at 0.34× the larger bound's CPU.
-- **A3b, the held-out test at gap ≤ 3** (`results/n12_escalation_heldout_20261020`), uses the same bars as A3, with the reading fixed in `ENDPOINTS.md`.
-- **Trials no analysis has used:**
-  - level 2: trials 200–299;
-  - level 3: trials 400–599;
-  - level 4: fresh trials 100–199.
-- **Why not the trials HANDOFF named:** level 2 trials 100–199 and level 3 trials 100–399 were in 12.77's gap analysis, which chose the threshold, so they are not held out.
-- **Price:** about 65 CPU-h; the kill line is 95.
-- **If it passes**, escalation becomes the recommended configuration and A4 writes it up as a method subsection.
+**Status (October 21, 03:30): A3b passed (RESULTS 12.80).**
+- On held-out trials, escalation at gap ≤ 3 leaves 2 of 62 miss histories (3%, bar 10%) at 0.38× the larger bound's CPU (bar 0.6). It becomes the recommended configuration.
+- Next is A4, the write-up: a method subsection in the paper (base N = 64 plus a shadow at the larger bound that decides on near-ties) and the claims map, PAPER.md C1.
+- A3 (12.79) had missed narrowly at gap ≤ 1 (11% left).
 
 **Earlier status (October 20, 16:25):**
 - A1 (RESULTS 12.76): the compression error does not predict the misses (AUC 0.50), so that trigger is dropped.

@@ -2,7 +2,7 @@
 
 Read this first: Sections 0.0000000 and 0.000000 are enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. This session's sections are 12.70–12.79, and the next free one is 12.80.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.80 are the latest; the next free one is 12.81.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1.1 (Sections 5.3 and 7.3 are new).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -48,7 +48,12 @@ Last updated October 21, 2026, 03:30, for a fresh session. Claude is the sole ow
 2. **Figures.** Upload the figures to Overleaf. `overleaf_upload_file` needs an existing folder, so put them at the project root or create the folder in the Overleaf UI.
 3. **References.** Pages are missing for Sonu & Doshi 2015, Panella & Gmytrasiewicz 2017 and Schwartz et al. 2022 (marked TODO in the .bib).
 
-**Next:** the queued experiments, HANDOFF 0.000000 items 2 (the held-out escalation test) and 3 (UAV breadth). Then fill in the results.
+**Update (October 21, 03:30):**
+- **Item 2 is done (RESULTS 12.80):** near-tie escalation at gap ≤ 3 passes both pre-fixed bars on held-out trials. It is now the recommended configuration and needs a method subsection.
+- **Item 3 is running:** `results/v2_uav_replay_20261021` replays the 12.49 UAV level grid (levels 1–2, 12 agent-cell series × 100 trials) through the exact agent.
+  - Price about 13 CPU-h; kill line 30.
+  - It needed a fix to `analysis.exact_replay` for numeric observations (commit 0f5ce71).
+- **Then:** fill in the paper results.
 
 ### 0.000000 Start here: the level grid is done; recommended direction (October 20, 21:00)
 
