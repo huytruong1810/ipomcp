@@ -318,6 +318,12 @@ Every solve is seeded from a canonical digest of the modeled belief and the conf
 
 Finally, we keep positive probability on level 0 in every prior over levels. With deterministic observations, a modeled $j$ whose model of $i$ is concentrated on one level can receive an observation that this model deems impossible, leaving $\SE_{\theta_j}$ undefined; since the no-information model gives every action positive probability, level-0 mass keeps the update defined whenever the observation is possible at all.
 
+%----------------------------------------------------------------------
+\subsection{Near-Tie Escalation}
+\label{sec:escalation}
+
+Compression with a small bound $N$ can change a decision only where the decision is close. The planner measures closeness itself: the gap between its two largest scored values, $Q^\star(\emptyset, a_{(1)}) - Q^\star(\emptyset, a_{(2)})$. Each agent at level 2 or higher therefore keeps a \emph{shadow}: the same planner, with the same seeds, at a larger bound $N' > N$, conditioned on the same realized actions and observations and updated at every real step. When the base planner's top-two gap is at most a threshold $g$, the shadow decides instead; otherwise the base planner's decision stands. A modeled agent is solved by the base planner only, so escalation changes the agent's real decisions but not its predictions of others. We use $N = 64$, $N' = 1{,}024$ at level 2 and $N' = 256$ at levels 3 and 4, and $g = 3$ in reward units. \todo{share of decisions escalated and cost relative to the uniform larger bound (results).}
+
 %======================================================================
 \section{When Does a Deeper Model Pay?}
 \label{sec:depth}
