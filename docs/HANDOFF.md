@@ -82,6 +82,9 @@ Last updated October 21, 2026, 03:30, for a fresh session. Claude is the sole ow
   - the Claude Doc, rev 104: a lead paragraph and a section "The definitive level grid" with two figures. Not yet updated for 12.76–12.79.
 - **Lessons** (Section 6):
   - GNU xargs stops the whole run when a child dies of a signal. The watchdog must kill the Python grandchild (`watchdog2.sh` in the run folders).
+    - **Even that is not enough if the xargs child `exec`s `timeout`:** `timeout` re-raises its child's signal, and xargs still stops. This happened October 20, 23:48, in n12.
+    - **Robust form:** make the xargs child an `sh -c '...timeout ... python job.py ...; exit 0'` with no `exec` (see `results/n12_escalation_heldout_20261020/run.sh`).
+    - Do not run `pkill -f '<pattern>'` from the Bash tool: the pattern matches the tool's own shell, which kills the command. Kill by PID.
   - Exact replays need `clear_caches()` between trials.
   - A replay written after the trials file can be cut short by a kill, and the job then skips it on rerun. Check replay line counts.
   - Compare CPU only within concurrent arms (12.79's amendment).
