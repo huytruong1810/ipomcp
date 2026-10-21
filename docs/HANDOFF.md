@@ -2,7 +2,7 @@
 
 Read this first: Sections 0.0000000 and 0.000000 are enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.81 are the latest; the next free one is 12.82.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.82 are the latest; the next free one is 12.83.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1.1 (Sections 5.3 and 7.3 are new).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 

@@ -413,6 +413,41 @@ All planners are implemented in Python and run single-threaded, one process per 
 \subsection{The Level Grid}
 \todo{expected reward over the grid against the exact pair curves; the value of each additional level in both tiger games.}
 
+\subsection{Whom Does Each Agent Believe It Faces?}
+\label{sec:identification}
+
+An agent of level $l$ maintains a posterior over the other agent's level, the marginal of its interactive belief over $M_{j,l-1}$. Figure~\ref{fig:identification} shows this posterior over the level grid. One observation looks puzzling at first: a level-2 agent comes to believe that the other agent is of level 1 whether the other agent is in fact of level 1, 2, 3 or 4 (panels a and c). After 10 steps it assigns 0.91--0.95 to level 1 in both games, against 0.08 when the other agent is random. Three findings explain this behavior.
+
+\paragraph{The observer converges to its closest hypothesis.} A level-2 agent can represent only two hypotheses about the other agent: the no-information model (level 0) and level 1. When the true model is not among the hypotheses, the posterior concentrates on the hypothesis whose predictions are closest to the truth in Kullback--Leibler divergence \cite{berk1966limiting}, not on the least informative one. Every planning agent listens until the growls agree and then opens a door, which level 1 predicts and uniform play does not. Against an agent that does play at random, the same observer's belief in level 1 falls to 0.08 [0.07, 0.09] ($n = 2{,}500$, published game; 0.08 with $n = 15{,}000$ in the coordination game).
+
+\paragraph{In the published game, deeper agents do not act differently.} Table~\ref{tab:fixedpoint} gives, from exact solutions, the share of belief chains in the published game where the optimal actions of level $k+1$ differ from those of level $k$. From level 2 upward the hierarchy is at a fixed point: an agent of level $k+2$ best-responds to an agent of level $k+1$ that acts exactly as one of level $k$, so by induction an agent of any level $l \geq 2$ acts as one of level 2 at this lookahead. The episodes agree. Against a random opponent, the planner at levels 2 and 3 takes the same 10-step action sequence in 90\% of 700 paired trials, and where the two diverge, the level-3 agent's own top-two value gap is at most 1 in 88\% of cases, i.e., the divergences are near-ties broken differently. By contrast, in the coordination game levels 1 and 2 diverge in 24\% of trials against a random opponent and 62\% against a level-1 opponent, and the level-2 agent's median top-two gap at the first divergence is 7.4 and 8.3, respectively; this is where an additional level pays (Section~\ref{sec:depth}).
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Levels $k \to k+1$ & $1\!\to\!2$ & $2\!\to\!3$ & $3\!\to\!4$ & $4\!\to\!5$ & $5\!\to\!6$ \\
+\midrule
+Chains & 21 & 63 & 189 & 567 & 81 \\
+Optimal actions differ & 29\% & 0\% & 0\% & 0\% & 0\% \\
+\bottomrule
+\end{tabular}
+\caption{Exact solutions of the published tiger game ($H = 2$): the share of belief chains at which the optimal actions of level $k+1$ differ from those of level $k$. From level 2 upward the hierarchy is at a fixed point.}
+\label{tab:fixedpoint}
+\end{table}
+
+\paragraph{Levels are distinguished when they are represented and act differently.} A level-3 observer, whose hypotheses are levels 0--2 (panels b and d), assigns 0.90 to level 0 when the other agent is random, and its posterior mode is the true level when the other agent is of level 1 (0.49 against 0.45 for level 2 in the published game; 0.52 against 0.42 in the coordination game) or of level 2 (0.50 against 0.45; 0.53 against 0.43). An agent of level 3 or 4, which the observer cannot represent, is assigned to level 2, its closest representable model (0.49--0.59), and never to level 0 (at most 0.06). The separation between levels 1 and 2 is modest because the two act identically in most histories. For the same reason, a level-4 observer in the published game keeps 0.27--0.35 on each of levels 1--3 whatever the other agent's level: levels that act identically cannot be told apart by any observer, so this spread reflects non-identifiability, not an inference error.
+
+\paragraph{The posteriors are Bayes-exact.} Replayed along the same histories through the exact agent, the planner's posterior over the other agent's level differs from the exact posterior by a mean total variation of 0.004--0.012 per observer and cell (maximum 0.27), and by less than 0.01 in 67--83\% of decisions, over 300--1{,}600 decisions per cell.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{level_identification.pdf}
+\caption{Posteriors over the other agent's level in 10-step episodes of the level grid, both tiger games. (a, c) A level-2 observer's probability that the other agent is of level 1, by the other agent's true level (mean and 95\% interval; $n = 2{,}500$ (published) and $15{,}000$ (coordination) for levels 0--2, $700$ for level 3, $100$ for level 4). (b, d) A level-3 observer's posterior at step 10 ($n = 700$; $100$ for level 4); colors denote the same level in all panels.}
+\label{fig:identification}
+\end{figure*}
+
 \subsection{Comparison with the Baselines}
 \todo{IPF + RTS and I-NTMCP on the same decisions and at matched CPU; anytime UAV episodes.}
 

@@ -2299,6 +2299,29 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.82 P1: whom does each agent believe it faces? Level identification over the level grid, with exact backups (reviewer question, October 21, 2026)
+
+**Why:** the user asked whether the experiments explain why a level-2 j converges on "i is level 1" as i's level rises from 1 to 3 (first answered in 12.47 on the October 7 page's trials). This section redoes it on the definitive grid (12.73: n up to 15,000 per cell, levels 0–4, both games) for the paper section of the same name. There are no new episodes.
+
+**Design** (`results/p1_level_identification_20261021`: `analyze.py` → `analysis.txt`, CSVs, `level_identification.pdf`; `divergence_gaps.py` → `divergence_gaps.txt`; cost under 0.1 CPU-h):
+- the posteriors over the other's level from N3's rows;
+- the exact replay's posterior TV from n7 (12.74);
+- the exact fixed point from 12.47 (`screen_table.csv`);
+- behavior paired by trial across cells.
+
+**Findings:**
+- **A level-2 observer, after 10 steps:** P(other is level 1) is 0.91–0.95 for any planning other (levels 1–4, both games; n = 100–15,000), and 0.078 [0.071, 0.086] against a random other (published, n = 2,500); coordination 0.077 (n = 15,000).
+- **Exact fixed point (published, H2):** level k+1's optimal actions differ from level k's at 29% of chains for 1→2, and at 0% for 2→3, 3→4, 4→5 and 5→6.
+- **Episodes (published, against a random opponent):** levels 2 and 3 take identical 10-step action sequences in 90% of 700 trials. Where they diverge, the level-3 agent's top-two gap is ≤ 1 in 88% of cases (near-ties).
+- **Episodes (coordination):** levels 1 and 2 diverge in 24% (against level 0) and 62% (against level 1) of trials. At the first divergence the level-2 agent's median gap is 7.4 and 8.3, so the behavior genuinely differs.
+- **A level-3 observer at step 10:**
+  - 0.90 on level 0 against a random other;
+  - its mode is the true level for others at levels 1 and 2 (published 0.49 vs 0.45 and 0.50 vs 0.45; coordination 0.52 vs 0.42 and 0.53 vs 0.43);
+  - others at levels 3–4 are assigned to level 2 (0.49–0.59), with level 0 at most 0.06.
+- **A level-4 observer (published):** 0.27–0.35 on each of levels 1–3 whatever the truth. Those levels act identically, so they cannot be identified.
+- **Exactness:** the planner's level posterior against the exact agent's, over the exact window, has a mean TV of 0.004–0.012 per observer and cell (max 0.27), with TV < 0.01 in 67–83% of decisions.
+- **In the paper:** results subsection "Whom Does Each Agent Believe It Faces?", with Figure `level_identification.pdf` and the fixed-point table.
+
 ### 12.81 V2: the UAV level grid against the Bayes-optimal agent: 10,582 of 10,652 decisions agree; all 70 others are one decision explained by the tie convention, not by error (October 21, 2026)
 
 **Why:** HANDOFF 0.000000 item 3. 12.74's replay against the Bayes-optimal agent covered only the Tiger games. UAV reconnaissance already had a level grid (12.49), so no new episodes were needed.
