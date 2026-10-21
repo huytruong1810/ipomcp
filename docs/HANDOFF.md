@@ -1,16 +1,54 @@
 # Handoff
 
-Read this first: Section 0.000000 is enough to start. Then, as needed:
+Read this first: Sections 0.0000000 and 0.000000 are enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
 - [RESULTS.md](RESULTS.md): every number, with its n and its reference. This session's sections are 12.70–12.79, and the next free one is 12.80.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1.1 (Sections 5.3 and 7.3 are new).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
-Last updated October 20, 2026, 21:00, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
+Last updated October 21, 2026, 03:30, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
 - `main` is clean and pushed. There are 402 tests, and ruff is clean. **Nothing is running.**
-- **Next: Section 0.000000, "Recommended direction".**
+- **Next: Section 0.0000000.**
 
 ## 0. Start here (fresh agent)
+
+### 0.0000000 The IJCAI-27 paper frame is in Overleaf (October 21, 03:30)
+
+**What happened:** the user approved the HANDOFF 0.000000 item 1, with these constraints:
+- the venue is **IJCAI 2027**;
+- the stale October 14 NeurIPS draft in Overleaf (written by another agent) could be replaced freely;
+- **lay down the frame only**: motivation, related work, contributions, method, pseudocode, diagram and setup. The abstract, results, discussion and conclusion stay as minimal `\todo` stubs, because queued experiments will strengthen them;
+- **match the voice and notation of Piotr's I-POMDP paper** (Gmytrasiewicz & Doshi 2005, JAIR 24);
+- **no internal development content in the paper**: no RESULTS tags, phase names or tried-and-failed history, unless it is rephrased as motivation.
+
+**State:**
+- **Source of truth:** `docs/paper/latex/`. It holds `main.tex`, `references.bib`, and the official IJCAI-27 kit's `ijcai27.sty` and `named.bst` (downloaded from ijcai.org/authors_kit; the 2027 kit is out). It also holds `archive/main_neurips_20261014.tex`, a backup of the replaced draft.
+- **Overleaf:** project `ipomcp` (id `6acc4adefcee94ea0b627b1d`, shared with piotr@uic.edu), reached through the `claudeleaf` MCP.
+  - Its four files mirror the folder; `neurips_2026.sty` was deleted.
+  - It compiles with no errors and no overfull boxes: 7 pages, with references on page 7.
+  - Mirror every local edit with `overleaf_replace_text`, or with `overleaf_set_document` for whole files. Check the sync by reading the document back.
+- **Notation follows the 2005 paper:**
+  - IS_{i,l} = S × M_{j,l−1};
+  - θ_j = ⟨b_j, θ̂_j⟩;
+  - SE_θ and τ;
+  - OPT(θ_j), ER_i, U^H and Q^H;
+  - level 0 is the no-information subintentional model;
+  - SẼ^N is the compressed update.
+  - Use `\cite` and `\shortcite` (the named style); `\citet` is a local macro.
+- **Content:**
+  - Section 4 holds Algorithm 1 (search), Algorithm 2 (compressed update and modeled solves), Propositions 1–2 (exact scoring, certified intervals) and Figure 1 (TikZ).
+  - Section 5 holds the depth proposition.
+  - Section 6 holds the setup, with `\todo`s for the exact-window lengths, the trials per cell, the I-NTMCP tuning protocol and the anytime budgets.
+
+**Open issues for the results stage:**
+1. **Page budget.** The frame already runs to about 6.3 pages, which leaves under 1 page for results within the 7-page limit. Candidate cuts:
+   - move Algorithm 2 and the domain details to the supplement;
+   - fold Section 5 into the results;
+   - shorten the setup.
+2. **Figures.** Upload the figures to Overleaf. `overleaf_upload_file` needs an existing folder, so put them at the project root or create the folder in the Overleaf UI.
+3. **References.** Pages are missing for Sonu & Doshi 2015, Panella & Gmytrasiewicz 2017 and Schwartz et al. 2022 (marked TODO in the .bib).
+
+**Next:** the queued experiments, HANDOFF 0.000000 items 2 (the held-out escalation test) and 3 (UAV breadth). Then fill in the results.
 
 ### 0.000000 Start here: the level grid is done; recommended direction (October 20, 21:00)
 
