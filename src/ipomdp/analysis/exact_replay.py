@@ -68,8 +68,8 @@ class ExactReplay:
         planner, agent, other = self.planner, self.agent, self.other
         planner.belief, out = self.prior, []
         for before, row in zip(rows, rows[1:]):
-            action = row.get(f"action_{agent}")
-            if row.get("status") == "Window" or not isinstance(action, str):
+            action = _token(row.get(f"action_{agent}"))
+            if row.get("status") == "Window" or action is None:
                 break
             if self.max_steps is not None and row["step"] > self.max_steps:
                 break
@@ -93,14 +93,27 @@ class ExactReplay:
                     "support": len(planner.belief.mass),
                 }
             )
-            observation = row.get(f"observation_{agent}")
-            if not isinstance(observation, str):
+            observation = _token(row.get(f"observation_{agent}"))
+            if observation is None:
                 break  # the episode ended
             try:
                 planner.update_root(self.actions[action], self.observations[observation])
             except InferenceBudgetExceeded:
                 break
         return out
+
+
+def _token(value):
+    """A recorded action or observation as the str(.) key of its domain object; None when missing.
+
+    Rows read back from CSV hold numeric tokens as floats (UAV observations are row indices, read as 1.0),
+    so an integral float maps to the str of its int.
+    """
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
 
 def _tv(p, q):
