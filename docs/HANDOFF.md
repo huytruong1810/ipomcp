@@ -2,7 +2,7 @@
 
 Read this first: Sections 0.0000000 and 0.000000 are enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.82 are the latest; the next free one is 12.83.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.83 are the latest; the next free one is 12.84.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1.1 (Sections 5.3 and 7.3 are new).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -53,6 +53,7 @@ Last updated October 21, 2026, 03:30, for a fresh session. Claude is the sole ow
 - **Item 3 is done (RESULTS 12.81):** the 12.49 UAV grid was replayed through the exact agent at 0.8 CPU-h. Every UAV and target decision at levels 1–2 agrees, except one recurring level-2 UAV decision (70 trials, step 6).
   - That decision is diagnosed as the tie convention: the planner's modeled target plays a subset of the exact target's tied maximizers, the level posterior diverges at step 5, and the planner is optimal for its own model.
   - It needed a fix to `analysis.exact_replay` for numeric observations (commit 0f5ce71).
+- **Paper scope (user, October 21; RESULTS 12.83):** no level or depth results on the original tiger game. Those results are Table 2 (the exact fixed point), the original-game panels, and the original game as the depth control. The original game stays only for single-decision exactness and the baselines. The level grid and level identification use the coordination game.
 - **Then:** fill in the paper results.
 
 ### 0.000000 Start here: the level grid is done; recommended direction (October 20, 21:00)

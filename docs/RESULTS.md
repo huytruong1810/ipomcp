@@ -2322,6 +2322,29 @@ The definition is in THEORY.md, "Tie convention".
 - **Exactness:** the planner's level posterior against the exact agent's, over the exact window, has a mean TV of 0.004–0.012 per observer and cell (max 0.27), with TV < 0.01 in 67–83% of decisions.
 - **In the paper:** results subsection "Whom Does Each Agent Believe It Faces?", with Figure `level_identification.pdf` and the fixed-point table.
 
+### 12.83 P1b: exact posteriors along the planner's histories; the paper drops level and depth results on the original tiger game (October 21, 2026)
+
+**Exact overlay** (`results/p1_level_identification_20261021/exact_posteriors.py`; `ENDPOINTS.md` section P1b with one amendment, both before any curve was read; 10.0 CPU-h; kill line 15):
+- **What:** the exact level-2 observer's belief update along the planner's own histories, steps 0–8. Only belief updates are computed, no planning.
+- **Trials:** levels 0–2 use trials 0–999; levels 3 and 4 use 700 and 100.
+- **Amendment:** the measured cost was 4.4 CPU-s per trial, so the cap moved from 2,500 to 1,000 trials.
+
+At step 8, the planner's P(other is level 1) minus the exact P(level 1), paired on the same trials (`analysis.txt` §6):
+
+| Game | Paired differences by cell (other at levels 0–4) | Largest magnitude | Mean absolute difference |
+|---|---|---|---|
+| Coordination | −0.0025, −0.0028, −0.0015, +0.0003, −0.0006 | 0.003 | 0.012–0.018 |
+| Original | −0.0019, −0.0007, −0.0007, −0.0005, −0.0013 | 0.002 | 0.017–0.020 |
+
+**Paper scope decision (user and reviewer, October 21):** no level or depth results on the original tiger game.
+- **Why:** Table 2 (the exact fixed point from level 2 up, 12.47) and the related text suggest that I-POMDP modeling is wasted compute in such setups.
+  - That is a claim about the framework in general.
+  - It needs a proof rather than experiments on a few belief points, one horizon and levels up to 6.
+- **Removed from the paper:** Table 2, the fixed-point paragraph, the original-game panels of Figure 2, the non-identifiability remark, and "the original game serves as a control".
+- **Kept:** the original game, defined in the setup, for single-decision exactness and the baseline comparison.
+- **Coordination game only:** the level grid and the level-identification subsection.
+- **Code and data are kept:** 12.47, 12.82 and this section's runs remain on disk for later work.
+
 ### 12.81 V2: the UAV level grid against the Bayes-optimal agent: 10,582 of 10,652 decisions agree; all 70 others are one decision explained by the tie convention, not by error (October 21, 2026)
 
 **Why:** HANDOFF 0.000000 item 3. 12.74's replay against the Bayes-optimal agent covered only the Tiger games. UAV reconnaissance already had a level grid (12.49), so no new episodes were needed.
