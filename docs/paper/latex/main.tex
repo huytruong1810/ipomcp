@@ -338,7 +338,7 @@ Exact scoring carries much of this precision: at level 3 and horizon 3 it reduce
 \subsection{Episodes against the Exact Agent}
 \label{sec:episodes}
 
-Table~\ref{tab:decisions} checks decisions at chosen beliefs. To check the beliefs the agents reach in play, we replay every agent of the coordination level grid through the exact agent over its exact window. At level 1, every one of 48{,}000 decisions is optimal ($n = 1{,}000$ episodes per cell). At levels 2, 3 and 4, 8{,}779 of 8{,}800, 8{,}361 of 8{,}400 and 1{,}793 of 1{,}800 decisions are optimal ($n = 200$, 400 and 100 per cell), and the posterior over the other agent's level differs from the exact one by a mean total variation of 0.005--0.011.
+Table~\ref{tab:decisions} checks decisions at chosen beliefs. To check the beliefs the agents reach in play, we replay every agent of the coordination level grid through the exact agent over its exact window. At level 1, every one of 48{,}000 decisions is optimal (up to 1{,}000 episodes per cell). At levels 2, 3 and 4, 8{,}779 of 8{,}800, 8{,}361 of 8{,}400 and 1{,}793 of 1{,}800 decisions are optimal (up to 200, 400 and 100 episodes per cell), and the posterior over the other agent's level differs from the exact one by a mean total variation of 0.005--0.011.
 
 The 67 other decisions are near-ties (median exact gap 0.09) with one cause: rebuilt with its episode's seeds, each of the 61 we examined reproduces its action and chooses an optimal one when given exact beliefs, so belief compression at $N = 64$ causes them. On the same episodes, a larger bound ($N = 1{,}024$ at level 2, 256 at levels 3--4) leaves no departure in 1{,}200 episode windows, against 21 distinct histories with one at $N = 64$ (sign test, $p < 10^{-6}$).
 
