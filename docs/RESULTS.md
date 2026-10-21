@@ -2299,6 +2299,41 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.85 S0 claims audit: against the stronger I-NTMCP variant, I-POMCP's UAV lead at matched CPU is +14.0 (n.s. after Holm) at M = 4,000 and +2.5 to +2.7 at M = 16,000; the paper's +42.3 used the weaker variant (October 22, 2026)
+
+**Why:** the S0 claims audit (`docs/paper/CLAIMS_AUDIT.md`, item A1) found that the paper's UAV matched-CPU comparison (12.67, endpoint 2) uses the tuned I-NTMCP variant. The paper calls it the stronger one, but on UAV the released variant earns more at every M ≤ 16,000. This section redoes endpoint 2 against both variants, from stored episodes (0 new episodes).
+
+**Design** (`results/g3_uav_episodes_20261018/analyze_released.py` → `analysis_released.txt`):
+- The matching rule is 12.67's: the most expensive point-mass I-POMCP arm with no more median CPU, or the cheapest arm if none qualifies.
+- Paired by trial (n = 30). The stronger variant is chosen per (H, M) by mean reward, and Holm runs over those 8 tests.
+- **Cost:** under 1 CPU-min.
+
+| H | M | Stronger variant (reward) | I-POMCP arm (reward; CPU ratio) | Difference [95%] | Holm p | Tuned variant, for comparison |
+|---|---|---|---|---|---|---|
+| 4 | 1,000 | released (17.5) | own-50 (33.5; 1.5, *more* CPU) | +16.0 [8.0, 27.0] | 0.019 | +36.2 |
+| 4 | 4,000 | released (20.8) | own-250 (34.8; 0.79) | **+14.0 [4.3, 27.5]** | **0.12** | +42.3 |
+| 4 | 16,000 | released (32.2) | own-250 (34.8; 0.22) | **+2.7 [1.7, 3.7]** | **10⁻⁴** | +4.7 |
+| 4 | 64,000 | both 35.0 | own-1,000 (35.0; 0.29) | 0 | 1 | 0 |
+| 5 | 1,000 | released (9.0) | own-50 (31.7; 6.2, *more* CPU) | +22.7 [7.7, 39.8] | 0.061 | +42.7 |
+| 5 | 4,000 | released (28.2) | own-50 (31.7; 1.3, *more* CPU) | +3.5 [0.7, 6.8] | 0.12 | +20.7 |
+| 5 | 16,000 | released (32.0) | own-250 (34.5; 0.58) | **+2.5 [1.2, 4.0]** | **0.010** | +3.5 |
+| 5 | 64,000 | both 35.0 | own-1,000 (35.0; 0.51) | 0 | 1 | 0 |
+
+**Findings:**
+- **Against the stronger variant, I-POMCP still leads wherever the planners differ, with less CPU,** but by less than the paper says:
+  - +2.7 (H4) and +2.5 (H5) at M = 16,000, both significant;
+  - +14.0 at M = 4,000 (H4), not significant after Holm at n = 30.
+- **The paper's "+42.3 [23.7, 63.2]" is against the weaker variant,** and the sentence "the variant as released gives no better results" is false on UAV. On Wumpus the tuned variant is as strong or stronger (12.65), so Table 1's I-NTMCP cell stands.
+- **Paper action (S7):**
+  - Report the stronger variant per budget.
+  - Drop "no better results" from Section 6.3.
+  - Raise n for the matched comparison in S4. The own-budget I-POMCP arms and I-NTMCP at M ≤ 16,000 cost under 15 s per decision, so 100 more episodes per arm need no exact references and cost a few CPU-h.
+- **Other audit findings** (no new data; recorded in the audit and applied in S7):
+  - Table 1's UAV L3 H2 "640" double-counts two modeled arms of 320 problems, so the total is 2,787 decisions, not 3,107.
+  - Section 7.6 mixes 12.60's trials 0–99 death rates with the fresh-trial gain.
+  - The level-posterior TV range is 0.004–0.011, not 0.005–0.011.
+  - The stored UAV level matrix contradicts the plain cognitive-hierarchy hypothesis: 0 → 1 loses against an opponent two levels up (target −3.5, Holm p = 0.032; UAV −16.4, p = 0.055). This is the predictability effect, and S5 tests the refined H-CH′.
+
 ### 12.84 Coordination-only splits for the paper: escalation removes 32 of 34 held-out miss histories at 0.41× the larger bound's CPU; the exact pair lies in the I-POMCP interval at 97 of 100 agent-steps (October 21, 2026)
 
 **Why:** the paper reports no level or depth results on the original tiger game (12.83). 12.74, 12.75, 12.80 and 12.73 pooled both games, so their coordination-only counts are recomputed here from stored data (0 new episodes).
