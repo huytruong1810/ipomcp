@@ -2299,7 +2299,7 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
-### 12.81 V2: the UAV level grid against the Bayes-optimal agent: 11,512 of 11,582 decisions agree; all 70 others are one decision explained by the tie convention, not by error (October 21, 2026)
+### 12.81 V2: the UAV level grid against the Bayes-optimal agent: 10,582 of 10,652 decisions agree; all 70 others are one decision explained by the tie convention, not by error (October 21, 2026)
 
 **Why:** HANDOFF 0.000000 item 3. 12.74's replay against the Bayes-optimal agent covered only the Tiger games. UAV reconnaissance already had a level grid (12.49), so no new episodes were needed.
 
