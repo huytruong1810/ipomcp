@@ -3,7 +3,7 @@
 Read this first: Section 0.00000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
 - [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.83 are the latest; the next free one is 12.84.
-- [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1.1 (Sections 5.3 and 7.3 are new).
+- **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
 Last updated October 21, 2026, 21:45, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
