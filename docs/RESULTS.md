@@ -2299,6 +2299,39 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.81 V2: the UAV level grid against the Bayes-optimal agent: 11,512 of 11,582 decisions agree; all 70 others are one decision explained by the tie convention, not by error (October 21, 2026)
+
+**Why:** HANDOFF 0.000000 item 3. 12.74's replay against the Bayes-optimal agent covered only the Tiger games. UAV reconnaissance already had a level grid (12.49), so no new episodes were needed.
+
+**Design** (`results/v2_uav_replay_20261021`; `ENDPOINTS.md` fixed before the run; `job.py`, `analyze.py` → `analysis.txt`):
+- **Replay:** every intentional agent of 12.49's grid goes through the exact agent of the same level (horizon 3, γ = 0.95, uniform nesting): the UAV at levels 1–2 against targets 0–2, and the target at levels 1–2 against UAVs 0–2. That is 12 series × 100 trials.
+- **Window:** level 1, the whole episode (up to 20 decisions); level 2, up to 10 decisions. No trial exceeded the 4 GB cap.
+- **Prerequisite:** this needed the `exact_replay` fix for numeric observations (commit 0f5ce71). Before it, UAV replays silently stopped after the first step.
+- **Cost:** 0.8 CPU-h, far below the 13 priced, because histories repeat across trials and the exact agent's caches persist within a chunk. The kill line was 30.
+
+| Agent | Level | Decisions agreeing [95% CP] | Level-posterior TV, mean / max |
+|---|---|---|---|
+| UAV | 1 | 3,079 / 3,079 [0.9988, 1] | 0 / 0 |
+| Target | 1 | 2,850 / 2,850 [0.9987, 1] | 0 / 0 |
+| Target | 2 | 2,733 / 2,733 [0.9987, 1] | 0 / 0 |
+| UAV | 2 | 1,920 / 1,990 [0.956, 0.973] | 0.007–0.016 / 0.27 |
+
+**The 70 disagreements are one decision:**
+- They all occur in cells i2_j0 (21) and i2_j2 (49), every one at step 6 after the same actions (listen, N, N, E, E), with the same exact loss of 1.604.
+- They span 57 observation sequences. The UAV's observations while moving are uninformative, so the exact belief does not depend on them.
+- The level-2 UAV flies to the corner where a level-1 target would hide. When the target is not there, the UAV listens, while the exact agent moves S.
+
+**Diagnosis** (not part of the fixed endpoints; `diagnose.py`, `diagnose_br.py`, `diagnose_levels.py`, three trials):
+- **Not compression, not search:** rebuilt with the trial's seeds, the agent reproduces "listen" as configured, with exact beliefs, and with exact beliefs at root and modeled budgets of 4,000. Its scored values do not move.
+- **Optimal for its own model:** the exact best response to the planner's own (search-solved) target models reproduces its values exactly (listen 6.692, S 6.639). The UAV decides optimally for the target it models.
+- **Where the difference comes from:**
+  - The planner's and the exact agent's posteriors over the target's level agree to 10⁻¹⁵ through step 4.
+  - After the step-5 update the planner puts 0 on a level-1 target, while the exact agent keeps 0.064.
+  - In that update, 13 of the 159 modeled level-1 target decisions differ from the exact ones. **All 13 are the planner's target playing a strict subset of the exact target's tied maximizers** (for example {E, N} against {E, N, listen}). None is outside the maximizers.
+- **Reading:** this is the tie convention of THEORY.md ("Three meanings of exact"; 12.50). The exact I-POMDP's modeled agent plays its ties uniformly; I-POMCP's plays its search's own tie choice. Both are equally rational opponents, but tied actions give the modeling agent different observations, so its best response can differ. No budget closes the gap.
+  - In these episodes the real target is itself an I-POMCP agent, so the planner's convention is the one that predicts the real target.
+  - Apart from this one convention-driven decision, every replayed UAV and target decision at levels 1–2 is Bayes-optimal.
+
 ### 12.80 A3b: on held-out trials, near-tie escalation at gap ≤ 3 removes 60 of 62 miss histories at 0.38× the larger bound's CPU; both pre-fixed bars pass, so escalation becomes the recommended configuration (October 21, 2026)
 
 **Why:** 12.79 missed its miss bar narrowly at gap ≤ 1, and every miss it left had a base gap of 1.01–2.19. So the threshold was fixed at 3 (12.77: 97.5% of misses caught, 3.6% of decisions flagged) and the test was moved to trials that no analysis had used.
