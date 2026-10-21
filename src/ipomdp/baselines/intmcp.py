@@ -226,7 +226,9 @@ class INTMCPAgent:
     ``values`` holds the root's action values after the last search, and
     ``search_cpu_seconds`` its process CPU. ``forced_shares`` records, per real
     update, the share of the new root belief whose own history contradicts the
-    real one (force-filled particles).
+    real one (force-filled particles). ``uct_c`` overrides the authors' default
+    exploration constant, r_max - r_min (None keeps it), to match a published
+    configuration.
     """
 
     def __init__(
@@ -239,6 +241,7 @@ class INTMCPAgent:
         seed,
         variant="published",
         agents=("i", "j"),
+        uct_c=None,
     ):
         if variant not in VARIANTS:
             raise ValueError(f"variant must be one of {VARIANTS}")
@@ -255,6 +258,7 @@ class INTMCPAgent:
             nesting_level=level - 1,
             num_sims=simulations,
             epsilon=gamma ** (horizon - 1.5),
+            uct_c=uct_c,
         )
         if variant == "tuned":
             target = simulations * 17 / 16

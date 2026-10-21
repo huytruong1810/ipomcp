@@ -12,6 +12,31 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
 
 ## 0. Start here (fresh agent)
 
+### 0.00000000000 Session of October 22 (in progress; read first, then 0.0000000000)
+
+**Done:**
+- S0 and S1: `docs/paper/CLAIMS_AUDIT.md` covers every paper number, with fixes, backups and the 4-figure plan.
+- RESULTS 12.85: against the stronger, released I-NTMCP variant, the UAV matched-CPU lead is +14.0 at M = 4,000 (Holm p = 0.12, n.s.) and +2.5 to +2.7 at M = 16,000. The paper's +42.3 used the weaker variant.
+- New `domains/runner_chaser.py`, the authors' Runner-Chaser as kernels. It is tested equal to their `RCModel` on every state and joint action.
+- `INTMCPAgent(uct_c=...)`: an optional parameter; leaving it unset keeps the authors' default.
+
+**Running or finished, not yet analysed** (S2 a/b; `results/s2_intmcp_fidelity_20261022`, `ENDPOINTS.md` fixed before the runs):
+- `authors/`: the authors' runner on their cap4 YAML (seed 0, 1,000 episodes), with its own venv. Its output goes to `authors/full_out` and `third_party/i-ntmcp/results/`.
+- `ours/`: our adapter, 1,000 episodes, rows in `ours/rows/*.jsonl`.
+- **Published target:** a runner return of 65.964 (SD 71.2, n = 1,000) against a random chaser, and 95.998 against an NST level-0 chaser.
+- **Next:** a two-sample test of each run against the published value, then write RESULTS 12.86.
+
+**S2(c), IPF + RTS against Doshi & Gmytrasiewicz (2009):**
+- **Target:** Fig. 17(a), multiagent tiger H3, RTS at K = 2–20, Np = 50 and 100. Read off the plot: Np = 100 gives about −18 / −14.5 / −4 at K = 2 / 3 / 4 and about +1 at K ≥ 16. Np = 50 gives about −20.5 / −19 / −9.5, then about 0. The error bars are about ±5–10.
+- **Also usable:** Fig. 15(a), whose exact H2 ≈ −2 and H3 ≈ 2.7 test our domain.
+- **Their setting:**
+  - i is their level 1, which is our level 2;
+  - i's prior is a uniform tiger and a uniform density over j's level-0 belief;
+  - j's belief is sampled per run;
+  - the score is i's undiscounted H-step reward, averaged over 10 policy trees × 100 runs.
+- **Gap:** our episode suite assumes a common prior. S2(c) needs a dedicated job, built from `experiments.problems.tiger_chain` and the RTS planner, that samples j's belief per run. Price it first; the estimate is 30–50 CPU-h.
+- The PDF can be re-downloaded from arXiv 1401.3455.
+
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
 
 **The user's brief (October 21, verbatim in substance):**
