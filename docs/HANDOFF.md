@@ -1,18 +1,146 @@
 # Handoff
 
-Read this first: Sections 0.0000000 and 0.000000 are enough to start. Then, as needed:
+Read this first: Section 0.00000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
 - [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.83 are the latest; the next free one is 12.84.
 - [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1.1 (Sections 5.3 and 7.3 are new).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
-Last updated October 21, 2026, 03:30, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
-- `main` is clean and pushed. There are 402 tests, and ruff is clean. **Nothing is running.**
-- **Next: Section 0.0000000.**
+Last updated October 21, 2026, 21:45, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
+- `main` is clean and pushed. There are 403 tests, and ruff is clean. **Nothing is running.**
+- **Next: Section 0.00000000.**
 
 ## 0. Start here (fresh agent)
 
-### 0.0000000 The IJCAI-27 paper frame is in Overleaf (October 21, 03:30)
+### 0.00000000 Start here (October 21, evening): goals, paper progress, next steps, and what not to repeat
+
+**State:**
+- Every run of October 20–21 is finished and written up: RESULTS 12.80–12.83, the latest sections. The next free one is 12.84.
+- The paper is in Overleaf. Its frame is complete, and the results are mostly `\todo` stubs.
+- No experiment is queued.
+
+#### 1. Goals (the user's)
+1. **Submit to IJCAI 2027** (confirmed October 20).
+   - The deadline is projected for mid-January 2027. IJCAI-26 had abstracts about a week before full papers; check the official call at ijcai.org.
+   - The format is 7 content pages plus 2 for references, with an anonymous submission. Appendices count toward the 7 pages, and supplementary material goes separately.
+2. **Experiments that are low-variance, benchmarked against the Bayes-optimal agent, and explainable,** on setups where interactive modeling matters: the coordination tiger game, UAV reconnaissance and the two-agent Wumpus world.
+3. **One clean codebase,** owned by Claude.
+
+#### 2. Paper: where it stands
+- **Source of truth:** `docs/paper/latex/`, with `main.tex`, `references.bib`, the official IJCAI-27 `ijcai27.sty` and `named.bst`, and `level_identification.pdf`.
+  - `NOTATION.md` is the voice and notation crib from Piotr's 2005 paper.
+  - `archive/` holds the replaced October 14 NeurIPS draft.
+- **Overleaf:** project `ipomcp` (id `6acc4adefcee94ea0b627b1d`, shared with piotr@uic.edu), reached through the `claudeleaf` MCP (load its tools with ToolSearch "claudeleaf").
+  - Mirror every edit:
+    - `overleaf_replace_text` for small changes, or `overleaf_set_document` for a whole file;
+    - check that the returned `length` equals `wc -c` of the local file;
+    - then `overleaf_compile`.
+- **Status by section** (compiles cleanly, but **8 pages: over budget**, see next step 1):
+
+| Section | Status |
+|---|---|
+| Title, introduction, contributions, background, related work | Done. The contributions are (1) I-POMCP, (2) near-tie escalation, (3) the evaluation |
+| 4 Method: compressed filter, search (Algorithm 1), exact scoring and certified intervals (Propositions 1–2), modeled solves (Algorithm 2), near-tie escalation | Done. The escalation subsection has a `\todo` for its share of decisions and its cost (from 12.80) |
+| 5 When does a deeper model pay? (Proposition 3) | Done (theory). Open question for the user: the line "a deeper agent … can only lose" against a random opponent; it may need softening |
+| 6 Experimental setup (domains, exact references, baselines, protocols, Rao-Blackwellized rewards) | Done. `\todo`s: exact-window lengths, trials per cell, I-NTMCP tuning protocol, anytime budgets |
+| 7.1 Decisions against the exact I-POMDP | `\todo` |
+| 7.2 Episodes against the exact agent | `\todo` |
+| 7.3 Level grid | `\todo` (coordination game only) |
+| 7.4 Whom does each agent believe it faces? | **Done** (12.82–12.83): Figure 2, coordination only, with the exact posterior overlaid |
+| 7.5 Baselines; 7.6 Value of depth | `\todo` |
+| Abstract results sentence, discussion, conclusion | `\todo`. Write these last |
+
+- **Writing rules from the user** (also in memory `paper-writing-style`):
+  1. **Voice and notation:** match Piotr's I-POMDP paper (Gmytrasiewicz & Doshi 2005, JAIR 24).
+  2. **No internal development content:** no RESULTS tags, phase names or tried-and-failed history.
+  3. **Verification belongs only in the setup and results.** Checks against exact solutions and the Bayes-optimal agent must stay out of the title, abstract, introduction, contributions, related work and method; they are not a highlight of the method.
+  4. **No level or depth results on the original tiger game** (12.83).
+     - The original game's exact fixed point from level 2 up suggests that I-POMDP modeling is wasted compute. That is a claim about the framework that needs a proof, which is out of scope.
+     - The original game stays only for single-decision exactness and the baselines.
+     - Level and depth results use only the coordination game, UAV and Wumpus.
+  5. **Define every term at first use.** For example, "original" game, "chains", and n is the number of independent episodes.
+  6. **Don't over-polish.** Frame first; results when they are in.
+
+#### 3. Next steps, in order
+1. **Page budget.** The paper is 8 pages, and the body ends on page 7 with the results nearly empty.
+   - Decide the cuts with the user. Candidates:
+     - Algorithm 2 to the supplement;
+     - the Wumpus and UAV domain prose into Table 1 plus the supplement;
+     - Section 5 down to the proposition and two sentences;
+     - Figure 1 (TikZ) made smaller;
+     - the exact-reference paragraphs shortened.
+   - Target about 4.5 pages of frame and 2.5 of results.
+2. **Fill in the results.** Source map: `docs/PAPER.md` and `docs/paper/draft.md` §5–8 hold the older prose. Apply rule 4 to all of it.
+   - **7.1 Decisions against the exact I-POMDP:**
+     - draft §5.2 table: 12.1–12.7, 12.23, 12.41–12.42, 12.46, 12.58;
+     - held-out beliefs: 12.69;
+     - certified intervals: 1,016 of 1,016 (12.17, 12.41).
+   - **7.2 Episodes against the exact agent:**
+     - 12.74–12.75;
+     - escalation: 12.80;
+     - UAV: 12.81, with the tie convention stated.
+     - 12.74 covered both tiger games. Ask the user whether the original-game cells may appear here as exactness, or whether this subsection also goes coordination-only; coordination-only is the recommendation.
+   - **7.3 Level grid** (coordination only): 12.72 (exact pair curves) and 12.73 (Rao-Blackwellized gains). Depth pays from level 1 to 2: +7.6 to +9.2 against levels 1–3.
+   - **7.5 Baselines:** 12.20, 12.43, 12.45–12.46, 12.59, 12.62, 12.65, 12.67, 12.68.
+   - **7.6 Value of depth:**
+     - episodes: 12.37 (coordination), 12.49 (UAV), 12.60–12.61 (Wumpus);
+     - exact screen: 12.22, 12.64;
+     - prediction against reward: 12.66. It contrasts with the original game, so it must be reframed or dropped.
+   - **Ablations table:** 12.63 (draft §8).
+   - **Escalation `\todo`:** 3.3% of decisions escalated; 0.38× the larger bound's CPU (12.80).
+3. **Regenerate the figures without original-game panels.**
+   - `docs/figures/grid_curves.png`, `grid_heatmap.png`, `depth_gain.png`, `prediction_vs_reward.png` and `bayes_optimal.png` all contain original-game ("published") panels; keep only the coordination game, UAV and Wumpus.
+   - `exactness.png` is in scope (single-decision exactness), but its row labels carry RESULTS tags such as "(12.1)", which rule 2 forbids; regenerate it without them.
+   - `anytime_uav.png` is fine: its "published" means I-NTMCP's published configuration.
+   - Scripts:
+     - `results/n5_level_grid_20261019/figures.py` (grid curves, heatmap);
+     - `results/n8_convergence_20261019/figure.py` (Bayes-optimal);
+     - `results/g5c_figure3_20261019/figure.py` (depth gain);
+     - `results/g5a_prediction_reward_20261018/figure.py` (prediction against reward);
+     - `results/g2_figure1_20261019/figure.py` (exactness);
+     - `results/p1_level_identification_20261021/analyze.py` (Figure 2; already coordination-only via `FIGURE_GAMES`).
+   - Upload PDFs to the Overleaf **root**: `overleaf_upload_file` needs an existing folder.
+4. **Bibliography:** pages are missing for Sonu & Doshi 2015, Panella & Gmytrasiewicz 2017 and Schwartz et al. 2022 (marked TODO in the .bib).
+5. **Abstract, discussion and conclusion,** once 1–3 are done.
+
+#### 4. Tried, failed or ruled out: do not repeat
+**Paper:**
+- Level or depth results on the original tiger game, including Table 2's exact fixed point. Removed at the user's and reviewer's request (12.83).
+- The "verified against exact solutions" framing in the title, introduction or contributions. Removed at the user's request.
+- Jargon without definitions ("published", "chains", "n"). Reviewers stumble on it.
+
+**Experiments:**
+- **Calling trials "held out" when an analysis used them.** 12.77's gap analysis used every n7 replay (level 2 trials 0–199, level 3 trials 0–399, level 4 trials 0–99). Truly held out: level 2 from 200, level 3 from 400, and new level-4 trials.
+- **Near-tie escalation at gap ≤ 1:** it failed the 10% bar (12.79). Gap ≤ 3 passed (12.80) and is adopted. The threshold is fixed; do not retune it on the held-out trials.
+- **Compression error (TV) as an escalation trigger:** AUC 0.50 (12.76).
+- **A larger real-step belief bound alone:** fixes only 40% (12.78). Escalation needs the whole shadow planner.
+- **A cache shared across trials:** saves only 1.36–1.46× (12.70); not built.
+- **Rerunning the level grid at a larger N,** or more variance reduction on the coordination game (Rao-Blackwellization gains only 1.1–1.4× there): not worth it.
+- **Pricing from a pilot on short or early histories:** P1b's pilot underpriced 3.6×, and N3-style pilots 1.8× under load. Price on representative or hardest trials, under the run's own load.
+- **Exact replays that store only summary distances:** the P1b overlay had to recompute the exact posteriors. Store raw exact posteriors and Q values when a replay might feed a figure.
+
+**Tooling:**
+- **GNU xargs stops the whole run when a child dies of a signal,** even with the watchdog killing the Python grandchild, if the xargs child `exec`s `timeout`, because `timeout` re-raises the signal. Use `sh -c '... timeout ... python job.py ...; exit 0'` with no `exec` (template: `results/n12_escalation_heldout_20261020/run.sh`).
+- **Never run `pkill -f` / `pgrep -f` / `ps | grep` on a pattern from the Bash tool:** the tool's own shell matches it. It killed the tool's shell twice and stalled a wait loop once. Kill by PID, wait on the xargs PID (`kill -0`), or filter `ps` on `$1 ~ /python/`.
+- **New domains:** `analysis.exact_replay` maps tokens by `str()`, and CSV turns integers into floats. That was fixed for numeric tokens (commit 0f5ce71), but check token parsing whenever a domain is new.
+- **Overleaf:**
+  - `overleaf_upload_file` takes only images and PDFs, into an existing folder. Text files need `create_document` then `set_document`.
+  - The compiled PDF cannot be downloaded (403). Check the compile log (pages, overfull boxes) and render figures locally.
+
+#### 5. Rules that bind
+- Commit and push `origin main` after every implementation.
+- Ask the user above 100 CPU-h and before deletions.
+- For every run:
+  - write `ENDPOINTS.md` and `KILL_CRITERION.txt` before it starts;
+  - snapshot `src` and check the import path;
+  - one process per job;
+  - the watchdog on the xargs PID;
+  - track cumulative CPU at every check;
+  - price under load.
+- Report style: n beside every number, jargon defined, the chosen method only.
+- The shared machine has 24 cores and 23 GB. Another project's jobs (`jepa_ipomdp`) use about 5 GB; use 12 workers for memory-heavy replays.
+
+### 0.0000000 The IJCAI-27 paper frame is in Overleaf (October 21, 03:30) (history; superseded by 0.00000000)
 
 **What happened:** the user approved the HANDOFF 0.000000 item 1, with these constraints:
 - the venue is **IJCAI 2027**;
