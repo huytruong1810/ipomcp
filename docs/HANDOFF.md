@@ -1,18 +1,82 @@
 # Handoff
 
-Read this first: Section 0.000000000 is enough to start. Then, as needed:
-- [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
+Read this first: Section 0.0000000000 is enough to start. Then, as needed:
+- [PLAN.md](PLAN.md): the phases, newest on top. **The top one is "a paper with take-home results" (S0–S7, not started).** Under it: "an adaptive belief bound" (A1–A4, done) and "the definitive Tiger level grid" (N0–N5, done).
 - [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.84 are the latest; the next free one is 12.85.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
-Last updated October 21, 2026, 23:30, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
+Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
 - `main` is clean and pushed. There are 403 tests, and ruff is clean. **Nothing is running.**
-- **Next: Section 0.000000000.**
+- **Next: Section 0.0000000000, then PLAN.md S0.**
 
 ## 0. Start here (fresh agent)
 
-### 0.000000000 Start here (October 21, late): the paper is complete and within the page limit
+### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
+
+**The user's brief (October 21, verbatim in substance):**
+- A stellar paper, with maximally explainable results that give the audience an intuitive understanding to take home.
+- Statistical errors low across the suite, so the paper can make a clear, rigorous point about **how much computation I-POMCP needs to reach benchmark performance**.
+- What happens as strategy levels increase; which **match-ups of levels** are interesting, and **what backs** each observation.
+- Every number, graph and plot must have a motivation and hold up to reviewer scrutiny.
+- If something looks off, identify the failure mode and go back to algorithm design.
+- The user trusts Claude's "taste in research": choose the direction, record the reasoning, don't ask the user to pick options.
+
+**Read with care:** the user also wrote "higher level agent must always outperform lower level agents". This is false (Proposition 3; UAV −7.2, coordination −0.9 against a random opponent), and the user was told so on October 21. **Do not tune anything to force it.**
+- Test the conditional form instead (PLAN.md, H-CH): one more level pays when the opponent reasons at or above the agent's current level.
+- Treat a disagreement between the planner's ordering of levels and the exact agent's as a failure mode (S3).
+
+**State:**
+- The paper compiles (Overleaf: 0 errors, 0 warnings; body ends on page 7 at about 539 of 650 pt; 8 pages in all). `supplement.tex` exists.
+- All results are from stored runs. RESULTS ends at 12.84; the next free section is 12.85.
+- `main` is clean and pushed. Nothing is running.
+
+**The plan is PLAN.md, top phase, S0–S7.** Start with S0 (claims audit, 0 CPU) and S1 (figure plan), then S2 (baseline fidelity). Claude's reasons for this order:
+- Without S0–S1, new runs have no target.
+- Without S2, every baseline gap can be dismissed as an implementation artifact. Our IPF + RTS is a reimplementation, and I-NTMCP runs through our adapter.
+
+**Things that look off: S3 items, with a first hypothesis for each**
+1. **Tie convention (UAV, RESULTS 12.81, 12.50–12.51).**
+   - All 70 UAV disagreements with the exact agent are one decision: the planner's modeled target plays a strict subset of its tied maximizers, while the exact I-POMDP plays them all uniformly.
+   - Design fix to try: a modeled solve returns every action whose certified interval overlaps the leader's (or whose scored value is within ε of it), played uniformly. That is the exact I-POMDP's convention whenever scoring is exact.
+   - A/B gate: the UAV replay goes from 70 disagreements to 0; tiger and Wumpus gates are unchanged; CPU cost is reported.
+2. **Root near-ties at UAV H5 with a uniform level prior (12.67).**
+   - Below root 64,000, 37–46 of 60 exactly scored decisions miss (gap 0.67). Root 64,000 fixes 19 of 19 at the same CPU, because the modeled target dominates the cost.
+   - Design fix to try: near-tie root escalation. Grow the root budget only while the top-two gap or the certified intervals do not separate, as the near-tie belief escalation does for N (12.80).
+   - A/B gate: against flat root 64,000 and flat 1,000, on the same histories.
+3. **Level-4 pairs above the exact pair at step 3 on the coordination game (12.73, `compare_exact.txt`).**
+   - i4_j1: 21.1 against exact 16.8; i4_j2 (j): 22.4 against 18.2; z ≈ 2, n = 100 on shared seeds. The current reading is one unlucky sample counted several times.
+   - Confirm on fresh seeds (more trials, three steps only) before the paper relies on Figure 2's level-4 panel. Price first.
+4. **Exact screen vs exact episodes, coordination game.**
+   - 12.22's screen gives a positive 3 → 4 value (0.81 at H2, at 6% of point-belief chains).
+   - 12.72's exact pair curves show level 4 identical to level 3 through step 3, from the uniform-prior start.
+   - Both can be true (point chains are not the reachable beliefs). Reconcile with a screen at beliefs reachable from the common prior (S5) before M2 claims "level 4 adds nothing".
+5. **Coordination 2 → 3:** exact +0.2 by step 3, planner n.s. by step 10 (n = 700).
+   - The 12.71 pricing says Monte Carlo precision there costs thousands of CPU-h. Do not buy it.
+   - Answer with exact values (screen at reachable beliefs, exact curves) and state the planner's interval as consistent.
+
+**Interesting match-ups we already have, with their backups** (for M2–M4; each needs a mechanism figure or sentence):
+- **A level-2 observer thinks everyone is level 1** (Figure 1). Backup: the KL closest-hypothesis argument (Berk 1966); a random opponent is identified (0.08); a level-3 observer separates levels; exact posteriors coincide (12.82–12.83).
+- **Depth pays once in the coordination game** (+7.8 from 1 to 2; nothing measurable from 2 to 3 or 3 to 4). Backup: the exact pair curves rise to level 3 and are flat from 3 to 4 (12.72). Item 4 above must be reconciled first.
+- **Over-thinking costs.** A level-2 UAV against a random target loses 7.2, flying to where a level-1 target would hide (12.49); the exact screen puts the cost at 1.6 per decision (12.64). Coordination: −0.9 against a random opponent.
+- **Predictability is costly.** A level-1 target is caught faster than a random one by a modeling UAV (−2.0, −3.5; 12.49).
+- **Asymmetric value of depth in Wumpus.** A second level pays the human (+169, fresh trials) but not the wumpus (+30, n.s.), whose lever is pursuit, already captured at level 1 (12.60).
+- **A third level predicts better but earns no more** (Wumpus: 0.54–0.55 against 0.48–0.50 on the actual move; +80 and +120, n.s.; 12.61). This is M2's "about one level above the opponent", in cognitive-hierarchy terms.
+- **The UAV target gains more from depth than the UAV** (+26 to +35 against +5.8; 12.49). The evader's level-2 model of pursuit is worth more than the pursuer's model of flight. Worth a mechanism trace.
+
+**Variance policy (the user's "low statistical errors"):**
+- Prefer zero-variance quantities: exact screens, exact pair curves, exact decision scoring.
+- Use Monte Carlo only to show the planner reproduces them, with paired designs, common random numbers and Rao-Blackwellization.
+- Before every run, fix a precision target: the CI half-width at most 10% of the effect, or of the exact value it is compared with.
+- If 12.71-style pricing shows a target is unaffordable, change the design (exact values, shorter horizons, fewer cells), not the target.
+
+**Gaps (S6):**
+- Wumpus has no held-out decision check.
+- Table 1's dashes: IPF + RTS was added cell by cell and is costly at H ≥ 4. I-NTMCP accepts only beliefs reachable from the common prior, so it ran only on Wumpus decisions and UAV episodes.
+
+**Tools from October 21** (see 0.000000000): the page probe for Overleaf; the tectonic preview (re-download into the scratchpad); difflib-region mirroring to Overleaf. The paper has about 100 pt of slack, so S7 will have to move material to the supplement as the new figures arrive.
+
+### 0.000000000 Start here (October 21, late): the paper is complete and within the page limit (history; superseded by 0.0000000000)
 
 **State:**
 - `docs/paper/latex/main.tex` has every section written, and it is mirrored to Overleaf. It compiles with 0 errors and 0 warnings to **8 pages: the body ends on page 7** (column 2, about 539 of 650 pt), and the references run from page 7 to page 8.

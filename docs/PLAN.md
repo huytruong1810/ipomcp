@@ -1,3 +1,38 @@
+# Plan: a paper with take-home results, low variance and fidelity backups (from October 21, 2026, late)
+
+**Why (user, October 21):** the paper must be stellar and maximally explainable.
+- Every number, graph and plot has a stated motivation and holds up to reviewer scrutiny.
+- Statistical errors are low enough for clear, rigorous claims, in particular: how much computation I-POMCP needs to reach benchmark (Bayes-optimal) performance.
+- Level match-ups are explained: what happens as strategy levels rise, which match-ups are interesting, and what backs each observation.
+- If something looks off, identify the failure mode and go back to algorithm design.
+- The user delegated the direction ("taste in research").
+
+**One correction to the brief, recorded so no agent forces it.** "A higher level always outperforms a lower one" is not true and is not what the data show.
+- Proposition 3: against an opponent whose actions do not depend on its beliefs (level 0), a deeper level gains nothing and can lose.
+- Measured: UAV −7.2 [−12.7, −2.6]; coordination tiger −0.9 [−1.1, −0.7].
+- **The testable hypothesis (H-CH, cognitive hierarchy):** the gain from level k to k + 1 is ≥ 0 when the opponent's level m ≥ k, and can be < 0 when m < k.
+- Report where H-CH holds and where it fails, each with its mechanism.
+- **Where the planner's ordering of levels disagrees with the exact agent's, that is a failure mode** (go to S3), not a result.
+
+**Take-home messages.** Every figure, table and number must serve one of these; anything that serves none moves to the supplement or is cut.
+- **M1, cost to reach the benchmark.** How much CPU per decision I-POMCP needs to make Bayes-optimal decisions, against IPF + RTS and I-NTMCP at every budget tested.
+- **M2, when depth pays.** One more level pays when the opponent's actions depend on its beliefs, up to about one level above the opponent's. The level match-up matrix, with zero-variance exact values where computable.
+- **M3, what agents believe about each other.** An observer converges to its closest representable hypothesis (Figure 1 today).
+- **M4, the cost of over-thinking.** Modeling a reasoner that is not there costs reward: the UAV anticipating a flight that never comes; a predictable level-1 target caught faster.
+
+| Step | What | Gate or deliverable |
+|---|---|---|
+| S0 | **Claims audit (0 CPU).** For every number, table and figure in `main.tex`: the message it serves (M1–M4), its source (RESULTS §), n, CI half-width, the strongest reviewer attack, and the backup that answers it. | `docs/paper/CLAIMS_AUDIT.md`. Items with no message are cut; items with no backup become S2–S6 work. |
+| S1 | **Fix the figure plan before any run.** At most 4 figures in the paper: compute-to-benchmark curves (M1), level match-up matrix (M2), identification (M3, exists), one mechanism panel (M4). Write each figure's one-sentence motivation and the exact claim it shows. | Section in CLAIMS_AUDIT. User sees it in the next report. |
+| S2 | **Baseline fidelity (before more comparisons).** IPF + RTS is our reimplementation; I-NTMCP runs through our adapter. Reproduce one published number of each on the original authors' setting: Doshi & Gmytrasiewicz 2009 (tiger, IPF + RTS curves); Schwartz et al. 2022 (a domain shipped with their code, through their own runner, then through our adapter). | Match within the published CIs, or document the difference. Without this, every baseline gap is attackable. |
+| S3 | **Algorithm design where results look off:** (a) tie convention; (b) root near-ties at UAV H5; (c) level-4 pairs above the exact pair at step 3; (d) exact screen vs exact episode curves. Details in HANDOFF 0.0000000000. | Each fix A/B-gated: bit-identical where it should not matter, agreement with the exact agent where it should. |
+| S4 | **Compute-to-benchmark (M1).** Fixed decision grids per domain, at least one cell where every baseline can run: coordination tiger L2 H3 and L3 H3, UAV L2 H3 and H4, Wumpus L2 H2. Sweep each planner's budget ladder: I-POMCP root/modeled budget and N; IPF + RTS K (and N); I-NTMCP M. Measure share optimal, mean first-action loss, and median CPU per decision. | n large enough that a 100% cell's Clopper–Pearson lower bound is ≥ 0.99 (n ≥ 459) where affordable; held-out beliefs only. Reuse stored ladders on the same problems. Price first. |
+| S5 | **Level match-up matrix (M2, M4), zero variance first.** Extend the exact screen (12.22 tiger, 12.64 UAV and Wumpus) to the full i 0–4 × j 0–4 matrix at reachable beliefs from the common prior, where exact solves fit. Exact pair curves (12.72) inside their windows. Planner episodes only to show the planner reproduces the exact ordering, with paired gains and precision targets. Test H-CH cell by cell. | Every interesting match-up gets a mechanism (behavior trace, posterior, exact Q gap). No Monte Carlo campaign where 12.71 priced the precision at > 1,000 CPU-h: use exact values or shorter horizons instead. |
+| S6 | **Coverage gaps.** Wumpus held-out decisions (the only domain without them). Table 1 baseline cells: IPF + RTS where cheap (coordination L4 H2, Wumpus L3 H2, original L3 H3; UAV L3 H2 priced). I-NTMCP on tiger problems built as histories from the common prior (its model class). | Every dash in Table 1 is either filled or explained in the caption. |
+| S7 | **Rewrite the results around M1–M4,** within 7 pages; supplement for the rest. Every figure from a committed script, with exact overlays and n in captions. | Overleaf compile; page probe ≤ page 7; CLAIMS_AUDIT complete. |
+
+Rules: price on the hardest cells under load; `ENDPOINTS.md` and `KILL_CRITERION.txt` before each run; ask the user above 100 CPU-h in total per step; back up before deleting.
+
 # Plan: an adaptive belief bound with a certified compression error (from October 20, 2026)
 
 **Status (October 21, 03:30): A3b passed (RESULTS 12.80).**
