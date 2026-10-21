@@ -1,37 +1,73 @@
 # Handoff
 
-Read this first: Section 0.00000 is enough to start. Then, as needed:
-- [PLAN.md](PLAN.md): the phases, newest on top. The top one is "the definitive Tiger level grid" (N0–N5).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. The latest sections are 12.70–12.78, and the next free one is 12.79.
-- [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1. Draft 1 is written for AAMAS and will be reframed in N5.
-- [THEORY.md](THEORY.md): what is computed exactly, what is estimated, the three meanings of "exact", and the ε = 0.05 standard.
-- [ARCHITECTURE.md](ARCHITECTURE.md): how the package fits together.
-- [RELATED_WORK.md](RELATED_WORK.md): the literature check.
+Read this first: Section 0.000000 is enough to start. Then, as needed:
+- [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. This session's sections are 12.70–12.79, and the next free one is 12.80.
+- [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md): the claims map and draft 1.1 (Sections 5.3 and 7.3 are new).
+- [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
-Last updated October 19, 2026, evening, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
-- `main` is clean and pushed. There are 390 tests, and ruff is clean.
-- **N1 is done (October 19; PLAN.md N1 status). Nothing is running.** N1(d) found no cache worth building (RESULTS 12.70).
-- **N2 was priced from data on disk (RESULTS 12.71). The user chose design B at 10 steps (October 19).**
-- **N3 is done (RESULTS 12.73; 231.7 CPU-h).** Figures: `docs/figures/grid_curves.png` and `grid_heatmap.png`. The (history) notes below describe the run: `results/n5_level_grid_20261019` (`ENDPOINTS.md`, `KILL_CRITERION.txt`: 420 CPU-h; xargs PID in `runner.pid`; `cpu_now.sh`; 6,810 chunk jobs, 14 workers, watchdog and memlog on the xargs PID).
-  - n: levels ≤ 2 at 15,000 (coordination) and 2,500 (published); level-3 row 700; level-4 row 100; 10 steps.
-  - Held 12.37/12.40 trials are **not** reused: today's code does not reproduce their compressed beliefs (`gate/`).
-  - Projected 228 CPU-h; expected to finish around 09:00 on October 20. When done: `PYTHONPATH=<run>/src python analyze.py` (written and tested on interim data) → RESULTS 12.73.
-- **N4(c) is done (RESULTS 12.72):** exact curves of the Bayes-optimal pairs, `results/n6_exact_curves_20261019/summary.txt`. On the published Tiger, step 3 is 2.663 for a pair at level 3 or above, and 2.148 at levels 1–2.
-- **N4(a) is done (RESULTS 12.74).** Level 1 agrees on all 96,000 decisions; levels 2–4 on 97.7–100% per cell. All 148 diagnosed misses are compression at N = 64. History notes: `results/n7_exact_replay_20261019` (`ENDPOINTS.md`; 2 workers; kill line 60).
-  - It replays N3 agents through the exact agent (`analysis.exact_replay`). Its jobs skip N3 trials not yet written, so **rerun `run.sh` once N3 is done** to fill the sample (finished trials are skipped).
-  - Pilot: every replayed decision agrees with the exact maximizers (L2: 160/160; L3: 40/40; L4: 12/12), with level TV ≤ 0.044.
-  - Result → RESULTS 12.74. Diagnosis of every disagreement: `diagnose_all.sh` (`diagnosis.jsonl`). As of 23:13, 9 of 9 are reproduced as configured and fixed by exact beliefs: belief compression at N = 64.
-- **N4(b) is done (RESULTS 12.75):** at N = 256 (levels 3–4) or 1,024 (level 2) no replayed decision disagrees with the exact agent (0 of 2,400 windows, against 38 histories at N = 64). History notes: `results/n8_convergence_20261019` (`ENDPOINTS.md`; the kill line was amended from 90 to 100 before it was reached).
-  - It reruns cells with i at level 2–4 for the exact window at N = 256 (and N = 1,024 at level 2), then replays i through the exact agent.
-  - At 02:37 it stopped when a hand kill of a `timeout` wrapper aborted xargs (Section 6). It was relaunched at 02:45 with `watchdog2.sh`; all three runs now use `watchdog2.sh`.
-  - **Rerun `run.sh` at the end** to fill any skipped chunk. Result → RESULTS 12.75.
-- **N5 write-up done October 20:** Figure 5 (`docs/figures/bayes_optimal.png`), Figures 6–7 (grid curves, heatmap), PAPER.md (C1 and C3 rows), draft 1.1 (Sections 5.3 and 7.3), and the Claude Doc (rev 104: lead paragraph plus the section "The definitive level grid", with two uploaded figures).
-- **Next phase, Claude's choice (PLAN.md top): an adaptive belief bound with a certified compression error.** A1 (12.76): the compression error does not predict the misses (AUC 0.50). **A1b (12.77): the planner's own top-two gap does (AUC 0.996; gap ≤ 1 catches 93.5% and flags 1.5%).** A2a (12.78): a larger real-step bound alone fixes 40% of the miss trials. Next: A2, a shadow agent at the larger bound that decides on near-ties.
-- **Draft figures** (on interim data): `results/n5_level_grid_20261019/figures.py` → `grid_curves.png`, `grid_heatmap.png`. Rerun without `--partial` when N3 is done.
+Last updated October 20, 2026, 21:00, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
+- `main` is clean and pushed. There are 402 tests, and ruff is clean. **Nothing is running.**
+- **Next: Section 0.000000, "Recommended direction".**
 
 ## 0. Start here (fresh agent)
 
-### 0.00000 Start here: the definitive Tiger level grid (user's direction, October 19, evening)
+### 0.000000 Start here: the level grid is done; recommended direction (October 20, 21:00)
+
+**What this session did** (October 19 evening to October 20; the user was mostly away and delegated the direction):
+
+- **N1 engineering** (commits e61afaf–f1f7feb, then 57e841a–95c8080 and 3c1c22a). New in the package:
+  - an `exact` planner kind for episodes (`study.ExactConfig`, with the exact window in `episodes`);
+  - `analysis.rao_blackwell`, Rao-Blackwellized (RB) rewards: the same estimand at lower variance;
+  - `analysis.exact_curves`, the exact pair curves;
+  - `analysis.exact_replay`, replaying an agent's history through the exact agent;
+  - `planning.escalation` (`AgentSpec.escalation`), near-tie escalation.
+- **Results:**
+
+| § | Result | CPU-h |
+|---|---|---|
+| 12.70 | A cache shared across trials saves only 1.36–1.46× at levels 3–4, so none was built | 8.6 |
+| 12.71 | The grid priced from data on disk; the user chose design B at 10 steps | 0 |
+| 12.72 | Exact Bayes-optimal pair curves: published Tiger step 3 is 2.148 at levels 1–2 and 2.663 at levels 3–4; coordination profile monotone to level 3, flat after | 4.6 |
+| 12.73 | **The definitive grid** (n up to 15,000 per cell, RB). Coordination 1→2 gains +7.6 to +9.2 against levels 1–3; nothing beyond level 2; published Tiger flat. Inside the exact window, 182 of 200 agent-steps contain the exact value | 231.7 |
+| 12.74 | Replay against the Bayes-optimal agent: level 1 agrees on 96,000/96,000 decisions, levels 2–4 on 97.7–100% per cell; 148/148 diagnosed misses are compression at N = 64 | 48 |
+| 12.75 | At N = 256 (levels 3–4) or 1,024 (level 2), no miss remains: 0/2,400 windows against 38 histories (p = 7 × 10⁻¹²) | 79 |
+| 12.76 | Compression error does not predict the misses (AUC 0.50) | 0.6 |
+| 12.77 | The planner's own top-two gap does (AUC 0.996; gap ≤ 1 catches 93.5% of misses and flags 1.5% of decisions) | 0 |
+| 12.78 | A larger real-step bound alone fixes 40% of miss trials (0/24 at level 3) | 3.5 |
+| 12.79 | Near-tie escalation removes 34/38 miss histories at 0.34× the larger bound's CPU. It misses the pre-fixed 10% bar (11% left), so it is not adopted; a threshold of 3 would have caught all of them | 82.5 |
+
+- **Write-up:**
+  - Figures 5–7 (`docs/figures/bayes_optimal.png`, `grid_curves.png`, `grid_heatmap.png`);
+  - PAPER.md, C1 and C3 rows;
+  - draft 1.1;
+  - the Claude Doc, rev 104: a lead paragraph and a section "The definitive level grid" with two figures. Not yet updated for 12.76–12.79.
+- **Lessons** (Section 6):
+  - GNU xargs stops the whole run when a child dies of a signal. The watchdog must kill the Python grandchild (`watchdog2.sh` in the run folders).
+  - Exact replays need `clear_caches()` between trials.
+  - A replay written after the trials file can be cut short by a kill, and the job then skips it on rerun. Check replay line counts.
+  - Compare CPU only within concurrent arms (12.79's amendment).
+
+**Recommended direction ("taste in research"), best first:**
+
+1. **Move the paper into Overleaf for IJCAI 2027** (deadline about January 15–19, projected; the user has not confirmed the venue; check the official call). **First action: check the `claudeleaf` MCP.**
+   - On October 20, `claude mcp list` showed `claudeleaf` (an Overleaf bridge, `npx -y claudeleaf mcp`, in `~/.claude.json`) as connected, but its tools were not loaded in that session.
+   - In the new session, run a tool search for "claudeleaf" or "overleaf". If its tools are present, find the ipomcp Overleaf project and confirm access with the user before writing to it: it is outward-facing.
+   - **Reframe:** "verified Bayes-optimal online planning for I-POMDPs". The level grid (5.3, 7.3) and the exactness gates (5.1–5.2) become the core evidence; the baselines (6) and the value of depth (7) support it. IJCAI allows 7 pages plus references: cut the ablations to a table and move the details to an appendix.
+   - Venue and author list are the user's call.
+2. **Near-tie escalation, the held-out test** (cheap; the method contribution that would make the grid result practical). Fix the threshold in advance at gap ≤ 3, from 12.77's data: it catches 97.5% of misses while flagging 3.6% of decisions. Then test on trials no analysis used:
+   - level-2 cells, trials 100–199 (N4(a) replays exist for 0–199);
+   - level-3 cells, trials 100–399;
+   - the level-4 row needs fresh N3-configuration windows (trials 100–199, cheap at N = 64, then replayed).
+   - Same endpoints and bars as 12.79. Price under load first; likely 40–80 CPU-h; ask the user above 100.
+   - If it passes, it becomes the recommended configuration and a method subsection: the base planner at N = 64 plus a shadow at the larger bound, deciding on near-ties.
+3. **Breadth for the Bayes-optimal claim: the same replay on UAV** (reviewers will say "only Tiger"). `analysis.exact_replay` is domain-generic, and RB is generic (tested on UAV). UAV L2 episodes exist (12.67 scored H4 decisions exactly); a grid of UAV levels 1–3 with exact windows needs pricing first.
+
+Not recommended: rerunning the grid at a larger N (12.75 already shows the effect, at several times the cost), or more variance reduction on the coordination Tiger (RB gains only 1.1–1.4× there, because the spread is the agents' own action draws; the paired gains are already tight).
+
+**Rules that bind:** as in 0.00000 below (commit and push after every implementation; ask above 100 CPU-h and before deletions; `ENDPOINTS.md` and `KILL_CRITERION.txt` before every main run; src snapshot; one process per job or chunk; `watchdog2.sh` on the xargs PID; `cpu_now.sh` at every check; price under load).
+
+### 0.00000 The definitive Tiger level grid: the plan as of October 19, evening (history; done, see 0.000000)
 
 **The task.** Build the experiment suite for the paper around the two priorities the user named:
 1. **Low statistical variance.** "Getting the number of trials up so we get less statistical variance (for example, for optimal policy in tiger game at time 3, the expected cumulative reward should be 2.7)."

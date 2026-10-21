@@ -1,6 +1,8 @@
 # Plan: an adaptive belief bound with a certified compression error (from October 20, 2026)
 
-**Status (October 20, 16:25):**
+**Status (October 20, 21:00): closed.** A3 (RESULTS 12.79) narrowly missed its bar (11% of misses left against 10%) at 0.34× the larger bound's CPU. It is not adopted; a held-out test at gap ≤ 3 is HANDOFF 0.000000's recommendation 2.
+
+**Earlier status (October 20, 16:25):**
 - A1 (RESULTS 12.76): the compression error does not predict the misses (AUC 0.50), so that trigger is dropped.
 - A1b (12.77): the planner's own top-two action-value gap does predict them (AUC 0.996; gap ≤ 1 catches 93.5% of misses and flags 1.5% of decisions).
 - **A2 is redesigned around this near-tie trigger:** re-decide a flagged decision with a larger belief bound.

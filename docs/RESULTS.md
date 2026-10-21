@@ -2299,6 +2299,47 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.79 A3: near-tie escalation removes 34 of 38 miss histories at 0.34× the larger bound's CPU, missing the pre-fixed 10% bar narrowly (11% left); not adopted, and the paper reports the larger N (October 20, 2026)
+
+**Why:** PLAN A3. A shadow agent at the larger bound decides only when the planner's own top-two gap is at most 1 (`planning.escalation`, 12.77–12.78). Does it match the larger bound's agreement at a fraction of its cost?
+
+**Design** (`results/n11_escalation_20261020`; `ENDPOINTS.md` with its amendment, both before any result was read; the kill line was amended from 80 to 95 before it was reached; `job.py`, `job_plain.py`, `analyze.py` → `analysis.txt`):
+- **Cells and trials:** N4(b)'s cells, trials 0–99, i's exact window.
+- **Escalation:** every agent at level ≥ 2 keeps N = 64 and a shadow at N = 1,024 (level-2 cells) or 256 (levels 3–4).
+- **Miss endpoint:** against N = 64 (12.74) and the larger N (12.75).
+- **CPU endpoint:** a concurrent subsample, trials 0–19 rerun alongside at N = 64 and at the larger N, so that every arm ran under the same load.
+- **Cost:** 82.5 CPU-h.
+
+**Miss histories of agent i** (distinct histories, exact McNemar against N = 64):
+
+| Game | Level | Misses at N = 64 | With escalation | p |
+|---|---|---|---|---|
+| Coordination | 2 | 5 | 3 | 0.5 |
+| Coordination | 3 | 9 | **0** | 0.0039 |
+| Coordination | 4 | 7 | 1 | 0.031 |
+| Published | 2 | 9 | **0** | 0.0039 |
+| Published | 3 | 7 | **0** | 0.016 |
+| Published | 4 | 1 | **0** | 1 |
+| All | | 38 | 4 (11%) | |
+
+At the larger N there were 0 (12.75). Escalation created no new miss.
+
+**CPU over the window** (both agents, concurrent subsample, trials 0–19 per cell; ratio of means [95% bootstrap]):
+
+| Level | Trials | Escalation / larger N | Escalation / N = 64 |
+|---|---|---|---|
+| 2 | 120 | 0.77 [0.72, 0.83] | 4.9 [4.6, 5.3] |
+| 3 | 160 | 0.45 [0.43, 0.48] | 2.3 [2.2, 2.4] |
+| 4 | 200 | **0.30** [0.27, 0.32] | 1.75 [1.63, 1.89] |
+| All | 480 | **0.34** | 2.0 |
+
+- 1.4% of decisions were escalated (231 of 16,000).
+- **By the reading fixed in advance** (at most 10% of N = 64's misses left, at most 0.6 of the larger N's CPU), **the cost criterion passes but the miss criterion fails narrowly: 11%.** Escalation is not adopted as the recommended configuration. The paper reports the larger N (12.75) and states escalation as a promising, partly validated method.
+- **Where the rest lies:** none of the remaining misses was escalated. Their base gaps are 1.01–2.19 (five cell-trials, four distinct histories), so a threshold of 3 would have caught every one. This is consistent with 12.77's catch rates.
+  - At level 2, a gap of at most 1 catches 85% of misses; at most 2 catches 90%; at most 3, 94%.
+  - A larger threshold, chosen in advance and tested on held-out trials, is the natural next test. From 12.77's data, a threshold of 3 catches 97.5% while flagging 3.6% of decisions.
+- **The shadow's real-step updates dominate escalation's cost at level 2.** There escalation costs 4.9× N = 64, against 1.75× at level 4.
+
 ### 12.78 A2a: a larger bound on the real-step belief alone fixes only 40% of the miss trials (0 of 24 at level 3), so escalation must re-decide with the larger bound throughout (October 20, 2026)
 
 **Why:** PLAN A2a. The package bounds real-step beliefs (`particles`) and search beliefs (`search_particles`) separately. If the harmful compression were in the real-step belief only, escalation would need just a larger real bound.
