@@ -1,0 +1,162 @@
+%%%% I-POMCP: supplementary material for the IJCAI-27 submission
+
+\documentclass{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+
+% Notation of the main paper
+\newcommand{\IS}{\mathit{IS}}
+\newcommand{\SE}{\mathit{SE}}
+\newcommand{\ER}{\mathit{ER}}
+\newcommand{\OPT}{\mathit{OPT}}
+\newcommand{\SEN}{\widetilde{\SE}^{N}}
+\newcommand{\hth}{\hat{\theta}}
+\renewcommand{\Pr}{\mathit{Pr}}
+
+\title{Interactive POMCP: Supplementary Material}
+\author{Anonymous Submission}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Overview and Pseudocode}
+
+Figure~\ref{fig:overview} summarizes the search, and Algorithm~\ref{alg:filter} gives the compressed update of Section~4.1 of the paper together with the recursive solution of the other agent's models (Section~4.4).
+
+\begin{figure}[h]
+\centering
+\resizebox{0.8\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\footnotesize,
+    box/.style={draw, rounded corners=2pt, align=center, inner sep=2pt, minimum height=0.7cm},
+    hist/.style={draw, circle, inner sep=1.2pt, minimum size=0.55cm},
+    act/.style={draw, fill=black!8, rectangle, inner sep=1.5pt, minimum size=0.35cm},
+    arr/.style={-{Stealth[length=1.6mm]}},
+    dasharr/.style={-{Stealth[length=1.6mm]}, dashed}
+]
+% (a) search tree
+\node[hist] (h) at (0,0) {$h$};
+\node[right=0.1cm of h, align=left] {$b_h$};
+\node[act] (a1) at (-1.6,-1.2) {$a_i$};
+\node[act] (a2) at (0,-1.2) {$a_i'$};
+\node[act] (a3) at (1.6,-1.2) {$a_i''$};
+\draw (h) -- (a1); \draw (h) -- (a2); \draw (h) -- (a3);
+\node[hist] (c1) at (-2.4,-2.6) {};
+\node[hist] (c2) at (-1.6,-2.6) {};
+\node[hist, dashed] (c3) at (-0.8,-2.6) {};
+\draw (a1) -- node[left, pos=0.55] {$o_i$} (c1);
+\draw (a1) -- (c2);
+\draw[dashed] (a1) -- (c3);
+\node[below=0.05cm of c1, align=center] {$\SEN(b_h, a_i, o_i)$};
+\node[below=0.05cm of c3, align=center, text width=1.6cm] {unsampled:\\ bounded};
+\node[hist] (c4) at (0.3,-2.6) {};
+\draw (a2) -- (c4);
+\node[hist] (c5) at (1.6,-2.6) {};
+\draw (a3) -- (c5);
+\node[font=\footnotesize\bfseries] at (0,0.75) {(a) Search over $i$'s private histories};
+
+% (b) modeled solve
+\node[box, text width=3.0cm] (draw) at (4.3,-0.2) {draw $(s, \theta_j) \sim b_h$};
+\node[box, text width=3.0cm, below=0.3cm of draw] (solve) {modeled solve of $\theta_j$\\ (I-POMCP one level down,\\ memoized by belief)};
+\node[box, text width=3.0cm, below=0.3cm of solve] (step) {$a_j \sim \Pr(\cdot \mid \theta_j)$,\\ $s' \sim T_i$, $o_i \sim O_i$};
+\draw[arr] (draw) -- (solve);
+\draw[arr] (solve) -- (step);
+\draw[dasharr] (h.east) ++(0.3,0) -- (draw.west);
+\draw[dasharr] (step.west) -- (a3.east);
+\node[font=\footnotesize\bfseries] at (4.3,0.75) {(b) One simulated step};
+\end{tikzpicture}}
+\caption{Overview of I-POMCP. (a) The search tree over $i$'s own histories; every history $h$ carries $i$'s interactive belief $b_h$, computed with the compressed filter $\SEN$, and observation branches that search did not sample enter the certified intervals at the bounds of the reward range. (b) In a simulated step, an interactive state is drawn from $b_h$, and the other agent acts by the solution of its own model.}
+\label{fig:overview}
+\end{figure}
+
+\begin{algorithm}[h]
+\caption{Compressed update and modeled solves}
+\label{alg:filter}
+\begin{algorithmic}[1]
+\STATE \textbf{procedure} \textsc{Policy}$(\theta_j)$ \hfill ($\theta_j$ at level $k$)
+\IF{$k = 0$}
+    \STATE \textbf{return} the uniform distribution over $A_j$
+\ENDIF
+\IF{the canonical digest of $\theta_j$ is cached}
+    \STATE \textbf{return} the cached policy
+\ENDIF
+\STATE run Algorithm~1 of the paper for $j$ at $b_j$ with the modeled budget, solving $j$'s models of $i$ by \textsc{Policy} at level $k-1$
+\STATE \textbf{return} the uniform distribution over $\arg\max_{a_j} Q^\star$, and cache it
+\STATE
+\STATE \textbf{procedure} $\SEN_{\theta_i}(b_i, a_i, o_i)$
+\STATE $b' \leftarrow 0$
+\FORALL{$(s, \theta_j) \in \mathrm{supp}(b_i)$, $a_j$ with $\pi = \textsc{Policy}(\theta_j)(a_j) > 0$, $s'$, $o_j$}
+    \STATE $w \leftarrow b_i(s, \theta_j)\, \pi\, T_i(s, a, s')\, O_i(s', a, o_i)\, O_j(s', a, o_j)$
+    \STATE $\theta_j' \leftarrow \langle \SEN_{\theta_j}(b_j, a_j, o_j), \hth_j \rangle$ \hfill (unchanged at level 0)
+    \STATE $b'(s', \theta_j') \leftarrow b'(s', \theta_j') + w$ \hfill (canonical merge)
+\ENDFOR
+\STATE normalize $b'$
+\IF{$|\mathrm{supp}(b')| > N$}
+    \STATE $b' \leftarrow$ $N$ stratified draws from $b'$ in canonical order, merged
+\ENDIF
+\STATE \textbf{return} $b'$
+\end{algorithmic}
+\end{algorithm}
+
+
+\paragraph{Adaptive modeled budget.} A modeled solve grows one search tree by doubling its number of simulations from a small pilot size. After each doubling it compares the gap between its two leading actions with a Bonferroni-corrected $t$ critical value times the spread of the same gap across a few independent pilot trees, and it stops as soon as the gap exceeds that threshold. At its cap, the solve is identical to a flat search with the cap's budget, so the rule is consistent.
+
+\section{Domains}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+Domain & $|S|$ & $|A_i|$ & $|A_j|$ & Observations \\
+\midrule
+Tiger (both games) & 2 & 3 & 3 & 6 per agent \\
+UAV reconnaissance & 81 & 5 & 5 & 3 / 27 \\
+Wumpus world, $3 \times 3$ & 2{,}048 & 5 & 3 & percept sets \\
+\bottomrule
+\end{tabular}
+\caption{The domains. For the Wumpus world, $|S|$ counts the initial states.}
+\label{tab:domains}
+\end{table}
+
+\paragraph{Multi-agent tiger.} Two agents face two doors, one hiding a tiger and the other a prize. Each agent can listen or open a door; listening costs 1, opening the tiger's door costs 100 and opening the other door pays 10, and if either agent opens a door the tiger is placed at random. A listening agent hears the tiger's growl from the correct side with probability 0.85, together with a creak that reports the other agent's action with probability 0.9. In the \emph{coordination} game, an agent that opens the safe door in the same step as the other agent receives 40 instead of 10.
+
+\paragraph{UAV reconnaissance.} An unmanned aerial vehicle $i$ seeks a ground target $j$ on a $3 \times 3$ grid of sectors. Both agents move to an adjacent sector or stay. The UAV knows its own sector and, when it stays, observes the target's row with probability 0.8; the target knows its own sector and observes the UAV's row with probability 0.6. The UAV receives 50 for spotting the target, which ends the episode, and pays 5 for every other step; the target loses 50 when spotted. Parameters that the original description leaves open follow Zeng and Doshi (2012).
+
+\paragraph{Two-agent Wumpus world.} A human $i$ searches a $3 \times 3$ grid with one pit for gold, while a wumpus $j$ hunts the human. The human can move forward, turn, grab and shoot one arrow; the wumpus can move forward and turn. Both agents perceive deterministic sets of tokens: the human perceives bump, stench, breeze, glitter and scream, and the wumpus perceives bump, breeze, glitter and the human's footsteps within distance 2. The human receives 1000 for the gold and $-1000$ for dying, and the wumpus 1000 for catching the human and $-1000$ for being shot; every other step costs 1.
+
+\section{The Released Variant of I-NTMCP}
+
+The released code of I-NTMCP refills a belief after a real step by rejection sampling and, after 3{,}000 rejections, fills the rest with particles whose own observation contradicts the real one. Under the Wumpus world's deterministic percepts this \emph{force-filling} grows with the budget: in the 60 level-2, horizon-2 problems of Table~1 of the paper, the median force-filled share is 0, 0.17 and 0.43 at $M = 1{,}000$, 4{,}000 and 16{,}000 (maximum 0.99), and the released variant is optimal on 19, 32 and 29 of 60 problems, against 17, 32 and 34 for the reinvigorated variant. In the 20-step UAV episodes at horizon 4, the released variant force-fills 31--49\% of its beliefs on average at $M \geq 4{,}000$; it earns 17.5, 20.8, 32.2 and 35.0 at $M = 1{,}000$ to 64{,}000 ($n = 30$), and is optimal on 73--88\% of the exactly scored decisions for $M \leq 16{,}000$, against 120 of 120 for I-POMCP at budget 1{,}000.
+
+\section{Ablations}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}p{0.3\textwidth}p{0.64\textwidth}@{}}
+\toprule
+Component & Paired evidence \\
+\midrule
+Exact scoring at the root & Turning it off makes 34 of 560 UAV decisions suboptimal and none optimal (exact McNemar $p = 1.2 \times 10^{-10}$); it changes none of 1{,}786 tiger decisions \\
+Exact scoring with two steps left & Error of the optimal action's value at level 3, horizon 3: 0.06 without, 0.0006 with \\
+Compressed exact filter instead of the particle filter & Wumpus world: the particle filter fails on 55--57 of 60 problems; RTS on exact beliefs matches the smoothed particle filter \\
+Stratified instead of systematic compression & Systematic draws alias a pit cell on uniform beliefs (12 of 60 problems lose 102.5); stratified draws fix 31 of 34 discordant pairs and are worse on none \\
+Adaptive modeled budget & Same decisions as a flat 6{,}400 simulations at 0.52 times its CPU \\
+Root budget 1{,}000 instead of 4{,}000 & Error of the optimal action's value at level 2, horizon 4: 0.121 against 0.031, at 1.06 times the CPU \\
+Level priors with level-0 mass & A wrong point prior over the other agent's level costs 17.5--30.0 per episode, a uniform prior nothing significant; level-0 mass keeps the Wumpus updates at level 3 defined \\
+\bottomrule
+\end{tabular}
+\caption{What each component buys, from paired comparisons on the same problems or episodes.}
+\label{tab:ablations}
+\end{table}
+
+\end{document}

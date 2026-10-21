@@ -2299,6 +2299,28 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.84 Coordination-only splits for the paper: escalation removes 32 of 34 held-out miss histories at 0.41× the larger bound's CPU; the exact pair lies in the I-POMCP interval at 97 of 100 agent-steps (October 21, 2026)
+
+**Why:** the paper reports no level or depth results on the original tiger game (12.83). 12.74, 12.75, 12.80 and 12.73 pooled both games, so their coordination-only counts are recomputed here from stored data (0 new episodes).
+
+**Data and scripts:**
+- `results/n12_escalation_heldout_20261020/analyze_coordination.py` → `analysis_coordination.txt` (12.80's analysis restricted to the coordination cells).
+- 12.73's `compare_exact.csv`, filtered to the coordination game (|z| ≤ 1.96, the criterion of `compare_exact.py`).
+- 12.74's `disagreements.csv` and `diagnosis.jsonl`, filtered to the coordination game.
+
+| Measure (coordination game only) | Value | Pooled source |
+|---|---|---|
+| Disagreements with the exact agent, levels 2–4 (12.74) | 67 (21 + 39 + 7); median exact gap 0.090, max 5.99 | 200 |
+| Diagnosed (12.74) | 61 of 67; all 61 reproduce as configured and pick an exact maximizer with exact beliefs | 148 of 200 |
+| Distinct histories with a miss at N = 64 vs the larger N (12.75) | 21 vs 0 over 1,200 cell-trial windows; two-sided sign test p = 9.5 × 10⁻⁷ | 38 vs 0 over 2,400 |
+| Held-out escalation (12.80): miss histories, base → escalation | 34 → 2 (L2 9 → 2, L3 22 → 0, L4 3 → 0); no new misses | 62 → 2 |
+| Decisions escalated | 337 of 10,400 = 3.2% | 3.3% |
+| CPU, escalation / larger N (n = 120 subsample trials) | 0.41 (L2 0.67, L3 0.43, L4 0.39) | 0.38 |
+| Exact pair inside the I-POMCP RB 95% interval (12.73) | 97 of 100 intentional agent-steps; level-0 control 42 of 42 | 182 of 200; 76 of 84 |
+
+- The coordination-only numbers tell the same story as the pooled ones. The paper (Section 7.2–7.3) reports these.
+- **Cost:** under 1 CPU-min.
+
 ### 12.82 P1: whom does each agent believe it faces? Level identification over the level grid, with exact backups (reviewer question, October 21, 2026)
 
 **Why:** the user asked whether the experiments explain why a level-2 j converges on "i is level 1" as i's level rises from 1 to 3 (first answered in 12.47 on the October 7 page's trials). This section redoes it on the definitive grid (12.73: n up to 15,000 per cell, levels 0–4, both games) for the paper section of the same name. There are no new episodes.

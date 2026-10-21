@@ -1,18 +1,59 @@
 # Handoff
 
-Read this first: Section 0.00000000 is enough to start. Then, as needed:
+Read this first: Section 0.000000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. The top one is "an adaptive belief bound" (A1–A4, closed below); under it is "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.83 are the latest; the next free one is 12.84.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.84 are the latest; the next free one is 12.85.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
-Last updated October 21, 2026, 21:45, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
+Last updated October 21, 2026, 23:30, for a fresh session. Claude is the sole owner of `main`; there are no other agents.
 - `main` is clean and pushed. There are 403 tests, and ruff is clean. **Nothing is running.**
-- **Next: Section 0.00000000.**
+- **Next: Section 0.000000000.**
 
 ## 0. Start here (fresh agent)
 
-### 0.00000000 Start here (October 21, evening): goals, paper progress, next steps, and what not to repeat
+### 0.000000000 Start here (October 21, late): the paper is complete and within the page limit
+
+**State:**
+- `docs/paper/latex/main.tex` has every section written, and it is mirrored to Overleaf. It compiles with 0 errors and 0 warnings to **8 pages: the body ends on page 7** (column 2, about 539 of 650 pt), and the references run from page 7 to page 8.
+- `docs/paper/latex/supplement.tex` is new, also in Overleaf. It holds the overview figure (formerly Figure 1), Algorithm 2, the full domain specifications and table, the released I-NTMCP variant, and the ablation table.
+- RESULTS 12.84 holds the coordination-only splits that the paper uses (escalation, the exact-pair overlay, the diagnosis counts).
+- The bibliography is complete: pages filled from OpenAlex. Nothing is running.
+
+**Decisions taken this session** (standing autonomy rule; the user can reverse any of them):
+1. **7.2 is coordination-only.** The original game appears only in Table 1 (single decisions) and in the baselines.
+2. **Proposition 3's corollary is softened** to "gains nothing at that decision and may lose".
+3. **Cuts to fit 7 pages:**
+   - moved to the supplement: the TikZ overview figure, Algorithm 2, the domain table, the ablation table and the adaptive-budget detail;
+   - written inline: the depth-gain table, now one sentence in 7.6;
+   - the grid figure is now one row of 4 panels (`figures.py --paper`);
+   - IPF's "as published" is now "plain", and I-NTMCP's is "released";
+   - dropped: the prediction-vs-reward result, which works only as a contrast with the original game.
+4. **Figures:** the paper uses only `level_identification.pdf` (Figure 1) and `grid_curves.pdf` (Figure 2). The other `docs/figures/*.png` are not in the paper, so the original-game panels no longer matter there.
+
+**Paper map:**
+- 7.1 Table 1 (decisions; 3,107 decisions at I-POMCP's budgets);
+- 7.2 replay against the exact agent (coordination + UAV) and escalation;
+- 7.3 level grid with Figure 2;
+- 7.4 identification with Figure 1;
+- 7.5 baselines and anytime UAV;
+- 7.6 value of depth;
+- 8 limitations; 9 conclusion.
+
+**Next steps:**
+1. **"What is new" `\todo`** (Related Work): do a final literature check (2024–26 I-POMDP and nested-MCTS planners), then drop the todo. It is the only `\todo` left.
+2. **User and Piotr read-through.** Expect wording changes. Keep about 100 pt of slack on page 7.
+3. **Check the IJCAI-27 call** for the abstract and paper deadlines (ijcai.org), and for whether the supplement may be a separate PDF (assumed so).
+4. **Optional, if space is freed:** bring back the depth table, or a figure for 7.5 (`docs/figures/anytime_uav.png` is in scope).
+
+**How to measure pages without the PDF** (the Overleaf PDF and log URLs return 403):
+- Insert the probe before `\bibliographystyle`:
+  `\makeatletter\@latex@warning@no@line{PROBE page=\thepage\space total=\the\pagetotal\space goal=\the\pagegoal\space col=\if@firstcolumn 1\else 2\fi}\makeatother`
+- `overleaf_compile` returns it as a warning. Remove the probe afterwards.
+- **Local visual preview:** the tectonic 0.15.0 binary (GitHub release, musl build) works. Strip `\pdfinfo` and swap `times` for fontspec TeX Gyre Termes/Heros (`.otf` file names). Render the pages with `uvx --with pymupdf`. The preview runs about 230 pt shorter than Overleaf, so use Overleaf's probe for the page count.
+- **Mirroring large edits:** compute difflib regions between the old and new file, then apply `overleaf_replace_range` from the end of the file backwards. Afterwards, check that the length equals `wc -c`.
+
+### 0.00000000 Start here (October 21, evening): goals, paper progress, next steps, and what not to repeat (history; superseded by 0.000000000, but §1 goals, §4 tried-and-failed and §5 rules still bind)
 
 **State:**
 - Every run of October 20–21 is finished and written up: RESULTS 12.80–12.83, the latest sections. The next free one is 12.84.
