@@ -47,7 +47,7 @@
 /TemplateVersion (IJCAI.2027.0)
 }
 
-\title{Interactive POMCP: Online Planning in Finitely Nested I-POMDPs,\\Verified against Exact Solutions}
+\title{Interactive POMCP: Online Monte Carlo Planning\\in Finitely Nested I-POMDPs}
 
 \author{
     Anonymous Submission
@@ -59,7 +59,7 @@
 
 \begin{abstract}
 % TODO: final abstract once the results are in.
-Interactive POMDPs let an agent plan in the presence of other agents by maintaining beliefs over the physical state and over models of the other agents, including their beliefs. Exact solutions are out of reach beyond small problems, and the approximate online planners used in practice have been evaluated by the reward they collect, but not decision by decision against exact solutions. We present Interactive POMCP (I-POMCP), an online Monte Carlo tree search planner for finitely nested I-POMDPs whose nested beliefs are exact or compressed from exact updates, and whose search values are rescored with the exact observation law, yielding certified per-action value intervals. \todo{one or two sentences of results: exactness against exact I-POMDP solutions; agreement with the Bayes-optimal agent over the level grid; baselines; value of depth.}
+Interactive POMDPs let an agent plan in the presence of other agents by maintaining beliefs over the physical state and over models of the other agents, including their beliefs. Exact solutions are out of reach beyond small problems, and the online planners used in practice represent nested beliefs by sampled particles, which misjudge modeled agents near their decision thresholds and break down under deterministic observations. We present Interactive POMCP (I-POMCP), an online Monte Carlo tree search planner for finitely nested I-POMDPs whose nested beliefs are exact or compressed from exact updates, and whose search values are rescored with the exact observation law, yielding certified per-action value intervals. \todo{one or two sentences of results.}
 \end{abstract}
 
 %======================================================================
@@ -68,12 +68,12 @@ Interactive POMDPs let an agent plan in the presence of other agents by maintain
 
 An agent that shares its environment with other agents must predict what they will do, and when the other agents are themselves rational, their actions depend on what they believe, including what they believe about the original agent. Interactive POMDPs (I-POMDPs) \cite{gmytrasiewicz2005framework} formalize this situation from the point of view of an individual agent. They replace the ``flat'' beliefs over physical states used in POMDPs \cite{kaelbling1998planning} with beliefs over interactive states, which combine the physical state with models of the other agents. Intentional models ascribe to the other agent beliefs, preferences and rationality, so the beliefs nest. Finitely nested I-POMDPs bound the nesting at a strategy level $l$ and are the basis for computable approximations.
 
-The price of this expressiveness is computational. Each update of a level-$l$ belief must anticipate every action and observation of the other agent and update the other agent's level-$(l-1)$ belief accordingly, so the support of the interactive belief grows geometrically with time and with nesting. Each anticipated action of the other agent is itself the solution of the other agent's decision problem one level down. Exact solutions are therefore limited to small problems and short horizons \cite{rathnasabapathy2006exact}, and practice relies on sampling: interactive particle filters with reachability-tree sampling \cite{doshi2009monte}, adaptations of POMCP \cite{silver2010monte} to I-POMDPs \cite{hula2015monte}, and nested Monte Carlo tree search \cite{schwartz2022online}. These planners have been evaluated by the reward they collect in simulation; how often their individual decisions differ from those of an exact I-POMDP agent, and why, has not been measured. Sampled nested beliefs are also brittle: they move in steps of $1/N$, so a modeled agent close to a decision threshold can be predicted to take the wrong action, and under deterministic observations every particle can contradict what the agent perceives, leaving the update undefined.
+The price of this expressiveness is computational. Each update of a level-$l$ belief must anticipate every action and observation of the other agent and update the other agent's level-$(l-1)$ belief accordingly, so the support of the interactive belief grows geometrically with time and with nesting. Each anticipated action of the other agent is itself the solution of the other agent's decision problem one level down. Exact solutions are therefore limited to small problems and short horizons \cite{rathnasabapathy2006exact}, and practice relies on sampling: interactive particle filters with reachability-tree sampling \cite{doshi2009monte}, adaptations of POMCP \cite{silver2010monte} to I-POMDPs \cite{hula2015monte}, and nested Monte Carlo tree search \cite{schwartz2022online}. Sampled nested beliefs are brittle: they move in steps of $1/N$, so a modeled agent close to a decision threshold can be predicted to take the wrong action, and under deterministic observations every particle can contradict what the agent perceives, leaving the update undefined.
 
-In this paper we take the opposite route. We make the planner exact wherever exactness is affordable, and we check it against exact solutions wherever these can be computed. Our contributions are as follows.
+In this paper we take a different route: the planner computes nested beliefs and the quantities its search integrates exactly wherever this is affordable, and approximates only where it is not. Our contributions are as follows.
 \begin{enumerate}
     \item \textbf{I-POMCP}, an online planner for finitely nested I-POMDPs (Section~\ref{sec:method}). It searches over the agent's own observation histories, carries the agent's interactive belief down the search tree, and integrates immediate rewards and last-step values exactly. Nested beliefs are held exactly, or compressed from exact updates when their support exceeds a bound $N$. After search, the tree is rescored with the exact observation law, which makes the root values exact whenever the tree is complete and yields, at every decision, certified intervals on the exact action values of the searched model.
-    \item \textbf{A verification methodology for I-POMDP planners} (Section~\ref{sec:setup}). Single decisions are scored against the exact finite-horizon I-POMDP, in which every level is solved exactly. Whole episodes are replayed through the exact (Bayes-optimal) agent along the histories the planner actually reached. Episode rewards are estimated with a Rao-Blackwellized estimator that leaves the estimand unchanged and reduces its variance.
+    \item \textbf{Near-tie escalation} (Section~\ref{sec:escalation}): the planner's own gap between its two best action values identifies the decisions that belief compression can change, and only those are re-decided with a larger belief bound.
     \item \textbf{An evaluation across three domains and nesting levels 0--4} (Section~\ref{sec:results}): the multi-agent tiger game in its published and a coordination variant, UAV reconnaissance, and a two-agent Wumpus world; a comparison with the interactive particle filter with reachability-tree sampling and with nested Monte Carlo tree search; and an analysis, by proposition and in paired episodes, of when an additional level of reasoning pays (Section~\ref{sec:depth}).
 \end{enumerate}
 
@@ -111,7 +111,7 @@ Q^H(\theta_i, a_i) = \sum_{is} \ER_i(is, a_i)\, b_i(is)\\
 + \gamma \sum_{o_i \in \Omega_i} \Pr(o_i \mid a_i, b_i)\, U^{H-1}\big(\langle \SE_{\theta_i}(b_i, a_i, o_i), \hth_i \rangle\big),
 \label{eq:value}
 \end{multline}
-$\ER_i(is, a_i) = \sum_{a_j} R_i(is, a_i, a_j) \Pr(a_j \mid m_j)$, and $U^0 \equiv 0$. The optimal actions $\OPT(\theta_i)$ are the maximizers of Eq.~\ref{eq:value}. We call the agent that acts on $\OPT(\theta_i)$ at every step, with every level of the hierarchy solved exactly, the \emph{exact} (Bayes-optimal) I-POMDP agent.
+$\ER_i(is, a_i) = \sum_{a_j} R_i(is, a_i, a_j) \Pr(a_j \mid m_j)$, and $U^0 \equiv 0$. The optimal actions $\OPT(\theta_i)$ are the maximizers of Eq.~\ref{eq:value}.
 
 %======================================================================
 \section{Related Work}
@@ -121,7 +121,7 @@ $\ER_i(is, a_i) = \sum_{a_j} R_i(is, a_i, a_j) \Pr(a_j \mid m_j)$, and $U^0 \equ
 
 \paragraph{Sampling-based planning.} The interactive particle filter \cite{doshi2009monte} represents the belief at each nesting level by $N$ sampled particles, weighted by the agent's observation likelihood, and reachability-tree sampling (RTS) looks ahead by expanding $K$ sampled observations per node; together they are the standard approximation for finitely nested I-POMDPs and our first baseline. I-POMDP Lite \cite{hoang2013interactive} assumes that the other agent observes the physical state, so it cannot represent the other agent's beliefs about the original agent. \citet{hula2015monte} adapted POMCP to I-POMDPs to explain human behavior in a trust game. I-NTMCP \cite{schwartz2022online} builds one Monte Carlo search tree per nesting level over particles of states and histories, and predicts the other agent's action by a softmax over visit counts in the tree one level down; it requires only a generative model of the domain, and it is our second baseline. Type-based planners such as POTMMCP \cite{schwartz2023combining} scale online planning to large partially observable games against a finite set of fixed policies, rather than against agents that model the planner. IPOMDP-Net \cite{han2019ipomdpnet} learns an I-POMDP model and plans with a QMDP approximation inside a neural network.
 
-\paragraph{What is new.} To our knowledge, no prior I-POMDP planner has been scored decision by decision against exact I-POMDP solutions, provides certified bounds on its action values, or maintains uncertainty over the other agent's level jointly with its nested beliefs. \todo{update after a final literature check.}
+\paragraph{What is new.} To our knowledge, no prior I-POMDP planner holds nested beliefs as exact updates with bounded compression, provides certified bounds on its action values, or maintains uncertainty over the other agent's level jointly with its nested beliefs. \todo{update after a final literature check.}
 
 %======================================================================
 \section{Interactive POMCP}
@@ -277,7 +277,7 @@ For every $a \in A_i$, $Q^-(\emptyset, a) \leq Q^H(\langle b_i, \hth_i \rangle, 
 By the same induction: every term of Eq.~\ref{eq:value} is either computed exactly or replaced by an interval that contains it, and the maximum of intervals contains the maximum of their members.
 \end{proof}
 
-The width of the interval measures the search error that the tree leaves unresolved. It does not account for error in the other agent's model or for compression of the belief, which is why we also score decisions against the exact I-POMDP (Section~\ref{sec:setup}).
+The width of the interval measures the search error that the tree leaves unresolved. It does not account for error in the other agent's model or for compression of the belief.
 
 %----------------------------------------------------------------------
 \subsection{Solving the Other Agent's Models}
@@ -374,7 +374,7 @@ Wumpus world, $3 \times 3$ & 2{,}048 & 5 & 3 & percept sets \\
 
 \paragraph{Exact I-POMDP.} For a single decision, we solve the finite-horizon I-POMDP of Eq.~\ref{eq:value} by full enumeration, with every lower level solved exactly in turn and with exact beliefs. A modeled agent with several optimal actions plays them uniformly, as in Eq.~\ref{eq:update}. As a measure of a decision with policy $\pi$ at belief $b_i$ we use the first-action loss $U^H(\theta_i) - \sum_{a} \pi(a)\, Q^H(\theta_i, a)$, the value lost by the decision if every later decision is optimal, computed in the exact I-POMDP. A decision is \emph{optimal} when its loss is at most $10^{-9}$.
 
-\paragraph{The exact agent along realized histories.} In whole episodes, each agent's realized actions and observations are replayed through the exact I-POMDP agent of the same level, with the same frames, level priors and lookahead. At every step we compare the planner's action with $\OPT$ of the exact agent, the total variation distance between the two agents' posteriors over the other agent's level, and the total variation distance between their predictions of the other agent's action. Exact beliefs grow quickly, so this replay covers the first steps of each episode (the \emph{exact window}): \todo{window lengths per level}.
+\paragraph{The exact agent along realized histories.} In whole episodes, each agent's realized actions and observations are replayed through the \emph{exact} (Bayes-optimal) I-POMDP agent of the same level, which acts on $\OPT(\theta_i)$ at every step with every level of the hierarchy solved exactly, with the same frames, level priors and lookahead. At every step we compare the planner's action with $\OPT$ of the exact agent, the total variation distance between the two agents' posteriors over the other agent's level, and the total variation distance between their predictions of the other agent's action. Exact beliefs grow quickly, so this replay covers the first steps of each episode (the \emph{exact window}): \todo{window lengths per level}.
 
 \paragraph{Exact expected reward of a pair.} Inside the exact window, the expected cumulative reward of a pair of exact agents is computed with zero variance by enumerating the joint process of the physical state and both agents' beliefs forward in time, merging equal nodes.
 
