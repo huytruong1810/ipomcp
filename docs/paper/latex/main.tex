@@ -433,7 +433,7 @@ Chains & 21 & 63 & 189 & 567 & 81 \\
 Optimal actions differ & 29\% & 0\% & 0\% & 0\% & 0\% \\
 \bottomrule
 \end{tabular}
-\caption{Exact solutions of the original tiger game ($H = 2$). A \emph{chain} is a configuration of point beliefs, one per nesting level: agent $i$'s probability that the tiger is behind the left door (7 values from 0.05 to 0.95) and that of each nested model (0.085, 0.5 or 0.915), with the no-information model at the bottom. A level-$k$ agent has $7 \cdot 3^{k-1}$ chains (81 sampled at level 6). The table gives the share of chains at which the optimal actions of level $k+1$ differ from those of level $k$ at the same beliefs. From level 2 upward the hierarchy is at a fixed point.}
+\caption{Exact solutions of the original tiger game ($H = 2$). A \emph{chain} is a configuration of point beliefs, one per nesting level: agent $i$'s probability that the tiger is behind the left door (7 values from 0.05 to 0.95) and that of each nested model (0.085, 0.5 or 0.915), with the no-information model at the bottom: agent $i$ of level $k$ models $j$ as a level-$(k-1)$ agent holding the next belief in the chain, which models $i$ as level $k-2$, and so on. Each entry is a single exact decision, so $i$'s opponent is its model of $j$; unlike in the episodes, each model places all its probability on the level directly below it. A level-$k$ agent has $7 \cdot 3^{k-1}$ chains (81 sampled at level 6). The table gives the share of chains at which the optimal actions of level $k+1$ differ from those of level $k$ at the same beliefs. From level 2 upward the hierarchy is at a fixed point.}
 \label{tab:fixedpoint}
 \end{table}
 
