@@ -2299,6 +2299,38 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.93 S5: exact pair curves for the UAV level matrix. Zero-variance level gains agree in sign with every 12.91 episode gain; over-thinking against random is real but small (UAV −1.3 to −2.0, target −1.2 to −3.3 by steps 8–10); predictability costs the target −22.7 by step 5; the planner pairs contain the exact pair at 31 of 36 agent-steps (October 23, 2026)
+
+**Why:** M2 and M4 on UAV rested on n = 100 episodes per cell (12.91). 12.72's exact pair curves give the Bayes-optimal agents' expected rewards with zero variance.
+
+**Design** (`results/s5_uav_exact_curves_20261023`; `ENDPOINTS.md` fixed before the run; `job.py` = 12.72's job on UAV; `gain_table.py` → `gain_table.txt`; `compare_planner.py` → `compare_planner.txt`):
+- Exact agents at levels 0–2 for both, H3, γ 0.95, uniform nesting, ties uniform: the agents of 12.91's replay.
+- Up to 20 steps, with a 3 GB cap and 2 × 10⁶ nodes.
+- **Windows:** i0_j0 and i1_j0 20 steps; i2_j0 and i2_j1 11; i0_j2, i1_j2 and i2_j2 10; i0_j1 and i1_j1 9 (still running at the time of writing).
+- **Cost:** 1.2 CPU-h logged so far.
+
+**Exact one-level gains** (the stepping agent's k → k + 1 against the opponent's level m; cumulative reward by the step):
+
+| Agent, step | By step | m = 0 | m = 1 | m = 2 |
+|---|---|---|---|---|
+| UAV 0 → 1 | 5 / 8 / 10 | +14.8 / +21.3 / +24.4 | +25.0 / +56.0 / — | +0.1 / **−4.1** / **−7.9** |
+| UAV 1 → 2 | 5 / 8 / 10 | **−0.4 / −2.0 / −1.3** | +27.8 / +7.9 / — | +16.1 / +42.9 / +51.2 |
+| Target 0 → 1 | 5 / 8 | +14.0 / +17.4 | +3.0 / **−9.6** | **−22.7 / −15.0** (−10.1 by 10) |
+| Target 1 → 2 | 5 / 8 | **−1.2 / −3.3** | +21.5 / +41.3 | +32.3 / +12.8 (+10.5 by 10) |
+
+**Findings (zero variance, inside each window):**
+- **Every sign agrees with 12.91's 20-step episode gains.**
+  - The second level pays against the opponent it newly models (UAV +7.9 against level 1 and +42.9 against level 2 by step 8; target +41.3 against level 1).
+  - The first level pays against random.
+- **Over-thinking against a random opponent is real and small:** the UAV loses 0.4–2.0, the target 1.2–3.3. That is why the UAV's episode estimate (−5.6 by step 20, n = 100) is not significant: the effect is a few points against a 20-step reward SD of about 30. M4's UAV example should cite these exact values.
+- **Predictability is exact and large early:**
+  - A level-1 target loses 22.7 by step 5 against a level-2 UAV (shrinking to 10 by step 10), and 9.6 by step 8 against a level-1 UAV.
+  - A level-1 UAV loses 4–8 against a level-2 target.
+  - In 12.91's episodes the target's version was n.s. at step 20 (−2.5) and the UAV's significant (−23.8). The exact curves show both exist, with different time courses.
+- **The planner pairs against the exact pairs** (`compare_planner.txt`; 12.91's episodes at steps 3, 5 and the window's end): the exact value lies inside the planner's 95% interval at 31 of 36 agent-steps.
+  - Four of the five exclusions are cell i2_j1, where all 100 planner episodes spot the target at step 5 (an interval of zero width). The exact pair differs by 0.07–0.65 through rare tie-driven branches that 100 trials did not draw.
+  - The fifth is i2_j0 at step 11 (planner 7.75 ± 7.45 against exact 15.54, z ≈ 2.05; rows are shared across steps). It is flagged for a fresh-trial check (the S3(c) pattern).
+
 ### 12.92 S3(c): the level-4 coordination pairs match the exact pair at step 3 on 600 fresh trials (|z| ≤ 0.97); 12.73's excursion (z ≈ 2) was its shared 100-trial sample (October 22, 2026)
 
 **Why:** HANDOFF S3 item 3. In 12.73 the level-4 pairs i4_j1 and i4_j2 sat above the exact pair by step 3 (21.1 against 16.8; z ≈ 2.0–2.1), on the same 100 trials for every agent and cell. Figure 2's level-4 panel needed a fresh check.
