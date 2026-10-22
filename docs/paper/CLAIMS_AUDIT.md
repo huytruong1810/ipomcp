@@ -294,3 +294,26 @@ Each figure has one motivating sentence, the exact claim it shows and its varian
   - (a) The exact gain by step 3, k → k + 1 against m = 0–4.
   - (b) The 1 → 2 gain by step against random, level 1 and level 2.
   - Not yet in the paper: it needs about 150 pt against 53 pt of slack, so it goes in at S7, replacing material that serves no message (D13, and the original-game rows if M1's figure absorbs them).
+
+## G. S7 outline: the results section around M1–M4 (draft, October 22)
+1. **7.1 Bayes-optimal decisions and their cost (M1).**
+   - Figure 1: compute to the benchmark (S4), on histories reachable from the common prior, every planner on the same decisions.
+   - One sentence: Table 1's chosen-belief grids, with the supplement table as backup.
+   - Baseline fidelity in one sentence (12.86, 12.89).
+2. **7.2 Agents that act and infer as the Bayes-optimal agent does (M1, M3).**
+   - The replays: tiger levels 1–4 with escalation; UAV 10,391 / 10,391.
+   - Identification: Figure 3, the current Figure 1.
+3. **7.3 When one more level pays (M2).**
+   - Figure 2: the exact match-up matrix (zero variance).
+   - Planner episodes confirm the signs (coordination +7.8, UAV +6.0, Wumpus +169).
+   - The third level is worth +0.2 exactly, below Monte Carlo resolution: report the exact value.
+   - The level-4 panel is backed by 12.92 (n = 600).
+4. **7.4 The cost of thinking too much or too predictably (M4).**
+   - Against random: coordination −0.9 (exact −0.55 by step 5, after a step-3 gain); UAV target −6.5; UAV −5.6 n.s.; per-decision screen 1.6.
+   - Predictability: a level-1 UAV loses 23.8 against a level-2 target.
+   - Figure 4 (mechanism panel) only if space allows; otherwise one mechanism sentence each.
+5. **Moves to the supplement:**
+   - D13 (orig. L3 H4);
+   - the original-game rows of Table 1 unless M1 needs them;
+   - the anytime UAV paragraph, replaced by Figure 1 if S4 covers the same message.
+- **Cut:** "A third level does not pay", replaced by the exact +0.2; "Depth pays up to about one level above the opponent's", replaced by H-CH′'s statement.
