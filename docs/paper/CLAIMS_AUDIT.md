@@ -290,3 +290,7 @@ Each figure has one motivating sentence, the exact claim it shows and its varian
   - I-NTMCP: the authors' runner and our adapter match their published table, and the adapter's CPU overhead is 1.45×.
   - IPF + RTS: it reaches the published plateau. The published small-K losses are offline-tree execution.
 - **Figure 2 level-4 panel (12.92):** on 600 fresh trials the level-4 pairs match the exact pair at step 3 (|z| ≤ 0.97). G2's level-4 excursion is closed; cite n = 600 in the caption.
+- **Figure 2 (M2) draft exists:** `docs/paper/latex/level_matchups.pdf`, from `results/n6_exact_curves_20261019/figure_m2.py` (zero variance, 12.88).
+  - (a) The exact gain by step 3, k → k + 1 against m = 0–4.
+  - (b) The 1 → 2 gain by step against random, level 1 and level 2.
+  - Not yet in the paper: it needs about 150 pt against 53 pt of slack, so it goes in at S7, replacing material that serves no message (D13, and the original-game rows if M1's figure absorbs them).
