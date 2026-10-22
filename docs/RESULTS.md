@@ -2330,6 +2330,10 @@ The definition is in THEORY.md, "Tie convention".
 - **The planner pairs against the exact pairs** (`compare_planner.txt`; 12.91's episodes at steps 3, 5 and the window's end): the exact value lies inside the planner's 95% interval at 31 of 36 agent-steps.
   - Four of the five exclusions are cell i2_j1, where all 100 planner episodes spot the target at step 5 (an interval of zero width). The exact pair differs by 0.07–0.65 through rare tie-driven branches that 100 trials did not draw.
   - The fifth is i2_j0 at step 11 (planner 7.75 ± 7.45 against exact 15.54, z ≈ 2.05; rows are shared across steps). It is flagged for a fresh-trial check (the S3(c) pattern).
+- **Fresh-trial check of i2_j0** (`results/s5_uav_i2j0_fresh_20261023`; `ENDPOINTS.md` fixed before the run; about 3.4 CPU-h):
+  - On 300 fresh 11-step episodes (trials 100–399), the level-2 UAV earns **14.32 [10.28, 18.35]** by step 11 against the exact 15.54 (z = −0.59).
+  - Trials 0–99 reproduce 12.91's actions over steps 1–11 in 100 of 100.
+  - The excursion was the shared 100-trial sample. Apart from the degenerate i2_j1 intervals, the UAV planner pairs match the Bayes-optimal pairs.
 
 ### 12.92 S3(c): the level-4 coordination pairs match the exact pair at step 3 on 600 fresh trials (|z| ≤ 0.97); 12.73's excursion (z ≈ 2) was its shared 100-trial sample (October 22, 2026)
 
