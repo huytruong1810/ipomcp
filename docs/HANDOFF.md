@@ -53,12 +53,14 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
     - 7.3, when one more level pays: Figure 3 `level_matchups_col.pdf`, the exact matrix;
     - 7.4, the cost of modelling a reasoner that is not there.
   - Table 1 and the anytime UAV paragraph moved to the supplement, which compiles locally with tectonic. Overleaf compiles only `main.tex`.
-- **Next (S7 polish):**
-  1. The abstract and the introduction's contribution 3 should state M1 (compute to the benchmark at reachable beliefs) and M4.
-  2. Related Work "what is new" `\todo`: a final literature check.
-  3. Re-read 7.1–7.4 for length and voice (Piotr 2005).
-  4. Check that the CLAIMS_AUDIT F/G items are all applied, and update the audit's status column.
-  5. The Discussion should state that qualification at named beliefs does not carry to broad reachable histories at N = 64 (12.94).
+- **S7 polish done:**
+  - The abstract and contribution 3 state M1, M2 and M4.
+  - The Discussion states the reachable-belief caveat.
+  - The literature check is done (RELATED_WORK.md); there are no `\todo`s left.
+- **Next:**
+  1. A full read-through for length and voice; the user and Piotr will read too.
+  2. Optional, if a zero-variance Wumpus match-up is wanted for M2: exact pair curves on Wumpus 3 × 3 at H2 (12.72's method), priced first.
+  3. Check the IJCAI-27 call for abstract and paper deadlines and the supplement format.
 - **Tooling:** the tectonic local preview is in the scratchpad (re-download per 0.000000000). The page probe procedure is unchanged.
 
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups

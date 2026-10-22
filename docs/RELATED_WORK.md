@@ -52,3 +52,9 @@ The honest trade-off to state: I-NTMCP needs only a generative model, while we n
 - **Decision: I-NTMCP joins G3**, run with the authors' code unchanged through an adapter. It is compared on the cells its model class covers: a single opponent level, level-0 uniform random at the bottom, and a common prior. Those are our episode configurations from the common prior (UAV L2; Wumpus L1; Tiger L1–L2). Its root decisions at reached histories are also scored against the exact I-POMDP wherever references exist. That is the measurement it never made, and the sharpest test of point (a)1.
 - I-POMDP Lite is not added. I-NTMCP already dominates it in the authors' own tables (Table I: up to 50× faster with better returns), and its nested-MDP assumption cannot express UAV's or Wumpus's hidden opponent beliefs.
 - POTMMCP is not an I-POMDP solver (fixed-policy types), so it is cited, not run.
+
+## Final literature check (October 23, 2026)
+- **Searched:** online I-POMDP planning with MCTS and nested beliefs (2024–2026), I-POMDP and level-k recursive-reasoning planners, and theory-of-mind planning with recursive beliefs.
+- **No new I-POMDP online planner** after I-NTMCP (2022) and POTMMCP (2023, type-based) holds nested beliefs as exact or compressed updates, certifies its action values, or keeps uncertainty over the other agent's level.
+- **Adjacent recent work** is Bayesian theory-of-mind *inference* (inverse planning over POMDP and I-POMDP-style models, for example AutoToM and a 2025 scalable Bayesian ToM planner, arXiv 2506.01301), not planning against agents that model the planner. Generic POMDP planners (for example VOIMCP, arXiv 2604.01434) do not model other agents.
+- The paper's "What is new" paragraph stands, and its `\todo` was removed.
