@@ -82,6 +82,8 @@
      - K = 32 gives 162/162 on the coordination tiger at L3 H2 (12.68).
    - It has no reproduction of Doshi & Gmytrasiewicz (2009).
    - The I-NTMCP adapter passed an L1 H1 gate (57/60, 12.65), but the authors' own runner was never compared with our adapter on one of their domains.
+   - **I-NTMCP: done (RESULTS 12.86).** The authors' runner reproduces their Runner-Chaser 4 × 4 table bit for bit. Our adapter matches it (65.57 against 65.96, ±6.26, n = 1,000). The adapter's CPU overhead is 1.45×; S7 must state it.
+   - **IPF + RTS:** Fig. 17(a) reproduction is running (`results/s2_ipf_fidelity_20261022`).
 10. **BACK (S3): open "looks off" items, per HANDOFF 0.0000000000:**
     - (a) the tie convention: the 70 UAV disagreements; Section 8 already concedes it;
     - (b) UAV H5 near-ties need root 64,000 (Section 8 concedes it);

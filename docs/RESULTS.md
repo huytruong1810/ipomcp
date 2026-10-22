@@ -2299,6 +2299,51 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.88 S5 input: the exact level match-up matrix from the exact pair curves. Zero-variance one-level gains inside the exact window; level 4 is exactly level 3 through step 3; over-thinking against a random opponent turns from gain to loss after the lookahead (October 22, 2026)
+
+**Why:** M2 needs the level match-ups with zero variance where possible (PLAN.md S5; CLAIMS_AUDIT A6–A7). 12.72's exact pair curves already hold every cell, but only the diagonal and step-3 rows were ever reported.
+
+**Method** (`results/n6_exact_curves_20261019/gain_table.py` → `gain_table.txt`; 0 CPU):
+- The value of an agent at level a against level b at step s is i's side of cell i{a}_j{b} when a ≥ b. Otherwise it is j's side of i{b}_j{a}; the games are symmetric.
+- The gain from k to k + 1 against level m is value(k + 1, m) − value(k, m): exact expected cumulative reward of the exact (Bayes-optimal) agents, H2, γ = 0.95, uniform level priors.
+- Windows: level 4, 3 steps; level 3, 4 steps; level 2, 4–5 steps.
+
+**Coordination game, exact gain of one more level** (rows k → k + 1; columns: the opponent's level m):
+
+| By step | Step | m = 0 | m = 1 | m = 2 | m = 3 | m = 4 |
+|---|---|---|---|---|---|---|
+| 3 | 1 → 2 | +0.461 | +1.783 | +1.910 | +1.924 | +1.924 |
+| 3 | 2 → 3 | +0.921 | +0.198 | +0.213 | +0.214 | +0.214 |
+| 3 | 3 → 4 | 0 | 0 | 0 | 0 | 0 |
+| 4 | 1 → 2 | **−0.032** | +1.216 | +1.843 | +1.912 | — |
+| 4 | 2 → 3 | **−0.063** | +0.135 | +0.204 | +0.212 | — |
+| 5 | 1 → 2 | **−0.551** | +0.430 | — | — | — |
+
+**Original game:**
+
+| By step | Step | m = 0 | m = 1 | m = 2 | m = 3 | m = 4 |
+|---|---|---|---|---|---|---|
+| 3 | 1 → 2 | 0 | 0 | 0 | 0 | 0 |
+| 3 | 2 → 3 | −0.517 | +0.515 | +0.515 | +0.515 | +0.515 |
+| 3 | 3 → 4 | 0 | 0 | 0 | 0 | 0 |
+| 4 | 2 → 3 | −0.709 | +0.350 | +0.350 | +0.385 | — |
+
+**Findings (zero variance, inside the window):**
+- **Level 4 is exactly level 3 through step 3,** against every opponent in both games. This is the exact form of "level 4 adds nothing". It does not reconcile 12.22's positive 3 → 4 screen at point chains (S3(d)): those chains are not reachable from the common prior in 3 steps.
+- **Coordination:**
+  - 1 → 2 is worth about +1.8 to +1.9 by step 3 against every intentional opponent.
+  - 2 → 3 is worth +0.20 to +0.21, against level 1 as well. A step can pay against an opponent below the agent's current level, so H-CH's "only if m ≥ k" is too strict: an extra level can refine the posterior over the opponent's lower levels.
+  - 2 → 3 is about 1/9 of 1 → 2. That is why 700 episodes cannot resolve it (12.73), and the paper should state it exactly.
+- **Over-thinking against a random opponent is a horizon effect:**
+  - Coordination 1 → 2 against m = 0 is +0.46 by step 3, −0.03 by step 4 and −0.55 by step 5. Monte Carlo gives −0.89 by step 10 (12.73).
+  - Proposition 3 covers one decision at lookahead H. Within the first H steps the deeper agent can even gain, because a receding H2 policy is not optimal for the episode, but its wrong model costs more as the episode runs on.
+  - The paper's Section 5 caveat ("receding-horizon episodes carry no such guarantee") now has its exact illustration.
+- **Original game:**
+  - 1 → 2 is exactly 0 by step 3 (levels 1 and 2 act identically, 12.82's fixed point).
+  - 2 → 3 is +0.515 against any intentional opponent and −0.517 against a random one, a clean exact case of H-CH (the paper reports no level results on this game, 12.83).
+
+**Use in the paper (S5, S7):** Figure 2 (M2) becomes this matrix at step 3, with step-4 values where available, and the planner's paired Monte Carlo gains overlaid as sign agreement only. Extending the windows is S5 work; the 3 GB caps of 12.72 bound them.
+
 ### 12.86 S2: I-NTMCP fidelity. The authors' runner reproduces their published Runner-Chaser 4 × 4 numbers exactly, and our adapter matches them (65.6 against 65.96, n = 1,000). The adapter costs 1.45× the native CPU per search (October 22, 2026)
 
 **Why:** PLAN.md S2 and CLAIMS_AUDIT item A9. I-NTMCP runs in the paper through our adapter (`baselines.intmcp`). Without a reproduction on the authors' own setting, a reviewer can attribute any gap to the adapter.
