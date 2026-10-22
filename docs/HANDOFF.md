@@ -2,7 +2,7 @@
 
 Read this first: Section 0.0000000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. **The top one is "a paper with take-home results" (S0–S7, not started).** Under it: "an adaptive belief bound" (A1–A4, done) and "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.95 are the latest; the next free one is 12.96.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.96 are the latest; the next free one is 12.97.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -59,7 +59,7 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
   - The literature check is done (RELATED_WORK.md); there are no `\todo`s left.
 - **Next:**
   1. A full read-through for length and voice; the user and Piotr will read too.
-  2. Optional, if a zero-variance Wumpus match-up is wanted for M2: exact pair curves on Wumpus 3 × 3 at H2 (12.72's method), priced first.
+  2. Done: Wumpus exact pair curves (12.96). A second level pays both agents against an intentional opponent. The paper's M2 paragraph could cite the exact Wumpus values (human +11.7 to +17.3, wumpus +18.9 to +24.6 by step 5).
   3. Check the IJCAI-27 call for abstract and paper deadlines and the supplement format.
 - **Tooling:** the tectonic local preview is in the scratchpad (re-download per 0.000000000). The page probe procedure is unchanged.
 

@@ -2299,6 +2299,32 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.96 S5: exact pair curves on Wumpus 3 × 3. A second level pays both agents against an intentional opponent and costs a little against a random one; 12.60's "a second level does not pay the wumpus" was a power failure, not an absence of effect (October 23, 2026)
+
+**Why:** M2/M4 on Wumpus rested on episodes with n = 100–200 (12.60–12.61). This applies 12.72's zero-variance exact pair curves.
+
+**Design** (`results/s5_wumpus_exact_curves_20261023`; `ENDPOINTS.md` with a probe rule fixed before the run; `gain_table.py` → `gain_table.txt`):
+- Exact agents at levels 0–2 for the human and the wumpus, H2, γ 0.95, uniform nesting, ties uniform (12.60's agents, exact).
+- Up to 20 steps; a 3 GB cap.
+- **Windows:** 5–8 steps (20 for random against random).
+- **Probe:** i2_j1 reached 5 steps in about 3 CPU-min, past the rule's threshold of 4.
+
+**Exact one-level gains** (cumulative reward by step; the opponent's level in columns):
+
+| Agent, step | By step | m = 0 | m = 1 | m = 2 |
+|---|---|---|---|---|
+| Human 1 → 2 | 3 / 4 / 5 | 0 / −3.8 / **−3.4** | 0 / +3.9 / **+11.7** | 0 / +3.9 / **+17.3** |
+| Wumpus 1 → 2 | 3 / 4 / 5 | 0 / +0.6 / **−1.4** | 0 / +13.7 / **+24.6** | 0 / +13.7 / **+18.9** |
+| Human 0 → 1 | 5 | +262.1 | +218.8 | +190.4 |
+| Wumpus 0 → 1 | 5 | +130.1 | +150.8 | +132.7 |
+
+**Findings (zero variance, inside the window):**
+- **The second level is worth nothing for the first 3 steps** for either agent. At H2, levels 1 and 2 act alike until the history reveals the opponent, as 12.64's screen found at the prior.
+- **Then it pays against an intentional opponent and costs a little against a random one,** for both agents. This is the coordination game's and UAV's pattern (12.88, 12.93), and Proposition 3's corollary in episodes.
+- **12.60's "a second level does not pay the wumpus" is withdrawn.** The exact gain is +19 to +25 by step 5 against an intentional human. 12.60's +30 [−30, 100] (n = 100, 20 steps) was underpowered, not null. The wumpus's depth is worth about as much as the human's at this horizon. The paper (S7 draft) does not use the old claim.
+- **The human's second level against an intentional wumpus** grows from +3.9 to +11.7–17.3 between steps 4 and 5, consistent with 12.60's +169 [84, 259] over 20 fresh-trial steps.
+- **Cost:** about 1.5 CPU-h.
+
 ### 12.95 S4, cell 2: Wumpus 3 × 3 L2 H2 at reachable histories. I-POMCP is optimal on all 219 distinct beliefs (CP ≥ 0.983) at 75–89 s; the best baseline reaches 77% (I-NTMCP tuned, M = 64,000); the sampled IPF fails on about 90%. This is also S6's held-out Wumpus check (October 23, 2026)
 
 **Why:** message M1 on the domain with deterministic percepts, and S6's held-out check: 12.58's configuration was chosen on 60 problems, and these 219 beliefs are new.
