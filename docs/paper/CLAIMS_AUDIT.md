@@ -317,3 +317,7 @@ Each figure has one motivating sentence, the exact claim it shows and its varian
    - the original-game rows of Table 1 unless M1 needs them;
    - the anytime UAV paragraph, replaced by Figure 1 if S4 covers the same message.
 - **Cut:** "A third level does not pay", replaced by the exact +0.2; "Depth pays up to about one level above the opponent's", replaced by H-CH′'s statement.
+- **M1, UAV (12.94):** Figure 1 panel (a) is final.
+  - I-POMCP reaches the benchmark (100/100, CP ≥ 0.964) at 217 s with exact beliefs and target 1,600. IPF + RTS levels off at 81% (137–451 s), and I-NTMCP at 58% (it gets worse with M).
+  - **New caveat for the text:** the gate qualification (root 1,000, N = 64; 12.41) holds at named beliefs. At broad reachable histories, N = 64 is about 80% optimal (but 89–94% within ε = 0.05), and exact beliefs or N ≥ 1,024 are needed.
+  - The episode replays (12.91, every decision agreeing at N = 64) are not in conflict. Purposeful play and uniform level priors keep beliefs narrower than a random UAV's histories do. Say this in one sentence.

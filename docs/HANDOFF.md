@@ -2,7 +2,7 @@
 
 Read this first: Section 0.0000000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. **The top one is "a paper with take-home results" (S0–S7, not started).** Under it: "an adaptive belief bound" (A1–A4, done) and "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.93 are the latest; the next free one is 12.94.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.94 are the latest; the next free one is 12.95.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -43,19 +43,18 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
 - `experiments/reachable_decisions.py`: S4 infrastructure (common-prior histories, every planner, point-mass nesting). 415 tests.
 - **CLAIMS_AUDIT section F** lists every paper change these imply (apply in S7).
 
-**Running (October 23, about 03:00; the user is away 24 h, and autonomy is granted):**
-- **S4** (`results/s4_compute_benchmark_20261022`, ENDPOINTS amendments 1–6 plus the cell-2 section):
-  - The UAV cell: 512 distinct beliefs.
-    - The N = 64 and N = 256 arms on every belief are done or nearly done.
-    - The subset arms (`uav/jobs_subset2.txt`) are running.
-    - Analysis: `analyze.py`.
-    - **Finding so far:** the 12.41 qualification (history 0) does not carry to reachable histories. N = 64 is about 78% optimal and N = 256 about 83% (both about 96% within ε = 0.05). Exact beliefs fix every miss tried, so compression in the search tree is the cause.
-    - **Amendment 6:** near-tie escalation to exact beliefs, calibrated on the subset and validated on the held-out beliefs.
-  - The Wumpus cell: references are running (`wumpus/jobs_refs.txt`). Then `build_jobs_wumpus.py`, and `run.sh wumpus/jobs.txt`.
-- **S5:**
-  - 12.93: the UAV exact pair curves (two cells still extending).
-  - The i2_j0 fresh-trial check (`results/s5_uav_i2j0_fresh_20261023`) is running.
-- **Paper:** the settled audit fixes are applied and mirrored (16e7368). Figure 2 draft (`level_matchups.pdf`). S7 outline: CLAIMS_AUDIT section G.
+**State (October 23, about 12:00; the user is away and autonomy is granted):**
+- **Done since the last note:**
+  - 12.93: UAV exact pair curves, plus the i2_j0 fresh check (closed).
+  - 12.94: the S4 UAV cell (M1 panel (a) final).
+- **Running:** the S4 Wumpus cell decisions (`results/s4_compute_benchmark_20261022/wumpus/jobs.txt`, 14 workers; ENDPOINTS cell 2 plus amendment 7).
+  - When they finish: `python analyze.py wumpus`, then `PYTHONPATH=src python figure_m1.py`, then RESULTS 12.95.
+  - Note the IPF failure mode: nested particle depletion when every particle's successor ends the episode, which smoothing cannot repair.
+  - The I-POMCP rows on these fresh beliefs are S6's held-out Wumpus check.
+- **Then:**
+  - S7 rewrite (outline in CLAIMS_AUDIT G; all FIX items in F).
+  - Figures: `compute_benchmark.pdf` (M1), `level_matchups.pdf` (M2, tiger exact), `level_identification.pdf` (M3).
+  - The UAV exact gains (12.93) belong in M2/M4 text or a panel.
 
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
 
