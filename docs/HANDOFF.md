@@ -2,7 +2,7 @@
 
 Read this first: Section 0.0000000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. **The top one is "a paper with take-home results" (S0–S7, not started).** Under it: "an adaptive belief bound" (A1–A4, done) and "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.92 are the latest; the next free one is 12.93.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.93 are the latest; the next free one is 12.94.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -43,17 +43,19 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
 - `experiments/reachable_decisions.py`: S4 infrastructure (common-prior histories, every planner, point-mass nesting). 415 tests.
 - **CLAIMS_AUDIT section F** lists every paper change these imply (apply in S7).
 
-**Running (S4, UAV L2 H3 cell; `results/s4_compute_benchmark_20261022`, ENDPOINTS with amendments 1–2):**
-- **References:** the length-5 histories (`uav/jobs_refs3.txt`) are running.
-- **Decisions:** I-POMCP 1,000/400 on every distinct belief (`uav/jobs_all.txt`) is running.
-- **To do when the references finish:**
-  1. `python build_jobs.py all` (new digests), then `python build_jobs.py subset`.
-  2. Run both lists with `./run.sh <jobs> <workers>`.
-  3. Analyse per arm: share optimal (CP), mean loss and median CPU, deduplicated by digest. Primary: the smallest budget whose CP lower bound reaches 0.95.
-- **Pricing:**
-  - I-POMCP 1,000/400 is 5 of 6 optimal on the priced problems, and I-NTMCP 64,000 is 2 of 5: a real gap is likely.
-  - IPF + RTS K = 16 costs about 650 s per job.
-- **Wumpus and tiger cells:** decided after the UAV result.
+**Running (October 23, about 03:00; the user is away 24 h, and autonomy is granted):**
+- **S4** (`results/s4_compute_benchmark_20261022`, ENDPOINTS amendments 1–6 plus the cell-2 section):
+  - The UAV cell: 512 distinct beliefs.
+    - The N = 64 and N = 256 arms on every belief are done or nearly done.
+    - The subset arms (`uav/jobs_subset2.txt`) are running.
+    - Analysis: `analyze.py`.
+    - **Finding so far:** the 12.41 qualification (history 0) does not carry to reachable histories. N = 64 is about 78% optimal and N = 256 about 83% (both about 96% within ε = 0.05). Exact beliefs fix every miss tried, so compression in the search tree is the cause.
+    - **Amendment 6:** near-tie escalation to exact beliefs, calibrated on the subset and validated on the held-out beliefs.
+  - The Wumpus cell: references are running (`wumpus/jobs_refs.txt`). Then `build_jobs_wumpus.py`, and `run.sh wumpus/jobs.txt`.
+- **S5:**
+  - 12.93: the UAV exact pair curves (two cells still extending).
+  - The i2_j0 fresh-trial check (`results/s5_uav_i2j0_fresh_20261023`) is running.
+- **Paper:** the settled audit fixes are applied and mirrored (16e7368). Figure 2 draft (`level_matchups.pdf`). S7 outline: CLAIMS_AUDIT section G.
 
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
 
