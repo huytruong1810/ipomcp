@@ -275,3 +275,17 @@ Each figure has one motivating sentence, the exact claim it shows and its varian
 | S5 | A5–A7, Figure 2 |
 | S6 | D12 (Wumpus held out); Table 1's dashes |
 | S7 | every FIX row; D13 cut; Figure 4 |
+
+## F. Changes from the October 22 runs (apply in S7)
+- **Tie convention (12.87):** Section 8's sentence "A modeled agent plays its own choice among tied actions" goes. The UAV replay agrees on 1,837 of 1,837 level-2 decisions.
+- **UAV level results (12.91) replace 12.49 everywhere:**
+  - V1: the UAV's 1 → 2 gain against a level-1 target is +6.0 [4.1, 8.2] (was +5.8).
+  - V2: the UAV against random is **−5.6 [−12.0, +0.4], Holm 0.09 (not significant)**; it was −7.2. Use the target's −6.5 [−11.5, −2.0] (Holm 0.035) for M4, or say plainly that the UAV's cost is n.s.
+  - V3: "spots it after 5.0 steps … against 6.2" holds. "Against a random target, the same anticipation costs it 7.2" must become "−5.6, not significant".
+  - The "target gains more from depth" observation is withdrawn. Against a level-2 opponent the UAV's second level is worth +81, the target's +6.5.
+  - New M4 match-up: a first level costs the UAV −23.8 (Holm 0.002) against a level-2 target, the predictability effect (H-CH′).
+- **12.67 / 12.85 (UAV anytime, against I-NTMCP)** ran under the old convention. The comparisons are paired on the same real target, so they stay valid as comparisons, but absolute rewards may differ under the new rule. Rerun only if S4 reuses them.
+- **Section 8, "root 64,000 resolves the near-ties" (12.90):** true for the 0.669-gap histories (30 of 30). One H5 history with gap 0.13 is still missed in 4 of 5 seeds (loss 0.066).
+- **Baseline fidelity (12.86, 12.89):** one sentence and the supplement.
+  - I-NTMCP: the authors' runner and our adapter match their published table, and the adapter's CPU overhead is 1.45×.
+  - IPF + RTS: it reaches the published plateau. The published small-K losses are offline-tree execution.

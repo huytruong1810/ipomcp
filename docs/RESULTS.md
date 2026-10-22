@@ -2299,6 +2299,44 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.91 U6b: the UAV level matrix under the exact tie convention. A second level for the UAV is worth +81 against a level-2 target (12.49: +26); over-thinking against random is no longer significant for the UAV (−5.6, Holm 0.09) but is for the target (−6.5, Holm 0.035); a first level loses −23.8 against an opponent two levels up (October 22, 2026)
+
+**Why:** 12.87. Under the adopted tie rule, a level-2 target's episodes change, so every UAV level result of 12.49 is re-measured before the paper uses it.
+
+**Design** (`results/u6b_uav_matrix_ties_20261022`; `ENDPOINTS.md` fixed before the run; `analyze.py` → `analysis.txt`):
+- 12.49 exactly: levels 0–2 for both agents, depth 3, root 1,000, N = 64, 20 steps, uniform priors, n = 100 per cell, the same trial seeds. Source 198bf5b.
+- The level-2 UAV cells are 12.87's gate run (identical source).
+- **Cost:** about 8 CPU-h here, plus 12.87's gate.
+
+| UAV i \ target j | Level 0 | Level 1 | Level 2 |
+|---|---|---|---|
+| **Level 0** | −15.4 (spotted 73%) | −67.2 (36%) | −52.3 (49%) |
+| **Level 1** | 17.7 (96%) | 24.1 (100%) | −76.0 (25%) |
+| **Level 2** | 12.2 (95%) | **30.0** (100%, 5.0 steps) | **5.3** (87%) |
+
+(The UAV's mean 20-step reward and the share of episodes in which it spots the target. 12.49's cells were identical where no exact tie arose, for example i1_j0 and i2_j1 = 30.0, and i2_j2 was −45.6 with 48% spotted.)
+
+**Paired one-level differences, Holm over the family of 12** (12.49 in brackets):
+
+| Agent | Step | Against level 0 | Against level 1 | Against level 2 |
+|---|---|---|---|---|
+| UAV | 0 → 1 | +33.1 (+33.1) | +91.3 (+91.1) | **−23.8 [−36.4, −11.6], Holm 0.002** (−16.4, 0.055) |
+| UAV | 1 → 2 | **−5.6 [−12.0, +0.4], Holm 0.09** (−7.2, 0.032) | +6.0 [4.1, 8.2] (+5.8) | **+81.3 [68.3, 93.1]** (+26.0) |
+| Target | 0 → 1 | +18.5 (+18.5) | −2.0, Holm 0.09 (−2.0) | −2.5 [−5.0, −0.5], Holm 0.074 (−3.5, 0.032) |
+| Target | 1 → 2 | **−6.5 [−11.5, −2.0], Holm 0.035** (−5.0, 0.09) | +37.5 [33.0, 41.5] (+35.0) | **+6.5 [3.5, 10.0]** (+26.0) |
+
+**What changed and what holds:**
+- **Holds:**
+  - A second level pays against the opponent level it newly models (m = k + 1): UAV +6.0 and target +37.5, both p < 0.001.
+  - A first level pays against random and level-1 opponents.
+  - The level-2 UAV's anticipation of a level-1 target (5.0 steps, 100% spotted) is unchanged.
+- **Changed by the convention:**
+  - **Against a level-2 opponent,** the UAV's second level is worth +81.3 and the target's only +6.5 (12.49: +26 and +26). Under exact ties the level-2 target no longer escapes a level-2 UAV (87% spotted). Its 12.49 evasion rested on float tie-breaking (12.87). The 12.49 reading "the target gains more from depth than the UAV" is withdrawn.
+  - **Over-thinking against a random opponent:** the UAV's −5.6 is no longer significant (Holm 0.09), but the target's −6.5 now is (Holm 0.035). Both point the same way, and the exact screen's per-decision cost (1.6 at H2, 12.64) does not depend on episodes. The paper's M4 example must say "−5.6, not significant after correction" for the UAV, and can use the target's −6.5.
+  - **Predictability (H-CH′, CLAIMS_AUDIT A7):** a first level costs the UAV −23.8 against a level-2 target, now significant. A level-1 UAV best-responds to a random target, and the level-2 target models exactly that UAV and evades it (spotted 25% against 49% for a random UAV). The target's mirror effect (−2.5) is small and not significant.
+
+**Replay against the Bayes-optimal agent** (12.81's design, every intentional agent): the level-2 UAV agrees on 1,837 of 1,837 decisions (12.87); the other series follow below.
+
 ### 12.90 S3(b): root stopping (near-tie root escalation) matches flat root 64,000 at UAV L2 H5 (36/40 each, against 17/40 at 1,000) but saves no CPU, because the modeled target dominates the cost. Not adopted as the recommended setting; the option stays off by default (October 22, 2026)
 
 **Why:** HANDOFF S3 item 2; 12.67. With a uniform level prior at H5, I-POMCP needs root 64,000 to resolve near-ties, and the paper concedes it. The design fix grows the root only where the decision is unresolved.
