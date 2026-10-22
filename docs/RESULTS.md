@@ -2323,7 +2323,7 @@ The definition is in THEORY.md, "Tie convention".
 - **Then it pays against an intentional opponent and costs a little against a random one,** for both agents. This is the coordination game's and UAV's pattern (12.88, 12.93), and Proposition 3's corollary in episodes.
 - **12.60's "a second level does not pay the wumpus" is withdrawn.** The exact gain is +19 to +25 by step 5 against an intentional human. 12.60's +30 [−30, 100] (n = 100, 20 steps) was underpowered, not null. The wumpus's depth is worth about as much as the human's at this horizon. The paper (S7 draft) does not use the old claim.
 - **The human's second level against an intentional wumpus** grows from +3.9 to +11.7–17.3 between steps 4 and 5, consistent with 12.60's +169 [84, 259] over 20 fresh-trial steps.
-- **Cost:** about 1.5 CPU-h.
+- **Cost:** 2.6 CPU-h.
 
 ### 12.95 S4, cell 2: Wumpus 3 × 3 L2 H2 at reachable histories. I-POMCP is optimal on all 219 distinct beliefs (CP ≥ 0.983) at 75–89 s; the best baseline reaches 77% (I-NTMCP tuned, M = 64,000); the sampled IPF fails on about 90%. This is also S6's held-out Wumpus check (October 23, 2026)
 
