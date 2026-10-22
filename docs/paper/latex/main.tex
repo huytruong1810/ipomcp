@@ -281,13 +281,11 @@ All planners are implemented in Python and run single-threaded, one process per 
 
 \subsection{Protocols and Measures}
 
-\paragraph{Decisions.} For each domain, level and horizon, a grid of problems spans the agents' nested beliefs: for the tiger games, $i$'s belief about the tiger crossed with $j$'s and, from level 3, with the beliefs below $j$; for UAV, named distributions over the other agent's sector; for the Wumpus world, beliefs reachable from the common prior. Planners decide the same problems and are compared with exact McNemar tests \cite{mcnemar1947note}, Holm-corrected \cite{holm1979simple} within each family. Budgets are chosen on these grids and then tested, unchanged, on beliefs and seeds that the selection did not use.
+\paragraph{Decisions at reachable beliefs.} To compare the planners on beliefs that agents reach in play, and on problems that every planner can take (I-NTMCP requires a common prior), we generate agent $i$'s histories from the common prior: $i$ acts uniformly at random among the actions that do not end the episode, and $j$ acts as the exact I-POMDP's own model of it. After 1--5 steps in UAV reconnaissance and 2--4 steps in the Wumpus world, the exact I-POMDP of level 2, with $j$ at level 1, is solved at $i$'s belief, and every planner decides the same problem. Histories that lead to the same belief are counted once: 512 distinct beliefs in UAV reconnaissance and 219 in the Wumpus world, of which a fixed random subset of 100 is decided by every planner and budget. No budget was chosen on these beliefs. Planners are compared with exact McNemar tests \cite{mcnemar1947note}, Holm-corrected \cite{holm1979simple}.
 
-\paragraph{Episodes.} In the coordination tiger game, agent $i$ at levels 0--4 plays $j$ at levels 0--4 in 10-step episodes, with $H = 2$, $\gamma = 0.95$, 100 simulations, $N = 64$, and a uniform prior over the other agent's lower levels at every level of nesting. The game is symmetric, so the cells with $i$'s level at least $j$'s determine the grid; we run $n = 15{,}000$ episodes per cell at levels up to 2, 700 when $i$ is at level 3, and 100 when $i$ is at level 4, where $n$ is the number of independent episodes. In UAV reconnaissance and the Wumpus world, both agents play at levels 0--2 in 20-step episodes ($n = 100$ per cell), with $H = 3$ and 1{,}000 simulations (UAV) or $H = 2$, 400 simulations and exact beliefs (Wumpus). The primary endpoint is the gain from one more level of $i$ against the same $j$, paired by random seed.
+\paragraph{Decisions at chosen beliefs.} I-POMCP's budgets were chosen on grids of named beliefs at levels 1--4 and horizons 2--5, in which $i$'s and $j$'s beliefs about the physical state are crossed (supplement), and tested, unchanged, on random beliefs and seeds that the selection did not use.
 
-\paragraph{Rao-Blackwellized rewards.} Given both agents' actions and observations, the physical state follows a hidden Markov model, so in the tiger game each sampled reward is replaced by its exact conditional expectation, computed by forward--backward recursion; the estimand is unchanged and the variance can only decrease \cite{casella1996rao}.
-
-\paragraph{Anytime episodes.} Beyond the reach of exact solutions, a level-2 UAV plans with $H = 4$ or 5 in 20-step episodes from the common prior against a level-1 I-POMCP target ($n = 30$ per planner and budget). I-POMCP uses root budgets of 50 to 1{,}000 simulations and models the target with the same budget, and I-NTMCP uses $M$ from 1{,}000 to 64{,}000. The decisions at the first five steps of each $H = 4$ episode are scored exactly.
+\paragraph{Episodes.} In the coordination tiger game, agent $i$ at levels 0--4 plays $j$ at levels 0--4 in 10-step episodes, with $H = 2$, $\gamma = 0.95$, 100 simulations, $N = 64$, and a uniform prior over the other agent's lower levels at every level of nesting. The game is symmetric, so the cells with $i$'s level at least $j$'s determine the grid; we run $n = 15{,}000$ episodes per cell at levels up to 2, 700 when $i$ is at level 3, and 100 when $i$ is at level 4, where $n$ is the number of independent episodes. In UAV reconnaissance and the Wumpus world, both agents play at levels 0--2 in 20-step episodes ($n = 100$ per cell), with $H = 3$ and 1{,}000 simulations (UAV) or $H = 2$, 400 simulations and exact beliefs (Wumpus). The primary endpoint is the gain from one more level of $i$ against the same $j$, paired by random seed. Given both agents' actions and observations, the tiger's location follows a hidden Markov model, so each sampled reward of the tiger game is replaced by its exact conditional expectation, computed by forward--backward recursion; the estimand is unchanged and the variance can only decrease \cite{casella1996rao}.
 
 %======================================================================
 \section{Results}
@@ -300,90 +298,45 @@ All planners are implemented in Python and run single-threaded, one process per 
 \label{fig:identification}
 \end{figure*}
 
-\subsection{Decisions against the Exact I-POMDP}
-\label{sec:decisions}
-
-\begin{table}[t]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}llrrrr@{}}
-\toprule
-Domain & $l$, $H$ & $n$ & I-POMCP & IPF + RTS & I-NTMCP \\
-\midrule
-Tiger (orig.) & 1, 5 & 220 & 220 & -- & -- \\
- & 2, 3 & 380 & 380 & 374--378 & -- \\
- & 2, 4 & 380 & 380 & 362--368 & -- \\
- & 3, 3 & 162 & 162 & -- & -- \\
-Tiger (coord.) & 3, 2 & 162 & 162 & 148--158 & -- \\
- & 3, 3 & 162 & 162 & 150--159 & -- \\
- & 4, 2 & 486 & 486 & -- & -- \\
-UAV & 1, 2--5 & 40 each & 40 each & -- & -- \\
- & 2, 2 & 80 & 80 & 46--55 & -- \\
- & 2, 3 & 80 & 80 & 42--48 & -- \\
- & 2, 4 & 80 & 80 & 37--40 & -- \\
- & 3, 2 & 320 & 320 & -- & -- \\
-Wumpus & 2, 2 & 60 & 60 & 1--26 & 40 \\
- & 3, 2 & 55 & 55 & -- & -- \\
-\bottomrule
-\end{tabular}
-\caption{Optimal decisions against the exact I-POMDP at level $l$ and horizon $H$, out of $n$ problems. IPF + RTS: the range over $K \in \{2, 4, 8\}$ and, where both were run, over the plain and smoothed filters. I-NTMCP: $M = 64{,}000$, at 0.8 times I-POMCP's CPU.}
-\label{tab:decisions}
-\end{table}
-
-I-POMCP's decision is optimal on every problem of Table~\ref{tab:decisions}: 2{,}787 decisions at levels 1--4 and horizons 2--5 in three domains. The budgets were chosen on these grids, so we reran the tiger configurations, unchanged, on 960 random beliefs and seeds that no selection used (at levels 2 and 3, in both games): all 960 decisions are optimal. In one further cell, the original tiger game at level 3 and horizon 4, 76 of 80 decisions are optimal and the other four lose at most 0.03. Below the chosen budgets I-POMCP does err; for example, a UAV target modeled with 100 simulations at level 2 and horizon 3 leaves 63 of 80 decisions optimal. The certified intervals of Proposition~\ref{prop:bounds} contained the exact action values in all 1{,}016 decisions in which we checked them.
-
-Exact scoring carries much of this precision: at level 3 and horizon 3 it reduces the error of the optimal action's value from 0.06 to 0.0006, and turning it off at the root changes 34 of 560 UAV decisions from optimal to suboptimal and none the other way (exact McNemar $p = 1.2 \times 10^{-10}$).
-
-\subsection{Episodes against the Exact Agent}
-\label{sec:episodes}
-
-Table~\ref{tab:decisions} checks decisions at chosen beliefs. To check the beliefs the agents reach in play, we replay every agent of the coordination level grid through the exact agent over its exact window. At level 1, every one of 48{,}000 decisions is optimal (up to 1{,}000 episodes per cell). At levels 2, 3 and 4, 8{,}779 of 8{,}800, 8{,}361 of 8{,}400 and 1{,}793 of 1{,}800 decisions are optimal (up to 200, 400 and 100 episodes per cell), and the posterior over the other agent's level differs from the exact one by a mean total variation of 0.004--0.011.
-
-The 67 other decisions are near-ties (median exact gap 0.09) with one cause: rebuilt with its episode's seeds, each of the 61 we examined reproduces its action and chooses an optimal one when given exact beliefs, so belief compression at $N = 64$ causes them. On the same episodes, a larger bound ($N = 1{,}024$ at level 2, 256 at levels 3--4) leaves no departure in 1{,}200 episode windows, against 21 distinct histories with one at $N = 64$ (sign test, $p < 10^{-6}$).
-
-Near-tie escalation (Section~\ref{sec:escalation}) obtains most of this at a fraction of the cost. On 1{,}600 further episodes, it removes 32 of the 34 histories with a departure and adds none, escalating 3.2\% of the decisions (337 of 10{,}400) at 0.41 times the CPU of the larger bound throughout ($n = 120$ episodes).
-
-In UAV reconnaissance, all 10{,}391 replayed decisions of both agents at levels 1--2 are optimal ($n = 100$ episodes per cell).
-
-\subsection{The Level Grid}
-\label{sec:grid}
+\subsection{Compute to the Bayes-Optimal Decision}
+\label{sec:compute}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{grid_curves.pdf}
-\caption{Agent $i$'s expected cumulative reward in 10-step episodes of the coordination tiger game, for pairs of agents at the same level, one panel per level (mean and 95\% interval; $n = 15{,}000$ at levels 1--2, 700 at level 3, 100 at level 4), with the exact pair's expectation over its exact window.}
-\label{fig:grid}
+\includegraphics[width=\columnwidth]{compute_benchmark_col.pdf}
+\caption{Share of Bayes-optimal decisions at reachable beliefs against median CPU per decision, for every planner and budget on the same 100 distinct beliefs (95\% Clopper--Pearson intervals). Lines join each planner's best share at no more CPU. I-NTMCP's CPU includes the 1.45-fold overhead of our adapter (supplement).}
+\label{fig:compute}
 \end{figure}
 
-The exact agents of the coordination game gain from every level up to 3: by step 3, pairs at levels 1, 2 and 3 earn 14.83, 18.01 and 18.38 each, and level 4 adds nothing. Inside the exact window, the exact expectation lies within the I-POMCP pair's 95\% interval at 97 of 100 agent-steps, and at 42 of 42 for level-0 agents (Figure~\ref{fig:grid}).
+Figure~\ref{fig:compute} shows how much computation each planner needs to decide as the Bayes-optimal agent does. In UAV reconnaissance, I-POMCP reaches the benchmark: with exact beliefs and the target modeled with 1{,}600 simulations, all 100 decisions are optimal (lower bound 0.964) at a median of 217~s. Its rungs are separated by the belief bound, not by simulations. With $N = 64$, root budgets from 100 to 1{,}000 and modeled budgets from 100 to 400 all give 79--81\%, although 89--94\% of the decisions lose at most 0.05; with $N = 1{,}024$ or exact beliefs, 97\%. The misses come from compression inside the search tree, where the support of a belief grows up to 45-fold per simulated step: exact beliefs remove every one we examined, while a 4{,}000-simulation root or a 1{,}600-simulation target at $N = 64$ removes none. IPF + RTS levels off at 75--81\% for $K$ from 2 to 8, at 137--451~s per decision, with losses up to 8.9; I-NTMCP reaches at most 58\%, with losses up to 55, and becomes less accurate with more simulations (37--39\% at $M = 64{,}000$), consistent with its prediction of the target by a softmax over visit counts rather than by the target's best response. On the same beliefs, I-POMCP is right where a baseline is wrong on 19--63 beliefs and never the converse (Holm $p \leq 10^{-5}$ for every baseline and budget).
 
-In I-POMCP's episodes, depth pays once. From level 1 to 2, $i$ gains, by step 10, 7.8 [7.4, 8.3] and 7.6 [7.1, 8.1] against $j$ at levels 1 and 2 ($n = 15{,}000$), 9.2 [7.3, 11.1] against level 3 ($n = 700$) and 7.0 [2.3, 11.8] against level 4 ($n = 100$; Holm $p = 0.06$); against the no-information model it loses 0.9 [0.7, 1.1]. No gain from level 2 to 3 or from 3 to 4 is significant (Holm $p \geq 0.16$; $n = 700$ and 100). The exact gain from level 2 to 3, about 0.2 by step 3, is below what 700 episodes resolve.
+In the Wumpus world, whose percepts are deterministic, I-POMCP with exact beliefs is optimal on all 219 distinct reachable beliefs (lower bound 0.983) at 75--89~s per decision, already with 100 simulations. The particle filter of IPF + RTS fails on about 90\% of them, because every particle contradicts an observation; likelihood smoothing repairs that case but still fails on about 25\%, where every particle of the wumpus's own belief ends the episode, and the smoothed planner is optimal on 35\%. I-NTMCP improves with $M$ but reaches only 77\% at $M = 64{,}000$, with losses up to 639; on the same beliefs, I-POMCP is never wrong where a baseline is right (Holm $p \leq 10^{-6}$).
 
-\subsection{Whom Does Each Agent Believe It Faces?}
-\label{sec:identification}
+At the named beliefs on which its budgets were chosen, I-POMCP is optimal on all 2{,}787 decisions at levels 1--4 and horizons 2--5 in three domains, and on 960 further random beliefs and seeds (supplement); there, IPF + RTS misses 0.5--9\% of the tiger games' decisions and 31--54\% of UAV decisions. Exact scoring carries much of this precision: turning it off at the root changes 34 of 560 UAV decisions from optimal to suboptimal and none the other way (exact McNemar $p = 1.2 \times 10^{-10}$), and the certified intervals of Proposition~\ref{prop:bounds} contained the exact action values in all 1{,}016 decisions in which we checked them.
 
-An agent of level $l$ maintains a posterior over the other agent's level, the marginal of its interactive belief over $M_{j,l-1}$ (Figure~\ref{fig:identification}). A level-2 agent comes to believe that the other agent is of level 1 whether it is in fact of level 1, 2, 3 or 4: after 10 steps it assigns 0.92--0.95 to level 1 (panel a).
+\subsection{Agents That Act and Infer as the Bayes-Optimal Agent}
+\label{sec:episodes}
 
-\paragraph{The observer converges to its closest hypothesis.} A level-2 agent can represent only the no-information model (level 0) and level 1. When the true model is not among its hypotheses, the posterior concentrates on the hypothesis whose predictions are closest to the truth in Kullback--Leibler divergence \cite{berk1966limiting}: every planning agent listens until the growls agree and then opens a door, which level 1 predicts and uniform play does not. Against an agent that does play at random, the belief in level 1 falls to 0.077 [0.074, 0.080] ($n = 15{,}000$).
+We replay every agent of the coordination level grid through the exact agent over its exact window. At level 1, every one of 48{,}000 decisions is optimal; at levels 2, 3 and 4, 8{,}779 of 8{,}800, 8{,}361 of 8{,}400 and 1{,}793 of 1{,}800 are (up to 200, 400 and 100 episodes per cell). The other 67 are near-ties (median exact gap 0.09) caused by belief compression at $N = 64$: rebuilt with exact beliefs, each of the 61 we examined chooses an optimal action. Near-tie escalation (Section~\ref{sec:escalation}) removes 32 of 34 such histories on 1{,}600 further episodes and adds none, escalating 3.2\% of the decisions at 0.41 times the CPU of the larger bound throughout. In UAV reconnaissance, all 10{,}391 replayed decisions of both agents at levels 1--2 are optimal. Inside the exact window, the exact pair's expected reward lies within the I-POMCP pair's 95\% interval at 97 of 100 agent-steps of the tiger grid, and at 31 of 36 of the UAV grid; the remaining UAV cases are cells in which all 100 episodes coincide, and one that a fresh sample of 300 episodes resolves (14.3 [10.3, 18.4] against the exact 15.5).
 
-\paragraph{Levels are distinguished when the observer can represent them.} A level-3 observer (panel b) assigns 0.90 to level 0 when the other agent is random, and its posterior mode is the true level when the other agent is of level 1 (0.52) or 2 (0.53). An agent of level 3 or 4, which it cannot represent, is assigned to level 2, its closest model (0.54 and 0.59).
+The agents' beliefs about each other are Bayes-exact as well: along the same histories, the exact agent's posterior over the other agent's level (dashed in Figure~\ref{fig:identification}a) coincides with the planner's, with a paired mean difference of at most 0.003 at step 8 in every cell. A level-2 agent comes to believe that the other agent is of level 1 whether it is in fact of level 1, 2, 3 or 4, assigning 0.92--0.95 to level 1 after 10 steps: it can represent only level 0 and level 1, and its posterior concentrates on the hypothesis whose predictions are closest to the truth in Kullback--Leibler divergence \cite{berk1966limiting}, since every planning agent listens until the growls agree and then opens a door. Against an agent that plays at random, the belief in level 1 falls to 0.077 [0.074, 0.080]. A level-3 observer (Figure~\ref{fig:identification}b) separates the levels it can represent: it assigns 0.90 to level 0 when the other agent is random, and its posterior mode is the true level for an agent of level 1 (0.52) or 2 (0.53), while an agent of level 3 or 4 is assigned to its closest model, level 2 (0.54 and 0.59).
 
-\paragraph{The posteriors are Bayes-exact.} Along the same histories, the exact agent's posterior (dashed in panel a) coincides with the planner's: at step 8 the paired mean difference is at most 0.003 in every cell ($n = 100$--$1{,}000$ per cell).
-
-\subsection{Comparison with the Baselines}
-\label{sec:baselines}
-
-On the same decisions (Table~\ref{tab:decisions}), IPF + RTS misses 0.5--4.7\% of the original tiger game's decisions at level 2, 2--9\% of the coordination game's at level 3, and 31--54\% of UAV decisions, and it is never right where I-POMCP is wrong; in the tiger games the difference is significant only at level 3 with $K = 2$ (Holm $p \leq 0.005$), while at level 3 and horizon 3 I-POMCP is 5--30 times cheaper. In the Wumpus world, whose percepts are deterministic, the plain particle filter fails on 55--57 of 60 problems, because every particle contradicts an observation. Smoothing repairs the filter but leaves 20--26 decisions optimal, as many as RTS on exact beliefs (20--28), so the rest is search error. I-NTMCP at 0.8 times I-POMCP's CPU is optimal on 40 of 60 Wumpus problems; on 20 only I-POMCP is right, and on none only I-NTMCP (Holm $p = 1.9 \times 10^{-6}$).
-
-Beyond exact reach, in 20-step UAV episodes ($n = 30$), I-POMCP at $H = 4$ earns 34.8 at 2.9 s per decision (35 is the most any episode earned), where I-NTMCP earns 20.8 at 3.7 s and 32.2 at 13 s. With no more CPU than I-NTMCP, I-POMCP earns 2.7 [1.7, 3.7] more than I-NTMCP at $M = 16{,}000$ and 2.5 [1.2, 4.0] more at $M = 16{,}000$ and $H = 5$ (Holm $p \leq 0.01$), and 14.0 [4.3, 27.5] more at $M = 4{,}000$ (Holm $p = 0.12$); at $M = 64{,}000$, 55 s per decision, both always spot the target after four steps. Over the first five decisions at $H = 4$, I-POMCP at budget 1{,}000 is optimal on 120 of 120, I-NTMCP on 73--88\% for $M \leq 16{,}000$, and IPF + RTS ($K = 2$, over 1{,}100 s per decision) on 62--70\%.
-
-\subsection{The Value of Depth across Domains}
+\subsection{When One More Level Pays}
 \label{sec:depth-results}
 
-As Proposition~\ref{prop:prediction} predicts, a second level pays only against an opponent whose actions depend on its beliefs. Against a level-1 opponent, agent $i$ gains from level 1 to 2, per episode, 7.8 [7.4, 8.3] in the coordination game (10 steps, $n = 15{,}000$), 6.0 [4.1, 8.2] in UAV reconnaissance (20 steps, $n = 100$) and 169 [84, 259] in the Wumpus world (fresh episodes against the level-1 and level-2 wumpus, $n = 200$); against the no-information model, it gains $-0.9$ [$-1.1$, $-0.7$], $-5.6$ [$-12.0$, 0.4] and 20 [$-70$, 110] ($n = 100$). A level-2 UAV anticipates a level-1 target's flight to the far corner and spots it after 5.0 steps in every episode, against 6.2 for a level-1 UAV; against a random target, the same anticipation costs it 5.6 (Holm $p = 0.09$), and a level-2 target loses 6.5 [2.0, 11.5] against a random UAV (Holm $p = 0.035$). A level-2 human is killed by an intentional wumpus in 48\% of the same episodes, against 64--67\% at level 1. Per decision, the exact I-POMDP agrees: a second level is worth 19.7 against an intentional wumpus and costs 1.7 against a random one (60 and 58 histories), and 6.0 and 1.6 in UAV reconnaissance (16 belief chains).
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{level_matchups_col.pdf}
+\caption{Exact gain in expected cumulative reward by step 3 from one more level of reasoning, $k \to k + 1$, against an opponent of level $m$, coordination tiger game (exact agents; zero variance).}
+\label{fig:matchups}
+\end{figure}
 
-A third level does not pay in our domains. A level-3 human predicts the wumpus better, assigning 0.54--0.55 to the wumpus's actual move against 0.48--0.50 at level 2, but its gains against an intentional wumpus, 80 [$-80$, 239] and 120 [$-50$, 290] ($n = 100$), are not significant; in the coordination game no gain beyond level 2 is significant (Section~\ref{sec:grid}). Depth pays up to about one level above the opponent's, as the cognitive hierarchy model suggests \cite{camerer2004cognitive}.
+Figure~\ref{fig:matchups} gives the value of one more level for exact agents, with zero variance. The second level pays against every intentional opponent (+1.78 to +1.92 by step 3), the third adds about a ninth of that (+0.20 to +0.21), and the fourth adds exactly nothing: a level-4 agent acts as a level-3 agent throughout the window, consistent with 600 fresh episodes of the planner (step 3, $|z| < 1$). I-POMCP's episodes show the same profile at the scale of whole episodes: from level 1 to 2, $i$ gains, by step 10, 7.8 [7.4, 8.3] against $j$ at level 1 ($n = 15{,}000$), 9.2 [7.3, 11.1] against level 3 ($n = 700$) and 7.0 [2.3, 11.8] against level 4 ($n = 100$), while no gain from level 2 to 3 or from 3 to 4 is significant, as expected for a gain of 0.2. The same holds across domains. In UAV reconnaissance, a second level is worth 7.9 by step 8 to the UAV against a level-1 target and 41.3 to the target against a level-1 UAV (exact; in episodes, 6.0 [4.1, 8.2] and 37.5 [33.0, 41.5] over 20 steps), and in the Wumpus world a second level pays the human 169 [84, 259] against an intentional wumpus ($n = 200$). A level-2 UAV anticipates a level-1 target's flight to the far corner and spots it after 5.0 steps in every episode, against 6.2 for a level-1 UAV.
+
+\subsection{The Cost of Modeling a Reasoner That Is Not There}
+\label{sec:overthinking}
+
+As Proposition~\ref{prop:prediction} implies, a deeper model cannot pay against an opponent whose actions do not depend on its beliefs, and in episodes it costs. Against a random opponent, the exact gain from level 1 to 2 in the coordination game is +0.46 by step 3, $-0.03$ by step 4 and $-0.55$ by step 5, and I-POMCP's episodes lose 0.9 [0.7, 1.1] by step 10: within its lookahead the deeper agent can even gain, since a receding-horizon policy is not optimal for the episode, but its wrong model costs more as the episode continues. In UAV reconnaissance the exact cost is 0.4 to 2.0 for the UAV by steps 5--10 and 1.2 to 3.3 for the target by steps 5--8; over 20-step episodes a level-2 target loses 6.5 [2.0, 11.5] against a random UAV (Holm $p = 0.035$), and a level-2 UAV 5.6 [$-0.4$, 12.0] against a random target, spending moves on a flight that never comes. In the Wumpus world, the second level gains nothing against a random wumpus (20 [$-70$, 110]). Modeling also has the converse cost of being modeled: a level-1 target, which best-responds to a random UAV, is caught by a level-2 UAV that models exactly that target, and loses 22.7 by step 5 against it, more than a random target would (exact).
 
 %======================================================================
 \section{Discussion}
@@ -395,7 +348,7 @@ The approach has limits. Every result is for two agents, and I-POMCP needs expli
 \section{Conclusion}
 \label{sec:conclusion}
 
-I-POMCP holds nested beliefs as exact or compressed updates, integrates rewards and observations exactly where it can, and certifies intervals on its action values. In three domains and at levels up to 4, its decisions are optimal where the interactive particle filter and nested Monte Carlo tree search are not, and its agents act and infer as the Bayes-optimal agent does. One more level of reasoning pays where the other agent's actions depend on its beliefs about the planner. Future work includes equilibrium analysis, more than two agents, and exact scoring with only a generative model.
+I-POMCP holds nested beliefs as exact or compressed updates, integrates rewards and observations exactly where it can, and certifies intervals on its action values. At beliefs that agents reach from the common prior, it makes Bayes-optimal decisions at 75--217~s per decision, where the interactive particle filter and nested Monte Carlo tree search level off at 35--81\% of such decisions at any budget we tried, and its agents act and infer as the Bayes-optimal agent does. One more level of reasoning pays where the other agent's actions depend on its beliefs about the planner. Future work includes equilibrium analysis, more than two agents, and exact scoring with only a generative model.
 
 %======================================================================
 \bibliographystyle{named}

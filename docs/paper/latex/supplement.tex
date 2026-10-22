@@ -143,6 +143,42 @@ The released code of I-NTMCP refills a belief after a real step by rejection sam
 
 \paragraph{IPF + RTS.} We rebuilt the multiagent tiger setting of Doshi and Gmytrasiewicz (2009, Fig.~17(a): horizon 3, $N_p \in \{50, 100\}$ particles, $K$ sampled observations per node; agent $i$ uninformed about the tiger and about $j$'s belief; 10 policy trees and 100 runs per point). Used as in our experiments, replanning at every reached history, our implementation earns $-0.5$ to $+0.8$ at every $K$ from 2 to 10, the level the published curve reaches at $K \geq 10$. The published losses at small $K$ ($-20.5$ to $-14.6$ at $K \leq 3$) arise from executing one policy tree built from $K$ sampled observations: in 72--74\% of runs at $K = 2$ the real observation is missing from the tree. Executing such a tree, with listening or a uniformly random action once the tree is left, brackets the published value at all 12 points.
 
+\section{Decisions at Chosen Beliefs}
+
+I-POMCP's budgets were chosen on grids of named beliefs: for the tiger games, $i$'s belief about the tiger crossed with $j$'s and, from level 3, with the beliefs below $j$; for UAV reconnaissance, named distributions over the other agent's sector; for the Wumpus world, beliefs reachable from the common prior. Table~\ref{tab:decisions-supp} gives the decisions on these grids. The configurations were then rerun, unchanged, on 960 random tiger beliefs and seeds that no selection used (levels 2 and 3, both games): all 960 decisions are optimal. In the original tiger game at level 3 and horizon 4, 76 of 80 decisions are optimal and the other four lose at most 0.03. At level 3 and horizon 3, exact scoring with two steps to go reduces the error of the optimal action's value from 0.06 to 0.0006.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Domain & $l$, $H$ & $n$ & I-POMCP & IPF + RTS & I-NTMCP \\
+\midrule
+Tiger (orig.) & 1, 5 & 220 & 220 & -- & -- \\
+ & 2, 3 & 380 & 380 & 374--378 & -- \\
+ & 2, 4 & 380 & 380 & 362--368 & -- \\
+ & 3, 3 & 162 & 162 & -- & -- \\
+Tiger (coord.) & 3, 2 & 162 & 162 & 148--158 & -- \\
+ & 3, 3 & 162 & 162 & 150--159 & -- \\
+ & 4, 2 & 486 & 486 & -- & -- \\
+UAV & 1, 2--5 & 40 each & 40 each & -- & -- \\
+ & 2, 2 & 80 & 80 & 46--55 & -- \\
+ & 2, 3 & 80 & 80 & 42--48 & -- \\
+ & 2, 4 & 80 & 80 & 37--40 & -- \\
+ & 3, 2 & 320 & 320 & -- & -- \\
+Wumpus & 2, 2 & 60 & 60 & 1--26 & 40 \\
+ & 3, 2 & 55 & 55 & -- & -- \\
+\bottomrule
+\end{tabular}
+\caption{Optimal decisions against the exact I-POMDP at level $l$ and horizon $H$, out of $n$ problems. IPF + RTS: the range over $K \in \{2, 4, 8\}$ and, where both were run, over the plain and smoothed filters. I-NTMCP: $M = 64{,}000$, at 0.8 times I-POMCP's CPU.}
+\label{tab:decisions-supp}
+\end{table}
+
+\section{Anytime UAV Episodes}
+
+Beyond the reach of exact solutions, a level-2 UAV plans with $H = 4$ or 5 in 20-step episodes from the common prior against a level-1 I-POMCP target ($n = 30$ per planner and budget). I-POMCP uses root budgets of 50 to 1{,}000 simulations and models the target with the same budget, and I-NTMCP uses $M$ from 1{,}000 to 64{,}000. The decisions at the first five steps of each $H = 4$ episode are scored exactly. I-POMCP at $H = 4$ earns 34.8 at 2.9 s per decision (35 is the most any episode earned), where I-NTMCP earns 20.8 at 3.7 s and 32.2 at 13 s. With no more CPU than I-NTMCP, I-POMCP earns 2.7 [1.7, 3.7] more than I-NTMCP at $M = 16{,}000$ and 2.5 [1.2, 4.0] more at $M = 16{,}000$ and $H = 5$ (Holm $p \leq 0.01$), and 14.0 [4.3, 27.5] more at $M = 4{,}000$ (Holm $p = 0.12$); at $M = 64{,}000$, 55 s per decision, both always spot the target after four steps. Over the first five decisions at $H = 4$, I-POMCP at budget 1{,}000 is optimal on 120 of 120, I-NTMCP on 73--88\% for $M \leq 16{,}000$, and IPF + RTS ($K = 2$, over 1{,}100 s per decision) on 62--70\%. These episodes were run before the tie rule of the main text (exact values within a relative $10^{-9}$ are tied); the comparison is paired on the same target, and I-NTMCP is reported in its stronger variant at each $M$.
+
 \section{Ablations}
 
 \begin{table}[h]
