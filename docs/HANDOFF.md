@@ -2,7 +2,7 @@
 
 Read this first: Section 0.0000000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. **The top one is "a paper with take-home results" (S0–S7, not started).** Under it: "an adaptive belief bound" (A1–A4, done) and "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.70–12.84 are the latest; the next free one is 12.85.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.89 are the latest; the next free one is 12.90.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -14,27 +14,38 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
 
 ### 0.00000000000 Session of October 22 (read first, then 0.0000000000)
 
-**Done:**
-- S0 and S1: `docs/paper/CLAIMS_AUDIT.md` covers every paper number, with fixes, backups and the 4-figure plan.
-- RESULTS 12.85: against the stronger, released I-NTMCP variant, the UAV matched-CPU lead is +14.0 at M = 4,000 (Holm p = 0.12, n.s.) and +2.5 to +2.7 at M = 16,000. The paper's +42.3 used the weaker variant.
-- New `domains/runner_chaser.py`, the authors' Runner-Chaser as kernels. It is tested equal to their `RCModel` on every state and joint action.
-- `INTMCPAgent(uct_c=...)`: an optional parameter; leaving it unset keeps the authors' default.
+**Done, with RESULTS sections:**
+- **S0–S1:** `docs/paper/CLAIMS_AUDIT.md`, every paper number traced, plus the 4-figure plan.
+  - 12.85: against the stronger, released I-NTMCP variant, the UAV matched-CPU lead is +14.0 (n.s.) at M = 4,000 and +2.5 to +2.7 at 16,000. The paper's +42.3 used the weaker variant.
+- **S2(a, b), 12.86:** the authors' runner reproduces their Runner-Chaser table bit for bit. Our adapter matches it (65.57 against 65.96). The adapter costs 1.45× the native CPU per search; state this in S7.
+- **S2(c), 12.89:** our IPF + RTS reaches Doshi & Gmytrasiewicz's Fig. 17(a) plateau at every K. Their small-K losses come from executing an offline sampled tree; the paper's values lie inside our offline bracket at 12 of 12 points.
+- **S3(a), 12.87, adopted (198bf5b):** exactly scored solves tie within 10⁻⁹, like the reference.
+  - UAV replay: 70 disagreements → 0 of 1,837. The Tiger and Wumpus gates are unchanged apart from 14 exact-tie corrections.
+  - **The UAV episodes change: the UAV gains +50.8 against a level-2 target.** Every UAV level result must be re-measured.
+- **S5 input, 12.88:** the exact level match-up matrix from 12.72's curves (zero variance).
+  - Level 4 is exactly level 3 through step 3.
+  - Coordination 2 → 3 is +0.20 to +0.21, including against level 1.
+  - 1 → 2 against random is +0.46 by step 3 and −0.55 by step 5: over-thinking costs only beyond the lookahead.
+- **New code:**
+  - `domains/runner_chaser.py`;
+  - the `INTMCPAgent(uct_c=...)` option;
+  - `planning.policy.TIE_TOLERANCE` and `greedy_policy(values, tolerance)`.
+  - There are 407 tests.
 
-**S2(a), (b) done (RESULTS 12.86):**
-- The authors' runner reproduces their published Runner-Chaser 4 × 4 numbers bit for bit.
-- Our adapter matches them (65.57 against 65.96, ±6.26, n = 1,000).
-- The adapter costs 1.45× the native CPU per search. State this in S7, and report I-NTMCP's CPU both as measured and native in S4.
+**Running at the end of this note** (each folder has `ENDPOINTS.md` and `KILL_CRITERION.txt`):
+- `results/u6b_uav_matrix_ties_20261022`: 12.49's UAV matrix under the tie rule, cells with the UAV at levels 0–1 (the level-2 UAV cells are `results/s3a_ties_20261022/run`).
+  - **Next:** the analysis (12.49's endpoints), then the 12.81-style replay of every intentional agent, then restate the UAV claims (M2, M4) in RESULTS.
+- `results/s3c_level4_step3_20261022`: the level-4 coordination pairs at step 3 on fresh trials 100–699, plus trials 0–99 as a reproducibility check.
+  - **Next:** RB means at step 3 against the exact 16.81 / 16.24 / 18.17 (analysis: reuse `n5_level_grid_20261019/analyze.py`'s RB code).
 
-**S2(c), IPF + RTS against Doshi & Gmytrasiewicz (2009):**
-- **Target:** Fig. 17(a), multiagent tiger H3, RTS at K = 2–20, Np = 50 and 100. Read off the plot: Np = 100 gives about −18 / −14.5 / −4 at K = 2 / 3 / 4 and about +1 at K ≥ 16. Np = 50 gives about −20.5 / −19 / −9.5, then about 0. The error bars are about ±5–10.
-- **Also usable:** Fig. 15(a), whose exact H2 ≈ −2 and H3 ≈ 2.7 test our domain.
-- **Their setting:**
-  - i is their level 1, which is our level 2;
-  - i's prior is a uniform tiger and a uniform density over j's level-0 belief;
-  - j's belief is sampled per run;
-  - the score is i's undiscounted H-step reward, averaged over 10 policy trees × 100 runs.
-- **Gap:** our episode suite assumes a common prior. S2(c) needs a dedicated job, built from `experiments.problems.tiger_chain` and the RTS planner, that samples j's belief per run. Price it first; the estimate is 30–50 CPU-h.
-- The PDF can be re-downloaded from arXiv 1401.3455.
+**Next S-steps after these:**
+1. S3(b), near-tie root escalation at UAV H5.
+2. S4, compute-to-benchmark: missing points listed in CLAIMS_AUDIT §D.
+3. S5:
+   - extend the exact windows;
+   - the UAV screen at reachable beliefs;
+   - H-CH′ (UAV level-2 UAV against a level-3 target, exact at H2).
+4. S6, then S7.
 
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
 
