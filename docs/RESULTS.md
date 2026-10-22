@@ -2335,7 +2335,16 @@ The definition is in THEORY.md, "Tie convention".
   - **Over-thinking against a random opponent:** the UAV's −5.6 is no longer significant (Holm 0.09), but the target's −6.5 now is (Holm 0.035). Both point the same way, and the exact screen's per-decision cost (1.6 at H2, 12.64) does not depend on episodes. The paper's M4 example must say "−5.6, not significant after correction" for the UAV, and can use the target's −6.5.
   - **Predictability (H-CH′, CLAIMS_AUDIT A7):** a first level costs the UAV −23.8 against a level-2 target, now significant. A level-1 UAV best-responds to a random target, and the level-2 target models exactly that UAV and evades it (spotted 25% against 49% for a random UAV). The target's mirror effect (−2.5) is small and not significant.
 
-**Replay against the Bayes-optimal agent** (12.81's design, every intentional agent): the level-2 UAV agrees on 1,837 of 1,837 decisions (12.87); the other series follow below.
+**Replay against the Bayes-optimal agent** (12.81's design, every intentional agent; `replay.py`, `replay_analysis.txt`; 12 series × 100 trials, about 1.5 CPU-h):
+
+| Agent | Decisions agreeing [95% CP] | Level-posterior TV, mean / max |
+|---|---|---|
+| UAV, level 1 | 3,116 / 3,116 [0.9988, 1] | 0 / 0 |
+| UAV, level 2 | 1,837 / 1,837 [0.9980, 1] | 0.0000 / 0.014 |
+| Target, level 1 | 2,859 / 2,859 [0.9987, 1] | 0 / 0 |
+| Target, level 2 | 2,579 / 2,579 [0.9986, 1] | 0 / 0 |
+
+- **Every one of 10,391 replayed decisions agrees with the Bayes-optimal agent** (12.81 had 10,582 of 10,652, with 70 tie-convention misses). The UAV level grid is now Bayes-optimal in action at every replayed decision, at both levels, for both agents.
 
 ### 12.90 S3(b): root stopping (near-tie root escalation) matches flat root 64,000 at UAV L2 H5 (36/40 each, against 17/40 at 1,000) but saves no CPU, because the modeled target dominates the cost. Not adopted as the recommended setting; the option stays off by default (October 22, 2026)
 
