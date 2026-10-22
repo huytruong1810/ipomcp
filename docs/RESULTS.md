@@ -2299,6 +2299,57 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.94 S4, cell 1: compute to the Bayes-optimal benchmark on UAV L2 H3 at histories reachable from the common prior. I-POMCP reaches it (100/100, CP ≥ 0.964) at about 217 s per decision with exact beliefs; IPF + RTS levels off at 81% and I-NTMCP at 58%; belief compression, not search, separates I-POMCP's rungs (October 23, 2026)
+
+**Why:** message M1, how much CPU I-POMCP needs to reach Bayes-optimal decisions against the baselines. The gate grids (12.41, 12.43) placed agents at named beliefs I-NTMCP cannot start from. Here every planner decides the same problems, i's own histories from the common prior (I-NTMCP's model class), which are also the beliefs agents reach in play.
+
+**Design** (`results/s4_compute_benchmark_20261022`; `ENDPOINTS.md` with amendments 1–8, each dated and written before the data it governs; `analyze.py` → `uav_analysis.txt`; `escalation.py` → `escalation.txt`; `figure_m1.py`):
+- **Problems:** `experiments.reachable_decisions`.
+  - i acts uniformly among non-ending actions; the target acts as the exact level-1 model.
+  - History lengths 1–5; 1,400 problems with **512 distinct beliefs**.
+  - Exact I-POMDP references with point-mass nesting.
+- **Arms:** one decision per distinct belief, planner seed 0.
+  - I-POMCP's qualified gate configurations on all 512.
+  - Every arm on a fixed random subset of 100.
+- **Cost:** about 110 CPU-h with the references (UAV cell), above the 100 CPU-h line; flagged (the user granted autonomy while away).
+
+**Results on the subset** (n = 100 distinct beliefs per arm; optimal = loss ≤ 10⁻⁹, CP 95%; CPU = median per decision, the decision's own search):
+
+| Planner, budget | Optimal [95%] | Within ε = 0.05 | Mean / max loss | CPU (s) |
+|---|---|---|---|---|
+| I-POMCP 100/100, N = 64 | 79 [0.70, 0.87] | 94 | 0.013 / 0.40 | 13.8 |
+| I-POMCP 1,000/400, N = 64 | 81 [0.72, 0.88] | 89 | 0.017 / 0.34 | 52 |
+| I-POMCP 1,000/400, N = 256 | 80 [0.71, 0.87] | 92 | 0.013 / 0.16 | 102 |
+| I-POMCP 1,000/400, N = 1,024 | 97 [0.92, 0.99] | 99 | 0.001 / 0.09 | 128 |
+| I-POMCP 1,000/400, exact beliefs | 97 [0.92, 0.99] | 99 | 0.001 / 0.09 | 136 |
+| **I-POMCP 1,000/1,600, exact beliefs** | **100 [0.964, 1]** | 100 | 0 / 0 | **217** |
+| IPF + RTS K = 2 / 4 / 8 (N = 64) | 75 / 81 / 81 | 83 / 91 / 91 | 0.16 / 0.09 / 0.06; max 8.9 | 137 / 313 / 451 |
+| I-NTMCP published M = 1,000 / 4,000 / 16,000 / 64,000 | 45 / 54 / 53 / 37 | 50–62 | 3.1–9.9; max about 48 | 0.8 / 3.1 / 12 / 49 |
+| I-NTMCP tuned (same M) | 47 / 58 / 49 / 39 | 46–66 | 3.8–9.0; max about 55 | 0.8 / 3.0 / 12 / 48 |
+
+On all 512 distinct beliefs: N = 64 is optimal on 405 [0.75, 0.83] (466 within ε), and N = 256 on 431 [0.81, 0.87] (488 within ε).
+
+**Endpoints:**
+- **Primary:** the only arm whose CP lower bound reaches 0.95 is I-POMCP 1,000/1,600 with exact beliefs (100/100, ≥ 0.964, 217 s). No baseline arm reaches 0.95 at any budget tested.
+- **Secondary (exact McNemar, Holm over 11):** that arm is right where a baseline arm is wrong on 19–63 beliefs, and never the other way (0 in every comparison). Holm p ≤ 7.6 × 10⁻⁶ against every IPF + RTS arm and ≤ 1.8 × 10⁻¹² against every I-NTMCP arm.
+
+**Findings:**
+- **What separates I-POMCP's rungs is the belief bound, not simulations.**
+  - At N = 64, root 100 to 1,000 and target 100 to 400 all give 79–81%.
+  - N = 1,024 or exact beliefs give 97%, and a stronger target model (1,600) closes the last 3.
+  - Diagnosis 1 (ENDPOINTS): exact beliefs fixed every N = 64 miss tried, while root 4,000 or target 1,600 at N = 64 fixed none.
+  - The real belief has only 52–163 atoms. The compression that matters is in the search tree's beliefs, whose support grows by up to 45× per simulated step (as in Tiger, 12.78).
+  - **12.41's qualification at history 0 does not carry to reachable histories; the paper must say so** and qualify the configuration where it is used.
+- **I-POMCP's errors are small even below the benchmark:** 89–94% of its N = 64 decisions are within ε = 0.05, with a maximum loss of 0.40. IPF + RTS's misses reach 8.9, and I-NTMCP's about 50, the cost of a missed spotting.
+- **IPF + RTS levels off at about 81%** from K = 4 to K = 8, at 2–3.5× the CPU of I-POMCP's benchmark configuration.
+- **I-NTMCP gets worse with more simulations** (54–58% at M = 4,000; 37–39% at 64,000; same pattern for both variants). This is consistent with its opponent model: it predicts the target by a softmax over visit counts, not by the target's best response. More search then converges toward the answer to a different problem than the I-POMDP the reference solves. A hypothesis; not tested further.
+- **Near-tie escalation (amendment 6), calibrated on the subset** (`escalation.txt`):
+  - Escalating the N = 64 base to the exact-belief shadow where the base's top-two gap is ≤ 2 matches the shadow (97/100) at 0.67× its mean CPU (143 against 214 s).
+  - 10 of the 19 base misses have a scored gap of exactly 0: compression makes distinct actions look tied.
+  - It is not cheaper than N = 1,024 (128 s median). So the held-out validation was not run, and escalation is not recommended for UAV.
+
+**Use in the paper:** Figure 1 (M1) panel (a) is `docs/paper/latex/compute_benchmark.pdf`, from `figure_m1.py`. Table 1's UAV rows remain gate evidence at named beliefs. The text states the qualified configuration per use, and that reachable histories need exact (or N ≥ 1,024) beliefs.
+
 ### 12.93 S5: exact pair curves for the UAV level matrix. Zero-variance level gains agree in sign with every 12.91 episode gain; over-thinking against random is real but small (UAV −1.3 to −2.0, target −1.2 to −3.3 by steps 8–10); predictability costs the target −22.7 by step 5; the planner pairs contain the exact pair at 31 of 36 agent-steps (October 23, 2026)
 
 **Why:** M2 and M4 on UAV rested on n = 100 episodes per cell (12.91). 12.72's exact pair curves give the Bayes-optimal agents' expected rewards with zero variance.
