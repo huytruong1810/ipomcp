@@ -2299,6 +2299,44 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.95 S4, cell 2: Wumpus 3 × 3 L2 H2 at reachable histories. I-POMCP is optimal on all 219 distinct beliefs (CP ≥ 0.983) at 75–89 s; the best baseline reaches 77% (I-NTMCP tuned, M = 64,000); the sampled IPF fails on about 90%. This is also S6's held-out Wumpus check (October 23, 2026)
+
+**Why:** message M1 on the domain with deterministic percepts, and S6's held-out check: 12.58's configuration was chosen on 60 problems, and these 219 beliefs are new.
+
+**Design** (`results/s4_compute_benchmark_20261022`, ENDPOINTS "Cell 2" and amendment 7; `analyze.py wumpus` → `wumpus_analysis.txt`; `figure_m1.py`):
+- 360 problems from the common prior (history lengths 2–4; i uniform among non-ending actions; the wumpus as its exact level-1 model). 25 ended during the history; **219 distinct beliefs**.
+- Exact references with point-mass nesting (about 123 CPU-s each).
+- Arms:
+  - I-POMCP 400/400 (12.60's episode configuration) on all 219;
+  - all other arms on a fixed subset of 100.
+  - Amendment 7 trimmed I-POMCP 1,000/400, and published I-NTMCP at M = 64,000, for cost.
+- **Cost:** about 50 CPU-h, references included. **S4 in total is about 160 CPU-h** (both cells), above the 100 CPU-h line, and flagged. The user granted autonomy while away.
+- **Incomplete:** 1 I-NTMCP tuned M = 64,000 job hit the 2-hour timeout (n = 99 for that arm).
+
+| Planner, budget | Optimal [95% CP] | Mean / max loss | CPU per decision (median) | Failures |
+|---|---|---|---|---|
+| **I-POMCP 400/400, exact beliefs (all 219)** | **219 / 219 [0.983, 1]** | 0 / 0 | 89 s | 0 |
+| I-POMCP 400/400 (subset) | 100 / 100 [0.964, 1] | 0 / 0 | 75 s | 0 |
+| I-POMCP 100/100 (subset) | 100 / 100 [0.964, 1] | 0 / 0 | 73 s | 0 |
+| I-NTMCP tuned M = 1,000 / 4,000 / 16,000 / 64,000 | 55 / 64 / 70 / 77 (of 99) | 19–55 / up to 639 | 0.4 / 1.4 / 5.8 / 23 s | 0 |
+| I-NTMCP published M = 1,000 / 4,000 / 16,000 | 52 / 54 / 50 | 60–75 / up to 639 | 0.4 / 1.5 / 6.2 s | 0 |
+| IPF + RTS, sampled IPF, K = 2 / 4 / 8 | 5 / 4 / 0 | about 60–100 | 0.2 s | 89 / 90 / 98 |
+| IPF + RTS, smoothed IPF, K = 2 / 4 / 8 | 35 / 35 / 35 | 76–103 / up to 1,001 | 0.9–1.3 s | 24–25 |
+
+**Endpoints:**
+- **Primary:** both I-POMCP arms reach the CP 0.95 bound (on all 219: 219 / 219, ≥ 0.983). No baseline arm reaches it at any budget.
+- **Secondary (exact McNemar on the subset, Holm):** I-POMCP 400/400 is right where a baseline arm is wrong on 22–100 beliefs, and never the converse (0 in every comparison). Holm p ≤ 9.5 × 10⁻⁷ for every arm.
+
+**Findings:**
+- **On Wumpus, I-POMCP needs no more than 100 simulations with exact beliefs.** Deterministic percepts keep the exact beliefs small; the cost per decision (73–89 s) is the exact filter and the modeled wumpus.
+- **12.58's configuration holds on 219 fresh beliefs (S6):** this closes the "no held-out Wumpus check" gap (HANDOFF 0.0000000000).
+- **The sampled IPF fails on about 90% of beliefs** (12.59's failure mode, at reachable histories).
+  - Likelihood smoothing repairs the zero-likelihood case, but still fails on about 25%.
+  - The remaining failures are nested particle depletion: the wumpus's own update keeps only particles whose successors continue the episode. When every sampled particle ends the episode (the wumpus believes the human is directly ahead), no particle survives, which smoothing cannot repair.
+  - Where it does not fail, the smoothed filter is optimal on 35%, with losses up to 1,001 (a death).
+- **I-NTMCP improves with M on Wumpus** (tuned 55% → 77%), unlike on UAV (12.94), but stays far from the benchmark, with losses up to 639.
+- **Figure 1 (M1)** is final: `docs/paper/latex/compute_benchmark_col.pdf` (column) and `compute_benchmark.pdf` (wide).
+
 ### 12.94 S4, cell 1: compute to the Bayes-optimal benchmark on UAV L2 H3 at histories reachable from the common prior. I-POMCP reaches it (100/100, CP ≥ 0.964) at about 217 s per decision with exact beliefs; IPF + RTS levels off at 81% and I-NTMCP at 58%; belief compression, not search, separates I-POMCP's rungs (October 23, 2026)
 
 **Why:** message M1, how much CPU I-POMCP needs to reach Bayes-optimal decisions against the baselines. The gate grids (12.41, 12.43) placed agents at named beliefs I-NTMCP cannot start from. Here every planner decides the same problems, i's own histories from the common prior (I-NTMCP's model class), which are also the beliefs agents reach in play.
