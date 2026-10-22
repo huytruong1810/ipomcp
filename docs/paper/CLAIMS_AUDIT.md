@@ -289,3 +289,4 @@ Each figure has one motivating sentence, the exact claim it shows and its varian
 - **Baseline fidelity (12.86, 12.89):** one sentence and the supplement.
   - I-NTMCP: the authors' runner and our adapter match their published table, and the adapter's CPU overhead is 1.45×.
   - IPF + RTS: it reaches the published plateau. The published small-K losses are offline-tree execution.
+- **Figure 2 level-4 panel (12.92):** on 600 fresh trials the level-4 pairs match the exact pair at step 3 (|z| ≤ 0.97). G2's level-4 excursion is closed; cite n = 600 in the caption.

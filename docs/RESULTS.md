@@ -2299,6 +2299,28 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.92 S3(c): the level-4 coordination pairs match the exact pair at step 3 on 600 fresh trials (|z| ≤ 0.97); 12.73's excursion (z ≈ 2) was its shared 100-trial sample (October 22, 2026)
+
+**Why:** HANDOFF S3 item 3. In 12.73 the level-4 pairs i4_j1 and i4_j2 sat above the exact pair by step 3 (21.1 against 16.8; z ≈ 2.0–2.1), on the same 100 trials for every agent and cell. Figure 2's level-4 panel needed a fresh check.
+
+**Design** (`results/s3c_level4_step3_20261022`; `ENDPOINTS.md` fixed before the run; `job.py` = 12.73's job at 3 steps; `analyze.py` → `analysis.txt`):
+- 12.73's configuration (coordination, H2, 100 simulations, N = 64, uniform level priors), source 198bf5b (the adopted tie rule).
+- Trials 0–699 per cell: trials 100–699 are the fresh sample; trials 0–99 are the reproducibility check.
+- Rao-Blackwellized cumulative reward at step 3. The forward–backward pass conditions on the 3-step episode's observations, which is unbiased for the same estimand.
+- **Cost:** about 8 CPU-h.
+
+| Cell, agent | Fresh n | RB mean by step 3 [95%] | Exact (12.72) | z |
+|---|---|---|---|---|
+| i4_j1, i (level 4) | 600 | 17.49 [15.84, 19.14] | 16.814 | +0.80 |
+| i4_j1, j (level 1) | 600 | 17.07 [15.40, 18.73] | 16.242 | +0.97 |
+| i4_j2, i (level 4) | 600 | 18.63 [16.96, 20.31] | 18.224 | +0.48 |
+| i4_j2, j (level 2) | 600 | 18.70 [17.03, 20.37] | 18.166 | +0.63 |
+
+**Findings:**
+- **Every exact value lies inside the fresh 95% interval** (|z| ≤ 0.97). The pre-fixed precision target (half-width ≤ 1.7, 10% of the exact value) is met.
+- **Reproducibility:** trials 0–99 take the same actions at steps 1–3 as 12.73's stored trials in 100 of 100 per cell, under the adopted tie rule.
+- **Reading, fixed in advance:** 12.73's excursion was the shared 100-trial sample. Figure 2's level-4 panel stands, and its caption should cite the fresh n = 600 at step 3.
+
 ### 12.91 U6b: the UAV level matrix under the exact tie convention. A second level for the UAV is worth +81 against a level-2 target (12.49: +26); over-thinking against random is no longer significant for the UAV (−5.6, Holm 0.09) but is for the target (−6.5, Holm 0.035); a first level loses −23.8 against an opponent two levels up (October 22, 2026)
 
 **Why:** 12.87. Under the adopted tie rule, a level-2 target's episodes change, so every UAV level result of 12.49 is re-measured before the paper uses it.
