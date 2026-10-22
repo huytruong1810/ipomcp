@@ -16,15 +16,11 @@ import random
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.planning.planner import Planner
-from ipomdp.planning.policy import sample_policy
+from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy, sample_policy
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.best_response import BestResponseReference
-
-# Relative tolerance for treating exact Q values as tied. Exact enumeration in
-# floating point can differ in the last bits between algebraically equal paths.
-TIE_TOLERANCE = 1e-9
 
 
 class ExactIPOMDPPlanner(Planner):
@@ -48,11 +44,9 @@ class ExactIPOMDPPlanner(Planner):
 
     def policy_for(self, model, modeled=False):
         q = self.q_values(model)
-        best = max(q.values())
-        chosen = [a for a, v in q.items() if v >= best - TIE_TOLERANCE * max(1.0, abs(best))]
         if not modeled:
             self.last_q = q
-        return {a: 1.0 / len(chosen) for a in chosen}
+        return greedy_policy(q, TIE_TOLERANCE)
 
     def get_action(self, belief=None):
         if self.tie_rng is None:

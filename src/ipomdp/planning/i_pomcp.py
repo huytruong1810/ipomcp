@@ -67,7 +67,7 @@ from ipomdp.planning.exploration import HorizonBoundUCB
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.planner import Planner
-from ipomdp.planning.policy import greedy_policy, sample_policy
+from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy, sample_policy
 
 
 class IPOMCPPlanner(Planner):
@@ -131,10 +131,10 @@ class IPOMCPPlanner(Planner):
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
         if modeled and self.config.modeled_stopping is not None:
-            return greedy_policy(self._stopped_values(model))
+            return _policy(self._stopped_scores(model))
         simulations = self.config.modeled_simulations if modeled else self.config.simulations
         node, scores = self._search(model, simulations, bounds=not modeled)
-        policy = greedy_policy(scores.values)
+        policy = _policy(scores)
         if not modeled:
             self.root = node
             self.search_values = dict(node.action_values)
@@ -143,7 +143,10 @@ class IPOMCPPlanner(Planner):
         return policy
 
     def _stopped_values(self, model):
-        """Scored values of a modeled solve by sequential stopping (``stopping``).
+        return self._stopped_scores(model).values
+
+    def _stopped_scores(self, model):
+        """Chance scores of a modeled solve by sequential stopping (``stopping``).
 
         The main tree is seeded as a flat search of the cap, so a solve that
         never separates returns exactly that search's values. Pilot trees are
@@ -154,7 +157,8 @@ class IPOMCPPlanner(Planner):
         main = self._tree(model, cap)
         calibration = None
         for simulations in checkpoints:
-            values = main.grow(simulations).values
+            scores = main.grow(simulations)
+            values = scores.values
             if calibration is None:
                 calibration = [values] + [
                     self._tree(model, cap, pilot).grow(rule.pilot).values
@@ -163,7 +167,7 @@ class IPOMCPPlanner(Planner):
             if simulations == cap or rule.separated(
                 values, calibration, simulations, len(checkpoints)
             ):
-                return values
+                return scores
 
     # ------------------------------------------------------------------ #
     # Search
@@ -332,3 +336,8 @@ class _GrowingSearch:
             planner.config.gamma,
             bounds,
         )
+
+
+def _policy(scores):
+    """Greedy over scored values; exactly scored values tie within ``TIE_TOLERANCE``, as the exact reference's do."""
+    return greedy_policy(scores.values, TIE_TOLERANCE if scores.exact else 0.0)

@@ -10,7 +10,7 @@ from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, OPEN_RIGHT, TigerModel
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.planning.config import PlannerConfig
-from ipomdp.planning.policy import greedy_policy
+from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
@@ -38,6 +38,15 @@ def test_random_planner_and_shared_greedy_tie_rule():
     assert greedy_policy({LISTEN: 1, OPEN_LEFT: 1, OPEN_RIGHT: -1}) == {LISTEN: 0.5, OPEN_LEFT: 0.5}
     with pytest.raises(ValueError):
         greedy_policy({LISTEN: float("nan")})
+
+
+def test_exact_values_tie_within_the_reference_tolerance():
+    # Algebraically equal exact values that differ in the last bits (RESULTS 12.87's gate rows).
+    values = {LISTEN: -1.95, OPEN_LEFT: -86.95, OPEN_RIGHT: -1.95 + 1.8e-15}
+    assert greedy_policy(values) == {OPEN_RIGHT: 1.0}
+    assert greedy_policy(values, TIE_TOLERANCE) == {LISTEN: 0.5, OPEN_RIGHT: 0.5}
+    # The tolerance is relative: a real gap is never a tie.
+    assert greedy_policy({LISTEN: 0.0, OPEN_LEFT: 1e-6}, TIE_TOLERANCE) == {OPEN_LEFT: 1.0}
 
 
 @pytest.mark.parametrize("level", [1, 2, 3, 4, 5])

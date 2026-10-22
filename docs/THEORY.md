@@ -86,10 +86,15 @@ Every error report states which one it uses.
 | Exact I-POMDP | every level solved exactly, recursively | `reference.exact_agent` + best response | search error plus opponent-model error |
 | Exact POMDP (L1) | fixed L0 | `reference.pomdp_exact_vi` | independent cross-check by alpha vectors |
 
-**Tie convention.** In the exact I-POMDP, a modeled agent with several exactly optimal actions plays them uniformly. I-POMCP's modeled solve plays whatever its search returns, which may be a subset of the tie set (RESULTS.md 12.50: on UAV, 75 of 170 queried target models have exact ties, and 38 of them are solved optimally on a subset). Both are equally rational opponents. But tied actions give the modeled agent different observations, so the modelling agent's exact best response can differ between them. No search budget closes this gap: it is a difference of opponent definition, not an error. So:
-- the error against the **exact I-POMDP** at a level above 1 includes this convention whenever a modeled level has ties;
-- modeled-agent qualification counts it separately (`tie_set`, `uniform_on_ties`; summary columns `tied`, `optimal_off_convention`) and never fails a rung for it;
-- episodes model the real opponent as it is configured (RESULTS.md 12.30), so they predict its own tie-breaking, not the uniform one.
+**Tie convention** (revised October 22, 2026; RESULTS.md 12.87). In the exact I-POMDP, a modeled agent with several exactly optimal actions plays them uniformly; the reference treats values within a relative 10⁻⁹ as tied (`planning.policy.TIE_TOLERANCE`), because algebraically equal values computed along different paths differ in the last bits.
+- **I-POMCP now uses the same rule whenever its chance scores are exact** (Proposition 1's condition held for that solve). This applies to the agent's own decision and to every modeled solve, the sequential-stopping ones included.
+- When the scores are not exact, it keeps strict equality: search noise is not a tie, and an interval test cannot certify one.
+- Before this change, a modeled solve with exact scores could play a strict subset of its tie set, whichever tied value happened to be largest in floating point (12.50: 38 of 170 UAV target models).
+  - That was a different, equally rational opponent, but not the exact one, and it caused all 70 of the UAV level grid's disagreements with the Bayes-optimal agent (12.81). Under the revised rule there are none (12.87).
+- Consequences:
+  - Agreement with the **exact I-POMDP** at levels above 1 no longer carries a convention gap where modeled scores are exact.
+  - Modeled-agent qualification still reports `tie_set`, `uniform_on_ties` and `optimal_off_convention`, which should now be zero wherever the modeled scores are exact.
+  - Episodes model the real opponent as configured (12.30). The real opponent now draws uniformly among its exact ties too, which changes episodes that contain exact ties (12.87: the UAV against a level-2 target).
 
 ## Error measures
 

@@ -2299,6 +2299,41 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.87 S3(a): exact ties within 10⁻⁹ for exactly scored solves. The UAV level-2 replay goes from 70 disagreements with the Bayes-optimal agent to 0 of 1,837, Tiger and Wumpus gates are unchanged apart from 14 exact-tie corrections, and the rule is adopted. It changes the UAV's episodes against a level-2 target (+50.8) (October 22, 2026)
+
+**Why:** HANDOFF 0.0000000000, S3 item 1; 12.81. Every UAV disagreement with the exact agent was the planner's modeled target playing a strict subset of exactly tied maximizers. The exact reference ties values within a relative 10⁻⁹; I-POMCP used strict float equality.
+
+**Change** (`planning/policy.py`, `planning/i_pomcp.py`, `reference/exact_agent.py`):
+- `greedy_policy(values, tolerance)`.
+- I-POMCP passes `TIE_TOLERANCE` (10⁻⁹, relative, now shared with the exact agent) whenever the solve's chance scores are exact (`ChanceScores.exact`, Proposition 1's condition). This covers real decisions and modeled solves, including sequential stopping.
+- Non-exact scores keep strict equality.
+- THEORY.md, "Tie convention", is revised. There are 407 tests, and ruff is clean.
+
+**Gates** (`results/s3a_ties_20261022`; `ENDPOINTS.md` fixed before any run, with an interim note):
+
+| Gate | Design | Result |
+|---|---|---|
+| 1 (UAV, must pass) | 12.49's cells with a level-2 UAV (i2_j0–j2, 100 trials each) rerun under the rule; the UAV replayed through the exact agent as in 12.81 | **1,837 / 1,837 decisions agree** [0.998, 1]; 12.81 had 1,920 / 1,990 (70 misses). Level-posterior TV: mean 0.0000, max 0.014 (12.81: 0.007–0.016, max 0.27) |
+| 2a (Tiger) | 12.23's five coordination gates (1,244 decisions), run on HEAD's source and on the new source | Scored values identical in **1,244 of 1,244**. Policies identical except 14, all exact ties (L and OR both −1.95 exactly, differing by 2 × 10⁻¹⁵), where the old rule played OR alone and the new rule plays both, as the exact I-POMDP does. Optimal: 1,244 / 1,244 under both rules |
+| 2b (Wumpus) | 12.58's episode-agent gate (L2 H2, 60), old against new source, with the stored exact references | Values and losses identical in **60 / 60**, also equal to the stored 12.58 rows; 60 / 60 optimal |
+
+**Gate 2's wording:** "every policy identical" fails at the 14 Tiger rows above. The pre-written criterion did not exempt exact ties, which are exactly what the change targets. In every one of them the old policy was a strict subset of the exact tie set and the new policy is the set. This is reported, not reclassified quietly.
+
+**Effect on episodes** (same seeds as 12.49; `compare_episodes.py`):
+
+| Cell | Trials changed | First changed step | UAV reward, new against 12.49 [95%] |
+|---|---|---|---|
+| i2_j0 | 21 / 100 (exactly 12.81's 21 miss trials) | 6 | 12.2 against 10.6: +1.6 [−2.2, 5.4] |
+| i2_j1 | 37 / 100 | 2 | 30.0 against 30.0: 0 |
+| i2_j2 | 81 / 100 | 2 | 5.2 against −45.6: **+50.8 [38.4, 63.2]** |
+
+- **Mechanism in i2_j2:** the real level-2 target meets exact ties early (for example at step 2, E and N both −0.2166, differing at 10⁻¹⁶). Under the old rule it played whichever was larger in floating point. That deterministic choice happened to evade a level-2 UAV well over 20 steps, beyond its H3 lookahead. Under the exact convention it draws among the tie set and is caught more often.
+- **Consequence:** 12.49's UAV level matrix, in particular "a level-2 target gains +26 to +35" and "the target gains more from depth than the UAV", partly rests on floating-point tie-breaking.
+  - Every UAV level result must be rerun under the adopted rule before the paper uses it: the 9-cell matrix (about 15 CPU-h, 12.49), the replay, and the screens.
+  - The Tiger and Wumpus results are unaffected wherever their gates are representative: no tie at a modeled exact solve changed a decision there.
+
+**Cost:** about 9 CPU-h for gate 1, 1 CPU-h for gate 2a and 4 CPU-h for gate 2b, under the 25 CPU-h kill line.
+
 ### 12.89 S2(c): IPF + RTS fidelity against Doshi & Gmytrasiewicz (2009), Fig. 17(a). Our implementation reaches the published plateau at every K. The published losses at small K come from executing an offline tree whose sampled branches miss the real observation, a protocol our planner does not use (October 22, 2026)
 
 **Why:** PLAN.md S2 and CLAIMS_AUDIT A9. IPF + RTS is our reimplementation. Without a reproduction on the authors' setting, any gap to I-POMCP can be called an implementation artifact.
