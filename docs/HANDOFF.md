@@ -2,7 +2,7 @@
 
 Read this first: Section 0.0000000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. **The top one is "a paper with take-home results" (S0–S7, not started).** Under it: "an adaptive belief bound" (A1–A4, done) and "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.89 are the latest; the next free one is 12.90.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.92 are the latest; the next free one is 12.93.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -32,20 +32,28 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
   - `planning.policy.TIE_TOLERANCE` and `greedy_policy(values, tolerance)`.
   - There are 407 tests.
 
-**Running at the end of this note** (each folder has `ENDPOINTS.md` and `KILL_CRITERION.txt`):
-- `results/u6b_uav_matrix_ties_20261022`: 12.49's UAV matrix under the tie rule, cells with the UAV at levels 0–1 (the level-2 UAV cells are `results/s3a_ties_20261022/run`).
-  - **Next:** the analysis (12.49's endpoints), then the 12.81-style replay of every intentional agent, then restate the UAV claims (M2, M4) in RESULTS.
-- `results/s3c_level4_step3_20261022`: the level-4 coordination pairs at step 3 on fresh trials 100–699, plus trials 0–99 as a reproducibility check.
-  - **Next:** RB means at step 3 against the exact 16.81 / 16.24 / 18.17 (analysis: reuse `n5_level_grid_20261019/analyze.py`'s RB code).
+**Also done later on October 22:**
+- **12.90, S3(b):** `PlannerConfig.root_stopping` is correct (36/40 like flat 64,000) but saves no CPU. Not adopted; off by default.
+- **12.91:** the UAV level matrix under the tie rule.
+  - The UAV's 1 → 2 gain against a level-2 target is +81.
+  - Over-thinking against random: the UAV's −5.6 is n.s.; the target's −6.5 is significant.
+  - Predictability: −23.8.
+  - The replay agrees on 10,391 / 10,391 decisions.
+- **12.92, S3(c):** the level-4 pairs match the exact pair at step 3 on 600 fresh trials.
+- `experiments/reachable_decisions.py`: S4 infrastructure (common-prior histories, every planner, point-mass nesting). 415 tests.
+- **CLAIMS_AUDIT section F** lists every paper change these imply (apply in S7).
 
-**Next S-steps after these:**
-1. S3(b), near-tie root escalation at UAV H5.
-2. S4, compute-to-benchmark: missing points listed in CLAIMS_AUDIT §D.
-3. S5:
-   - extend the exact windows;
-   - the UAV screen at reachable beliefs;
-   - H-CH′ (UAV level-2 UAV against a level-3 target, exact at H2).
-4. S6, then S7.
+**Running (S4, UAV L2 H3 cell; `results/s4_compute_benchmark_20261022`, ENDPOINTS with amendments 1–2):**
+- **References:** the length-5 histories (`uav/jobs_refs3.txt`) are running.
+- **Decisions:** I-POMCP 1,000/400 on every distinct belief (`uav/jobs_all.txt`) is running.
+- **To do when the references finish:**
+  1. `python build_jobs.py all` (new digests), then `python build_jobs.py subset`.
+  2. Run both lists with `./run.sh <jobs> <workers>`.
+  3. Analyse per arm: share optimal (CP), mean loss and median CPU, deduplicated by digest. Primary: the smallest budget whose CP lower bound reaches 0.95.
+- **Pricing:**
+  - I-POMCP 1,000/400 is 5 of 6 optimal on the priced problems, and I-NTMCP 64,000 is 2 of 5: a real gap is likely.
+  - IPF + RTS K = 16 costs about 650 s per job.
+- **Wumpus and tiger cells:** decided after the UAV result.
 
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
 
