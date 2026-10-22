@@ -33,6 +33,41 @@
 
 Rules: price on the hardest cells under load; `ENDPOINTS.md` and `KILL_CRITERION.txt` before each run; ask the user above 100 CPU-h in total per step; back up before deleting.
 
+## Status (October 22, 2026, evening)
+- **S0, S1:** done (`docs/paper/CLAIMS_AUDIT.md`; 12.85).
+- **S2:** done.
+  - I-NTMCP (12.86): the authors' runner reproduces their table exactly, and our adapter matches it.
+  - IPF + RTS (12.89): it reaches the published plateau; the small-K losses are offline-tree execution.
+- **S3:**
+  - (a) Tie convention, adopted (12.87). It changed the UAV level results, re-measured in 12.91.
+  - (b) Root stopping: correct, no CPU saving, not adopted (12.90).
+  - (c) Level-4 step 3 on fresh trials: running (`results/s3c_level4_step3_20261022`).
+  - (d) Partly answered by 12.88: level 4 equals level 3 exactly through step 3 at reachable beliefs.
+- **S5 input:** the exact match-up matrix (12.88).
+
+## S4 design (October 22, 2026; written before any S4 run)
+**Problems: decisions at histories reachable from the common prior,** so that every planner, I-NTMCP included (its model class), decides the same problems, and the beliefs are ones agents reach in play.
+- **History generator:** i acts uniformly at random (the "random script" of the Wumpus problems, 12.58); j is the exact level-1 opponent; observations are sampled from the kernels. History lengths are 0–4 (UAV), 0/2/4 (Wumpus) and 0–3 (coordination tiger).
+- **References:** `oracle.episode_reference_q` (the exact I-POMDP the planner was declared to solve; prior uniform over j's levels).
+- **Distinct histories, not seeds,** carry n: at least 459 distinct problems per cell at the I-POMCP qualified point, so that a 100% cell's Clopper–Pearson lower bound is ≥ 0.99; baselines on a 160-problem subset, enough for ±8 points against gaps of about 40.
+
+**Cells and ladders (median CPU per decision on the x axis, share optimal and mean loss on the y axis):**
+- **UAV L2 H3:**
+  - I-POMCP root {100, 250, 1,000} × target {100, 400};
+  - IPF + RTS K {2, 4, 8, 16} (N = 64);
+  - I-NTMCP M {1,000, 4,000, 16,000, 64,000}, the stronger variant per M reported.
+  - Reference about 4 CPU-s per problem (priced October 22 on random laws).
+- **Wumpus 3 × 3 L2 H2:** reuse 12.58 / 12.59 / 12.62 / 12.65 (60 problems) and extend to 459 histories. References are about 90 CPU-s each, so about 11 CPU-h.
+- **Coordination tiger L3 H3:** I-POMCP root {100, 250, 1,000} × modeled {100, 400, 6400s/100}; IPF + RTS K {2, 4, 8, 32}; I-NTMCP M ladder.
+
+**Price before launch:** the hardest arm of each cell on 10 problems under load (IPF + RTS K = 16 at UAV H3; I-NTMCP M = 64,000; Wumpus references). Ask the user if the total exceeds 100 CPU-h; the expected total is 60–90.
+
+**Endpoints:**
+- Per cell, the smallest budget at which each planner's Clopper–Pearson lower bound on the share optimal reaches 0.95, and its median CPU per decision. "Not reached" is a result.
+- Paired McNemar between planners at matched CPU (Holm within cell).
+- I-NTMCP's CPU is reported both as measured and divided by the adapter overhead of 1.45 (12.86).
+
+
 # Plan: an adaptive belief bound with a certified compression error (from October 20, 2026)
 
 **Status (October 21, 03:30): A3b passed (RESULTS 12.80).**
