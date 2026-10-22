@@ -2,7 +2,7 @@
 
 Read this first: Section 0.0000000000 is enough to start. Then, as needed:
 - [PLAN.md](PLAN.md): the phases, newest on top. **The top one is "a paper with take-home results" (S0–S7, not started).** Under it: "an adaptive belief bound" (A1–A4, done) and "the definitive Tiger level grid" (N0–N5, done).
-- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.94 are the latest; the next free one is 12.95.
+- [RESULTS.md](RESULTS.md): every number, with its n and its reference. Sections 12.84–12.95 are the latest; the next free one is 12.96.
 - **The paper:** [paper/latex/main.tex](paper/latex/main.tex), mirrored to Overleaf (see 0.00000000 §2). [PAPER.md](PAPER.md) and [paper/draft.md](paper/draft.md) are the older claims map and markdown draft 1.1, the source of results prose (apply the scope rules before reusing it).
 - [THEORY.md](THEORY.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RELATED_WORK.md](RELATED_WORK.md).
 
@@ -43,18 +43,23 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
 - `experiments/reachable_decisions.py`: S4 infrastructure (common-prior histories, every planner, point-mass nesting). 415 tests.
 - **CLAIMS_AUDIT section F** lists every paper change these imply (apply in S7).
 
-**State (October 23, about 12:00; the user is away and autonomy is granted):**
-- **Done since the last note:**
-  - 12.93: UAV exact pair curves, plus the i2_j0 fresh check (closed).
-  - 12.94: the S4 UAV cell (M1 panel (a) final).
-- **Running:** the S4 Wumpus cell decisions (`results/s4_compute_benchmark_20261022/wumpus/jobs.txt`, 14 workers; ENDPOINTS cell 2 plus amendment 7).
-  - When they finish: `python analyze.py wumpus`, then `PYTHONPATH=src python figure_m1.py`, then RESULTS 12.95.
-  - Note the IPF failure mode: nested particle depletion when every particle's successor ends the episode, which smoothing cannot repair.
-  - The I-POMCP rows on these fresh beliefs are S6's held-out Wumpus check.
-- **Then:**
-  - S7 rewrite (outline in CLAIMS_AUDIT G; all FIX items in F).
-  - Figures: `compute_benchmark.pdf` (M1), `level_matchups.pdf` (M2, tiger exact), `level_identification.pdf` (M3).
-  - The UAV exact gains (12.93) belong in M2/M4 text or a panel.
+**State (October 23, about 14:00; the user is away and autonomy is granted):**
+- **Experiments done this session:** RESULTS 12.85–12.95, covering S0–S5 and S6 (the held-out Wumpus check is 12.95). Nothing is running.
+  - S4 cost about 160 CPU-h in total, above the 100 CPU-h line (flagged in 12.95).
+- **Paper (`main.tex`, mirrored to Overleaf; 0 errors; body ends on page 7 at 284 / 440 pt):**
+  - S7 first pass is done. Results are now organised around M1–M4:
+    - 7.1, compute to the Bayes-optimal decision: Figure 1 `compute_benchmark_col.pdf`;
+    - 7.2, Bayes-optimal agents: replays and identification (Figure 2);
+    - 7.3, when one more level pays: Figure 3 `level_matchups_col.pdf`, the exact matrix;
+    - 7.4, the cost of modelling a reasoner that is not there.
+  - Table 1 and the anytime UAV paragraph moved to the supplement, which compiles locally with tectonic. Overleaf compiles only `main.tex`.
+- **Next (S7 polish):**
+  1. The abstract and the introduction's contribution 3 should state M1 (compute to the benchmark at reachable beliefs) and M4.
+  2. Related Work "what is new" `\todo`: a final literature check.
+  3. Re-read 7.1–7.4 for length and voice (Piotr 2005).
+  4. Check that the CLAIMS_AUDIT F/G items are all applied, and update the audit's status column.
+  5. The Discussion should state that qualification at named beliefs does not carry to broad reachable histories at N = 64 (12.94).
+- **Tooling:** the tectonic local preview is in the scratchpad (re-download per 0.000000000). The page probe procedure is unchanged.
 
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
 

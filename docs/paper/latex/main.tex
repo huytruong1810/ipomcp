@@ -291,13 +291,6 @@ All planners are implemented in Python and run single-threaded, one process per 
 \section{Results}
 \label{sec:results}
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.86\textwidth]{level_identification.pdf}
-\caption{Posteriors over the other agent's level, coordination tiger game. (a) A level-2 observer's probability of level 1, by the other agent's true level (mean and 95\% interval; $n = 15{,}000$ episodes for levels 0--2, 700 for 3, 100 for 4); dashed: the exact observer, steps 0--8 ($n = 1{,}000$, 700, 100). (b) A level-3 observer's posterior at step 10 ($n = 700$; 100 for level 4).}
-\label{fig:identification}
-\end{figure*}
-
 \subsection{Compute to the Bayes-Optimal Decision}
 \label{sec:compute}
 
@@ -313,6 +306,13 @@ Figure~\ref{fig:compute} shows how much computation each planner needs to decide
 In the Wumpus world, whose percepts are deterministic, I-POMCP with exact beliefs is optimal on all 219 distinct reachable beliefs (lower bound 0.983) at 75--89~s per decision, already with 100 simulations. The particle filter of IPF + RTS fails on about 90\% of them, because every particle contradicts an observation; likelihood smoothing repairs that case but still fails on about 25\%, where every particle of the wumpus's own belief ends the episode, and the smoothed planner is optimal on 35\%. I-NTMCP improves with $M$ but reaches only 77\% at $M = 64{,}000$, with losses up to 639; on the same beliefs, I-POMCP is never wrong where a baseline is right (Holm $p \leq 10^{-6}$).
 
 At the named beliefs on which its budgets were chosen, I-POMCP is optimal on all 2{,}787 decisions at levels 1--4 and horizons 2--5 in three domains, and on 960 further random beliefs and seeds (supplement); there, IPF + RTS misses 0.5--9\% of the tiger games' decisions and 31--54\% of UAV decisions. Exact scoring carries much of this precision: turning it off at the root changes 34 of 560 UAV decisions from optimal to suboptimal and none the other way (exact McNemar $p = 1.2 \times 10^{-10}$), and the certified intervals of Proposition~\ref{prop:bounds} contained the exact action values in all 1{,}016 decisions in which we checked them.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{level_identification.pdf}
+\caption{Posteriors over the other agent's level, coordination tiger game. (a) A level-2 observer's probability of level 1, by the other agent's true level (mean and 95\% interval; $n = 15{,}000$ episodes for levels 0--2, 700 for 3, 100 for 4); dashed: the exact observer, steps 0--8 ($n = 1{,}000$, 700, 100). (b) A level-3 observer's posterior at step 10 ($n = 700$; 100 for level 4).}
+\label{fig:identification}
+\end{figure*}
 
 \subsection{Agents That Act and Infer as the Bayes-Optimal Agent}
 \label{sec:episodes}
