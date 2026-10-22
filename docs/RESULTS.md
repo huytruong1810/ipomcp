@@ -2299,6 +2299,51 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.89 S2(c): IPF + RTS fidelity against Doshi & Gmytrasiewicz (2009), Fig. 17(a). Our implementation reaches the published plateau at every K. The published losses at small K come from executing an offline tree whose sampled branches miss the real observation, a protocol our planner does not use (October 22, 2026)
+
+**Why:** PLAN.md S2 and CLAIMS_AUDIT A9. IPF + RTS is our reimplementation. Without a reproduction on the authors' setting, any gap to I-POMCP can be called an implementation artifact.
+
+**Design** (`results/s2_ipf_fidelity_20261022`: `ENDPOINTS.md` fixed after a 3-tree timing pilot, with amendment 1 written before the offline arm; `job.py`, `job_offline.py`, `analyze.py` → `analysis.txt`):
+- **Target:** Fig. 17(a), the multiagent tiger at H3, IPF + RTS with Np ∈ {50, 100} particles and K sampled observations per node. Values were read off a 300-dpi render (±0.3).
+- **The paper's setting, rebuilt:**
+  - The original game (−1 / −100 / +10; growls 0.85, creaks 0.9).
+  - i is their level 1 (our level 2), with the Fig. 3(a) prior: a uniform tiger and j's level-0 belief uniform. It is discretized to 100 points; each run draws the tiger and j's belief from the prior.
+  - Planning γ = 0.9; i's undiscounted 3-step reward; 10 policy trees × 100 runs per point, as the paper.
+  - Every modeled level uses RTS at the same K, and the real j uses the same solver at its own belief.
+- **Two protocols for i:**
+  - **Online:** RTS of depth H − t at every reached history, on the IPF belief. This is how our planner uses RTS everywhere in the paper.
+  - **Offline (amendment 1):** the paper's APPROXPOLICY. One sampled tree is built at the root and executed. A real observation the tree did not sample has no subtree, and the paper does not say what i does then, so two fallbacks bracket it: listen, and uniform random.
+- **Cost:** about 8.4 CPU-h online and about 4 CPU-h offline, under the 40 CPU-h kill line.
+
+| Np | K | Paper | Online (10 trees; SE) | Offline, listen fallback | Offline, random fallback | Runs leaving the tree |
+|---|---|---|---|---|---|---|
+| 50 | 2 | −20.5 | −0.27 (0.64) | −1.77 | −39.67 | 74% |
+| 50 | 3 | −18.7 | +0.30 (0.58) | −1.95 | −37.89 | 72% |
+| 50 | 4 | −9.3 | −0.15 (0.64) | −1.09 | −29.05 | 56% |
+| 50 | 6 | −3.5 | +0.36 (0.65) | −0.95 | −18.18 | 39% |
+| 50 | 8 | −1.4 | −0.39 (0.81) | −0.83 | −15.03 | 35% |
+| 50 | 10 | −0.2 | −0.52 (0.86) | −0.10 | −8.06 | 23% |
+| 100 | 2 | −18.4 | −0.27 (0.51) | −1.59 | −36.56 | 72% |
+| 100 | 3 | −14.6 | +0.75 (0.65) | −1.61 | −34.16 | 65% |
+| 100 | 4 | −4.2 | −0.12 (0.71) | −1.57 | −30.70 | 59% |
+| 100 | 6 | −2.9 | +0.38 (0.54) | −0.03 | −16.14 | 39% |
+| 100 | 8 | −0.8 | +0.07 (0.58) | −0.08 | −12.97 | 32% |
+| 100 | 10 | +0.2 | −0.21 (0.60) | −0.33 | −11.38 | 24% |
+
+**Endpoints:**
+- **Endpoint 1 (amended):** the paper's value lies inside the offline bracket at **12 of 12** points. The bracket is wide at small K, so this endpoint alone is weak.
+- **Endpoint 2 (shape):**
+  - The offline random-fallback curve rises with K at both Np, and K = 2 is below −10.
+  - Np = 100 ≥ Np = 50 holds at K = 2 and 3, not at K = 4 (−30.7 against −29.1).
+  - The online arm fails the shape endpoint by design: it is flat.
+
+**Findings:**
+- **Our IPF + RTS reaches the paper's plateau.** Online, every point is within about 1 of 0. The paper reaches −0.2 to +0.9 only at K ≥ 10, and our K = 10 points (−0.52 and −0.21) agree with its K = 10 points (−0.2 and +0.2).
+- **The paper's small-K losses are an execution effect.** An offline tree from K = 2 samples misses the real observation in about 3 of 4 runs. The share falls with K (74% → 23%), and the paper's values fall between the two fallbacks at every point, tracking the off-tree share.
+  - Replanning at the reached history (online) removes the effect entirely.
+- **What this means for the paper's comparisons:** our IPF + RTS baseline is the published method used online, which is at least as strong as the published protocol. Its decision misses in Table 1 (where every decision is a root decision, with no execution) are not an artifact of a weak reimplementation.
+- **Not reproduced:** the paper's exact fallback rule (unpublished), and its Fig. 15 exact lines. This run reproduces Fig. 17(a) only. The 2.7 of Fig. 15 is the single-agent ceiling of 12.48.
+
 ### 12.88 S5 input: the exact level match-up matrix from the exact pair curves. Zero-variance one-level gains inside the exact window; level 4 is exactly level 3 through step 3; over-thinking against a random opponent turns from gain to loss after the lookahead (October 22, 2026)
 
 **Why:** M2 needs the level match-ups with zero variance where possible (PLAN.md S5; CLAIMS_AUDIT A6–A7). 12.72's exact pair curves already hold every cell, but only the diagonal and step-3 rows were ever reported.
