@@ -12,7 +12,7 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
 
 ## 0. Start here (fresh agent)
 
-### 0.00000000000 Session of October 22 (in progress; read first, then 0.0000000000)
+### 0.00000000000 Session of October 22 (read first, then 0.0000000000)
 
 **Done:**
 - S0 and S1: `docs/paper/CLAIMS_AUDIT.md` covers every paper number, with fixes, backups and the 4-figure plan.
@@ -20,11 +20,10 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
 - New `domains/runner_chaser.py`, the authors' Runner-Chaser as kernels. It is tested equal to their `RCModel` on every state and joint action.
 - `INTMCPAgent(uct_c=...)`: an optional parameter; leaving it unset keeps the authors' default.
 
-**Running or finished, not yet analysed** (S2 a/b; `results/s2_intmcp_fidelity_20261022`, `ENDPOINTS.md` fixed before the runs):
-- `authors/`: the authors' runner on their cap4 YAML (seed 0, 1,000 episodes), with its own venv. Its output goes to `authors/full_out` and `third_party/i-ntmcp/results/`.
-- `ours/`: our adapter, 1,000 episodes, rows in `ours/rows/*.jsonl`.
-- **Published target:** a runner return of 65.964 (SD 71.2, n = 1,000) against a random chaser, and 95.998 against an NST level-0 chaser.
-- **Next:** a two-sample test of each run against the published value, then write RESULTS 12.86.
+**S2(a), (b) done (RESULTS 12.86):**
+- The authors' runner reproduces their published Runner-Chaser 4 × 4 numbers bit for bit.
+- Our adapter matches them (65.57 against 65.96, ±6.26, n = 1,000).
+- The adapter costs 1.45× the native CPU per search. State this in S7, and report I-NTMCP's CPU both as measured and native in S4.
 
 **S2(c), IPF + RTS against Doshi & Gmytrasiewicz (2009):**
 - **Target:** Fig. 17(a), multiagent tiger H3, RTS at K = 2–20, Np = 50 and 100. Read off the plot: Np = 100 gives about −18 / −14.5 / −4 at K = 2 / 3 / 4 and about +1 at K ≥ 16. Np = 50 gives about −20.5 / −19 / −9.5, then about 0. The error bars are about ±5–10.

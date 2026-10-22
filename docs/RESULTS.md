@@ -2299,6 +2299,37 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.86 S2: I-NTMCP fidelity. The authors' runner reproduces their published Runner-Chaser 4 × 4 numbers exactly, and our adapter matches them (65.6 against 65.96, n = 1,000). The adapter costs 1.45× the native CPU per search (October 22, 2026)
+
+**Why:** PLAN.md S2 and CLAIMS_AUDIT item A9. I-NTMCP runs in the paper through our adapter (`baselines.intmcp`). Without a reproduction on the authors' own setting, a reviewer can attribute any gap to the adapter.
+
+**Design** (`results/s2_intmcp_fidelity_20261022`; `ENDPOINTS.md` fixed before both runs):
+- **Target:** the authors' published I-POMDP Lite comparison on Runner-Chaser 4 × 4 (`iros_paper/rc/i-pomdp-lite_comparison/4x4/compiled_results.csv`, Schwartz et al., IROS 2022). The runner is I-NTMCP at nesting level 1 with 1,024 simulations, uct_c 175, γ = 0.95, ε = 0.1 and a 20-step limit. Exp 0 plays a uniformly random chaser, exp 1 an I-NTMCP level-0 chaser. n = 1,000 each.
+- **(a) The authors' runner, unchanged:** `run_scripts/run_exp.py` on their YAML, seed 0. It ran in a separate venv (Python 3.12) with their requirements; the project venv is untouched.
+- **(b) Our adapter:** the new kernel domain `domains/runner_chaser.py`, the cap4 layout. `tests/test_runner_chaser.py` shows it equal to the authors' `RCModel` on every state and joint action (next state, both observations, both rewards, termination).
+  - `INTMCPAgent(level=2, simulations=1024, uct_c=175, horizon=46, variant="published")`. Horizon 46 gives the authors' depth limit of 45 for ε = 0.1.
+  - The chaser is uniformly random; 1,000 episodes on our own seeds.
+  - The authors' initial observation is not represented. Both start cells are fixed and far apart, so it carries no information.
+- **Cost:** 0.56 CPU-h for (a) and 0.54 CPU-h for (b).
+
+| Run | Runner's return, mean (SD) | Reaches safety | Steps | Search CPU (s) |
+|---|---|---|---|---|
+| Published, exp 0 (random chaser) | 65.964 (71.215) | 849 / 1,000 | 4.836 | 0.61 |
+| (a) Authors' runner, exp 0 | **65.964 (71.215)** | 849 / 1,000 | 4.836 | 0.27 |
+| (b) Our adapter, exp 0's match-up | **65.566 (71.643)** | 847 / 1,000 | 4.834 | 0.38 (median) |
+| Published, exp 1 (level-0 chaser) | 95.998 (0.045) | 1,000 / 1,000 | 5.002 | 0.62 |
+| (a) Authors' runner, exp 1 | **95.998 (0.045)** | 1,000 / 1,000 | 5.002 | 0.26 |
+
+**Findings:**
+- **(a) passes, bit for bit:** with seed 0, the authors' code reproduces every published statistic exactly. Their published numbers are therefore their code's output, and our environment runs it unchanged.
+- **(b) passes:** our adapter differs from the published mean by −0.40, inside the pre-fixed two-sample 95% half-width of ±6.26. The share reaching safety and the episode length also agree.
+  - The adapter does not change I-NTMCP's play on the authors' own domain.
+  - So the paper's I-NTMCP gaps (Wumpus 40/60, UAV episodes; 12.65, 12.67, 12.85) cannot be attributed to the adapter.
+- **Caveat for the matched-CPU comparisons:** through the adapter, a search costs 0.38 CPU-s against 0.27 s natively on the same machine (1.45×). The cost comes from wrapping states, actions and observations, and from kernel sampling.
+  - The paper's matched-CPU rule therefore charges I-NTMCP up to about 1.45× its native cost.
+  - Every UAV lead of 12.85 holds at CPU ratios of 0.22–0.79, inside that factor except own-250 against M = 4,000 at H4 (0.79 × 1.45 ≈ 1.15).
+  - S7 should state the overhead, and S4 should report CPU both as measured and divided by 1.45 for I-NTMCP.
+
 ### 12.85 S0 claims audit: against the stronger I-NTMCP variant, I-POMCP's UAV lead at matched CPU is +14.0 (n.s. after Holm) at M = 4,000 and +2.5 to +2.7 at M = 16,000; the paper's +42.3 used the weaker variant (October 22, 2026)
 
 **Why:** the S0 claims audit (`docs/paper/CLAIMS_AUDIT.md`, item A1) found that the paper's UAV matched-CPU comparison (12.67, endpoint 2) uses the tuned I-NTMCP variant. The paper calls it the stronger one, but on UAV the released variant earns more at every M ≤ 16,000. This section redoes endpoint 2 against both variants, from stored episodes (0 new episodes).
