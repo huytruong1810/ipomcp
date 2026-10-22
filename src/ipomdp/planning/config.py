@@ -21,9 +21,9 @@ not converge, traded corrected errors for new ones, or did not generalise
 beyond Tiger. A switch that selects a non-convergent estimator is a way to
 produce wrong results, not a feature.
 
-What remains are computational budgets, an optional rule for spending the
-modeled budget adaptively (``stopping.ModeledStopping``), and two scalars of
-the decision problem.
+What remains are computational budgets, optional rules for spending the
+modeled and root budgets adaptively (``stopping.ModeledStopping``), and two
+scalars of the decision problem.
 """
 
 import math
@@ -51,6 +51,11 @@ class PlannerConfig:
             grown until its decision is separated, with ``modeled_simulations``
             as the cap (``stopping``). When None, one search of
             ``modeled_simulations``.
+        root_stopping: The same rule for this agent's own decisions, with
+            ``simulations`` as the cap: near-tie root escalation (RESULTS
+            12.90). The root tree grows by doubling until its two leading
+            actions separate or its scores are exact; at the cap it is the flat
+            search of ``simulations``. When None, one search of ``simulations``.
     """
 
     simulations: int
@@ -59,6 +64,7 @@ class PlannerConfig:
     gamma: float = 0.95
     exploration: float = 1.0
     modeled_stopping: ModeledStopping | None = None
+    root_stopping: ModeledStopping | None = None
 
     def __post_init__(self):
         for name in ("simulations", "depth", "modeled_simulations"):
@@ -73,3 +79,7 @@ class PlannerConfig:
             if type(self.modeled_stopping) is not ModeledStopping:
                 raise TypeError("modeled_stopping must be a ModeledStopping")
             self.modeled_stopping.checkpoints(self.modeled_simulations)
+        if self.root_stopping is not None:
+            if type(self.root_stopping) is not ModeledStopping:
+                raise TypeError("root_stopping must be a ModeledStopping")
+            self.root_stopping.checkpoints(self.simulations)

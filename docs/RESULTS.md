@@ -2299,6 +2299,34 @@ The definition is in THEORY.md, "Tie convention".
   - These are per-decision values at the gate's chains, not the episode distribution. The target's own screen needs references from its side, which are not stored.
 - **Reading:** the screen tells *where* depth pays: never at the prior, and at 19 of the 40 later histories. It is not tied to sensing the wumpus: 17 of those 19 histories contain no stench. This is a reusable, episode-free check. A matched control screen (histories from a random wumpus) is the obvious next step, at about the same cost.
 
+### 12.90 S3(b): root stopping (near-tie root escalation) matches flat root 64,000 at UAV L2 H5 (36/40 each, against 17/40 at 1,000) but saves no CPU, because the modeled target dominates the cost. Not adopted as the recommended setting; the option stays off by default (October 22, 2026)
+
+**Why:** HANDOFF S3 item 2; 12.67. With a uniform level prior at H5, I-POMCP needs root 64,000 to resolve near-ties, and the paper concedes it. The design fix grows the root only where the decision is unresolved.
+
+**Change (code, kept; default off):** `PlannerConfig.root_stopping`.
+- The validated modeled-stopping rule (12.11, 12.15) is applied to the agent's own decision, with `simulations` as the cap. The root tree is seeded as the flat search of the cap and grows by doubling; it stops on a separated leading gap or on exact scores.
+- Seeds ignore both stopping rules, so every earlier result is reproduced. Tests: the rule at its cap equals the flat search, bounds included; it stops early on clear or exact roots; there is a seed-digest guard. 411 tests pass.
+
+**Gate** (`results/s3b_root_stopping_20261022`, `ENDPOINTS.md` fixed before the run):
+- The 8 uniform-prior H5 histories of 12.67 × seeds 0–4 (n = 40 per arm), with stored exact references.
+- Target I-POMCP 4,000, N = 64.
+
+| Arm | Optimal [n = 40] | Max loss | CPU per decision, median / mean | Root simulations used |
+|---|---|---|---|---|
+| Flat root 1,000 | 17 | 0.669 | 42.9 / 64.6 s | 1,000 |
+| Flat root 64,000 | **36** | 0.066 | 73.3 / 95.5 s | 64,000 |
+| Root stopping (pilot 1,000, 4 trees, α = 0.01, cap 64,000) | **36** | 0.066 | 77.8 / 97.7 s | median 64,000; stopped at 32,000 on 9 of 40 |
+
+**Endpoints:**
+- **Endpoint 1 passes:** 36 against 36.
+- **Endpoint 3 fails narrowly:** the mean CPU is 1.02× flat 64,000's, so the rule is not adopted as the recommended configuration (pre-fixed reading).
+
+**Findings:**
+- **The near-tie misses need the large root, and the rule finds that itself.** On the six histories with gap 0.669, root stopping is 30 of 30 optimal (flat 1,000: 9 of 30). Three of them stop at 32,000 in 3 of 5 seeds; the rest run to the cap.
+- **No CPU saving on this problem,** as 12.67 predicted: the modeled target (4,000 per modeled query) dominates the decision's cost, so root simulations are cheap. At the prior, E and N are exactly tied (gap 0), and non-exact scores cannot separate an exact tie, so the rule always runs to the cap there.
+- **A residual near-tie the paper did not report:** history [S, 0] (exact gap 0.132) is missed in 4 of 5 seeds at root 64,000 by both arms (loss 0.066, above the ε = 0.05 certification standard). The paper's "root 64,000 resolves the near-ties" holds for the 0.669-gap histories of 12.67's diagnosis, not for every H5 history.
+  - **S7:** state "root 64,000 resolves 30 of 30 decisions at the 0.669 near-ties; one further history with gap 0.13 remains missed (loss 0.066)".
+
 ### 12.87 S3(a): exact ties within 10⁻⁹ for exactly scored solves. The UAV level-2 replay goes from 70 disagreements with the Bayes-optimal agent to 0 of 1,837, Tiger and Wumpus gates are unchanged apart from 14 exact-tie corrections, and the rule is adopted. It changes the UAV's episodes against a level-2 target (+50.8) (October 22, 2026)
 
 **Why:** HANDOFF 0.0000000000, S3 item 1; 12.81. Every UAV disagreement with the exact agent was the planner's modeled target playing a strict subset of exactly tied maximizers. The exact reference ties values within a relative 10⁻⁹; I-POMCP used strict float equality.

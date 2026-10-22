@@ -132,8 +132,13 @@ class IPOMCPPlanner(Planner):
             raise ValueError("Condition on public continuation before requesting a policy")
         if modeled and self.config.modeled_stopping is not None:
             return _policy(self._stopped_scores(model))
-        simulations = self.config.modeled_simulations if modeled else self.config.simulations
-        node, scores = self._search(model, simulations, bounds=not modeled)
+        if not modeled and self.config.root_stopping is not None:
+            node, scores = self._stopped_search(
+                model, self.config.root_stopping, self.config.simulations, root=True
+            )
+        else:
+            simulations = self.config.modeled_simulations if modeled else self.config.simulations
+            node, scores = self._search(model, simulations, bounds=not modeled)
         policy = _policy(scores)
         if not modeled:
             self.root = node
@@ -146,19 +151,28 @@ class IPOMCPPlanner(Planner):
         return self._stopped_scores(model).values
 
     def _stopped_scores(self, model):
-        """Chance scores of a modeled solve by sequential stopping (``stopping``).
+        """Chance scores of a modeled solve by sequential stopping (``stopping``)."""
+        rule, cap = self.config.modeled_stopping, self.config.modeled_simulations
+        return self._stopped_search(model, rule, cap)[1]
+
+    def _stopped_search(self, model, rule, cap, root=False):
+        """(root, chance scores) of one tree grown by ``rule`` up to ``cap`` simulations.
 
         The main tree is seeded as a flat search of the cap, so a solve that
         never separates returns exactly that search's values. Pilot trees are
-        grown only once the main tree reaches its first checkpoint.
+        grown only once the main tree reaches its first checkpoint. For the
+        agent's own decision (``root``) the scores carry certified bounds, and
+        exact scores stop the growth at once, since more simulations cannot
+        change them (Proposition 1); modeled solves keep their validated rule.
         """
-        rule, cap = self.config.modeled_stopping, self.config.modeled_simulations
         checkpoints = rule.checkpoints(cap)
         main = self._tree(model, cap)
         calibration = None
         for simulations in checkpoints:
-            scores = main.grow(simulations)
+            scores = main.grow(simulations, root)
             values = scores.values
+            if root and scores.exact:
+                return main.root, scores
             if calibration is None:
                 calibration = [values] + [
                     self._tree(model, cap, pilot).grow(rule.pilot).values
@@ -167,7 +181,7 @@ class IPOMCPPlanner(Planner):
             if simulations == cap or rule.separated(
                 values, calibration, simulations, len(checkpoints)
             ):
-                return scores
+                return main.root, scores
 
     # ------------------------------------------------------------------ #
     # Search
@@ -185,12 +199,14 @@ class IPOMCPPlanner(Planner):
     def _tree(self, model, simulations, replicate=None):
         """An empty search tree at ``model``, seeded as a search of ``simulations``.
 
-        The seed keys on the configuration without ``modeled_stopping``, so a
-        flat search keeps its stream whether or not a rule is configured, and a
-        stopping rule's main tree is a prefix of the flat search of its cap.
-        Pilot trees add their index as ``replicate``.
+        The seed keys on the configuration without the stopping rules
+        (``modeled_stopping``, ``root_stopping``), so a flat search keeps its
+        stream whether or not a rule is configured (and every result from before
+        a rule existed is reproduced), and a stopping rule's main tree is a
+        prefix of the flat search of its cap. Pilot trees add their index as
+        ``replicate``.
         """
-        config = {k: v for k, v in asdict(self.config).items() if k != "modeled_stopping"}
+        config = {k: v for k, v in asdict(self.config).items() if k not in _STOPPING_FIELDS}
         settings = {"planner": "I-POMCP", "config": config, "simulations": simulations}
         if replicate is not None:
             settings["replicate"] = replicate
@@ -336,6 +352,9 @@ class _GrowingSearch:
             planner.config.gamma,
             bounds,
         )
+
+
+_STOPPING_FIELDS = ("modeled_stopping", "root_stopping")
 
 
 def _policy(scores):

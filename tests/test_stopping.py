@@ -68,6 +68,18 @@ def test_the_rule_does_not_change_flat_search_streams():
     assert plain.search_values == ruled.search_values
 
 
+def test_the_seed_digest_ignores_both_stopping_rules():
+    from dataclasses import asdict
+
+    from ipomdp.planning.i_pomcp import _STOPPING_FIELDS
+
+    # The fields that existed before either rule: seeds must not depend on the rules' presence.
+    config = PlannerConfig(400, 3, 400)
+    assert {k for k in asdict(config) if k not in _STOPPING_FIELDS} == {
+        "simulations", "depth", "modeled_simulations", "gamma", "exploration"
+    }
+
+
 def test_a_grown_tree_equals_a_flat_search_of_its_size():
     planner, physics = j_planner(4, None, simulations=400)
     model = chain_model(physics, "j", 1, tiger_chain(0.3))
@@ -118,3 +130,51 @@ def test_an_unseparated_solve_returns_the_flat_search_of_the_cap(monkeypatch):
         values
         == plain._search(chain_model(plain.pomdp_model, "j", 1, tiger_chain(0.5)), 800)[1].values
     )
+
+
+def root_planner(seed, root_stopping, simulations=800, depth=4):
+    physics = TigerModel()
+    bank = SolverBank(seed)
+    bank.register_solver(
+        SolverKey("i", 0), RandomPlanner(physics.get_all_actions("i"), random.Random(0))
+    )
+    config = PlannerConfig(
+        simulations=simulations,
+        depth=depth,
+        modeled_simulations=simulations,
+        root_stopping=root_stopping,
+    )
+    planner = IPOMCPPlanner(SolverKey("j", 1), physics, bank, config)
+    bank.register_solver(SolverKey("j", 1), planner)
+    return planner, physics
+
+
+def test_root_stopping_at_its_cap_is_the_flat_root_search_with_bounds(monkeypatch):
+    # Near-tie root escalation (RESULTS 12.90): unseparated, the root tree is the flat search of
+    # ``simulations``, with the same certified bounds.
+    ruled, physics = root_planner(7, ModeledStopping(pilot=100, trees=2, alpha=1e-12))
+    plain, _ = root_planner(7, None)
+    sizes = counting(monkeypatch)
+    ruled.policy_for(chain_model(physics, "j", 1, tiger_chain(0.5)))
+    assert sizes == [100, 100, 200, 400, 800]
+    plain.policy_for(chain_model(plain.pomdp_model, "j", 1, tiger_chain(0.5)))
+    assert ruled.recommendation_values == plain.recommendation_values
+    assert ruled.scores.bounds == plain.scores.bounds
+    assert ruled.search_values == plain.search_values
+
+
+def test_root_stopping_stops_early_on_clear_or_exact_roots(monkeypatch):
+    sizes = counting(monkeypatch)
+    # Depth 2: the root has two steps left, so its scores are exact at the first checkpoint.
+    exact, physics = root_planner(8, ModeledStopping(pilot=100), simulations=3200, depth=2)
+    exact.policy_for(chain_model(physics, "j", 1, tiger_chain(0.5)))
+    assert sizes == [100] and exact.scores.exact
+    sizes.clear()
+    clear, physics = root_planner(8, ModeledStopping(pilot=100), simulations=3200)
+    assert clear.policy_for(chain_model(physics, "j", 1, tiger_chain(0.02))) == {OPEN_LEFT: 1.0}
+    assert max(sizes) < 3200
+
+
+def test_root_stopping_must_fit_the_root_budget():
+    with pytest.raises(ValueError, match="cap"):
+        PlannerConfig(100, 2, 100, root_stopping=ModeledStopping(pilot=200))
