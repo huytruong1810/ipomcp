@@ -179,6 +179,25 @@ Wumpus & 2, 2 & 60 & 60 & 1--26 & 40 \\
 
 Beyond the reach of exact solutions, a level-2 UAV plans with $H = 4$ or 5 in 20-step episodes from the common prior against a level-1 I-POMCP target ($n = 30$ per planner and budget). I-POMCP uses root budgets of 50 to 1{,}000 simulations and models the target with the same budget, and I-NTMCP uses $M$ from 1{,}000 to 64{,}000. The decisions at the first five steps of each $H = 4$ episode are scored exactly. I-POMCP at $H = 4$ earns 34.8 at 2.9 s per decision (35 is the most any episode earned), where I-NTMCP earns 20.8 at 3.7 s and 32.2 at 13 s. With no more CPU than I-NTMCP, I-POMCP earns 2.7 [1.7, 3.7] more than I-NTMCP at $M = 16{,}000$ and 2.5 [1.2, 4.0] more at $M = 16{,}000$ and $H = 5$ (Holm $p \leq 0.01$), and 14.0 [4.3, 27.5] more at $M = 4{,}000$ (Holm $p = 0.12$); at $M = 64{,}000$, 55 s per decision, both always spot the target after four steps. Over the first five decisions at $H = 4$, I-POMCP at budget 1{,}000 is optimal on 120 of 120, I-NTMCP on 73--88\% for $M \leq 16{,}000$, and IPF + RTS ($K = 2$, over 1{,}100 s per decision) on 62--70\%. These episodes were run before the tie rule of the main text (exact values within a relative $10^{-9}$ are tied); the comparison is paired on the same target, and I-NTMCP is reported in its stronger variant at each $M$.
 
+\section{Reproducibility}
+
+\paragraph{Computing infrastructure.} All experiments ran on one machine with an Intel Core Ultra 9 275HX (24 cores) and 23~GB of memory under Linux (WSL2), with Python 3.12. Every planner is single-threaded and runs one decision or episode per process; we report the process CPU time of a decision, nested solves included, so that times do not depend on how many processes share the machine.
+
+\paragraph{How budgets were chosen.} For I-POMCP, the root budget was tried over $\{100, 250, 1{,}000, 4{,}000, 16{,}000, 64{,}000\}$ simulations, the modeled budget over $\{100, 400, 1{,}600, 6{,}400\}$ and sequential stopping capped at 6{,}400, and the belief bound over $N \in \{32, 64, 256, 1{,}024\}$ and exact beliefs. On each grid of named beliefs (Table~\ref{tab:decisions-supp}) we chose the smallest budget at which every decision was optimal against the exact I-POMDP, and then tested it, unchanged, on beliefs and seeds that the selection did not use (960 random tiger beliefs; 219 reachable Wumpus beliefs). The near-tie escalation threshold $g = 3$ was fixed before its held-out test. No parameter of a baseline was tuned on our problems: IPF + RTS and I-NTMCP were run over ladders of their own budgets, and every arm is reported.
+
+\paragraph{Final settings.} Unless stated, $\gamma = 0.95$ and the exploration constant is $c = 1$. Sequential stopping uses 200-simulation pilots, 4 trees and $\alpha = 0.01$.
+\begin{itemize}
+\item Tiger decisions: level 2, horizon 3, root 1{,}000, modeled 400, exact beliefs; level 3, horizon 3, root 1{,}000, modeled stopping capped at 6{,}400 for level 2 and 100 for level 1; horizon 2, root 100, modeled 100, $N = 32$.
+\item Tiger level grid: horizon 2, 100 simulations at the root and in every modeled solve, $N = 64$. Near-tie escalation (separate episodes, Section~7.2): $N' = 1{,}024$ at level 2 and 256 at levels 3--4, $g = 3$.
+\item UAV decisions: horizons 2--3, root 1{,}000, target 100 (horizon 2) or 400 (horizon 3), $N = 64$; horizon 4, root 16{,}000 with an exact or 6{,}400-simulation stopped target; level 1 at horizon 5, root 64{,}000. At reachable beliefs (Section~7.1), root 1{,}000, target 1{,}600, exact beliefs.
+\item UAV level matrix: horizon 3, root 1{,}000, $N = 64$, the same budget for every modeled level.
+\item Wumpus world: horizon 2, exact beliefs, root and modeled 400 (episodes and reachable beliefs) or root 1{,}000 and modeled 400 (decision grids).
+\item IPF + RTS: $N = 64$ particles at every level, $K \in \{2, 4, 8\}$ sampled observations per node, smoothing $\epsilon = 0.01$ where stated.
+\item I-NTMCP: the authors' defaults (exploration constant $R_{\max} - R_{\min}$, uniformly random rollouts, $1/16$ extra particles per step), $M \in \{1{,}000, 4{,}000, 16{,}000, 64{,}000\}$, discount horizon set so that the search depth equals $H - 1$; the reinvigorated variant allows 50 rejections per particle.
+\end{itemize}
+
+\paragraph{Code.} The code archive submitted with this supplement contains the planner, the exact references, the baselines' adapters, the domains, the test suite and the scripts of every experiment in the paper; it will be released under the MIT license upon publication. I-NTMCP is the authors' public implementation, used unchanged.
+
 \section{Ablations}
 
 \begin{table}[h]

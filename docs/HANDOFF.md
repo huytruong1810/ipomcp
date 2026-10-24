@@ -57,10 +57,15 @@ Last updated October 22, 2026, 00:15, for a fresh session. Claude is the sole ow
   - The abstract and contribution 3 state M1, M2 and M4.
   - The Discussion states the reachable-belief caveat.
   - The literature check is done (RELATED_WORK.md); there are no `\todo`s left.
+- **IJCAI-27 (checked October 24 at 2027.ijcai.org):**
+  - **Deadlines:** abstract January 4, 2027; full paper with appendix and resubmission information January 11, 2027 (23:59 AoE).
+  - **Format:** 7 pages of body plus up to 2 of references (ours: body ends on page 7, references on page 8). Supplement as PDF or ZIP, up to 50 MB, anonymized, PDF metadata included. Double-blind.
+  - **Reproducibility:** there is no form to submit. The supplement now has a "Reproducibility" section: hardware, the parameter ranges tried and the selection rule, final settings, and code.
+  - **Code archive:** `python scripts/make_code_archive.py <out.zip>` builds an anonymized ZIP and aborts on any identifying string. 1,161 files; its own tests pass, 397 passed and 2 skipped (the skips need I-NTMCP on PYTHONPATH).
+  - **For the user:** the call requires declaring a rejection from another peer-reviewed conference in the last 12 months, with the rejected version and its reviews. Only the user knows whether the "IJCAI--ECAI 26 I-POMCP" Overleaf project was submitted and rejected.
 - **Next:**
-  1. A full read-through for length and voice; the user and Piotr will read too.
-  2. Done: Wumpus exact pair curves (12.96). A second level pays both agents against an intentional opponent. The paper's M2 paragraph could cite the exact Wumpus values (human +11.7 to +17.3, wumpus +18.9 to +24.6 by step 5).
-  3. Check the IJCAI-27 call for abstract and paper deadlines and the supplement format.
+  1. A full read-through for length and voice, by Claude now, then the user and Piotr.
+  2. Before submission: strip PDF metadata (the template's `\pdfinfo` is template-only), run `make_code_archive.py`, and check for author names in the PDF.
 - **Tooling:** the tectonic local preview is in the scratchpad (re-download per 0.000000000). The page probe procedure is unchanged.
 
 ### 0.0000000000 Start here (October 22): make the paper stellar: take-home results, low variance, fidelity backups
