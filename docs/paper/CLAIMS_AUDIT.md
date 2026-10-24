@@ -321,3 +321,18 @@ Each figure has one motivating sentence, the exact claim it shows and its varian
   - I-POMCP reaches the benchmark (100/100, CP ≥ 0.964) at 217 s with exact beliefs and target 1,600. IPF + RTS levels off at 81% (137–451 s), and I-NTMCP at 58% (it gets worse with M).
   - **New caveat for the text:** the gate qualification (root 1,000, N = 64; 12.41) holds at named beliefs. At broad reachable histories, N = 64 is about 80% optimal (but 89–94% within ε = 0.05), and exact beliefs or N ≥ 1,024 are needed.
   - The episode replays (12.91, every decision agreeing at N = 64) are not in conflict. Purposeful play and uniform level priors keep beliefs narrower than a random UAV's histories do. Say this in one sentence.
+
+## H. Status (October 24, 2026)
+Every item of sections A–G is applied in `main.tex` (mirrored to Overleaf; 0 errors; body ends on page 7) or resolved by a RESULTS section:
+- **A1:** 12.85; the stronger variant per budget is reported (supplement, anytime episodes).
+- **A2–A4, the F rows:** applied.
+- **A5:** 12.93 (UAV exact gains at reachable histories).
+- **A6:** 12.88 / 12.96 (exact third-level value, +0.2; the paper states it exactly).
+- **A7:** 12.91 / 12.93 (predictability, stated in 7.4).
+- **A8:** 12.94–12.95 (Figure 1).
+- **A9:** 12.86 / 12.89.
+- **A10:** 12.87, 12.90, 12.92, 12.88.
+- **D12:** 12.95 (held-out Wumpus).
+- **D13:** moved to the supplement.
+
+Open for the authors' read-through only: wording and voice, and the resubmission declaration (HANDOFF).
