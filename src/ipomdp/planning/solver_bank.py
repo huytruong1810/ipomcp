@@ -1,0 +1,265 @@
+"""The solver bank: one agent's registry of nested models and their policies.
+
+Responsibilities
+----------------
+A real agent and every model nested in its belief share one bank:
+
+- **Registry.** One solver per (agent, level), so a modeled opponent's policy is
+  computed by the solver declared for that level.
+- **Physical prior.** The domain's exact prior, shared by every nesting level.
+- **Policy cache.** A modeled policy is a pure function of the modeled agent's
+  belief, because search randomness is seeded from the bank seed and the
+  belief's canonical digest. Cached results are immutable values, so cache
+  eviction changes cost only, never behaviour.
+- **Interactive filter.** The belief update (exact, compressed, sampled or smoothed), parameterised
+  by ``policy`` so that nested opponents act by their own modeled policies.
+- **Expected rewards.** E[R | b, a] over the full joint belief, used by the
+  planner at every tree history and at its exact last step.
+
+Separate real agents use separate banks, so one agent's private models never
+leak into the other's.
+"""
+
+import bisect
+import gc
+import itertools
+import math
+from functools import lru_cache, partial
+
+from ipomdp.belief import canonical
+from ipomdp.belief.compressed_filter import CompressedInteractiveFilter
+from ipomdp.belief.finite_belief import MentalModel
+from ipomdp.belief.finite_filter import FiniteInteractiveFilter, checked_distribution
+from ipomdp.belief.particle_filter import IPF_SMOOTHING, ParticleInteractiveFilter
+from ipomdp.planning.solver_types import SolverKey
+
+FILTERS = {
+    "compressed": CompressedInteractiveFilter,
+    "sampled": ParticleInteractiveFilter,
+    "smoothed": partial(ParticleInteractiveFilter, smoothing=IPF_SMOOTHING),
+}
+
+
+class SolverBank:
+    def __init__(
+        self,
+        seed,
+        *,
+        particles=None,
+        particle_filter="compressed",
+        search_particles=None,
+        max_branches=100_000,
+    ):
+        """``seed`` determines all randomness of this bank's models.
+
+        Belief representation, at every nesting level: exact enumeration
+        (``FiniteInteractiveFilter``) when ``particles`` is None; otherwise at
+        most ``particles`` atoms, by exact updates compressed to N atoms
+        (``particle_filter="compressed"``, the planner's default) or by the
+        published sampled interactive particle filter (``"sampled"``, the
+        IPF + RTS baseline's belief), or by that filter with likelihood
+        smoothing ε = ``IPF_SMOOTHING`` (``"smoothed"``, the baseline with the
+        standard zero-likelihood repair).
+
+        ``search_particles`` bounds the beliefs a search works on, separately
+        from the beliefs maintained between real steps: every search starts
+        from its root belief compressed to that many atoms, and its in-tree
+        updates use the compressed filter. With exact real updates this keeps
+        the agent's own belief exact, which matters with deterministic sensors
+        (a compressed real belief can lose the true world), while search cost
+        stays bounded. Tree observations are generated from atoms of the
+        compressed root, so they always have positive evidence there.
+
+        ``max_branches`` guards exact real updates (``FiniteInteractiveFilter``);
+        it only ever raises, so raising it changes no completed update.
+        """
+        if type(seed) is not int:
+            raise TypeError("A solver bank needs an explicit integer seed")
+        if particle_filter not in FILTERS:
+            raise ValueError(f"particle_filter must be one of {sorted(FILTERS)}")
+        self._solvers = {}
+        self._physical_priors = {}
+        self.seed = seed
+        self.filter = (
+            FILTERS[particle_filter](self.policy, particles, seed)
+            if particles is not None
+            else FiniteInteractiveFilter(self.policy, cache_size=4096, max_branches=max_branches)
+        )
+        self.search_filter = (
+            CompressedInteractiveFilter(self.policy, search_particles, seed)
+            if search_particles is not None
+            else self.filter
+        )
+        self._cached_policy = lru_cache(maxsize=32768)(self._evaluate_policy)
+        # Canonical order makes random.choices intervals independent of how an
+        # equal belief was built; see ipomdp.belief.canonical.
+        self.ordered_mass = lru_cache(maxsize=16384)(canonical.canonical_mass)
+        self._cumulative_mass = lru_cache(maxsize=16384)(self._cumulative)
+        self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
+        self.continuation_law = lru_cache(maxsize=4096)(self._continuation_law)
+
+    # ------------------------------------------------------------------ #
+    # Physical prior
+    # ------------------------------------------------------------------ #
+
+    def search_model(self, model):
+        """The model a search starts from: ``model``, compressed for the search filter."""
+        if self.search_filter is self.filter:
+            return model
+        return MentalModel(model.frame, self.search_filter.compress(model.belief))
+
+    def draw(self, belief, rng):
+        """One interactive state drawn from ``belief`` (canonical order, cached cumulative mass)."""
+        atoms, cumulative = self._cumulative_mass(belief)
+        return atoms[bisect.bisect_right(cumulative, rng.random() * cumulative[-1])]
+
+    def _cumulative(self, belief):
+        atoms, weights = zip(*self.ordered_mass(belief))
+        return atoms, tuple(itertools.accumulate(weights))
+
+    def physical_prior(self, physics):
+        """The domain's exact prior, shared by every nesting level of this bank.
+
+        Every model of a domain uses the same unconditional prior, so a nested
+        model never rules out an observation merely because its prior differs;
+        the prior never conditions on the true state.
+        """
+        key = canonical.digest(canonical.physics_identity(physics))
+        if key not in self._physical_priors:
+            self._physical_priors[key] = physics.initial_distribution()
+        return self._physical_priors[key]
+
+    # ------------------------------------------------------------------ #
+    # Registry
+    # ------------------------------------------------------------------ #
+
+    def register_solver(self, key, solver):
+        if key in self._solvers:
+            raise ValueError(f"Solver already registered: {key}")
+        self._solvers[key] = solver
+
+    def replace_solver(self, key, solver):
+        """Swap a registered solver before any policy has been computed (cached policies would go stale)."""
+        if key not in self._solvers:
+            raise KeyError(f"No solver registered: {key}")
+        if self._cached_policy.cache_info().currsize:
+            raise ValueError("Cannot replace a solver after policies were cached")
+        self._solvers[key] = solver
+
+    def has_solver(self, key):
+        return key in self._solvers
+
+    def get_solver(self, key):
+        return self._solvers[key]
+
+    def get_solver_for_frame(self, frame):
+        solver = self.get_solver(SolverKey(frame.agent_id, frame.level))
+        if frame.level and solver.pomdp_model is not frame.pomdp_model:
+            raise ValueError("Frame physics differs from the registered solver")
+        return solver
+
+    # ------------------------------------------------------------------ #
+    # Policies and integrals
+    # ------------------------------------------------------------------ #
+
+    def stream_seed(self, *labels):
+        """Seed for a named random stream of this bank (for example an agent's actions)."""
+        return canonical.digest([self.seed, *map(canonical.stable_value, labels)])
+
+    def search_seed(self, model, settings):
+        """Search randomness for one solve: equal problems get equal seeds."""
+        return canonical.digest(
+            [
+                self.seed,
+                canonical.stable_value(model.frame.agent_id),
+                model.frame.level,
+                canonical.belief_digest(model.belief),
+                canonical.stable_value(settings),
+            ]
+        )
+
+    def policy(self, model):
+        """The modeled policy of an intentional mental model (cached, immutable)."""
+        return dict(self._cached_policy(model))
+
+    def _evaluate_policy(self, model):
+        solver = self.get_solver_for_frame(model.frame)
+        return tuple(solver.policy_for(model, modeled=True).items())
+
+    def _expected_rewards(self, model):
+        """E[R | b, a] for every action, integrated over the full joint belief.
+
+        Sums over physical states, opponent models, the opponents' modeled
+        action distributions and finite transitions. The planner uses it at
+        every tree history in place of the sampled immediate reward: action
+        selection never inspects the sampled hidden state, so the expected
+        backup target is unchanged while the variance of rare penalties
+        disappears. At the last decision these are the complete action values.
+        """
+        frame, physics = model.frame, model.frame.pomdp_model
+        all_actions = physics.get_all_actions(frame.agent_id)
+        terms = {a: [] for a in all_actions}
+        for atom, mass in model.belief.mass:
+            if physics.is_terminal(atom.state):
+                continue
+            other_id = atom.opponent.frame.agent_id
+            for other_action, probability in self.filter.action_distribution(atom.opponent):
+                for action in all_actions:
+                    joint = {frame.agent_id: action, other_id: other_action}
+                    for following, transition_mass in checked_distribution(
+                        physics.transition_distribution(atom.state, joint), "Transition"
+                    ):
+                        terms[action].append(
+                            mass
+                            * probability
+                            * transition_mass
+                            * physics.get_reward(atom.state, joint, following, frame.agent_id)
+                        )
+        return tuple((action, math.fsum(terms[action])) for action in all_actions)
+
+    def _continuation_law(self, model, action):
+        """((o, P(o, alive | b, a)), ...) for every own observation of positive probability.
+
+        The agent's own observation marginal after acting, restricted to
+        nonterminal successors: the masses sum to the probability that the
+        episode continues, and terminal mass is left out rather than
+        renormalized away. It is the chance law that post-search scoring
+        (``planning.chance_scoring``) integrates in place of the empirical
+        observation counts. The opponents' private observations and updates
+        are not enumerated, because the agent's own observation does not
+        depend on them.
+        """
+        frame, physics = model.frame, model.frame.pomdp_model
+        terms = {}
+        for atom, mass in model.belief.mass:
+            if physics.is_terminal(atom.state):
+                continue
+            other_id = atom.opponent.frame.agent_id
+            for other_action, probability in self.filter.action_distribution(atom.opponent):
+                joint = {frame.agent_id: action, other_id: other_action}
+                for following, transition_mass in checked_distribution(
+                    physics.transition_distribution(atom.state, joint), "Transition"
+                ):
+                    if physics.is_terminal(following):
+                        continue
+                    for observation, likelihood in checked_distribution(
+                        physics.observation_distribution(following, joint, frame.agent_id),
+                        "Observation",
+                    ):
+                        terms.setdefault(observation, []).append(
+                            mass * probability * transition_mass * likelihood
+                        )
+        law = ((o, math.fsum(weights)) for o, weights in terms.items())
+        return tuple((o, p) for o, p in law if p > 0)
+
+    def clear_caches(self):
+        """Drop cached policies, posteriors and integrals (memory only, never results)."""
+        self._cached_policy.cache_clear()
+        self.filter.clear_caches()
+        self.search_filter.clear_caches()
+        self.ordered_mass.cache_clear()
+        self._cumulative_mass.cache_clear()
+        canonical.belief_digest.cache_clear()
+        self.expected_rewards.cache_clear()
+        self.continuation_law.cache_clear()
+        gc.collect()

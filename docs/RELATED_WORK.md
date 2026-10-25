@@ -1,0 +1,60 @@
+# Related work: online and approximate I-POMDP planners (G1, October 18, 2026)
+
+**Why this file:** the publication-gaps phase (PLAN.md, G1). It checks whether a modern planner already does what I-POMCP does, whether the name is taken, and whether a modern baseline must join the scale experiment (G3).
+
+**Method:** web searches (extended mode) on October 18, 2026. Rows marked **opened** were read in full text; what they say is quoted or paraphrased from the paper itself. Rows marked *cited* are known only through the related-work sections of opened papers. They are listed for completeness and must be opened before the paper cites them for anything specific.
+
+**Terms.**
+- *Level-k*: an agent at level k models its opponent at level k − 1 (or at a mixture of lower levels); level 0 acts without modeling anyone.
+- *Exact I-POMDP reference*: the finite-horizon I-POMDP solved by full enumeration (`reference.BestResponseReference`, THEORY.md). Our decisions are scored against it.
+- *Common prior*: both agents start from one commonly known belief over states, so every nested belief at time 0 is fixed by it.
+
+## 1. Methods
+
+| Method | Year, venue | Belief representation | Planner | Levels | Domains (largest) | Exactness or optimality claim | Code | Gap it leaves relative to us |
+|---|---|---|---|---|---|---|---|---|
+| **IPF + RTS**, Doshi & Gmytrasiewicz (**opened**, arXiv 1401.3455) | 2009, JAIR 34 | Interactive particle filter: N sampled particles per level, weighted by O_i; resampling against weight degeneracy; no zero-likelihood repair | Reachability-tree sampling (offline-style lookahead over sampled branches) | 1–2 | Multiagent Tiger, UAV reconnaissance | Asymptotic in N | No | Our published baseline (RESULTS 12.20, 12.38, 12.43–12.46, 12.59). Fails on deterministic sensors (12.59: 55–57 of 60 Wumpus problems) |
+| **I-POMDP Lite**, Hoang & Low (**opened**, IJCAI 2013 PDF) | 2013, IJCAI | Physical-state belief only; the opponent is a *nested MDP* (it is assumed to see the state) | Offline value iteration over the factorised belief | any k (cognitive-hierarchy levels) | Zero-sum POSGs; about 18,000 states (as reported in later work) | Loss bounded linearly by the intention-prediction error | Original program available from the authors; third-party Python at github.com/emiudeh/IPOMDP-Lite | Assumes a fully observing opponent, so it cannot represent the opponent's beliefs about us; offline. I-NTMCP beat it (below) |
+| **I-NTMCP**, Schwartz, Zhou & Kurniawati (**opened**, rdl.cecs.anu.edu.au/papers/iros22_ntmcp.pdf) | 2022, IROS | Unweighted particles of *history-states* (s, joint history) in a belief tree per level; pruning plus reinvigoration with K = M/16 extra particles per step | Nested MCTS: one UCT tree per level, built bottom-up; the opponent's action is sampled by a softmax over visit counts in the tree one level down; level 0 uniform random | 0–3 (one fixed level per agent; no uncertainty over the opponent's level) | Runner-Chaser 3×3 to 7×7 (1,152 states); Pursuit-Evasion 88,752 states | "Converges to the optimal value function" given the true belief and a fixed opponent policy (a derivation from POMCP's proof, not tested). Checked only against an analytically derived policy in Runner-Chaser (Fig. 4). **No comparison with exact I-POMDP solutions** | **Yes**, MIT, Python ≥ 3.9: github.com/RDLLab/i-ntmcp (last commit 2022-03-01; environments: Runner-Chaser, Pursuit-Evasion only) | The closest prior work, and a modern baseline. Generative-model only, so there is no exact belief and no exact scoring. One level per agent and a common prior. No exactness check, no decision-level error rates, no certified bounds. Its runs report 95% CIs on returns, without paired tests or controls |
+| **POTMMCP** (BA-POSGMCP at AAMAS 2023), Schwartz, Kurniawati & Hutter (**opened**: abstract, arXiv 2306.06067) | 2023, AAMAS (extended arXiv) | Belief over a finite set of *types* (fixed policies) of the other agent, plus states | MCTS with PUCT and a meta-policy guiding search | Type-based, not nested intentional models | Up to 10^14 states, 10^8 observations | Converges to the Bayes-optimal solution in the limit | github.com/Jjschwartz/ba-posgmcp; posggym-baselines | Opponents are fixed policies, not agents that model us. It is the scale benchmark for online multi-agent planning, not an I-POMDP solver |
+| **POMCP for I-POMDPs**, Hula, Montague & Dayan (**opened**, arXiv 1502.03696) | 2015, PLOS Comput. Biol. | Partner models inside the state; nested inference while building each tree | POMCP adapted to I-POMDPs (no algorithm name) | Up to level 2 ("theory of mind" levels) in the multi-round trust task | Multi-round trust game | None; used to invert human behaviour | Not found | The first POMCP-for-I-POMDP adaptation. One domain, no planning benchmark, no exactness check |
+| **IPOMDP-Net**, Han & Gmytrasiewicz (*cited*, AAAI 2019; abstract seen) | 2019, AAAI | Customised interactive particle filter inside a network | QMDP planner embedded in a differentiable network, trained end-to-end | 1–2 | Not recorded (abstract only) | None (QMDP approximation) | Not checked | Learned and approximate (QMDP ignores the value of information), so it cannot be exact by design |
+| **Learning others' intentional models**, Han & Gmytrasiewicz (**opened**, CEUR Vol-1964 MA3; NeurIPS 2018 version) | 2017–2018 | Sequential Monte Carlo over the opponent's frames and beliefs | Learning plus I-POMDP planning | 1 | Not recorded (the opened text names no benchmark) | None | Not checked | Model learning, not planning quality |
+| **Dynamic particle allocation**, Vallam et al. (**opened**, AAMAS 2019) | 2019, AAMAS | IPF whose particle counts per agent adapt to prediction accuracy | IPF-based | 1–2 | Repeated public-goods game with humans | None | Not checked | An IPF variant for behaviour modeling; no planning benchmark and no zero-likelihood repair |
+| **Second-order ToM learner**, Callaghan, Simmons & Admoni (**opened**: abstract, arXiv 2605.12745) | 2026, CogSci (to appear) | I-POMDP (details not in the abstract) | Not stated | 2 | Human–agent teaching study | None | Not linked | Shows I-POMDPs remain in current use. Not a planner contribution |
+
+**Checked October 19 (abstracts opened, for the paper draft):**
+- Rathnasabapathy, Doshi & Gmytrasiewicz, AAMAS 2006, pp. 1025–1032 (OpenAlex record): exact I-POMDP solutions by grouping the other agent's models into behavioural-equivalence classes, which makes the interactive state space finite; demonstrated on Tiger, solution as a policy graph.
+- Doshi & Perez, AAAI 2008, pp. 63–68 (mlanthology): an interactive generalization of point-based value iteration for finitely nested I-POMDPs.
+- Sonu & Doshi, JAAMAS 29(3), 2015 (abstract via Springer listing and OpenAlex): bounded policy iteration generalized to I-POMDPs; controllers predict other agents' actions; anytime.
+- Panella & Gmytrasiewicz, JAAMAS 2017 (abstract via an aggregator listing): **not a solver.** It models the other agents as probabilistic deterministic finite controllers learned by Bayesian nonparametric inference (MCMC), without modeling their beliefs. The draft now cites it as model learning.
+- Schwartz, Kurniawati & Hutter, arXiv 2306.06067 (opened): POTMMCP, as in the table.
+- Hula, Montague & Dayan 2015: published in PLOS Comput. Biol., doi:10.1371/journal.pcbi.1004254 (arXiv page).
+
+**Exact and offline lineage (*cited*, via I-NTMCP and Hoang & Low; not opened unless listed above):** exact solutions by behavioural equivalence (Rathnasabapathy, Doshi & Gmytrasiewicz, AAMAS 2006); interactive point-based value iteration (Doshi & Perez, AAAI 2008); interactive bounded policy iteration (Sonu & Doshi, JAAMAS 2015); finite-state models of others (Panella & Gmytrasiewicz, JAAMAS 2017); I-DIDs with model equivalence (Zeng & Doshi, JAIR 2012; used for the UAV parameters, PLAN.md, UAV section); Bayes-adaptive I-POMDPs (Ng et al., AAAI 2012). All are offline. None checks an online planner against exact solutions.
+
+**Searches that found nothing:** no 2023–2026 online I-POMDP planner beyond I-NTMCP and POTMMCP (searches over AAMAS, IJCAI and arXiv). No paper compares a sampled I-POMDP filter with exact nested beliefs. No paper repairs IPF's zero-likelihood failure.
+
+## 2. Consequences
+
+**(a) Framing of contribution 1.** "The first online MCTS planner for I-POMDPs" is **not** claimable: Hula et al. (2015) adapted POMCP to I-POMDPs, and I-NTMCP (2022) is a general nested-MCTS I-POMDP planner. What no prior planner offers, and the paper should claim:
+1. **Verified exactness:** decisions checked against the exact I-POMDP at levels 1–4 across three domains (RESULTS 12.1–12.7, 12.23, 12.41, 12.58). I-NTMCP checks only an analytically known policy in one domain.
+2. **Exact or compressed-exact nested beliefs** with exact chance scoring and certified per-action bounds (12.14, 12.17). I-NTMCP's history particles cannot be scored exactly.
+3. **Uncertainty over the opponent's level** (level priors with level-0 mass, 12.39, 12.58), where I-NTMCP and I-POMDP Lite fix one level.
+4. **Robustness under deterministic sensors**, where sampled filters fail (12.59).
+
+The honest trade-off to state: I-NTMCP needs only a generative model, while we need explicit kernels (T, O, R).
+
+**(b) Name.** "I-POMCP" is not used in the literature. The only hit is this repository (github.com/huytruong1810/ipomcp). Hula et al. say "POMCP adapted to IPOMDP problems" without a name. **Decision: keep "I-POMCP"**, and cite Hula et al. (2015) and I-NTMCP (2022) as the prior MCTS-for-I-POMDP work.
+
+**(c) G3 baseline gate.** The gate: a modern planner joins G3 if it has public code and can run Tiger or UAV.
+- I-NTMCP has public MIT code. Its environment interface (`intmcp/model/posg.py`, `POSGModel`) needs enumerated state, action and observation spaces, an initial belief, a generative `step` and an optional reinvigoration function. Our kernel-only domain contract provides all of these, so Tiger, UAV and Wumpus can be wrapped without touching their planner code.
+- **Decision: I-NTMCP joins G3**, run with the authors' code unchanged through an adapter. It is compared on the cells its model class covers: a single opponent level, level-0 uniform random at the bottom, and a common prior. Those are our episode configurations from the common prior (UAV L2; Wumpus L1; Tiger L1–L2). Its root decisions at reached histories are also scored against the exact I-POMDP wherever references exist. That is the measurement it never made, and the sharpest test of point (a)1.
+- I-POMDP Lite is not added. I-NTMCP already dominates it in the authors' own tables (Table I: up to 50× faster with better returns), and its nested-MDP assumption cannot express UAV's or Wumpus's hidden opponent beliefs.
+- POTMMCP is not an I-POMDP solver (fixed-policy types), so it is cited, not run.
+
+## Final literature check (October 23, 2026)
+- **Searched:** online I-POMDP planning with MCTS and nested beliefs (2024–2026), I-POMDP and level-k recursive-reasoning planners, and theory-of-mind planning with recursive beliefs.
+- **No new I-POMDP online planner** after I-NTMCP (2022) and POTMMCP (2023, type-based) holds nested beliefs as exact or compressed updates, certifies its action values, or keeps uncertainty over the other agent's level.
+- **Adjacent recent work** is Bayesian theory-of-mind *inference* (inverse planning over POMDP and I-POMDP-style models, for example AutoToM and a 2025 scalable Bayesian ToM planner, arXiv 2506.01301), not planning against agents that model the planner. Generic POMDP planners (for example VOIMCP, arXiv 2604.01434) do not model other agents.
+- The paper's "What is new" paragraph stands, and its `\todo` was removed.

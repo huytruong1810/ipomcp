@@ -1,0 +1,81 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Pytest and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Large runtime artifacts and execution logs (preserve clean source repo)
+results/
+benchmarks/results/
+*.log
+scratch/
+
+# Allow empty results placeholder
+!results/.gitkeep
+
+# Internal working notes (agent handoffs, plans, experiment log, claim audits, reviews, drafts).
+# Never commit: these are private and must not reach reviewers.
+BACKLOG.md
+HANDOFF.md
+docs/HANDOFF.md
+docs/CLAUDE_HANDOFF.md
+docs/PLAN.md
+docs/*_PLAN.md
+docs/RESULTS.md
+docs/PAPER.md
+docs/REVIEW.md
+docs/SUPERVISOR_REVIEW*.md
+docs/NOTE_TO_*.md
+docs/CONTINUATION_PROTOCOL.md
+docs/*_PROTOCOL.md
+docs/*_DEVELOPMENT.md
+docs/*_DIAGNOSIS.md
+docs/TAIL2_*.md
+docs/L3_L2_TIGER_STUDY.md
+docs/review/
+docs/paper/CLAIMS_AUDIT.md
+docs/paper/draft.md
+docs/paper/latex/NOTATION.md
+CLAUDE.md
+.claude/

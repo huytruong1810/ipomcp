@@ -1,0 +1,215 @@
+"""Specification checks for each domain (behaviour the contract suite cannot know)."""
+
+import pytest
+
+from ipomdp.domains import uav
+from ipomdp.domains.tiger import (
+    ACTIONS,
+    CREAK_LEFT,
+    CREAK_RIGHT,
+    GROWL_LEFT,
+    GROWL_RIGHT,
+    LISTEN,
+    OBSERVATIONS,
+    OPEN_LEFT,
+    OPEN_RIGHT,
+    SILENCE,
+    TIGER_LEFT,
+    TIGER_RIGHT,
+    JointTigerModel,
+    TigerModel,
+)
+from ipomdp.domains.uav import UAVModel
+from ipomdp.domains.wumpus.constants import ACTION_SHOOT, AGENT_HUMAN, AGENT_WUMPUS
+from ipomdp.domains.wumpus.model import WumpusModel
+
+# --------------------------------------------------------------------------- #
+# Tiger: Gmytrasiewicz & Doshi (2005), Table 1
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "state,other,observation,expected",
+    [
+        (TIGER_LEFT, LISTEN, (GROWL_LEFT, SILENCE), 0.85 * 0.9),
+        (TIGER_LEFT, LISTEN, (GROWL_LEFT, CREAK_LEFT), 0.85 * 0.05),  # false creak
+        (TIGER_LEFT, LISTEN, (GROWL_RIGHT, CREAK_RIGHT), 0.15 * 0.05),
+        (TIGER_LEFT, OPEN_LEFT, (GROWL_LEFT, CREAK_LEFT), 0.85 * 0.9),
+        (TIGER_LEFT, OPEN_LEFT, (GROWL_LEFT, SILENCE), 0.85 * 0.05),
+        (TIGER_RIGHT, OPEN_RIGHT, (GROWL_RIGHT, CREAK_RIGHT), 0.85 * 0.9),
+        (TIGER_RIGHT, OPEN_RIGHT, (GROWL_LEFT, CREAK_LEFT), 0.15 * 0.05),
+    ],
+)
+def test_tiger_listener_observations_match_table_1(state, other, observation, expected):
+    model = TigerModel()
+    for agent, opponent in (("i", "j"), ("j", "i")):
+        joint = {agent: LISTEN, opponent: other}
+        assert model.observation_probability(observation, state, joint, agent) == pytest.approx(
+            expected
+        )
+
+
+@pytest.mark.parametrize("own", [OPEN_LEFT, OPEN_RIGHT])
+def test_tiger_opening_agent_observes_uniformly(own):
+    law = TigerModel().observation_distribution(TIGER_LEFT, {"i": own, "j": LISTEN}, "i")
+    assert dict(law) == pytest.approx({o: 1 / 6 for o in OBSERVATIONS})
+
+
+def test_tiger_transition_and_rewards_match_table_1():
+    model = TigerModel()
+    assert model.transition_distribution(TIGER_LEFT, {"i": LISTEN, "j": LISTEN}) == (
+        (TIGER_LEFT, 1.0),
+    )
+    for joint in ({"i": OPEN_LEFT, "j": LISTEN}, {"i": LISTEN, "j": OPEN_RIGHT}):
+        assert dict(model.transition_distribution(TIGER_RIGHT, joint)) == {
+            TIGER_LEFT: 0.5,
+            TIGER_RIGHT: 0.5,
+        }
+    # Rewards depend on the agent's own action only.
+    for other in (LISTEN, OPEN_LEFT, OPEN_RIGHT):
+        joint = {"i": OPEN_LEFT, "j": other}
+        assert model.get_reward(TIGER_LEFT, joint, TIGER_RIGHT, "i") == -100
+        assert model.get_reward(TIGER_RIGHT, joint, TIGER_LEFT, "i") == 10
+        assert model.get_reward(TIGER_RIGHT, {"i": LISTEN, "j": other}, TIGER_RIGHT, "i") == -1
+
+
+def test_joint_tiger_pays_for_opening_together_and_penalizes_opening_alone():
+    model = JointTigerModel(together_safe=40.0, solo_penalty=5.0)
+
+    def reward(state, mine, other):
+        return model.get_reward(state, {"i": mine, "j": other}, state, "i")
+
+    assert reward(TIGER_LEFT, OPEN_RIGHT, OPEN_RIGHT) == 40  # same safe door
+    assert reward(TIGER_LEFT, OPEN_RIGHT, OPEN_LEFT) == 10  # the other opened the tiger
+    assert reward(TIGER_LEFT, OPEN_RIGHT, LISTEN) == 5  # alone
+    assert reward(TIGER_LEFT, OPEN_LEFT, OPEN_LEFT) == -100  # together on the tiger
+    assert reward(TIGER_LEFT, OPEN_LEFT, LISTEN) == -105
+    assert reward(TIGER_LEFT, LISTEN, OPEN_RIGHT) == -1
+
+
+@pytest.mark.parametrize(
+    "options", [{}, {"together_safe": 40.0}, {"together_safe": 0.0, "solo_penalty": 30.0}]
+)
+def test_joint_tiger_bounds_are_attained_and_published_payoffs_reproduce_tiger(options):
+    model, published = JointTigerModel(**options), TigerModel()
+    rewards = [
+        model.get_reward(state, {"i": a, "j": b}, state, "i")
+        for state in (TIGER_LEFT, TIGER_RIGHT)
+        for a in ACTIONS
+        for b in ACTIONS
+    ]
+    assert (min(rewards), max(rewards)) == model.reward_bounds("i")
+    if not options:
+        assert rewards == [
+            published.get_reward(state, {"i": a, "j": b}, state, "i")
+            for state in (TIGER_LEFT, TIGER_RIGHT)
+            for a in ACTIONS
+            for b in ACTIONS
+        ]
+
+
+def test_joint_tiger_rejects_a_negative_solo_penalty():
+    with pytest.raises(ValueError):
+        JointTigerModel(solo_penalty=-1.0)
+
+
+def test_tiger_rollout_memory_marginalises_a_uniform_opponent():
+    model = TigerModel()
+    prior = {TIGER_LEFT: 0.9, TIGER_RIGHT: 0.1}
+    memory = model.update_rollout_memory(prior, LISTEN, (GROWL_LEFT, SILENCE), "i")
+    # Independent enumeration: the opponent listens (tiger stays, silence .9) or
+    # opens either door (tiger resets uniformly, silence .05), each with 1/3.
+    growl = {TIGER_LEFT: 0.85, TIGER_RIGHT: 0.15}
+    joint = {s: prior[s] / 3 * growl[s] * 0.9 + 2 / 3 * 0.5 * growl[s] * 0.05 for s in prior}
+    assert memory[TIGER_LEFT] == pytest.approx(joint[TIGER_LEFT] / sum(joint.values()))
+
+
+# --------------------------------------------------------------------------- #
+# UAV
+# --------------------------------------------------------------------------- #
+
+
+def test_uav_prior_fixes_the_uav_and_spreads_the_target():
+    model = UAVModel()
+    prior = dict(model.initial_distribution())
+    assert len(prior) == 8 and all(uav == (2, 0) for uav, _ in prior)
+    assert all(p == pytest.approx(1 / 8) for p in prior.values())
+    assert not any(model.is_terminal(state) for state in prior)
+
+
+def test_uav_listening_reports_the_targets_row():
+    model = UAVModel()
+    state = ((2, 0), (0, 2))  # target in the top row
+    listen = dict(model.observation_distribution(state, {"i": uav.LISTEN, "j": uav.MOVE_N}, "i"))
+    assert listen == pytest.approx({0: 0.8, 1: 0.1, 2: 0.1})
+    moving = dict(model.observation_distribution(state, {"i": uav.MOVE_E, "j": uav.LISTEN}, "i"))
+    assert moving == pytest.approx({0: 1 / 3, 1: 1 / 3, 2: 1 / 3})
+    target = dict(model.observation_distribution(state, {"i": uav.MOVE_E, "j": uav.LISTEN}, "j"))
+    assert target == pytest.approx({((0, 2), 2): 0.6, ((0, 2), 0): 0.2, ((0, 2), 1): 0.2})
+    assert set(model.get_all_observations("i")) == {0, 1, 2}
+
+
+def test_uav_spots_on_a_shared_sector_only():
+    model = UAVModel()
+    joint = {"i": uav.MOVE_E, "j": uav.MOVE_W}
+    meet = model.transition_distribution(((1, 0), (1, 2)), joint)[0][0]
+    assert meet == ((1, 1), (1, 1)) and model.is_terminal(meet)
+    assert model.get_reward(((1, 0), (1, 2)), joint, meet, "i") == 50.0
+    assert model.get_reward(((1, 0), (1, 2)), joint, meet, "j") == -50.0
+    swap = model.transition_distribution(((1, 0), (1, 1)), joint)[0][0]
+    assert swap == ((1, 1), (1, 0)) and not model.is_terminal(swap)
+    assert model.get_reward(((1, 0), (1, 1)), joint, swap, "i") == -5.0
+    edge = model.transition_distribution(((0, 0), (2, 2)), {"i": uav.MOVE_N, "j": uav.MOVE_S})[0][0]
+    assert edge == ((0, 0), (2, 2))
+
+
+def test_uav_kernels_are_mirror_symmetric():
+    """Reflecting columns and swapping E/W maps every kernel onto itself (the paper's collapse)."""
+    model = UAVModel()
+    flip = {uav.MOVE_E: uav.MOVE_W, uav.MOVE_W: uav.MOVE_E}
+
+    def mirror(cell):
+        return (cell[0], model.cols - 1 - cell[1])
+
+    for drone in model.cells():
+        for target in model.cells():
+            for a in uav.ACTIONS:
+                for b in uav.ACTIONS:
+                    joint = {"i": a, "j": b}
+                    mirrored = {"i": flip.get(a, a), "j": flip.get(b, b)}
+                    ((following, _),) = model.transition_distribution((drone, target), joint)
+                    ((image, _),) = model.transition_distribution(
+                        (mirror(drone), mirror(target)), mirrored
+                    )
+                    assert image == (mirror(following[0]), mirror(following[1]))
+                    assert model.observation_distribution(following, joint, "i") == (
+                        model.observation_distribution(image, mirrored, "i")
+                    )
+                    target_obs = model.observation_distribution(following, joint, "j")
+                    assert tuple(((mirror(c), r), p) for (c, r), p in target_obs) == (
+                        model.observation_distribution(image, mirrored, "j")
+                    )
+
+
+# --------------------------------------------------------------------------- #
+# Wumpus
+# --------------------------------------------------------------------------- #
+
+
+def test_wumpus_prior_is_exact_and_uniform():
+    prior = WumpusModel().initial_distribution()
+    assert len(prior) == 15 * 4 * 15 * 105
+    assert {p for _, p in prior} == {1 / len(prior)}
+
+
+def test_wumpus_shooting_without_arrow_is_allowed_and_costly():
+    model = WumpusModel()
+    state, _ = model.initial_distribution()[0]
+    spent = model.transition_distribution(
+        state, {AGENT_HUMAN: ACTION_SHOOT, AGENT_WUMPUS: "TurnLeft"}
+    )[0][0]
+    assert not spent.has_arrow
+    joint = {AGENT_HUMAN: ACTION_SHOOT, AGENT_WUMPUS: "TurnLeft"}
+    again = model.transition_distribution(spent, joint)[0][0]
+    assert again.has_arrow is False and again.wumpus_alive == spent.wumpus_alive
+    assert model.get_reward(spent, joint, again, AGENT_HUMAN) == -10
