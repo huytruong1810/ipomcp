@@ -115,7 +115,7 @@ def history(physics, steps, seed, opponent):
     return out
 
 
-def reference(domain, level, horizon, seed, steps, solve=True):
+def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_000):
     """The problem's history and the exact I-POMDP's Q after it (point-mass nesting).
 
     ``solve=False`` stops after the history: the row has the belief's digest and support but no Q, so a study
@@ -124,7 +124,8 @@ def reference(domain, level, horizon, seed, steps, solve=True):
     if level < 2:
         raise ValueError("Reachable decisions need an intentional opponent: level >= 2")
     physics = make_physics(domain)
-    agent = build_exact_agent("i", "j", level, physics, nested_levels(level), horizon, GAMMA)
+    agent = build_exact_agent("i", "j", level, physics, nested_levels(level), horizon, GAMMA,
+                              cache_size=cache_size)
     opponent = ModeledAgent(agent.solver_bank, _model_at(agent.belief, level - 1))
     steps_taken = history(physics, steps, seed, opponent)
     for action, observation in steps_taken:
@@ -310,6 +311,8 @@ def main():
     ref.add_argument("--out", type=Path, required=True)
     ref.add_argument("--digest-only", action="store_true",
                      help="write the history and belief digest without the exact solve")
+    ref.add_argument("--reference-cache", type=int, default=200_000,
+                     help="entries of the exact reference's caches (memory against CPU; values unchanged)")
     dec = sub.add_parser("decide")
     dec.add_argument("--problem", type=Path, required=True)
     dec.add_argument("--planner", choices=("mcts", "rts", "intmcp"), required=True)
@@ -330,7 +333,7 @@ def main():
     if args.command == "reference":
         try:
             row = reference(args.domain, args.level, args.horizon, args.seed, args.steps,
-                            solve=not args.digest_only)
+                            solve=not args.digest_only, cache_size=args.reference_cache)
         except HistoryEnded as error:
             row = dict(domain=args.domain, level=args.level, horizon=args.horizon, seed=args.seed,
                        steps=args.steps, ended=str(error))

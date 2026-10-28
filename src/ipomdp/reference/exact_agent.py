@@ -65,7 +65,8 @@ class ExactIPOMDPPlanner(Planner):
 
 
 def build_exact_agent(
-    agent_id, opponent_id, level, physics, nested, horizon, gamma, *, seed=0, max_branches=100_000
+    agent_id, opponent_id, level, physics, nested, horizon, gamma, *, seed=0, max_branches=100_000,
+    cache_size=200_000,
 ):
     """Build an exact agent and its exact nested models in a fresh bank.
 
@@ -76,10 +77,12 @@ def build_exact_agent(
             consume no search randomness, so modeled policies do not depend on it.
         max_branches: Budget of each real-step belief update; above it the update
             raises ``InferenceBudgetExceeded`` (the end of the exact window).
+        cache_size: Entries of the reference's value and branch caches; eviction changes
+            cost and memory, never values.
     """
     bank = SolverBank(seed=seed, max_branches=max_branches)
     reference = BestResponseReference(
-        physics, bank, gamma, max_branches=10_000_000, cache_size=200_000
+        physics, bank, gamma, max_branches=10_000_000, cache_size=cache_size
     )
     prior = bank.physical_prior(physics)
 
