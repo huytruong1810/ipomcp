@@ -233,6 +233,7 @@ def evaluate_case(
     }
     if reference == "none":
         return [row]
+    started = time.process_time()
     if level == 1 and tiger_problem and isinstance(model, TigerModel):
         oracle_q = ExactPOMDPSolver(model, horizon=horizon, gamma=gamma).q_values(belief_p, horizon)
     elif level == 1:
@@ -243,6 +244,7 @@ def evaluate_case(
         )
     else:
         oracle_q = best_response.q_values(planner.model(), horizon)
+    oracle_cpu_seconds = time.process_time() - started
     if set(estimates) != set(oracle_q):
         raise ValueError("Planner must evaluate every legal action")
     value = max(oracle_q.values())
@@ -275,6 +277,7 @@ def evaluate_case(
         row
         | {
             "oracle_q": oracle_q,
+            "oracle_cpu_seconds": oracle_cpu_seconds,
             "first_action_loss": loss(policy),
             "max_abs_q_error": q_error(estimates),
             "optimal_q_error": optimal_q_error(estimates, oracle_q),

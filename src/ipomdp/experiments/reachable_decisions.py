@@ -220,20 +220,26 @@ def _exact_opponent_policy(physics, level, horizon):
 
 
 def _loss(policy, q):
+    if q is None:
+        return None
     best = max(q.values())
     return best - sum(p * q[str(a)] for a, p in policy.items())
 
 
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
            variant="published", modeled_exact=False, intmcp_opponent="search"):
-    """One decision of an arm on a stored problem, scored against its exact Q."""
+    """One decision of an arm on a stored problem, scored against its exact Q.
+
+    A digest-only problem (no exact Q, beyond the exact solver's reach) gives an unscored row: its CPU and
+    values, with ``scored`` false and no loss.
+    """
     physics = make_physics(problem["domain"])
-    level, horizon, q = problem["level"], problem["horizon"], problem["q"]
+    level, horizon, q = problem["level"], problem["horizon"], problem.get("q")
     steps_taken = [(a, _decoded(o)) for a, o in problem["history"]]
     row = dict(
         domain=problem["domain"], level=level, horizon=horizon, problem_seed=problem["seed"],
         steps=problem["steps"], digest=problem["digest"], planner=kind, budget=budget, seed=seed,
-        modeled=modeled, particles=particles,
+        modeled=modeled, particles=particles, scored=q is not None,
     )
     if kind == "rts":
         row["particle_filter"] = particle_filter
