@@ -59,3 +59,13 @@ def test_certified_bounds_contain_the_exact_q_and_narrow_with_budget():
     assert all(row["bounds_contain_reference"] for row in rows)
     assert rows[1]["bound_width"] <= rows[0]["bound_width"]
     assert set(rows[0]["bounds"]) == set(problem["q"])
+
+
+def test_a_budget_ladder_scores_prefixes_of_the_same_tree_and_ends_at_the_decision():
+    problem = json.loads(json.dumps(rd.reference("tiger-joint", 2, 3, seed=1, steps=1)))
+    plain = rd.decide(problem, "mcts", 400, seed=0, modeled_exact=True)
+    row = rd.decide(problem, "mcts", 400, seed=0, modeled_exact=True, ladder=[10, 100])
+    assert [stage["budget"] for stage in row["ladder"]] == [10, 100, 400]
+    assert row["values"] == plain["values"] and row["bounds"] == plain["bounds"]
+    assert row["ladder"][-1]["values"] == plain["values"] and row["ladder"][-1]["bounds"] == plain["bounds"]
+    assert all(stage["bounds_contain_reference"] for stage in row["ladder"])

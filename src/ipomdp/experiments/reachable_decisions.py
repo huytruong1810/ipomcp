@@ -63,7 +63,7 @@ from ipomdp.experiments.wumpus_qualification import (
     nested_levels,
 )
 from ipomdp.planning.config import PlannerConfig
-from ipomdp.planning.policy import greedy_policy
+from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.best_response import BestResponseReference
@@ -228,8 +228,12 @@ def _loss(policy, q):
 
 
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
-           variant="published", modeled_exact=False, intmcp_opponent="search"):
+           variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None):
     """One decision of an arm on a stored problem, scored against its exact Q.
+
+    ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
+    recorded under ``ladder`` with its certified intervals (V2 coverage); the row's own fields are the stage
+    at ``budget``, identical to a decision without a ladder.
 
     A digest-only problem (no exact Q, beyond the exact solver's reach) gives an unscored row: its CPU and
     values, with ``scored`` false and no loss.
@@ -279,14 +283,21 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
             planner.update_root(action, observation)
         started = time.process_time()
         policy = planner.policy_for(planner.model())
+        cpu_seconds = time.process_time() - started
+        if ladder:
+            if kind != "mcts":
+                raise ValueError("A budget ladder is an I-POMCP arm")
+            stages = planner.anytime_scores(planner.model(), sorted(set(ladder) | {budget}))
     except UnsupportedObservation as error:
         # A sampled belief can lose every world that explains an observation (counted as not optimal).
         return row | dict(failure=str(error), loss=None)
     row |= dict(
         loss=_loss(policy, q), policy={str(a): p for a, p in policy.items()},
         values={str(a): v for a, v in planner.recommendation_values.items()},
-        cpu_seconds=time.process_time() - started,
+        cpu_seconds=cpu_seconds,
     )
+    if ladder:
+        row["ladder"] = [_stage(simulations, scores, cpu, q) for simulations, scores, cpu in stages]
     if kind == "mcts":
         bounds = planner.scores.bounds
         row |= dict(exact_root=planner.scores.exact, bounds={str(a): b for a, b in bounds.items()},
@@ -297,6 +308,20 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
             row["bounds_contain_reference"] = all(
                 lo - 1e-9 <= q[str(a)] <= hi + 1e-9 for a, (lo, hi) in bounds.items())
     return row
+
+
+def _stage(simulations, scores, cpu_seconds, q):
+    """One budget of a ladder: values, certified intervals and, when scored, loss and containment."""
+    bounds = scores.bounds
+    stage = dict(budget=simulations, cpu_seconds=cpu_seconds, exact_root=scores.exact,
+                 values={str(a): v for a, v in scores.values.items()},
+                 bounds={str(a): b for a, b in bounds.items()},
+                 bound_width=max(hi - lo for lo, hi in bounds.values()))
+    if q is not None:
+        stage["loss"] = _loss(greedy_policy(scores.values, TIE_TOLERANCE if scores.exact else 0.0), q)
+        stage["bounds_contain_reference"] = all(
+            lo - 1e-9 <= q[str(a)] <= hi + 1e-9 for a, (lo, hi) in bounds.items())
+    return stage
 
 
 def _write(path, row):
@@ -333,6 +358,8 @@ def main():
                      help="diagnostic: how I-NTMCP's nested tree predicts j (R3)")
     dec.add_argument("--modeled-exact", action="store_true",
                      help="solve every modeled level exactly (I-POMCP searches only at i's root)")
+    dec.add_argument("--ladder", type=int, nargs="+",
+                     help="I-POMCP: also score the same tree at these smaller budgets (anytime intervals)")
     dec.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if args.out.exists():
@@ -351,7 +378,7 @@ def main():
         started = time.process_time()
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
-                     args.intmcp_opponent)
+                     args.intmcp_opponent, args.ladder)
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 

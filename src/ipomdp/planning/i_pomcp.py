@@ -57,6 +57,7 @@ separate stream owned by the planner. Nothing touches the global ``random``.
 """
 
 import random
+import time
 from dataclasses import asdict
 
 from ipomdp.belief.finite_belief import MentalModel
@@ -146,6 +147,21 @@ class IPOMCPPlanner(Planner):
             self.recommendation_values = dict(scores.values)
             self.scores = scores
         return policy
+
+    def anytime_scores(self, model, checkpoints):
+        """Certified chance scores of the root search at each checkpoint, one tree grown through them.
+
+        The tree is seeded as the flat search of ``config.simulations``, so the
+        stage at that budget equals ``policy_for``'s scores; earlier stages are
+        its prefixes. Returns [(simulations, scores, cpu_seconds)], CPU cumulative.
+        """
+        if max(checkpoints) != self.config.simulations:
+            raise ValueError("The last checkpoint must be the configured budget")
+        started, tree, stages = time.process_time(), self._tree(model, self.config.simulations), []
+        for simulations in sorted(checkpoints):
+            scores = tree.grow(simulations, bounds=True)
+            stages.append((simulations, scores, time.process_time() - started))
+        return stages
 
     def _stopped_values(self, model):
         return self._stopped_scores(model).values
