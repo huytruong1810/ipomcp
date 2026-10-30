@@ -156,7 +156,7 @@ def _decoded(value):
 
 
 def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, particle_filter,
-             modeled_exact=False):
+             modeled_exact=False, cache_size=200_000):
     """i at ``level`` with point-mass nesting; every modeled level is solved by the same kind of planner.
 
     With ``modeled_exact``, every modeled level is instead the exact best response at ``horizon`` to the
@@ -193,7 +193,7 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
     )
     if modeled_exact:
         reference = BestResponseReference(
-            physics, bank, GAMMA, max_branches=10_000_000, cache_size=200_000
+            physics, bank, GAMMA, max_branches=10_000_000, cache_size=cache_size
         )
         for who in ("i", "j"):
             for lower_level in range(1, level):
@@ -228,7 +228,8 @@ def _loss(policy, q):
 
 
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
-           variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None):
+           variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None,
+           cache_size=200_000):
     """One decision of an arm on a stored problem, scored against its exact Q.
 
     ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
@@ -277,7 +278,7 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
             raise ValueError("Exact modeled levels are an I-POMCP arm")
         row["modeled"] = "exact"
     planner = _planner(physics, kind, seed, budget, horizon, level, modeled or budget, particles,
-                       particle_filter, modeled_exact)
+                       particle_filter, modeled_exact, cache_size)
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -358,6 +359,8 @@ def main():
                      help="diagnostic: how I-NTMCP's nested tree predicts j (R3)")
     dec.add_argument("--modeled-exact", action="store_true",
                      help="solve every modeled level exactly (I-POMCP searches only at i's root)")
+    dec.add_argument("--reference-cache", type=int, default=200_000,
+                     help="with --modeled-exact: entries of the exact solver's caches (memory against CPU)")
     dec.add_argument("--ladder", type=int, nargs="+",
                      help="I-POMCP: also score the same tree at these smaller budgets (anytime intervals)")
     dec.add_argument("--out", type=Path, required=True)
@@ -378,7 +381,7 @@ def main():
         started = time.process_time()
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
-                     args.intmcp_opponent, args.ladder)
+                     args.intmcp_opponent, args.ladder, args.reference_cache)
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 
