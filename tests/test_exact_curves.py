@@ -98,3 +98,19 @@ def test_the_restricted_truth_equals_a_separately_built_oracle():
     for a, b in zip(restricted, oracle):
         assert a["reward_ref"] == pytest.approx(b["reward_ref"], abs=1e-9)
         assert a["nodes"] == b["nodes"]
+
+
+def test_node_records_sum_to_the_step_rows_and_respect_the_confidence_bound():
+    # Against a level in its support, the deeper agent's loss at h is at most eps / (1 - eps) times the
+    # return range, eps = 1 - P_{k+1}(m | h); here H = 2 and gamma = 0.95.
+    physics = JointTigerModel(together_safe=40.0)
+    records = []
+    rows = list(exact_decision_gains(physics, "i", 1, 0, 3, 2, 2, on_node=records.append))
+    low, high = physics.reward_bounds("i")
+    width = (high - low) * 1.95
+    for row in rows:
+        mine = [r for r in records if r["step"] == row["step"]]
+        assert math.fsum(r["mass"] * r["plan_gain"] for r in mine) == pytest.approx(row["plan_gain"], abs=1e-9)
+    for r in records:
+        eps = 1 - r["posterior_true"]
+        assert r["plan_gain"] >= -eps / (1 - eps) * width - 1e-9

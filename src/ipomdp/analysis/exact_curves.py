@@ -166,7 +166,9 @@ def _plan_value(truth, reference, stepper, belief, horizon, gamma):
     return math.fsum(terms)
 
 
-def exact_decision_gains(physics, agent, k, m, steps, horizon, reference_level, gamma=0.95, max_nodes=2_000_000):
+def exact_decision_gains(
+    physics, agent, k, m, steps, horizon, reference_level, gamma=0.95, max_nodes=2_000_000, on_node=None
+):
     """Yield, per step, the exact value of one more level at the decision points of that step.
 
     The stepping ``agent`` is at level k or k + 1 (uniform nesting) and faces an opponent at
@@ -186,6 +188,8 @@ def exact_decision_gains(physics, agent, k, m, steps, horizon, reference_level, 
         {"step", "mass", "reward_ref", "immediate_gain", "plan_gain", "residual",
          "residual_min", "bayes_gap", "differ_mass", "unsupported", "nodes", "cpu"}; mass-weighted
         sums over the step's histories (``mass`` is the probability the episode is still running).
+        ``on_node``, if given, receives one record per history: its step, mass, level k + 1's
+        posterior on the true level, and its immediate gain, plan gain and residual.
     """
     if reference_level not in (k, k + 1):
         raise ValueError("The reference level must be k or k + 1")
@@ -221,30 +225,42 @@ def exact_decision_gains(physics, agent, k, m, steps, horizon, reference_level, 
             truth = truth_of(node)
             pi_lo, pi_up = lower.policy(b_lower, horizon), upper.policy(b_upper, horizon)
             immediate = reference.q_values(truth, 1)
-            sums["immediate_gain"].append(mass * (
-                math.fsum(p * immediate[a] for a, p in pi_up.items())
-                - math.fsum(p * immediate[a] for a, p in pi_lo.items())))
-            sums["plan_gain"].append(mass * (
-                _plan_value(truth, reference, upper, b_upper, horizon, gamma)
-                - _plan_value(truth, reference, lower, b_lower, horizon, gamma)))
+            immediate_gain = math.fsum(p * immediate[a] for a, p in pi_up.items()) - math.fsum(
+                p * immediate[a] for a, p in pi_lo.items())
+            # Plan gains against every level of level k + 1's support, by its own reference; against
+            # the true m <= k this is the plan gain itself (the truth is the same restriction).
+            model = up.model(b_upper)
+            posterior = level_posterior(b_upper)
+            per_level = {}
+            try:
+                for level in posterior:
+                    part = _restricted(model, level)
+                    per_level[level] = (
+                        _plan_value(part, up.reference, upper, b_upper, horizon, gamma),
+                        _plan_value(part, up.reference, lower, b_lower, horizon, gamma),
+                    )
+            except UnsupportedObservation:
+                per_level = None
+                unsupported += 1
+            if oracle is None and per_level is not None:
+                plan_gain = per_level[m][0] - per_level[m][1]
+            else:
+                plan_gain = _plan_value(truth, reference, upper, b_upper, horizon, gamma) - _plan_value(
+                    truth, reference, lower, b_lower, horizon, gamma)
+            sums["immediate_gain"].append(mass * immediate_gain)
+            sums["plan_gain"].append(mass * plan_gain)
             if set(pi_up) != set(pi_lo) or any(abs(pi_up[a] - pi_lo[a]) > 1e-12 for a in pi_up):
                 sums["differ_mass"].append(mass)
-            # Bayes residual over level k + 1's own support, evaluated by its own reference.
-            model = up.model(b_upper)
-            terms, mixture = [], []
-            try:
-                for level, weight in level_posterior(b_upper).items():
-                    part = _restricted(model, level)
-                    v_up = _plan_value(part, up.reference, upper, b_upper, horizon, gamma)
-                    v_lo = _plan_value(part, up.reference, lower, b_lower, horizon, gamma)
-                    terms.append(weight * (v_up - v_lo))
-                    mixture.append(weight * v_up)
-                residual = math.fsum(terms)
+            if per_level is not None:
+                residual = math.fsum(posterior[l] * (v_up - v_lo) for l, (v_up, v_lo) in per_level.items())
+                mixture = math.fsum(posterior[l] * v_up for l, (v_up, _) in per_level.items())
                 sums["residual"].append(mass * residual)
                 residual_min = min(residual_min, residual)
-                gap_max = max(gap_max, abs(math.fsum(mixture) - max(up.reference.q_values(model, horizon).values())))
-            except UnsupportedObservation:
-                unsupported += 1
+                gap_max = max(gap_max, abs(mixture - max(up.reference.q_values(model, horizon).values())))
+            if on_node is not None:
+                on_node({"step": step, "mass": mass, "posterior_true": posterior.get(m, 0.0),
+                         "immediate_gain": immediate_gain, "plan_gain": plan_gain,
+                         "residual": residual if per_level is not None else None})
             pi_ref = driver.policy(b_lower if driver is lower else b_upper, horizon)
             sums["reward_ref"].append(mass * math.fsum(p * immediate[a] for a, p in pi_ref.items()))
             for action, p_a in pi_ref.items():
