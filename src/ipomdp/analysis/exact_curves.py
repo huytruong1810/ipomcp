@@ -167,7 +167,8 @@ def _plan_value(truth, reference, stepper, belief, horizon, gamma):
 
 
 def exact_decision_gains(
-    physics, agent, k, m, steps, horizon, reference_level, gamma=0.95, max_nodes=2_000_000, on_node=None
+    physics, agent, k, m, steps, horizon, reference_level, gamma=0.95, max_nodes=2_000_000, on_node=None,
+    cache_size=200_000,
 ):
     """Yield, per step, the exact value of one more level at the decision points of that step.
 
@@ -190,6 +191,7 @@ def exact_decision_gains(
         sums over the step's histories (``mass`` is the probability the episode is still running).
         ``on_node``, if given, receives one record per history: its step, mass, level k + 1's
         posterior on the true level, and its immediate gain, plan gain and residual.
+        ``cache_size`` bounds each exact agent's reference caches (memory against CPU, values unchanged).
     """
     if reference_level not in (k, k + 1):
         raise ValueError("The reference level must be k or k + 1")
@@ -197,7 +199,7 @@ def exact_decision_gains(
     actions = physics.get_all_actions(agent)
 
     def exact(level, nested):
-        return build_exact_agent(agent, other, level, physics, nested, horizon, gamma)
+        return build_exact_agent(agent, other, level, physics, nested, horizon, gamma, cache_size=cache_size)
 
     lower = _Stepper(exact(k, uniform_nesting(k)) if k else None, actions)
     upper = _Stepper(exact(k + 1, uniform_nesting(k + 1)), actions)
