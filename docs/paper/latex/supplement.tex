@@ -6,6 +6,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{amsthm}
 \usepackage{booktabs}
 \usepackage{algorithm}
 \usepackage{algorithmic}
@@ -20,6 +21,9 @@
 \newcommand{\SEN}{\widetilde{\SE}^{N}}
 \newcommand{\hth}{\hat{\theta}}
 \renewcommand{\Pr}{\mathit{Pr}}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
 
 \title{Interactive POMCP: Supplementary Material}
 \author{Anonymous Submission}
@@ -109,6 +113,122 @@ Figure~\ref{fig:overview} summarizes the search, and Algorithm~\ref{alg:filter} 
 
 
 \paragraph{Adaptive modeled budget.} A modeled solve grows one search tree by doubling its number of simulations from a small pilot size. After each doubling it compares the gap between its two leading actions with a Bonferroni-corrected $t$ critical value times the spread of the same gap across a few independent pilot trees, and it stops as soon as the gap exceeds that threshold. At its cap, the solve is identical to a flat search with the cap's budget, so the rule is consistent.
+
+\section{Guarantees: Soundness, Consistency and Compression}
+\label{sec:theory}
+
+This section states and proves the three guarantees on which the paper's claims of verifiability rest. Section~4.3 of the paper states the first, and the other two are new.
+
+\paragraph{Assumptions.} Throughout, (A1) $S$, $A_i$, $A_j$, $\Omega_i$ and $\Omega_j$ are finite, and the nesting depth is finite; (A2) the horizon $H$ is finite and $\gamma \in [0, 1]$; (A3) the frames are known to $i$ (the frames are common knowledge, Section~2 of the paper); (A4) rewards are bounded, $R_{\min} \leq R_i \leq R_{\max}$, with declared bounds; (A5) every belief has finite support. An episode may end at any step, in which case the remaining return is zero.
+
+\paragraph{The searched model.} Fix the configuration and the seeds. Every modeled solve is seeded from a digest of its model (Section~4.4), so each model $\theta_j$ that the planner queries receives a fixed action law $\pi_j(\cdot \mid \theta_j)$, and every belief that the planner forms is a fixed function of its parent, the action and the observation (the compressed update $\SEN$). Agent $i$'s problem with this action law and this update is a finite-horizon POMDP over the reachable interactive states, which are finitely many by (A1) and (A5). We call it the \emph{searched model}, write $Q^H_{\mathrm{s}}$ and $U^H_{\mathrm{s}}$ for its values, and write $\Pr(o, \mathrm{alive} \mid b, a)$ for the probability, under $b$, that $i$ observes $o$ and the episode continues. When every modeled level is solved exactly and no belief exceeds $N$ atoms, $\SEN = \SE$ and the searched model is the exact I-POMDP, so $Q^H_{\mathrm{s}} = Q^H$ of Eq.~2 of the paper. The guarantees below are therefore relative to $i$'s model of $j$: they certify a subjective best response, and they give no bound on exploitability by a $j$ outside that model.
+
+\paragraph{Return bounds.} Let $\ell_0 = u_0 = 0$, $\ell_r = R_{\min} + \gamma \min(0, \ell_{r-1})$ and $u_r = R_{\max} + \gamma \max(0, u_{r-1})$.
+
+\begin{lemma}
+\label{lem:range}
+(i) For every update of $i$'s posterior, compressed or not, every belief $b$, action $a$ and $r \geq 1$, $\ell_r \leq Q^r_{\mathrm{s}}(b, a) \leq u_r$ and $\ell_r \leq U^r_{\mathrm{s}}(b) \leq u_r$; the same holds for rollout values. (ii) If $i$'s posterior is updated by Bayes' rule over a fixed finite set of interactive states, with the nested models advanced by fixed functions, then $Q^r(\cdot, a)$ is the maximum of at most $G_r$ linear functions $b \mapsto \alpha \cdot b$ with $\ell_r \leq \alpha(is) \leq u_r$, where $G_r$ is the number of conditional $(r-1)$-step plans of $i$ after $a$ (one per assignment of an $(r-1)$-step plan to each observation).
+\end{lemma}
+\begin{proof}
+(i) By induction on $r$, from $Q^r_{\mathrm{s}}(b, a) = \ER_i(b, a) + \gamma \sum_o p_o\, U^{r-1}_{\mathrm{s}}(b_{ao})$ with $\ER_i(b, a) \in [R_{\min}, R_{\max}]$, $p_o \geq 0$ and $\sum_o p_o \in [0, 1]$: the continuation lies in $[\min(0, \ell_{r-1}), \max(0, u_{r-1})]$. A rollout's return obeys the same recursion along its sampled path. (ii) Under these conditions $i$'s problem is a finite POMDP over the interactive states, and the standard argument for POMDPs applies: a plan $\sigma$ has the value $\alpha_\sigma(is) = \ER_i(is, a) + \gamma \sum_{o} \Pr(o, \mathrm{alive} \mid is, a)\, \alpha_{\sigma(o)}(is, o)$, the value is the maximum over plans of $\alpha_\sigma \cdot b$, and the bounds on $\alpha_\sigma$ follow by the induction of (i).
+\end{proof}
+
+\paragraph{T1: Soundness.}
+
+\begin{theorem}[Soundness of the certified intervals]
+\label{thm:sound}
+Assume (A1)--(A5). For every budget $n \geq |A_i|$, every seed, and every root action $a$, the scoring pass (Section~4.3 of the paper) returns $Q^-(\emptyset, a) \leq Q^H_{\mathrm{s}}(b_i, a) \leq Q^+(\emptyset, a)$. In particular, (i) if $Q^-(\emptyset, a^\star) \geq \max_{a \neq a^\star} Q^+(\emptyset, a)$, then $a^\star$ is optimal in the searched model; (ii) the first-action loss of any root action $a$ in the searched model is at most $\max_{a'} Q^+(\emptyset, a') - Q^-(\emptyset, a)$; and (iii) when every modeled level is solved exactly and no belief exceeds $N$ atoms, the intervals contain the exact I-POMDP values $Q^H(\langle b_i, \hth_i \rangle, a)$.
+\end{theorem}
+\begin{proof}
+We show by induction on the steps to go $r$ that the interval $I(h)$ computed at every history $h$ of the tree with $r$ steps to go contains $U^r_{\mathrm{s}}(b_h)$, and that the interval $I(h, a)$ of every action evaluated at $h$ contains $Q^r_{\mathrm{s}}(b_h, a)$. The scoring pass uses the same update $\SEN$ and the same modeled policies as the searched model, so $b_h$, $\ER_i(b_h, a)$ and $\Pr(o, \mathrm{alive} \mid b_h, a)$ are exact quantities of the searched model.
+\begin{itemize}
+\item $r = 1$: $I(h) = \{\max_a \ER_i(b_h, a)\} = \{U^1_{\mathrm{s}}(b_h)\}$.
+\item A rollout frontier with $r$ steps to go: $I(h) = [\ell_r, u_r] \ni U^r_{\mathrm{s}}(b_h)$ by Lemma~\ref{lem:range}(i).
+\item An evaluated action $a$ at $h$ with $r \geq 2$: $Q^r_{\mathrm{s}}(b_h, a) = \ER_i(b_h, a) + \gamma \sum_o p_o\, U^{r-1}_{\mathrm{s}}(b_{hao})$ with $p_o = \Pr(o, \mathrm{alive} \mid b_h, a) \geq 0$. Each branch enters as one of the following: with $r = 2$, its exact value $U^1_{\mathrm{s}}(b_{hao})$, sampled or not; when sampled with $r \geq 3$, $p_o\, I(hao)$, which contains $p_o U^{r-1}_{\mathrm{s}}(b_{hao})$ by the induction hypothesis; when unsampled with $r \geq 3$, $p_o [\ell_{r-1}, u_{r-1}]$, which contains it by Lemma~\ref{lem:range}. A sum of intervals contains the sum of their members, and $\gamma \geq 0$.
+\item An action never tried at $h$: since $\sum_o p_o \in [0, 1]$, $Q^r_{\mathrm{s}}(b_h, a) \in \ER_i(b_h, a) + \gamma [\min(0, \ell_{r-1}), \max(0, u_{r-1})]$, the interval used.
+\item An expanded history: $U^r_{\mathrm{s}}(b_h) = \max_a Q^r_{\mathrm{s}}(b_h, a)$ over all legal actions, tried or not. If $x_a \in [\lambda_a, \mu_a]$ for every $a$, then $\max_a \lambda_a \leq \max_a x_a \leq \max_a \mu_a$, and $I(h) = [\max_a \lambda_a, \max_a \mu_a]$.
+\end{itemize}
+Every root action is evaluated, since $n \geq |A_i|$ and untried actions are selected first. (Ranges of values under any update are by Lemma~\ref{lem:range}(i).) Hence $Q^H_{\mathrm{s}}(b_i, a) \in I(\emptyset, a)$. Statement (i) follows because $Q^H_{\mathrm{s}}(b_i, a^\star) \geq Q^-(\emptyset, a^\star) \geq Q^+(\emptyset, a) \geq Q^H_{\mathrm{s}}(b_i, a)$ for every $a \neq a^\star$. Statement (ii) follows from $U^H_{\mathrm{s}}(b_i) \leq \max_{a'} Q^+(\emptyset, a')$ and $Q^H_{\mathrm{s}}(b_i, a) \geq Q^-(\emptyset, a)$. Statement (iii) follows because the searched model is then the exact I-POMDP.
+\end{proof}
+
+The statement holds in exact arithmetic. The implementation sums with compensated summation, and the experiments test containment to $10^{-9}$.
+
+\paragraph{T2: Consistency.}
+
+\begin{theorem}[Consistency]
+\label{thm:consistent}
+Assume (A1)--(A5), $R_{\max} > R_{\min}$, $\gamma > 0$ and $c > 0$, and treat the planner's random stream as independent uniform draws. Then:
+\begin{enumerate}
+\item[(i)] the probability that a search of $n$ simulations ends with a tree that satisfies the condition of Proposition~1 of the paper (every action evaluated at every history with at least two steps to go, and every positive branch present at every history with at least three) tends to 1 as $n \to \infty$; on that event, $Q^\star(\emptyset, \cdot) = Q^H_{\mathrm{s}}(b_i, \cdot)$, the certified intervals have zero width, and the decision is optimal in the searched model;
+\item[(ii)] if, in addition, every modeled level is solved by I-POMCP with flat budgets that also tend to infinity, and no belief exceeds $N$ atoms (for example, exact beliefs), then the probability that the root decision is an optimal action of the exact I-POMDP tends to 1.
+\end{enumerate}
+\end{theorem}
+\begin{proof}
+(i) The tree has depth $H - 1$ and finite branching, so it has finitely many possible histories. Call a history \emph{recurrent} if it is visited infinitely often in an infinite run of simulations of a single tree. The root is recurrent.
+
+\emph{Every action at a recurrent history is selected infinitely often.} Untried actions are selected first. Suppose action $a$ is selected only $K < \infty$ times at a recurrent history $h$. Values are bounded (Lemma~\ref{lem:range}, which also covers rollout values), say within $[\ell, u]$, so the index of $a$ in Eq.~3 of the paper is at least $\ell + c W_r \sqrt{\log N(h) / K}$. An action $a'$ selected at a visit with count $N(h, a') = m$ therefore satisfies $u + c W_r \sqrt{\log N(h)/m} \geq \ell + c W_r \sqrt{\log N(h)/K}$, which forces $m \leq K (1 + o(1))$ as $N(h) \to \infty$. Then the counts of the finitely many actions stay bounded while their sum $N(h)$ grows without bound, a contradiction.
+
+\emph{Every positive branch of a recurrent pair is created, and is recurrent.} Each visit to $(h, a)$ draws an interactive state from $b_h$ and then $j$'s action, the next state and $o$, so the observation is drawn from $\Pr(\cdot, \mathrm{alive} \mid b_h, a)$, independently across visits. A branch $o$ of probability $p > 0$ is missed in $k$ visits with probability $(1 - p)^k \to 0$; once created, it is visited on a fraction $p$ of the visits to $(h, a)$ and is therefore recurrent. A child reached once is valued by a rollout and is expanded at its next visit.
+
+By induction on depth, every history with at least two steps to go that is reachable with positive probability is recurrent, so every one of its actions is evaluated, and every positive branch of a history with at least three steps to go is present. Since the reachable tree is finite, the probability that all of them are present after $n$ simulations tends to 1. On that event the condition of Proposition~1 holds, every interval is a point (Theorem~\ref{thm:sound}, with no frontier, fallback or untried action left), and the greedy decision maximizes $Q^H_{\mathrm{s}}(b_i, \cdot)$, up to the tie tolerance. The seed of a search of $n$ simulations depends on $n$, so the statement is in probability, not along a single stream; along a single stream of one tree grown through increasing budgets, the same argument gives almost-sure exactness after finitely many simulations.
+
+(ii) With finite supports and finite nesting, the set of modeled beliefs that the root search can query is finite. By (i) applied to each modeled solve, by induction on the level, and by a union bound over this finite set, the probability that every modeled solve is complete tends to 1. On that event every modeled agent plays uniformly over its exact maximizers, with the same tie tolerance as the exact reference, so its action law equals the exact I-POMDP's, and the searched model is the exact I-POMDP. A second application of (i) at the root concludes the proof.
+\end{proof}
+
+The theorem says more than asymptotic convergence: once the tree is complete, the scored values are exact, not merely close. This is the role of exact scoring with two steps to go. Without it, the leaves of the last level would carry sampled frequencies, and the scored values would converge only in the limit. Theorem~\ref{thm:sound} makes the property checkable at every finite budget, since a width of zero certifies completeness.
+
+\paragraph{T3: Compression.} Compression of the top-level belief is controlled by the sample size. Let $\widetilde{Q}^r$ denote the values under the update that compresses $i$'s own posterior to $N$ stratified draws whenever its support exceeds $N$, with the nested models held as in the searched model, and $Q^r$ the values under the same update without compression of $i$'s posterior. With $G_r$ as in Lemma~\ref{lem:range}(ii), $\log G_r \leq \frac{|\Omega_i|^{r} - 1}{|\Omega_i| - 1} \log |A_i|$ for $|\Omega_i| \geq 2$, and $G_r \leq G_H$.
+
+\begin{theorem}[Compression bound]
+\label{thm:compress}
+Assume (A1)--(A5), and treat the compression seeds as independent uniform draws. Stratified compression draws one independent uniform point in each of the $N$ strata, so the $N$ draws $X_1, \ldots, X_N$ are independent, and $\mathbb{E}[\frac{1}{N} \sum_k f(X_k)] = \sum_x f(x)\, b(x)$ for every $f$. Let $M$ be the number of compressions of $i$'s posterior over the reachable histories of the lookahead (finite by (A1), (A2) and (A5)), and fix $\eta \in (0, 1)$. With probability at least $1 - \eta$, for every root action $a$,
+\[
+\big|\widetilde{Q}^H(b_i, a) - Q^H(b_i, a)\big| \;\leq\; \sum_{k=0}^{H-1} \gamma^{k}\, (u_{H-k} - \ell_{H-k})\, \sqrt{\frac{\log(2 M |A_i| G_H / \eta)}{2N}},
+\]
+where the $k = 0$ term is present only if the root belief itself is compressed. The right-hand side is at most $H\, (u_H - \ell_H) \sqrt{\log(2 M |A_i| G_H/\eta)/(2N)}$ for $\gamma \leq 1$, and $u_H - \ell_H = (R_{\max} - R_{\min}) \sum_{t < H} \gamma^t$ when $R_{\min} \leq 0 \leq R_{\max}$.
+\end{theorem}
+\begin{proof}
+Let $\hat b$ be a compressed belief and $b$ the belief it replaces. For any linear function $\alpha \cdot b$ with coefficients in $[\ell_r, u_r]$, $\alpha \cdot \hat b - \alpha \cdot b = \frac{1}{N} \sum_k (\alpha(X_k) - \mathbb{E}\,\alpha(X_k))$, since the strata are unbiased in sum and merging duplicate atoms does not change the empirical measure. By Hoeffding's inequality for independent variables with values in $[\ell_r, u_r]$, $\Pr(|\alpha \cdot \hat b - \alpha \cdot b| > t) \leq 2 \exp(-2 N t^2 / (u_r - \ell_r)^2)$. By Lemma~\ref{lem:range}(ii), $Q^r(\cdot, a)$ is a maximum of at most $G_r \leq G_H$ such functions, and $|\max_\sigma \alpha_\sigma \cdot \hat b - \max_\sigma \alpha_\sigma \cdot b| \leq \max_\sigma |\alpha_\sigma \cdot (\hat b - b)|$. A union bound over the $M$ compressions, the $|A_i|$ actions and the $G_H$ plans gives, with probability at least $1 - \eta$, $|Q^r(\hat b, a) - Q^r(b, a)| \leq \epsilon_r := (u_r - \ell_r) \sqrt{\log(2 M |A_i| G_H / \eta) / (2N)}$ at every compression, for every action, hence also $|U^r(\hat b) - U^r(b)| \leq \epsilon_r$. Write $e_r$ for the largest $|\widetilde{Q}^r(b, a) - Q^r(b, a)|$ over actions and over the beliefs, with $r$ steps to go, of the reachable histories of the compressed process. The evidence is computed exactly under the current (possibly compressed) belief, so both updates weight the branches by the same $p_o = \Pr(o, \mathrm{alive} \mid b, a)$, and
+\[
+|\widetilde{Q}^r(b, a) - Q^r(b, a)| \leq \gamma \sum_o p_o \Big( |\widetilde{U}^{r-1}(\hat b_o) - U^{r-1}(\hat b_o)| + |U^{r-1}(\hat b_o) - U^{r-1}(b_o)| \Big) \leq \gamma (e_{r-1} + \epsilon_{r-1}),
+\]
+where $b_o$ is the uncompressed posterior and $\hat b_o$ its compression (equal to it when the support is at most $N$). With $e_1 = 0$, unrolling gives $e_H \leq \sum_{k=1}^{H-1} \gamma^k \epsilon_{H-k}$, and a compressed root adds $\epsilon_H$.
+\end{proof}
+
+\begin{remark}
+The bound concerns compression of $i$'s own belief, whose error enters linearly. Compression of a nested belief enters through $j$'s predicted action, which is the maximizer of $j$'s own values and can switch discontinuously near a tie, so no Lipschitz bound of this form holds for it. The planner handles it in two ways: Theorem~\ref{thm:sound} certifies the decision relative to the searched model, whatever the nested compression; and near-tie escalation (Section~4.5 of the paper) re-decides close decisions with a larger $N$. The gap between the searched model and the exact I-POMDP is measured, not bounded: in Section~\ref{sec:coverage} we report how often the intervals of the compressed planner contain the exact I-POMDP values.
+\end{remark}
+
+\section{Coverage of the Certified Intervals}
+\label{sec:coverage}
+
+Theorem~\ref{thm:sound} is a statement about every budget, so we test it at every budget. On the stored reachable beliefs of Section~7.1 of the paper, each with its exact I-POMDP action values, we grow one search tree per decision to 4{,}000 simulations and score it at 10, 30, 100, 300, 1{,}000 and 4{,}000. The tree is seeded as the 4{,}000-simulation search, so each smaller stage is a prefix of it. We use two configurations. With \emph{exact modeled levels} and exact beliefs, the searched model is the exact I-POMDP (Theorem~\ref{thm:sound}(iii)), so every interval must contain the exact value. With the \emph{own budget} (the other agent solved by I-POMCP with 400 simulations, $N = 64$), the intervals are certified only for the planner's model of the other agent, and their coverage of the exact values measures the error of that model. The cells are UAV level 2 at $H = 3$ (512 beliefs), $H = 4$ (120) and $H = 5$ (30, history lengths 1--2; at length 3 the exact modeled levels exceeded our 30-minute limit per decision), and coordination tiger at level 3, $H = 3$ (28). The Wumpus world is omitted: its decisions have two steps to go, so its scores are exact at any budget (Proposition~1).
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrrrrrrr@{}}
+\toprule
+& & \multicolumn{4}{c}{Exact modeled levels} & \multicolumn{2}{c}{Own budget, 1{,}000} & \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-8}
+Cell & $n$ & Contain & \multicolumn{2}{c}{Certified optimal} & CPU (s) & Contain & Optimal & Exact \\
+& & (all budgets) & 1{,}000 & 4{,}000 & & & & CPU (s) \\
+\midrule
+UAV $H = 3$ & 512 & 512 & 512 & 512 & 21 & 13 & 405 & 48 \\
+UAV $H = 4$ & 120 & 120 & 0 & 28 & 137 & 0 & 46 & 203 \\
+UAV $H = 5$ & 30 & 30 & 0 & 0 & 849 & 22/50 & 31/50 & 488 \\
+Tiger L3 $H = 3$ & 28 & 28 & 28 & 28 & 1{,}255 & 2 & 28 & 1{,}789 \\
+\bottomrule
+\end{tabular}
+\caption{Certified intervals against the exact I-POMDP on reachable beliefs. ``Contain'': decisions whose intervals contain the exact value of every action. ``Certified optimal'': decisions in which one action's lower end reaches every other action's upper end (Theorem~\ref{thm:sound}(i)), at 1{,}000 and 4{,}000 root simulations. CPU: median per decision at 4{,}000 simulations, modeled solves included, beside the exact solver's median. The own-budget arm at UAV $H = 5$ includes history length 3 (50 decisions).}
+\label{tab:coverage}
+\end{table}
+
+\paragraph{Soundness.} With exact modeled levels, the intervals contained the exact values of every action in every decision at every budget: 690 decisions, six budgets each, no exception. The certified loss bound of Theorem~\ref{thm:sound}(ii) was never below the actual loss.
+
+\paragraph{Informativeness.} Where the tree can be completed, the intervals decide. At UAV $H = 3$, every one of the 512 decisions is certified optimal by separation (Theorem~\ref{thm:sound}(i)) at 1{,}000 simulations, at a median of 21~s per decision against 48~s for the exact solver. In coordination tiger at level 3, all 28 decisions are certified optimal at 100 simulations and exact (width zero) at 1{,}000, at a median of 1{,}255~s against 1{,}789~s; there, nearly all of the cost is the exact solution of the modeled levels. At $H = 4$ and 5 they are sound but loose: the median width at 4{,}000 simulations is 74 and 100 reward units, because every unexpanded frontier is charged the full range of returns, and separation certifies 28 of 120 decisions at $H = 4$ and none at $H = 5$. A tighter frontier bound, for example from a heuristic value with its own certificate, would narrow them; we leave this to future work.
+
+\paragraph{What the certificate does not see.} With the own budget, the intervals shrink around the values of the searched model. At UAV $H = 3$, 1{,}000 simulations give width zero on 266 of 512 decisions, yet only 13 intervals contain the exact values; the gap between the searched and exact values has median 0.97 and maximum 3.7 reward units. At $H = 4$, coverage falls from 113 of 120 at 10 simulations to none at 1{,}000, and the share of optimal decisions falls from 99 of 120 at 100 simulations to 46: deeper search converges on the best response to a modeled target that is more predictable than the exact one. The certificate cannot detect this error, by design; only the comparison with the exact solver does. This is why every result in the paper is reported beside the exact solution, and why the guarantee is stated as a subjective best response.
 
 \section{Domains}
 
