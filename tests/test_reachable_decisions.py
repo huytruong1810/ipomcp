@@ -51,3 +51,11 @@ def test_digest_only_matches_the_solved_problem():
     bare = rd.reference("tiger-joint", 2, 2, seed=3, steps=2, solve=False)
     assert "q" not in bare and bare["digest"] == solved["digest"]
     assert bare["history"] == solved["history"]
+
+
+def test_certified_bounds_contain_the_exact_q_and_narrow_with_budget():
+    problem = json.loads(json.dumps(rd.reference("tiger-joint", 2, 3, seed=1, steps=1)))
+    rows = [rd.decide(problem, "mcts", budget, seed=0, modeled_exact=True) for budget in (10, 400)]
+    assert all(row["bounds_contain_reference"] for row in rows)
+    assert rows[1]["bound_width"] <= rows[0]["bound_width"]
+    assert set(rows[0]["bounds"]) == set(problem["q"])

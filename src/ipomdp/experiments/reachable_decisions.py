@@ -288,7 +288,14 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
         cpu_seconds=time.process_time() - started,
     )
     if kind == "mcts":
-        row["exact_root"] = planner.scores.exact
+        bounds = planner.scores.bounds
+        row |= dict(exact_root=planner.scores.exact, bounds={str(a): b for a, b in bounds.items()},
+                    bound_width=max(hi - lo for lo, hi in bounds.values()))
+        if q is not None:
+            # Certified for the searched model; they must contain q when that model is the exact one
+            # (exact modeled levels and exact beliefs).
+            row["bounds_contain_reference"] = all(
+                lo - 1e-9 <= q[str(a)] <= hi + 1e-9 for a, (lo, hi) in bounds.items())
     return row
 
 
