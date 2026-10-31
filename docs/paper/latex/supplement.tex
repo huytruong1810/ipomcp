@@ -233,7 +233,7 @@ Tiger L3 $H = 3$ & 28 & 28 & 28 & 28 & 1{,}255 & 2 & 28 & 1{,}789 \\
 \section{The Conditional Value of Depth}
 \label{sec:depth-theory}
 
-Proposition~3 of the paper says that a correct model of $j$ suffices. Here we state what one more level guarantees when $i$ does not know $j$'s level, and we check the statement exactly at every reachable decision of the level grids.
+This section proves Theorem~2 of the paper, which states what one more level guarantees when $i$ does not know $j$'s level, gives two further corollaries, and describes the exact check of Section~7.3 of the paper.
 
 \paragraph{Setting.} Fix the stepping agent $i$, the lookahead $H$ and uniform nesting: the agent at level $l$ holds a uniform prior over $j$'s levels $0, \ldots, l-1$, and so does every modeled agent. Call $\{0, \ldots, l-1\}$ the \emph{support} of level $l$. For a history $h$ of $i$ and a true level $m$ of $j$, let $b^m(h)$ be the exact conditional distribution of the physical state and $j$'s model given $h$ and that $j$ is at level $m$. For a conditional $H$-step plan $\sigma$ of $i$ from $h$ (an action now, and one for each later history within the lookahead), let $V_m(h, \sigma) = \alpha_\sigma \cdot b^m(h)$ be its true expected $H$-step reward against level $m$, with $\alpha_\sigma$ as in Lemma~\ref{lem:range}(ii). The \emph{receding plan} $\sigma_l(h)$ of the exact agent at level $l$ takes, with $r$ steps to go, a maximizer of its own $Q^r$ (uniformly over ties).
 
@@ -245,7 +245,7 @@ Assume (A1)--(A5), and that the agent at level $k+1$ is exact: its beliefs are u
 \]
 with equality if and only if $\sigma$ is also optimal for level $k+1$'s belief at $h$. Consequently:
 \begin{enumerate}
-\item[(i)] \emph{(Confidence.)} If $\Pr_{k+1}(m \mid h) = 1 - \epsilon > 0$ for the true level $m \leq k$, then $V_m(h, \sigma_{k+1}) - V_m(h, \sigma) \geq -\frac{\epsilon}{1 - \epsilon}\,(u_H - \ell_H)$. With a correct point prior ($\epsilon = 0$) one more level never loses at a decision, which is Proposition~3 of the paper.
+\item[(i)] \emph{(Confidence.)} If $\Pr_{k+1}(m \mid h) = 1 - \epsilon > 0$ for the true level $m \leq k$, then $V_m(h, \sigma_{k+1}) - V_m(h, \sigma) \geq -\frac{\epsilon}{1 - \epsilon}\,(u_H - \ell_H)$. With a correct point prior ($\epsilon = 0$) one more level never loses at a decision.
 \item[(ii)] \emph{(Hedging.)} A loss against one level of the support is repaid, weighted by the posterior, by gains against the others: if the bracket is negative for $m$, the posterior-weighted sum of the brackets over $m' \neq m$ is at least $\Pr_{k+1}(m \mid h)$ times its magnitude.
 \item[(iii)] \emph{(On average.)} For any fixed policy of $i$ that generates the histories, the prior-weighted expected gain at every step, $\sum_{m \leq k} \mu(m)\, \mathbb{E}_m[V_m(h, \sigma_{k+1}) - V_m(h, \sigma_k)]$, is nonnegative.
 \end{enumerate}
@@ -257,6 +257,11 @@ Level $k+1$'s belief at $h$ is $b_{k+1}(h) = \sum_{m'} \Pr_{k+1}(m' \mid h)\, b^
 The theorem says nothing about an opponent outside the support ($m > k$), and nothing about whole receding-horizon episodes, whose later decisions are taken at histories that the two levels reach with different probabilities. Both gaps are real: the experiments below find losses in each.
 
 \paragraph{The exact check.} For every cell of the level grids (tiger, coordination and published, $k \to k+1$ for $k \leq 3$; UAV and the Wumpus world, both roles, $k \leq 1$), we enumerate $i$'s histories against the true opponent, as played by the exact agent at level $k$ and, separately, at level $k+1$, and at each history we evaluate both levels' receding plans exactly against the true opponent. Comparing at the same history removes the timing effect of receding-horizon play. %V3-RESULTS: filled from results/v3_depth_law_20261030/analysis.txt when the run completes.
+
+\section{Near-Tie Escalation}
+\label{sec:escalation}
+
+Compression with a small bound $N$ can change a decision only where the decision is close, and the planner measures closeness itself, by the gap between its two largest scored values. Each agent at level 2 or higher keeps a \emph{shadow}: the same planner, with the same seeds, at a larger bound $N' > N$, conditioned on the same realized actions and observations. When the base planner's top-two gap is at most a threshold $g$, the shadow decides; otherwise the base decision stands. Modeled agents are solved by the base planner only. We use $N = 64$, $N' = 1{,}024$ at level 2 and 256 at levels 3--4, and $g = 3$ in reward units. On 1{,}600 further coordination episodes, escalation removed 32 of the 34 compression near-ties of Section~7.2 of the paper and added none, escalating 3.2\% of the decisions at 0.41 times the CPU of the larger bound throughout.
 
 \section{Domains}
 
