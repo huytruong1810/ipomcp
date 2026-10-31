@@ -230,6 +230,34 @@ Tiger L3 $H = 3$ & 28 & 28 & 28 & 28 & 1{,}255 & 2 & 28 & 1{,}789 \\
 
 \paragraph{What the certificate does not see.} With the own budget, the intervals shrink around the values of the searched model. At UAV $H = 3$, 1{,}000 simulations give width zero on 266 of 512 decisions, yet only 13 intervals contain the exact values; the gap between the searched and exact values has median 0.97 and maximum 3.7 reward units. At $H = 4$, coverage falls from 113 of 120 at 10 simulations to none at 1{,}000, and the share of optimal decisions falls from 99 of 120 at 100 simulations to 46: deeper search converges on the best response to a modeled target that is more predictable than the exact one. The certificate cannot detect this error, by design; only the comparison with the exact solver does. This is why every result in the paper is reported beside the exact solution, and why the guarantee is stated as a subjective best response.
 
+\section{The Conditional Value of Depth}
+\label{sec:depth-theory}
+
+Proposition~3 of the paper says that a correct model of $j$ suffices. Here we state what one more level guarantees when $i$ does not know $j$'s level, and we check the statement exactly at every reachable decision of the level grids.
+
+\paragraph{Setting.} Fix the stepping agent $i$, the lookahead $H$ and uniform nesting: the agent at level $l$ holds a uniform prior over $j$'s levels $0, \ldots, l-1$, and so does every modeled agent. Call $\{0, \ldots, l-1\}$ the \emph{support} of level $l$. For a history $h$ of $i$ and a true level $m$ of $j$, let $b^m(h)$ be the exact conditional distribution of the physical state and $j$'s model given $h$ and that $j$ is at level $m$. For a conditional $H$-step plan $\sigma$ of $i$ from $h$ (an action now, and one for each later history within the lookahead), let $V_m(h, \sigma) = \alpha_\sigma \cdot b^m(h)$ be its true expected $H$-step reward against level $m$, with $\alpha_\sigma$ as in Lemma~\ref{lem:range}(ii). The \emph{receding plan} $\sigma_l(h)$ of the exact agent at level $l$ takes, with $r$ steps to go, a maximizer of its own $Q^r$ (uniformly over ties).
+
+\begin{theorem}[Bayes dominance on the support]
+\label{thm:dominance}
+Assume (A1)--(A5), and that the agent at level $k+1$ is exact: its beliefs are updated exactly, and its model of each level $m' \leq k$ of $j$ has the frame, the nested prior and the exact policy of the real agent at that level. Then for every history $h$ that it reaches with positive probability and every plan $\sigma$, including the receding plan of level $k$,
+\[
+\sum_{m' = 0}^{k} \Pr_{k+1}(m' \mid h)\, \big[V_{m'}(h, \sigma_{k+1}) - V_{m'}(h, \sigma)\big] \;\geq\; 0,
+\]
+with equality if and only if $\sigma$ is also optimal for level $k+1$'s belief at $h$. Consequently:
+\begin{enumerate}
+\item[(i)] \emph{(Confidence.)} If $\Pr_{k+1}(m \mid h) = 1 - \epsilon > 0$ for the true level $m \leq k$, then $V_m(h, \sigma_{k+1}) - V_m(h, \sigma) \geq -\frac{\epsilon}{1 - \epsilon}\,(u_H - \ell_H)$. With a correct point prior ($\epsilon = 0$) one more level never loses at a decision, which is Proposition~3 of the paper.
+\item[(ii)] \emph{(Hedging.)} A loss against one level of the support is repaid, weighted by the posterior, by gains against the others: if the bracket is negative for $m$, the posterior-weighted sum of the brackets over $m' \neq m$ is at least $\Pr_{k+1}(m \mid h)$ times its magnitude.
+\item[(iii)] \emph{(On average.)} For any fixed policy of $i$ that generates the histories, the prior-weighted expected gain at every step, $\sum_{m \leq k} \mu(m)\, \mathbb{E}_m[V_m(h, \sigma_{k+1}) - V_m(h, \sigma_k)]$, is nonnegative.
+\end{enumerate}
+\end{theorem}
+\begin{proof}
+Level $k+1$'s belief at $h$ is $b_{k+1}(h) = \sum_{m'} \Pr_{k+1}(m' \mid h)\, b^{m'}(h)$: its prior is the mixture of its models, it conditions on $h$ exactly, and each of its models equals the real agent at that level, so the component of level $m'$ is the exact conditional $b^{m'}(h)$. Every plan's value is linear in the belief (Lemma~\ref{lem:range}(ii)), so $\alpha_\sigma \cdot b_{k+1}(h) = \sum_{m'} \Pr_{k+1}(m' \mid h)\, V_{m'}(h, \sigma)$. The receding plan of level $k+1$ is a maximizer of $\alpha_\sigma \cdot b_{k+1}(h)$ over all conditional $H$-step plans, by backward induction in the finite POMDP of Lemma~\ref{lem:range}(ii): with $r$ steps to go it maximizes $Q^r$ at its own updated belief. This gives the inequality and the equality condition. For (i), the bracket for $m' \neq m$ is at most $u_H - \ell_H$ in magnitude, since both values lie in $[\ell_H, u_H]$, so $(1 - \epsilon)$ times the bracket for $m$ is at least $-\epsilon (u_H - \ell_H)$. (ii) is a rearrangement of the inequality. For (iii), $i$'s own actions are known to $i$, so the posterior $\Pr_{k+1}(m \mid h)$ does not depend on the policy that chose them, and the joint law of $m$ and $h$ under the prior is $\mu(m) \Pr_m(h)$; summing the inequality over histories weighted by $\Pr(h)$ gives (iii).
+\end{proof}
+
+The theorem says nothing about an opponent outside the support ($m > k$), and nothing about whole receding-horizon episodes, whose later decisions are taken at histories that the two levels reach with different probabilities. Both gaps are real: the experiments below find losses in each.
+
+\paragraph{The exact check.} For every cell of the level grids (tiger, coordination and published, $k \to k+1$ for $k \leq 3$; UAV and the Wumpus world, both roles, $k \leq 1$), we enumerate $i$'s histories against the true opponent, as played by the exact agent at level $k$ and, separately, at level $k+1$, and at each history we evaluate both levels' receding plans exactly against the true opponent. Comparing at the same history removes the timing effect of receding-horizon play. %V3-RESULTS: filled from results/v3_depth_law_20261030/analysis.txt when the run completes.
+
 \section{Domains}
 
 \begin{table}[h]
