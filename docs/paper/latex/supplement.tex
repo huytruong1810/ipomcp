@@ -256,7 +256,33 @@ Level $k+1$'s belief at $h$ is $b_{k+1}(h) = \sum_{m'} \Pr_{k+1}(m' \mid h)\, b^
 
 The theorem says nothing about an opponent outside the support ($m > k$), and nothing about whole receding-horizon episodes, whose later decisions are taken at histories that the two levels reach with different probabilities. Both gaps are real: the experiments below find losses in each.
 
-\paragraph{The exact check.} For every cell of the level grids (tiger, coordination and published, $k \to k+1$ for $k \leq 3$; UAV and the Wumpus world, both roles, $k \leq 1$), we enumerate $i$'s histories against the true opponent, as played by the exact agent at level $k$ and, separately, at level $k+1$, and at each history we evaluate both levels' receding plans exactly against the true opponent. Comparing at the same history removes the timing effect of receding-horizon play. %V3-RESULTS: filled from results/v3_depth_law_20261030/analysis.txt when the run completes.
+\paragraph{The exact check.} For every cell of the level grids (tiger, coordination and published, $k \to k+1$ for $k \leq 3$; UAV and the Wumpus world, both roles, $k \leq 1$), we enumerate $i$'s histories against the true opponent, as played by the exact agent at level $k$ and, separately, at level $k+1$, and at each history we evaluate both levels' receding plans exactly against the true opponent. Comparing at the same history removes the timing effect of receding-horizon play. Each cell runs until its step count or a cap of 4~GB (8~GB for the four largest tiger cells) and 1~CPU-hour; 107 of the 116 cell-references stop at the memory cap, which fixes the number of steps covered.
+
+Over the 116 cell-references, 601{,}820 histories are scored. The inequality of Theorem~\ref{thm:dominance} holds at every one: the smallest residual is 0 and the mixture of the plan values differs from level $k+1$'s maximum by at most $2.1 \times 10^{-11}$. Where a cell overlaps the exact pair curves of Section~7 of the paper, the cumulative reward of the reference play reproduces them to $7.9 \times 10^{-12}$ at 545 steps. Table~\ref{tab:classes} gives the mean plan gain per step by class. In class (b) it is nonnegative at every step of every domain, and also at every single history. In class (a) every loss is against a random opponent except one: coordination tiger, $3 \to 4$ against level 1, $-0.35$ at step 3. By $i$'s posterior on the true level, the histories of class (a) at which the deeper level loses carry 12.8\% of the mass below 0.5, 29.0\% between 0.5 and 0.8, 14.3\% between 0.8 and 0.95, and none at 0.95 or above. Class (c) loses in UAV reconnaissance only: against a level-2 opponent, the level-1 target and the level-1 UAV lose up to 18.3 and 20.1 in plan value per step. Against the cumulative pair gains, the sign of the decision-point immediate gain differs at 26 of 300 cell-steps, the timing effect of Section~7.3 of the paper.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Domain & Class & Cells & Cell-steps & With a loss & Worst mean \\
+\midrule
+Tiger, coordination & (a) $m<k$ & 6 & 22 & 9 & $-0.95$ \\
+ & (b) $m=k$ & 4 & 22 & 0 & $0$ \\
+ & (c) $m>k$ & 7 & 21 & 0 & $0$ \\
+Tiger, published & (a) & 6 & 21 & 3 & $-0.70$ \\
+ & (b) & 4 & 21 & 0 & $0$ \\
+ & (c) & 7 & 21 & 0 & $0$ \\
+UAV reconnaissance & (a) & 2 & 20 & 11 & $-2.93$ \\
+ & (b) & 4 & 49 & 0 & $0$ \\
+ & (c) & 6 & 44 & 12 & $-20.10$ \\
+Wumpus world & (a) & 2 & 11 & 6 & $-9.22$ \\
+ & (b) & 4 & 23 & 0 & $0$ \\
+ & (c) & 6 & 29 & 0 & $0$ \\
+\bottomrule
+\end{tabular}
+\caption{The exact plan gain of level $k+1$ over level $k$ at the same histories, per step, by class of the true opponent level $m$. A cell is a domain, a stepping agent, $k$ and $m$. A cell-step counts as a loss when its mass-weighted mean plan gain is below $-10^{-9}$ under either reference play ($k$ or $k+1$). The worst mean is the smallest such mean over the class.}
+\label{tab:classes}
+\end{table}
 
 \section{Near-Tie Escalation}
 \label{sec:escalation}
@@ -331,6 +357,17 @@ Wumpus & 2, 2 & 60 & 60 & 1--26 & 40 & 75 \\
 \section{Anytime UAV Episodes}
 
 A level-2 UAV plans with $H = 4$ or 5 in 20-step episodes from the common prior against a level-1 I-POMCP target ($n = 30$ per planner and budget). The exact solver cannot play such episodes, since its cost per decision grows about threefold with each step of history, but it can score their first decisions. I-POMCP uses root budgets of 50 to 1{,}000 simulations and models the target with the same budget, and I-NTMCP uses $M$ from 1{,}000 to 64{,}000. The decisions at the first five steps of each $H = 4$ episode are scored exactly; the exact solver's median CPU on them grows from 10~s at the first step to 710~s at the fifth. I-POMCP at $H = 4$ earns 34.8 at 2.9 s per decision (35 is the most any episode earned), where I-NTMCP earns 20.8 at 3.7 s and 32.2 at 13 s. With no more CPU than I-NTMCP, I-POMCP earns 2.7 [1.7, 3.7] more than I-NTMCP at $M = 16{,}000$ and 2.5 [1.2, 4.0] more at $M = 16{,}000$ and $H = 5$ (Holm $p \leq 0.01$), and 14.0 [4.3, 27.5] more at $M = 4{,}000$ (Holm $p = 0.12$); at $M = 64{,}000$, 55 s per decision, both always spot the target after four steps. Over the first five decisions at $H = 4$, I-POMCP at budget 1{,}000 is optimal on 120 of 120 at a median of 15~s per decision, against 51~s for the exact solver on the same decisions, I-NTMCP on 73--88\% for $M \leq 16{,}000$, and IPF + RTS ($K = 2$, over 1{,}100 s per decision) on 62--70\%. These episodes were run before the tie rule of the main text (exact values within a relative $10^{-9}$ are tied); the comparison is paired on the same target, and I-NTMCP is reported in its stronger variant at each $M$.
+
+\section{Further Results}
+\label{sec:further}
+
+\paragraph{Episodes inside the exact window.} The exact pair's expected reward lies within the I-POMCP pair's 95\% interval at 97 of 100 agent-steps of the coordination tiger grid and at 31 of 36 of the UAV grid.
+
+\paragraph{Beliefs outside the support.} A level-2 tiger agent comes to believe that the other agent is of level 1 whether it is of level 1, 2, 3 or 4 (0.92--0.95 after 10 steps). It represents only levels 0 and 1, and its posterior concentrates on the hypothesis whose predictions are closest to the truth in Kullback--Leibler divergence (Berk, 1966). A level-2 UAV rules out a level-1 target as soon as the target's predicted flight fails to happen, at step 5.
+
+\paragraph{Baselines in the Wumpus world.} The particle filter of IPF + RTS fails on about 90\% of the 219 reachable beliefs, because every particle contradicts an observation; with likelihood smoothing it is optimal on 35\%. I-NTMCP is optimal on 77\% at $M = 64{,}000$, with losses up to 639. In UAV reconnaissance, with the target's exact policy in place of its softmax prediction, I-NTMCP is optimal on 73--78\% at every $M$, so its errors come from predicting the target.
+
+\paragraph{Priors.} In coordination tiger at level 3, a point prior one level too high loses 11.9 [9.1, 14.8] by step 20 against the correct prior ($n = 1{,}000$; exact $-1.98$ by step 3). At level 4 every prior gives exactly the same value inside the exact window.
 
 \section{Reproducibility}
 
