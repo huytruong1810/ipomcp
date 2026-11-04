@@ -34,6 +34,14 @@ simulations; ``baselines.intmcp``). CPU is the final decision's process time;
 I-NTMCP also records its history replay, because it rebuilds every belief from
 its own searches.
 
+Wide prior (T4)
+---------------
+With ``prior`` = {"kind": "wide", "M": M, "w0": w0} (``--prior-m``, ``--prior-w0``), i's
+initial belief spreads over M level-1 models of j with different initial beliefs
+(``wide_prior``), and j's true model is drawn from that prior. The problem file stores
+the prior and its digest; ``decide`` rebuilds it and checks the digest. I-NTMCP cannot
+take such a prior (its model class fixes one common prior per level), so it refuses.
+
 One process per job (``reference`` or ``decide``), one JSON file per result,
 so runs are driven by ``xargs`` and resume by skipping existing files.
 
@@ -54,6 +62,7 @@ from pathlib import Path
 from ipomdp.baselines.rts import RTSConfig
 from ipomdp.belief import canonical
 from ipomdp.belief.finite_filter import UnsupportedObservation
+from ipomdp.experiments import wide_prior
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.experiments.oracle import REFERENCE_BRANCHES
 from ipomdp.experiments.wumpus_qualification import (
@@ -115,8 +124,25 @@ def history(physics, steps, seed, opponent):
     return out
 
 
-def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_000):
-    """The problem's history and the exact I-POMDP's Q after it (point-mass nesting).
+def _check_prior(prior, level):
+    if prior is None:
+        return None
+    if prior.get("kind") != "wide":
+        raise ValueError(f"Unknown prior {prior!r}")
+    if level != 2:
+        raise ValueError("The wide prior is defined for i at level 2 (j at level 1 or 0)")
+    return int(prior["M"]), float(prior.get("w0", 0.0))
+
+
+def _wide_rows(bank, physics, prior):
+    """i's wide prior in the bank filter's representation (exact, compressed or particles)."""
+    m_count, w0 = prior
+    return bank.filter.initial_belief(wide_prior.prior_rows(
+        physics, m_count, w0, bank.filter.initial_belief, bank.physical_prior(physics)))
+
+
+def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_000, prior=None):
+    """The problem's history and the exact I-POMDP's Q after it (point-mass nesting, or ``prior``).
 
     ``solve=False`` stops after the history: the row has the belief's digest and support but no Q, so a study
     can drop problems whose belief another problem already has before paying for their exact solves.
@@ -124,16 +150,27 @@ def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_00
     if level < 2:
         raise ValueError("Reachable decisions need an intentional opponent: level >= 2")
     physics = make_physics(domain)
+    wide = _check_prior(prior, level)
     agent = build_exact_agent("i", "j", level, physics, nested_levels(level), horizon, GAMMA,
                               cache_size=cache_size)
-    opponent = ModeledAgent(agent.solver_bank, _model_at(agent.belief, level - 1))
+    extra = {}
+    if wide is None:
+        start = _model_at(agent.belief, level - 1)
+    else:
+        bank = agent.solver_bank
+        agent.set_initial_belief(_wide_rows(bank, physics, wide))
+        start = wide_prior.true_opponent(physics, *wide, seed, bank.filter.initial_belief)
+        extra = dict(prior=dict(prior), prior_digest=wide_prior.prior_digest(physics, *wide),
+                     true_opponent_level=start.frame.level,
+                     true_opponent_p=None if start.belief is None else _p_first(physics, start.belief))
+    opponent = ModeledAgent(agent.solver_bank, start)
     steps_taken = history(physics, steps, seed, opponent)
     for action, observation in steps_taken:
         agent.update_root(action, observation)
     if not solve:
         return dict(domain=domain, level=level, horizon=horizon, seed=seed, steps=steps,
                     history=steps_taken, support=len(agent.belief.mass),
-                    digest=canonical.belief_digest(agent.belief))
+                    digest=canonical.belief_digest(agent.belief)) | extra
     started = time.process_time()
     q = agent.q_values(agent.model())
     return dict(
@@ -147,7 +184,13 @@ def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_00
         reference_cpu_seconds=time.process_time() - started,
         support=len(agent.belief.mass),
         digest=canonical.belief_digest(agent.belief),
-    )
+    ) | extra
+
+
+def _p_first(physics, belief):
+    """A level-1 model's initial probability of the first state of the physical prior."""
+    first = tuple(physics.initial_distribution())[0][0]
+    return sum(w for atom, w in belief.mass if atom.state == first) / sum(w for _, w in belief.mass)
 
 
 def _decoded(value):
@@ -156,11 +199,13 @@ def _decoded(value):
 
 
 def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, particle_filter,
-             modeled_exact=False, cache_size=200_000):
+             modeled_exact=False, cache_size=200_000, prior=None):
     """i at ``level`` with point-mass nesting; every modeled level is solved by the same kind of planner.
 
     With ``modeled_exact``, every modeled level is instead the exact best response at ``horizon`` to the
     levels below it, on the planner's own belief filter: search only at i's root (R2, RESULTS 12.97).
+    ``prior`` (``_check_prior``'s (M, w0)) replaces i's root belief by the wide prior in the bank's
+    representation.
     """
     if kind == "mcts":
         config = PlannerConfig(
@@ -201,6 +246,8 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
                 exact = ExactIPOMDPPlanner(key, physics, bank, reference, horizon)
                 exact.set_initial_belief(bank.get_solver(key).initial_belief)
                 bank.replace_solver(key, exact)
+    if prior is not None:
+        planner.set_initial_belief(_wide_rows(bank, physics, prior))
     return planner
 
 
@@ -241,6 +288,9 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     """
     physics = make_physics(problem["domain"])
     level, horizon, q = problem["level"], problem["horizon"], problem.get("q")
+    wide = _check_prior(problem.get("prior"), level)
+    if wide is not None and wide_prior.prior_digest(physics, *wide) != problem["prior_digest"]:
+        raise ValueError("The rebuilt wide prior does not match the problem's prior digest")
     steps_taken = [(a, _decoded(o)) for a, o in problem["history"]]
     row = dict(
         domain=problem["domain"], level=level, horizon=horizon, problem_seed=problem["seed"],
@@ -249,6 +299,11 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     )
     if kind == "rts":
         row["particle_filter"] = particle_filter
+    if wide is not None:
+        row["prior"] = problem["prior"]
+        if kind == "intmcp":
+            raise ValueError("I-NTMCP cannot start from a wide prior: its model class fixes one "
+                             "common prior per nesting level")
     if kind == "intmcp":
         from ipomdp.baselines.intmcp import INTMCPAgent
 
@@ -278,7 +333,7 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
             raise ValueError("Exact modeled levels are an I-POMCP arm")
         row["modeled"] = "exact"
     planner = _planner(physics, kind, seed, budget, horizon, level, modeled or budget, particles,
-                       particle_filter, modeled_exact, cache_size)
+                       particle_filter, modeled_exact, cache_size, wide)
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -295,7 +350,7 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     row |= dict(
         loss=_loss(policy, q), policy={str(a): p for a, p in policy.items()},
         values={str(a): v for a, v in planner.recommendation_values.items()},
-        cpu_seconds=cpu_seconds,
+        cpu_seconds=cpu_seconds, root_support=len(planner.belief.mass),
     )
     if ladder:
         row["ladder"] = [_stage(simulations, scores, cpu, q) for simulations, scores, cpu in stages]
@@ -346,6 +401,10 @@ def main():
                      help="write the history and belief digest without the exact solve")
     ref.add_argument("--reference-cache", type=int, default=200_000,
                      help="entries of the exact reference's caches (memory against CPU; values unchanged)")
+    ref.add_argument("--prior-m", type=int,
+                     help="wide prior: M level-1 models of j on a midpoint grid of initial beliefs")
+    ref.add_argument("--prior-w0", type=float, default=0.0,
+                     help="wide prior: weight of a level-0 (uniformly random) j")
     dec = sub.add_parser("decide")
     dec.add_argument("--problem", type=Path, required=True)
     dec.add_argument("--planner", choices=("mcts", "rts", "intmcp"), required=True)
@@ -369,11 +428,15 @@ def main():
         return
     if args.command == "reference":
         try:
+            prior = (None if args.prior_m is None
+                     else dict(kind="wide", M=args.prior_m, w0=args.prior_w0))
             row = reference(args.domain, args.level, args.horizon, args.seed, args.steps,
-                            solve=not args.digest_only, cache_size=args.reference_cache)
+                            solve=not args.digest_only, cache_size=args.reference_cache, prior=prior)
         except HistoryEnded as error:
             row = dict(domain=args.domain, level=args.level, horizon=args.horizon, seed=args.seed,
                        steps=args.steps, ended=str(error))
+            if prior is not None:
+                row["prior"] = prior
     else:
         problem = json.loads(args.problem.read_text())
         if problem.get("ended"):
