@@ -81,3 +81,13 @@ def test_intmcp_refuses_a_wide_prior():
         rd.reference("tiger-joint", 2, 2, seed=0, steps=0, solve=False, prior=_wide(2))))
     with pytest.raises(ValueError, match="I-NTMCP"):
         rd.decide(problem, "intmcp", 100, seed=0)
+
+
+def test_a_given_history_replays_to_the_generated_reference():
+    generated = json.loads(json.dumps(rd.reference("tiger-joint", 2, 2, seed=5, steps=2, prior=_wide(4))))
+    replayed = rd.reference("tiger-joint", 2, 2, seed=99, steps=0, prior=_wide(4),
+                            given_history=generated["history"])
+    assert replayed["digest"] == generated["digest"] and replayed["q"] == generated["q"]
+    assert replayed["steps"] == 2 and replayed["history_given"]
+    narrow = rd.reference("tiger-joint", 2, 2, seed=99, steps=0, given_history=generated["history"])
+    assert narrow["digest"] != generated["digest"]

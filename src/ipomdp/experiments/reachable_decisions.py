@@ -141,8 +141,12 @@ def _wide_rows(bank, physics, prior):
         physics, m_count, w0, bank.filter.initial_belief, bank.physical_prior(physics)))
 
 
-def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_000, prior=None):
+def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_000, prior=None,
+              given_history=None):
     """The problem's history and the exact I-POMDP's Q after it (point-mass nesting, or ``prior``).
+
+    ``given_history`` replays a stored history of i instead of generating one (the same history under
+    several priors; it must have positive evidence under this prior, which the update checks).
 
     ``solve=False`` stops after the history: the row has the belief's digest and support but no Q, so a study
     can drop problems whose belief another problem already has before paying for their exact solves.
@@ -163,8 +167,13 @@ def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_00
         extra = dict(prior=dict(prior), prior_digest=wide_prior.prior_digest(physics, *wide),
                      true_opponent_level=start.frame.level,
                      true_opponent_p=None if start.belief is None else _p_first(physics, start.belief))
-    opponent = ModeledAgent(agent.solver_bank, start)
-    steps_taken = history(physics, steps, seed, opponent)
+    if given_history is None:
+        steps_taken = history(physics, steps, seed, ModeledAgent(agent.solver_bank, start))
+    else:
+        steps_taken = [(a, _decoded(o)) for a, o in given_history]
+        steps = len(steps_taken)
+        extra.pop("true_opponent_level", None), extra.pop("true_opponent_p", None)
+        extra["history_given"] = True
     for action, observation in steps_taken:
         agent.update_root(action, observation)
     if not solve:
@@ -405,6 +414,8 @@ def main():
                      help="wide prior: M level-1 models of j on a midpoint grid of initial beliefs")
     ref.add_argument("--prior-w0", type=float, default=0.0,
                      help="wide prior: weight of a level-0 (uniformly random) j")
+    ref.add_argument("--history-from", type=Path,
+                     help="replay the history stored in this problem file instead of generating one")
     dec = sub.add_parser("decide")
     dec.add_argument("--problem", type=Path, required=True)
     dec.add_argument("--planner", choices=("mcts", "rts", "intmcp"), required=True)
@@ -430,8 +441,11 @@ def main():
         try:
             prior = (None if args.prior_m is None
                      else dict(kind="wide", M=args.prior_m, w0=args.prior_w0))
+            given = (None if args.history_from is None
+                     else json.loads(args.history_from.read_text())["history"])
             row = reference(args.domain, args.level, args.horizon, args.seed, args.steps,
-                            solve=not args.digest_only, cache_size=args.reference_cache, prior=prior)
+                            solve=not args.digest_only, cache_size=args.reference_cache, prior=prior,
+                            given_history=given)
         except HistoryEnded as error:
             row = dict(domain=args.domain, level=args.level, horizon=args.horizon, seed=args.seed,
                        steps=args.steps, ended=str(error))
