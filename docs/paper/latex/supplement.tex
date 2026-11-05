@@ -354,6 +354,32 @@ Wumpus & 2, 2 & 60 & 60 & 1--26 & 40 & 75 \\
 \label{tab:decisions-supp}
 \end{table}
 
+\section{A Wide Initial Belief}
+\label{sec:wide}
+
+The compressed update is exact up to $N$ atoms, so the initial belief may hold many distinct models of the other agent. In coordination tiger at level 2 with $H = 3$, let $i$'s prior be $b_i(s, \theta_j) = b(s)\, w(\theta_j)$ with $b(s) = 1/2$, where $\theta_j$ is one of $M$ level-1 models of $j$, each of weight $1/M$, whose belief that the tiger is behind the left door is $p_m = (m - \frac{1}{2})/M$. $M = 1$ is the point prior of the other experiments. We enumerate every history of $i$ of length at most 2 (343 histories, the same at every $M$); because opening a door resets the tiger, they reach 31 distinct beliefs at $M = 1$ and 39 at $M \geq 2$. Every decision is scored against the exact I-POMDP under the same prior (Table~\ref{tab:wide}). A planner that ignores the width, that is, the exact decision under $M = 1$ scored under the wide prior, is wrong on 8 of 39 beliefs at $M = 2$ and on 14 of 39 at every $M \geq 8$ (losses up to 11.3).
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+$M$ & Exact CPU (s) & $N = 64$ & $N = 1{,}024$ & Exact beliefs & IPF + RTS \\
+\midrule
+1 & 0.74 & 31, 1.1 & 31, 1.3 & 31, 1.2 & 15--17 \\
+2 & 2.9 & 39, 1.3 & 39, 4.0 & 39, 4.1 & 36 \\
+8 & 9.5 & 38, 1.0 & 39, 8.1 & 39, 14 & 31 \\
+32 & 68 & 39, 1.5 & 39, 14 & 6 of 6, 18 & 32--34 \\
+128 & 237 & 38, 1.5 & 39, 21 & 6 of 6, 389 & 33--34 \\
+\bottomrule
+\end{tabular}
+\caption{A wide initial belief: optimal decisions out of 31 ($M = 1$) or 39 distinct beliefs, and median CPU per decision in seconds. Exact CPU: the exact solver's median at history length 2. I-POMCP uses 100 simulations at the root and in every modeled solve; exact beliefs were run on 6 beliefs at $M \geq 32$. IPF + RTS: $K \in \{4, 8\}$, 64 particles.}
+\label{tab:wide}
+\end{table}
+
+With $N = 1{,}024$, I-POMCP is optimal on every belief at every $M$, and its median CPU grows 2.6-fold from $M = 8$ to 128, against 25-fold for the exact solver and 28-fold for I-POMCP with exact beliefs. With $N = 64$ it decides in 1--1.5~s at every $M$ and is wrong on one belief at $M = 8$ and one at $M = 128$, the same at 1{,}000 simulations, so the error is the compression's. At $M = 8$ the compressed belief moves the probability of the tiger's side by less than $1/64$, and the value of opening changes by about 110 per unit of that probability; at $M = 128$ the compressed belief misweights which of $j$'s behaviors it expects. The $M$ models fall into few behaviorally equivalent classes (1, 2, 4, 7 and 7 distinct level-1 policies over all of $j$'s histories of length at most 2), and the compression draws from them as a sample rather than per class, so its error is that of $N$ draws. I-NTMCP is not run: it gives every nested agent one common prior per level and cannot represent this belief.
+
 \section{Anytime UAV Episodes}
 
 A level-2 UAV plans with $H = 4$ or 5 in 20-step episodes from the common prior against a level-1 I-POMCP target ($n = 30$ per planner and budget). The exact solver cannot play such episodes, since its cost per decision grows about threefold with each step of history, but it can score their first decisions. I-POMCP uses root budgets of 50 to 1{,}000 simulations and models the target with the same budget, and I-NTMCP uses $M$ from 1{,}000 to 64{,}000. The decisions at the first five steps of each $H = 4$ episode are scored exactly; the exact solver's median CPU on them grows from 10~s at the first step to 710~s at the fifth. I-POMCP at $H = 4$ earns 34.8 at 2.9 s per decision (35 is the most any episode earned), where I-NTMCP earns 20.8 at 3.7 s and 32.2 at 13 s. With no more CPU than I-NTMCP, I-POMCP earns 2.7 [1.7, 3.7] more than I-NTMCP at $M = 16{,}000$ and 2.5 [1.2, 4.0] more at $M = 16{,}000$ and $H = 5$ (Holm $p \leq 0.01$), and 14.0 [4.3, 27.5] more at $M = 4{,}000$ (Holm $p = 0.12$); at $M = 64{,}000$, 55 s per decision, both always spot the target after four steps. Over the first five decisions at $H = 4$, I-POMCP at budget 1{,}000 is optimal on 120 of 120 at a median of 15~s per decision, against 51~s for the exact solver on the same decisions, I-NTMCP on 73--88\% for $M \leq 16{,}000$, and IPF + RTS ($K = 2$, over 1{,}100 s per decision) on 62--70\%. These episodes were run before the tie rule of the main text (exact values within a relative $10^{-9}$ are tied); the comparison is paired on the same target, and I-NTMCP is reported in its stronger variant at each $M$.
@@ -371,7 +397,7 @@ A level-2 UAV plans with $H = 4$ or 5 in 20-step episodes from the common prior 
 
 \section{Reproducibility}
 
-\paragraph{Computing infrastructure.} All experiments ran on one machine with an Intel Core Ultra 9 275HX (24 cores) and 23~GB of memory under Linux (WSL2), with Python 3.12. Every planner is single-threaded and runs one decision or episode per process; we report the process CPU time of a decision, nested solves included, so that times do not depend on how many processes share the machine.
+\paragraph{Computing infrastructure.} All experiments ran on one machine with an Intel Core Ultra 9 275HX (24 cores) and 23~GB of memory under Linux (WSL2), with Python 3.12. Every planner is single-threaded and runs one decision or episode per process; we report the process CPU time of a decision, nested solves included, so that times do not depend on how many processes share the machine. The CPU times of Figure~1 of the paper come from one re-run of every planner and the exact solver at seed 0 on an otherwise idle machine; every decision of I-POMCP and of the exact solver, and every baseline decision on the same problem, reproduced the original run exactly.
 
 \paragraph{How budgets were chosen.} For I-POMCP, the root budget was tried over $\{100, 250, 1{,}000, 4{,}000, 16{,}000, 64{,}000\}$ simulations, the modeled budget over $\{100, 400, 1{,}600, 6{,}400\}$ and sequential stopping capped at 6{,}400, and the belief bound over $N \in \{32, 64, 256, 1{,}024\}$ and exact beliefs. On each grid of named beliefs (Table~\ref{tab:decisions-supp}) we chose the smallest budget at which every decision was optimal against the exact I-POMDP, and then tested it, unchanged, on beliefs and seeds that the selection did not use (960 random tiger beliefs; 219 reachable Wumpus beliefs). The near-tie escalation threshold $g = 3$ was fixed before its held-out test. No parameter of a baseline was tuned on our problems: IPF + RTS and I-NTMCP were run over ladders of their own budgets, and every arm is reported.
 
