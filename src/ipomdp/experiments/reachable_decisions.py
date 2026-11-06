@@ -94,6 +94,10 @@ def make_physics(domain):
         from ipomdp.domains.wumpus.model import WumpusModel
 
         return WumpusModel(3, 3, 1)
+    if domain == "wumpus4":
+        from ipomdp.domains.wumpus.model import WumpusModel
+
+        return WumpusModel(4, 4, 2)
     raise ValueError(f"Unknown domain {domain!r}")
 
 
@@ -155,8 +159,9 @@ def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_00
         raise ValueError("Reachable decisions need an intentional opponent: level >= 2")
     physics = make_physics(domain)
     wide = _check_prior(prior, level)
+    # The branch guard only raises (values are unchanged); the 4 x 4 Wumpus prior needs the planner's guard.
     agent = build_exact_agent("i", "j", level, physics, nested_levels(level), horizon, GAMMA,
-                              cache_size=cache_size)
+                              cache_size=cache_size, max_branches=REFERENCE_BRANCHES)
     extra = {}
     if wide is None:
         start = _model_at(agent.belief, level - 1)
