@@ -88,3 +88,12 @@ def test_sparse_backup_is_the_default_and_keeps_old_seeds():
     assert RTSConfig(2, 2).backup == "sparse"
     with pytest.raises(ValueError):
         RTSConfig(2, 2, backup="other")
+
+
+def test_reachable_decisions_runs_the_published_configuration():
+    import json
+    problem = json.loads(json.dumps(rd.reference("tiger-joint", 2, 2, seed=1, steps=1)))
+    row = rd.decide(problem, "rts", 4, seed=0, particles=32, rts_published=True)
+    assert row["rts_variant"] == "published" and row["loss"] is not None
+    old = rd.decide(problem, "rts", 4, seed=0, particles=32)
+    assert "rts_variant" not in old

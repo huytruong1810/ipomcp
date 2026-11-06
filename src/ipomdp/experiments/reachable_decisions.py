@@ -213,13 +213,18 @@ def _decoded(value):
 
 
 def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, particle_filter,
-             modeled_exact=False, cache_size=200_000, prior=None):
+             modeled_exact=False, cache_size=200_000, prior=None, rts_published=False):
     """i at ``level`` with point-mass nesting; every modeled level is solved by the same kind of planner.
 
     With ``modeled_exact``, every modeled level is instead the exact best response at ``horizon`` to the
     levels below it, on the planner's own belief filter: search only at i's root (R2, RESULTS 12.97).
     ``prior`` (``_check_prior``'s (M, w0)) replaces i's root belief by the wide prior in the bank's
     representation.
+
+    ``rts_published`` (IPF + RTS only) is the algorithm as Doshi and Gmytrasiewicz (2009) publish it
+    (RESULTS 12.116): their interactive particle filter (exact bottom level, enumerated observations of the other
+    agent; "published-smoothed" when ``particle_filter`` is "smoothed"), their RTS backup, and every level-1 model
+    (their level 0) solved exactly.
     """
     if kind == "mcts":
         config = PlannerConfig(
@@ -230,7 +235,10 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
         )
         bank = SolverBank(seed, particles=particles or None, max_branches=REFERENCE_BRANCHES)
     elif kind == "rts":
-        config = lower = RTSConfig(depth=horizon, observation_samples=budget, gamma=GAMMA)
+        backup = "published" if rts_published else "sparse"
+        config = lower = RTSConfig(depth=horizon, observation_samples=budget, gamma=GAMMA, backup=backup)
+        if rts_published:
+            particle_filter = "published-smoothed" if particle_filter == "smoothed" else "published"
         bank = SolverBank(
             seed,
             particles=particles or None,
@@ -257,6 +265,16 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
         for who in ("i", "j"):
             for lower_level in range(1, level):
                 key = SolverKey(who, lower_level)
+                exact = ExactIPOMDPPlanner(key, physics, bank, reference, horizon)
+                exact.set_initial_belief(bank.get_solver(key).initial_belief)
+                bank.replace_solver(key, exact)
+    if rts_published:
+        if kind != "rts":
+            raise ValueError("The published configuration is an IPF + RTS arm")
+        reference = BestResponseReference(physics, bank, GAMMA, max_branches=10_000_000, cache_size=cache_size)
+        for who in ("i", "j"):
+            key = SolverKey(who, 1)
+            if level > 1:
                 exact = ExactIPOMDPPlanner(key, physics, bank, reference, horizon)
                 exact.set_initial_belief(bank.get_solver(key).initial_belief)
                 bank.replace_solver(key, exact)
@@ -290,7 +308,7 @@ def _loss(policy, q):
 
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
            variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None,
-           cache_size=200_000):
+           cache_size=200_000, rts_published=False):
     """One decision of an arm on a stored problem, scored against its exact Q.
 
     ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
@@ -313,6 +331,8 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     )
     if kind == "rts":
         row["particle_filter"] = particle_filter
+        if rts_published:
+            row["rts_variant"] = "published"
     if wide is not None:
         row["prior"] = problem["prior"]
         if kind == "intmcp":
@@ -347,7 +367,7 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
             raise ValueError("Exact modeled levels are an I-POMCP arm")
         row["modeled"] = "exact"
     planner = _planner(physics, kind, seed, budget, horizon, level, modeled or budget, particles,
-                       particle_filter, modeled_exact, cache_size, wide)
+                       particle_filter, modeled_exact, cache_size, wide, rts_published)
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -436,6 +456,8 @@ def main():
                      help="solve every modeled level exactly (I-POMCP searches only at i's root)")
     dec.add_argument("--reference-cache", type=int, default=200_000,
                      help="with --modeled-exact: entries of the exact solver's caches (memory against CPU)")
+    dec.add_argument("--rts-published", action="store_true",
+                     help="IPF + RTS exactly as published (RESULTS 12.116): their filter, backup and exact level 0")
     dec.add_argument("--ladder", type=int, nargs="+",
                      help="I-POMCP: also score the same tree at these smaller budgets (anytime intervals)")
     dec.add_argument("--out", type=Path, required=True)
@@ -463,7 +485,7 @@ def main():
         started = time.process_time()
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
-                     args.intmcp_opponent, args.ladder, args.reference_cache)
+                     args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published)
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 
