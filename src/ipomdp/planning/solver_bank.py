@@ -30,13 +30,19 @@ from ipomdp.belief import canonical
 from ipomdp.belief.compressed_filter import CompressedInteractiveFilter
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, checked_distribution
-from ipomdp.belief.particle_filter import IPF_SMOOTHING, ParticleInteractiveFilter
+from ipomdp.belief.particle_filter import (
+    IPF_SMOOTHING,
+    ParticleInteractiveFilter,
+    PublishedParticleFilter,
+)
 from ipomdp.planning.solver_types import SolverKey
 
 FILTERS = {
     "compressed": CompressedInteractiveFilter,
     "sampled": ParticleInteractiveFilter,
     "smoothed": partial(ParticleInteractiveFilter, smoothing=IPF_SMOOTHING),
+    "published": PublishedParticleFilter,
+    "published-smoothed": partial(PublishedParticleFilter, smoothing=IPF_SMOOTHING),
 }
 
 
@@ -56,10 +62,12 @@ class SolverBank:
         (``FiniteInteractiveFilter``) when ``particles`` is None; otherwise at
         most ``particles`` atoms, by exact updates compressed to N atoms
         (``particle_filter="compressed"``, the planner's default) or by the
-        published sampled interactive particle filter (``"sampled"``, the
+        sampled interactive particle filter (``"sampled"``, the
         IPF + RTS baseline's belief), or by that filter with likelihood
         smoothing ε = ``IPF_SMOOTHING`` (``"smoothed"``, the baseline with the
-        standard zero-likelihood repair).
+        standard zero-likelihood repair), or by the filter exactly as Doshi and
+        Gmytrasiewicz (2009) publish it (``"published"``, ``"published-smoothed"``:
+        exact bottom level, enumerated observations of the other agent).
 
         ``search_particles`` bounds the beliefs a search works on, separately
         from the beliefs maintained between real steps: every search starts

@@ -42,6 +42,14 @@ from ipomdp.planning.planner import Planner
 from ipomdp.planning.policy import greedy_policy, sample_policy
 
 
+# How a node backs up its sampled observations (RESULTS 12.116):
+# "sparse": (1/K) sum_k V(b'_k), the unbiased sparse-sampling estimate (this module's default);
+# "published": Doshi & Gmytrasiewicz (2009), Fig. 18, lines 17-23: the distinct sampled observations, each
+#   weighted by its exact likelihood under the particle belief; an unsampled observation contributes nothing;
+# "full": every observation, weighted by its exact likelihood (their SB-No-RTS, Figs. 15 and 18).
+BACKUPS = ("sparse", "published", "full")
+
+
 @dataclass(frozen=True)
 class RTSConfig:
     """Attributes:
@@ -53,8 +61,11 @@ class RTSConfig:
     depth: int
     observation_samples: int
     gamma: float = 0.95
+    backup: str = "sparse"
 
     def __post_init__(self):
+        if self.backup not in BACKUPS:
+            raise ValueError(f"backup must be one of {BACKUPS}")
         for name in ("depth", "observation_samples"):
             value = getattr(self, name)
             if type(value) is not int or value < 1:
@@ -93,7 +104,10 @@ class RTSPlanner(Planner):
     def policy_for(self, model, modeled=False):
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
-        settings = {"planner": "RTS", "config": asdict(self.config)}
+        config = asdict(self.config)
+        if config["backup"] == "sparse":
+            del config["backup"]  # seeds of the default backup are unchanged by the option
+        settings = {"planner": "RTS", "config": config}
         model = self.solver_bank.search_model(model)
         rng = random.Random(self.solver_bank.search_seed(model, settings))
         values = self._q_values(model, self.config.depth, rng)
@@ -112,7 +126,9 @@ class RTSPlanner(Planner):
         }
 
     def _continuation(self, model, action, remaining, rng):
-        """(1/K) sum_k V_{remaining-1}(b'_k) over K sampled own observations."""
+        """The backed-up value of the observations after ``action`` (see BACKUPS)."""
+        if self.config.backup != "sparse":
+            return self._weighted_continuation(model, action, remaining, rng)
         particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
         total = 0.0
         for particle in rng.choices(particles, weights=weights, k=self.config.observation_samples):
@@ -132,6 +148,48 @@ class RTSPlanner(Planner):
             )
             total += max(self._q_values(successor, remaining - 1, rng).values())
         return total / self.config.observation_samples
+
+    def _observation_laws(self, model, action):
+        """{o: P(o, continuing | b, a)} under the (particle) belief, exactly: Fig. 18, line 22."""
+        physics, me = self.pomdp_model, self.key.agent_id
+        mass = self.solver_bank.ordered_mass(model.belief)
+        total = math.fsum(w for _, w in mass)
+        law = {}
+        for atom, w in mass:
+            other = atom.opponent.frame.agent_id
+            for other_action, p_other in self.solver_bank.filter.action_distribution(atom.opponent):
+                joint = {me: action, other: other_action}
+                for following, p_next in physics.transition_distribution(atom.state, joint):
+                    if physics.is_terminal(following):
+                        continue
+                    for observation, p_obs in physics.observation_distribution(following, joint, me):
+                        law[observation] = law.get(observation, 0.0) + w / total * p_other * p_next * p_obs
+        return law
+
+    def _weighted_continuation(self, model, action, remaining, rng):
+        law = self._observation_laws(model, action)
+        if self.config.backup == "full":
+            chosen = [o for o, p in law.items() if p > 0]
+        else:
+            particles, weights = zip(*self.solver_bank.ordered_mass(model.belief))
+            chosen = []
+            for particle in rng.choices(particles, weights=weights, k=self.config.observation_samples):
+                following, joint, _, terminal = self.gen_model.tree_step(
+                    particle, action, self.key.agent_id, self.pomdp_model, rng
+                )
+                if terminal:
+                    continue
+                observation = self.pomdp_model.sample_observation(following.state, joint, self.key.agent_id, rng)
+                if observation not in chosen:
+                    chosen.append(observation)
+        total = 0.0
+        for observation in chosen:
+            successor = MentalModel(
+                model.frame,
+                self.solver_bank.search_filter.update(model, action, observation, terminal=False).belief,
+            )
+            total += law[observation] * max(self._q_values(successor, remaining - 1, rng).values())
+        return total
 
     def get_detailed_stats(self):
         return {
