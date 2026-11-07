@@ -30,6 +30,7 @@ i-L1 it models with a flat 400. A single label applies to every level, so
 ``400`` at level 3 means ``400/400`` and ``exact`` means an exact hierarchy.
 """
 
+import os
 import random
 import re
 from dataclasses import dataclass
@@ -138,7 +139,10 @@ def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stop
         )
     if modeled_stopping is not None:
         raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
-    return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma)
+    # The RTS backup of grid drivers (panel, oracle) that build configs here: "sparse" unless the run sets
+    # IPOMDP_RTS_BACKUP (e.g. "published" for IPF + RTS exactly as published, RESULTS 12.116-12.117).
+    backup = os.environ.get("IPOMDP_RTS_BACKUP", "sparse")
+    return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma, backup=backup)
 
 
 def make_planner(planner_kind, key, physics, bank, config):

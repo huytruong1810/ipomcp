@@ -200,8 +200,14 @@ def human(
     beliefs, which isolates RTS's search.
     """
     modeled = modeled or simulations
+    published = particle_filter.startswith("published")
+    if published and planner != "rts":
+        raise ValueError("The published IPF is the IPF + RTS baseline's filter")
     if planner == "rts":
-        config = lower = RTSConfig(depth=horizon, observation_samples=simulations, gamma=GAMMA)
+        # "published" / "published-smoothed": IPF + RTS exactly as published (RESULTS 12.116-12.117): their filter,
+        # their RTS backup, and every level-1 model (their level 0) solved exactly.
+        config = lower = RTSConfig(depth=horizon, observation_samples=simulations, gamma=GAMMA,
+                                   backup="published" if published else "sparse")
         bank = SolverBank(
             seed,
             particles=particles or None,
@@ -223,7 +229,7 @@ def human(
     else:
         raise ValueError(f"Unknown planner {planner!r}")
     nested = nested_levels(level, l0)
-    return HierarchyBuilder(bank).build(
+    solver = HierarchyBuilder(bank).build(
         "i",
         level,
         physics,
@@ -233,6 +239,18 @@ def human(
         level_weights=nested[level],
         nested_level_weights=nested,
     )
+    if published and level > 1:
+        from ipomdp.planning.solver_types import SolverKey
+        from ipomdp.reference.best_response import BestResponseReference
+        from ipomdp.reference.exact_agent import ExactIPOMDPPlanner
+
+        exact_reference = BestResponseReference(physics, bank, GAMMA, max_branches=10_000_000)
+        for who in ("i", "j"):
+            key = SolverKey(who, 1)
+            exact = ExactIPOMDPPlanner(key, physics, bank, exact_reference, horizon)
+            exact.set_initial_belief(bank.get_solver(key).initial_belief)
+            bank.replace_solver(key, exact)
+    return solver
 
 
 def reference(seed, steps, horizon, script="fixed", board=BOARD, level=1, l0=0.0):
@@ -478,9 +496,9 @@ def main():
     )
     parser.add_argument(
         "--particle-filter",
-        choices=("sampled", "smoothed"),
+        choices=("sampled", "smoothed", "published", "published-smoothed"),
         default="sampled",
-        help="rts: the published IPF, or the IPF with likelihood smoothing",
+        help="rts: our sampled IPF, with likelihood smoothing, or IPF + RTS exactly as published (RESULTS 12.116)",
     )
     parser.add_argument(
         "--intmcp-variant",
