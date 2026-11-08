@@ -195,8 +195,9 @@ def human(
     ``planner`` "rts" is the IPF + RTS baseline instead: every level, real and
     modeled, runs reachability-tree sampling with ``simulations`` sampled
     observations per node, on beliefs of ``particles`` samples by the
-    interactive particle filter ``particle_filter``: "sampled" (published) or
-    "smoothed" (with the zero-likelihood repair). ``particles`` 0 is exact
+    interactive particle filter ``particle_filter``: "sampled" (every term
+    of the update sampled), "smoothed" (with the zero-likelihood repair), or
+    "published" and "published-smoothed" (Doshi and Gmytrasiewicz, 2009). ``particles`` 0 is exact
     beliefs, which isolates RTS's search.
     """
     modeled = modeled or simulations

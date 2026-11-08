@@ -2,7 +2,7 @@
 
 Why not sample the update
 -------------------------
-The published interactive particle filter (``belief.particle_filter``) samples
+The sampled interactive particle filter (``belief.particle_filter``) samples
 every term of the update per particle: the opponent's action, the successor
 state and the opponent's private observation. Two errors follow, measured on
 L2 Tiger against exact beliefs (docs/RESULTS.md):
