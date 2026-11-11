@@ -134,6 +134,8 @@ class AgentSpec:
             with deterministic sensors, bounded search).
         level_weights: Prior over the opponent's levels ({level: weight}).
         nested_level_weights: {level: {level: weight}} for nested models.
+        compression: ``"stratified"`` (default) or ``"head-tail"`` compression of
+            bounded beliefs (``SolverBank(compression=...)``; audit spec 2.3).
         escalation: None, or ``{"gap": g, "particles": n}``: an I-POMCP agent
             with a belief bound keeps a shadow at bound ``n`` (same seeds,
             same history) that decides whenever the agent's top-two action-value
@@ -149,12 +151,15 @@ class AgentSpec:
     level_weights: Optional[Dict[int, float]] = None
     nested_level_weights: Optional[Dict[int, Dict[int, float]]] = None
     escalation: Optional[Dict] = None
+    compression: str = "stratified"
 
     def __post_init__(self):
         if type(self.level) is not int or self.level < 0:
             raise ValueError("level must be a nonnegative integer")
         if self.particle_filter not in FILTERS:
             raise ValueError(f"particle_filter must be one of {sorted(FILTERS)}")
+        if self.compression not in ("stratified", "head-tail"):
+            raise ValueError("compression must be 'stratified' or 'head-tail'")
         if self.level > 0:
             config = _planner_config(self.planner)
             if isinstance(config, INTMCPConfig):
@@ -199,8 +204,16 @@ class StudySpec:
         return DOMAINS[self.domain](**self.domain_options)
 
     def to_dict(self):
-        """Canonical, JSON-ready form (recorded in run manifests)."""
-        return canonical.stable_value(asdict(self))
+        """Canonical, JSON-ready form (recorded in run manifests).
+
+        An agent's ``compression`` is omitted at its default, so specs written before the field
+        existed keep their recorded form.
+        """
+        data = asdict(self)
+        for agent in data["agents"].values():
+            if agent.get("compression") == "stratified":
+                del agent["compression"]
+        return canonical.stable_value(data)
 
     @classmethod
     def from_toml(cls, path):
@@ -213,6 +226,7 @@ class StudySpec:
                 particles=entry.get("particles"),
                 particle_filter=entry.get("particle_filter", "compressed"),
                 search_particles=entry.get("search_particles"),
+                compression=entry.get("compression", "stratified"),
                 level_weights=_int_keys(entry.get("level_weights")),
                 nested_level_weights=(
                     {int(k): _int_keys(v) for k, v in entry["nested_level_weights"].items()}
@@ -293,6 +307,7 @@ def _hierarchy(agent_spec, agent, other, physics, config, bank_seed):
         particles=agent_spec.particles,
         particle_filter=agent_spec.particle_filter,
         search_particles=agent_spec.search_particles,
+        compression=agent_spec.compression,
     )
     return HierarchyBuilder(bank).build(
         agent,
