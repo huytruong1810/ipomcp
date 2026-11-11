@@ -50,12 +50,15 @@ import random
 from ipomdp.belief import canonical
 from ipomdp.belief.finite_belief import FiniteBelief
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, Posterior
-from ipomdp.belief.resampling import stratified_draws
+from ipomdp.belief.resampling import head_tail, stratified_draws
+
+COMPRESSIONS = ("stratified", "head-tail")
 
 
 class CompressedInteractiveFilter(FiniteInteractiveFilter):
     def __init__(
-        self, policy, particles: int, seed: int, cache_size: int = 65536, max_branches=None
+        self, policy, particles: int, seed: int, cache_size: int = 65536, max_branches=None,
+        compression="stratified", tail=None,
     ):
         if type(particles) is not int or particles < 1:
             raise ValueError("particles must be a positive integer")
@@ -69,6 +72,23 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
         # (PLAN, cheaper nested solves, S3).
         super().__init__(policy, cache_size, max_branches or 10_000 * particles)
         self.particles, self.seed = particles, seed
+        if compression not in COMPRESSIONS:
+            raise ValueError(f"compression must be one of {COMPRESSIONS}")
+        # Head-tail (audit spec 2.3): the heaviest atoms exact, ``tail`` stratified draws for the rest,
+        # and the lost mass recorded per compressed belief (``loss``). Default: stratified, no record.
+        self.compression = compression
+        self.tail = particles // 4 if tail is None else tail
+        if compression == "head-tail" and not 0 <= self.tail < particles:
+            raise ValueError("Need 0 <= tail < particles")
+        self._losses = {}
+
+    def clear_caches(self):
+        super().clear_caches()
+        self._losses.clear()
+
+    def loss(self, belief):
+        """The mass epsilon a head-tail compression replaced to produce ``belief`` (0 if none recorded)."""
+        return self._losses.get(belief, 0.0)
 
     def initial_belief(self, rows):
         return self.compress(FiniteBelief(tuple(rows)), "initial")
@@ -83,5 +103,10 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
             return belief
         ordered, belief_digest = canonical.canonical_mass_and_digest(belief)
         rng = random.Random(canonical.digest([self.seed, label, belief_digest]))
+        if self.compression == "head-tail":
+            rows, loss = head_tail(ordered, self.particles, self.tail, rng)
+            compressed = FiniteBelief(rows)
+            self._losses[compressed] = max(loss, self._losses.get(compressed, 0.0))
+            return compressed
         draws = stratified_draws(ordered, self.particles, rng)
         return FiniteBelief(tuple((atom, 1.0) for atom in draws))

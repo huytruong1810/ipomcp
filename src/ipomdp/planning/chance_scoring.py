@@ -457,3 +457,47 @@ def deviation_bound(root, model, depth, bank, successor, gamma):
         a: min(width[depth], base + (gamma * branch_sum(root, model, a, depth) if depth > 1 else 0.0))
         for a in actions
     }
+
+
+def compression_bound(root, model, depth, bank, successor, gamma):
+    """{a: c_H(a)} for every root action: the deterministic compression slack (audit spec 2.3, Theorem b).
+
+        c_1 = 0,  c_r(h, a) = gamma * sum_o P(o, alive | b_h, a) [W_{r-1} eps_{hao} + max_a' c_{r-1}(hao, a')]
+
+    over the children the tree expanded (an unexpanded branch contributes 0:
+    its interval comes from the parent's belief), with eps the mass a
+    head-tail compression replaced to form the child's belief
+    (``CompressedInteractiveFilter.loss``) and W_r the scalar return range,
+    which bounds the theorem's W-bar_r. Widening the certified root intervals
+    by c_H makes them contain the value of the searched model that does not
+    compress i's own belief below the root. Nested compression is outside it.
+    """
+    loss = getattr(bank.search_filter, "loss", None)
+    actions = [a for a, _ in bank.expected_rewards(model)]
+    if loss is None or depth < 2:
+        return {a: 0.0 for a in actions}
+    physics, agent = model.frame.pomdp_model, model.frame.agent_id
+    span = _Span(*physics.reward_bounds(agent), gamma, depth)
+    width = [span.hi[r] - span.lo[r] for r in range(depth + 1)]
+
+    def expanded(node):
+        if node is None:
+            return False
+        if node.cert is not None:
+            return node.cert.expanded
+        return bool(node.action_values) or node.rollout_value is not None
+
+    def c(node, belief_model, action, r):
+        if r <= 1 or node is None:
+            return 0.0
+        terms = []
+        for observation, probability in bank.continuation_law(belief_model, action):
+            child = node.get_child(action, observation)
+            if not expanded(child):
+                continue
+            following = successor(belief_model, action, observation)
+            deeper = max((c(child, following, a, r - 1) for a in actions), default=0.0)
+            terms.append(probability * (width[r - 1] * loss(following.belief) + deeper))
+        return gamma * math.fsum(terms)
+
+    return {a: c(root, model, a, depth) for a in actions}

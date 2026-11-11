@@ -56,6 +56,7 @@ class SolverBank:
         particle_filter="compressed",
         search_particles=None,
         max_branches=100_000,
+        compression="stratified",
     ):
         """``seed`` determines all randomness of this bank's models.
 
@@ -79,6 +80,10 @@ class SolverBank:
         stays bounded. Tree observations are generated from atoms of the
         compressed root, so they always have positive evidence there.
 
+        ``compression`` selects how the compressed filter bounds supports: ``"stratified"`` (default) or
+        ``"head-tail"`` (heaviest atoms exact, the loss recorded; audit spec 2.3); it is forwarded to both
+        filters and needs ``particle_filter="compressed"`` or ``search_particles``.
+
         ``max_branches`` guards exact real updates (``FiniteInteractiveFilter``);
         it only ever raises, so raising it changes no completed update.
         """
@@ -89,13 +94,16 @@ class SolverBank:
         self._solvers = {}
         self._physical_priors = {}
         self.seed = seed
+        if compression != "stratified" and particle_filter != "compressed":
+            raise ValueError("Head-tail compression needs the compressed filter")
+        options = {} if compression == "stratified" else {"compression": compression}
         self.filter = (
-            FILTERS[particle_filter](self.policy, particles, seed)
+            FILTERS[particle_filter](self.policy, particles, seed, **options)
             if particles is not None
             else FiniteInteractiveFilter(self.policy, cache_size=4096, max_branches=max_branches)
         )
         self.search_filter = (
-            CompressedInteractiveFilter(self.policy, search_particles, seed)
+            CompressedInteractiveFilter(self.policy, search_particles, seed, **options)
             if search_particles is not None
             else self.filter
         )

@@ -80,7 +80,7 @@ from ipomdp.planning.config import (
     UNSAMPLED_VALUES,
     PlannerConfig,
 )
-from ipomdp.planning.chance_scoring import deviation_bound
+from ipomdp.planning.chance_scoring import compression_bound, deviation_bound
 from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
 from ipomdp.planning.stopping import ModeledResolution
 from ipomdp.planning.solver_bank import SolverBank
@@ -224,7 +224,7 @@ def _decoded(value):
 
 def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, particle_filter,
              modeled_exact=False, cache_size=200_000, prior=None, rts_published=False, certified=None,
-             modeled_options=None):
+             modeled_options=None, compression="stratified"):
     """i at ``level`` with point-mass nesting; every modeled level is solved by the same kind of planner.
 
     With ``modeled_exact``, every modeled level is instead the exact best response at ``horizon`` to the
@@ -252,7 +252,8 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
             simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA,
             **(modeled_options or {}),
         )
-        bank = SolverBank(seed, particles=particles or None, max_branches=REFERENCE_BRANCHES)
+        bank = SolverBank(seed, particles=particles or None, max_branches=REFERENCE_BRANCHES,
+                          compression=compression)
     elif kind == "rts":
         backup = "published" if rts_published else "sparse"
         config = lower = RTSConfig(depth=horizon, observation_samples=budget, gamma=GAMMA, backup=backup)
@@ -327,7 +328,8 @@ def _loss(policy, q):
 
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
            variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None,
-           cache_size=200_000, rts_published=False, certified=None, modeled_options=None):
+           cache_size=200_000, rts_published=False, certified=None, modeled_options=None,
+           compression="stratified"):
     """One decision of an arm on a stored problem, scored against its exact Q.
 
     ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
@@ -338,6 +340,8 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     ``modeled_options``: the same for every modeled level. With them the row also carries Theorem 1b's
     deviation bound per root action, the widened intervals and their containment, and ``model_certified``
     (no modeled solve ended unresolved, so the searched model is the exact I-POMDP).
+    ``compression="head-tail"`` (I-POMCP, with ``particles``): head-tail compression of every belief; the row
+    carries the compression slack per root action and the intervals widened by it (audit spec 2.3).
 
     A digest-only problem (no exact Q, beyond the exact solver's reach) gives an unscored row: its CPU and
     values, with ``scored`` false and no loss.
@@ -390,6 +394,10 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     certified = {k: v for k, v in (certified or {}).items() if getattr(defaults, k) != v}
     if certified:
         row["certified"] = certified
+    if compression != "stratified":
+        if kind != "mcts" or not particles:
+            raise ValueError("Head-tail compression is an I-POMCP arm with particles")
+        row["compression"] = compression
     modeled_options = {k: v for k, v in (modeled_options or {}).items() if getattr(defaults, k) != v}
     if modeled_options:
         if modeled_exact:
@@ -402,7 +410,7 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
         row["modeled"] = "exact"
     planner = _planner(physics, kind, seed, budget, horizon, level, modeled or budget, particles,
                        particle_filter, modeled_exact, cache_size, wide, rts_published, certified,
-                       modeled_options)
+                       modeled_options, compression)
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -429,6 +437,24 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
                     bound_width=max(hi - lo for lo, hi in bounds.values()))
         if certified:
             row |= _heuristic(planner.scores)
+        if compression != "stratified":
+            slack = compression_bound(planner.root, planner.model(), horizon, planner.solver_bank,
+                                      planner._history_successor, GAMMA)
+            losses = planner.solver_bank.search_filter._losses
+            row |= dict(compression_slack={str(a): v for a, v in slack.items()},
+                        max_loss=max(losses.values(), default=0.0),
+                        bounds_compression_widened={str(a): (lo - slack[a], hi + slack[a])
+                                                    for a, (lo, hi) in bounds.items()})
+            # The theorem's target: the searched model (this bank's opponent laws and nested filter, this root
+            # belief) without compressing i's own belief below the root, which the reference enumerates.
+            searched = BestResponseReference(physics, planner.solver_bank, GAMMA).q_values(planner.model(), horizon)
+            row |= dict(q_searched_uncompressed={str(a): v for a, v in searched.items()},
+                        bounds_compression_widened_contain_searched=all(
+                            lo - slack[a] - 1e-9 <= searched[a] <= hi + slack[a] + 1e-9
+                            for a, (lo, hi) in bounds.items()))
+            if q is not None:
+                row["bounds_compression_widened_contain_reference"] = all(
+                    lo - slack[a] - 1e-9 <= q[str(a)] <= hi + slack[a] + 1e-9 for a, (lo, hi) in bounds.items())
         if modeled_options:
             bank = planner.solver_bank
             deviation = deviation_bound(planner.root, planner.model(), horizon, bank,
@@ -564,6 +590,8 @@ def main():
                      help="modeled levels: deterministic resolution to the --modeled cap (Theorem 1b)")
     dec.add_argument("--modeled-pilot", type=int, default=50, help="first resolution checkpoint")
     dec.add_argument("--modeled-prediction", choices=PREDICTIONS, default="argmax")
+    dec.add_argument("--compression", choices=("stratified", "head-tail"), default="stratified",
+                     help="I-POMCP with --particles: how beliefs are compressed (head-tail records its loss)")
     dec.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if args.out.exists():
@@ -590,7 +618,7 @@ def main():
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
                      args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published,
-                     certified_options(args), modeled_options(args))
+                     certified_options(args), modeled_options(args), args.compression)
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 
