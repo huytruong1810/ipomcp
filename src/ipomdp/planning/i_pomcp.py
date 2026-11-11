@@ -408,7 +408,10 @@ class IPOMCPPlanner(Planner):
         if node.cert is None or not node.cert.expanded:
             self._expand(node, history_model, remaining)
         cert = node.cert
-        if cert.solved:
+        # Below the root only the value matters, so a solved history stops. At the root the decision
+        # does: an action tied at the upper bound with a loose lower bound keeps it unresolved although
+        # the value is exact, so search continues until the plausible and certain sets agree.
+        if cert.solved and (depth > 0 or self._resolved(node)):
             node.visit_count += 1
             return cert.lo
         live = [action for action in self.actions if action not in cert.pruned]

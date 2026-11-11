@@ -13,6 +13,7 @@ from ipomdp.domains.uav import UAVModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.planning.chance_scoring import exact_two_step, score_tree
 from ipomdp.planning.config import PlannerConfig
+from ipomdp.planning.node import POMCPNode
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.reference.best_response import BestResponseReference
 
@@ -241,3 +242,37 @@ def test_a_root_solved_at_expansion_still_decides(options):
     assert planner.root.cert.solved and planner.root.visit_count >= 1
     assert policy == {"L": 1.0}
     assert set(planner.scores.values) == {"L"}
+
+
+def test_a_solved_but_unresolved_root_keeps_searching():
+    # The root's value is exact (bounds closed) while a second action, tied at the upper bound, still
+    # has a loose lower bound: the decision is unresolved, so a descent must search, not return.
+    planner = tiger(0.5, 3, 200, **CERTIFIED)
+    model = planner.solver_bank.search_model(planner.model())
+    root = POMCPNode()
+    planner._expand(root, model, 3)
+    cert = root.cert
+    best = max(cert.q_lo, key=cert.q_lo.get)
+    top = cert.q_lo[best]
+    other = next(a for a in planner.actions if a != best)
+    cert.q_hi[best] = top
+    cert.q_hi[other], cert.q_lo[other] = top, top - 5.0
+    for a in planner.actions:
+        if a not in (best, other):
+            cert.q_hi[a] = top - 10.0
+            cert.q_lo[a] = min(cert.q_lo[a], cert.q_hi[a])
+    cert.pruned = set(planner.actions) - {best, other}
+    cert.lo = cert.hi = top
+    cert.solved = True
+    assert not planner._resolved(root)
+    import random as stdlib_random
+
+    planner._simulate_certified(root, 0, planner._physical_marginal(model), model, stdlib_random.Random(0))
+    assert sum(root.action_counts.values()) == 1
+    # A resolved solved root returns at once.
+    cert.q_lo[other] = top - 20.0
+    cert.q_hi[other] = top - 15.0
+    assert planner._resolved(root)
+    before = dict(root.action_counts)
+    planner._simulate_certified(root, 0, planner._physical_marginal(model), model, stdlib_random.Random(1))
+    assert root.action_counts == before
