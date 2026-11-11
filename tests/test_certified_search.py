@@ -214,3 +214,30 @@ def _nodes(root):
         yield node
         for children in node.children.values():
             stack.extend(children.values())
+
+
+@pytest.mark.parametrize("options", [CONFIGS[0], CONFIGS[3]])
+def test_a_root_solved_at_expansion_still_decides(options):
+    # When an action's bounds close at the largest upper bound before any search (UAV problem
+    # s4_k3: spotting for certain), the root is solved at expansion; it must still decide.
+    from ipomdp.planning.frontier_bounds import NodeBounds
+
+    planner = tiger(0.5, 3, 200, **options)
+    model = planner.model()
+    frontier = planner._bounds_for(planner.solver_bank.search_model(model))
+    original = frontier.node_bounds
+
+    def closing(belief_model, r, bank):
+        nb = original(belief_model, r, bank)
+        if r != 3:
+            return nb
+        top = max(nb.q_hi.values()) + 1.0
+        q_lo = dict(nb.q_lo, L=top)
+        q_hi = dict(nb.q_hi, L=top)
+        return NodeBounds(q_lo, q_hi, nb.branch_lo, nb.branch_hi)
+
+    frontier.node_bounds = closing
+    policy = planner.policy_for(model)
+    assert planner.root.cert.solved and planner.root.visit_count >= 1
+    assert policy == {"L": 1.0}
+    assert set(planner.scores.values) == {"L"}

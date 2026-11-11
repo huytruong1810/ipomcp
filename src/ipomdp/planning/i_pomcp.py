@@ -477,7 +477,7 @@ class IPOMCPPlanner(Planner):
         if remaining == 2 and config.exact_tail:
             self._exact_tail(node, model)
             return
-        self._close(cert)
+        self._close(node)
         if config.selection != "ucb":
             width = self.exploration.return_width(remaining, config.gamma)
             live = [a for a in self.actions if a not in cert.pruned]
@@ -519,7 +519,7 @@ class IPOMCPPlanner(Planner):
         cert.q_hi[action] = min(cert.q_hi[action], reward + gamma * math.fsum(highs))
         if self.config.prune:
             self._prune(cert)
-        self._close(cert)
+        self._close(node)
         for evaluated, value in node.action_values.items():
             node.action_values[evaluated] = min(
                 max(value, cert.q_lo[evaluated]), cert.q_hi[evaluated]
@@ -532,13 +532,24 @@ class IPOMCPPlanner(Planner):
                 cert.pruned.add(action)
 
     @staticmethod
-    def _close(cert):
-        """Node bounds from action bounds (intersected with the inherited ones); mark solved."""
+    def _close(node):
+        """Node bounds from action bounds (intersected with the inherited ones); mark solved.
+
+        A solved history may never have been searched (its bounds can close at
+        expansion, e.g. an action that ends the episode with the largest
+        possible reward), so every action whose own bounds have closed records
+        that exact value; the best action's always have, so scoring and the
+        parent's backup always see the history's value.
+        """
+        cert = node.cert
         lo, hi = max(cert.q_lo.values()), max(cert.q_hi.values())
         cert.lo = lo if cert.lo is None else max(cert.lo, lo)
         cert.hi = hi if cert.hi is None else min(cert.hi, hi)
         if cert.hi - cert.lo <= _slack(cert.hi):
             cert.solved = True
+            for action, upper in cert.q_hi.items():
+                if action not in node.action_values and upper - cert.q_lo[action] <= _slack(upper):
+                    node.action_values[action] = cert.q_lo[action]
 
     def _resolved(self, node, tie=TIE_TOLERANCE):
         """True when bounds settle which root actions are optimal (within ``tie``)."""
