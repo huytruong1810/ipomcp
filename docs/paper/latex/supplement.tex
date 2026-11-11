@@ -24,6 +24,8 @@
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}{Lemma}
 \newtheorem{remark}{Remark}
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
 
 \title{Interactive POMCP: Supplementary Material}
 \author{Anonymous Submission}
@@ -117,13 +119,25 @@ Figure~\ref{fig:overview} summarizes the search, and Algorithm~\ref{alg:filter} 
 \section{Guarantees: Soundness, Consistency and Compression}
 \label{sec:theory}
 
-This section states and proves the three guarantees on which the paper's claims of verifiability rest. Section~4.3 of the paper states the first, and the other two are new.
+This section states and proves the guarantees on which the paper's claims of verifiability rest: soundness of the certified intervals (T1), the belief-dependent bounds they use for what search leaves unknown, consistency (T2), a deterministic bound on the error of compressing $i$'s belief (T3), and soundness when the other agent's models are themselves solved by search (T4).
 
 \paragraph{Assumptions.} Throughout, (A1) $S$, $A_i$, $A_j$, $\Omega_i$ and $\Omega_j$ are finite, and the nesting depth is finite; (A2) the horizon $H$ is finite and $\gamma \in [0, 1]$; (A3) the frames are known to $i$ (the frames are common knowledge, Section~2 of the paper); (A4) rewards are bounded, $R_{\min} \leq R_i \leq R_{\max}$, with declared bounds; (A5) every belief has finite support. An episode may end at any step, in which case the remaining return is zero.
 
 \paragraph{The searched model.} Fix the configuration and the seeds. Every modeled solve is seeded from a digest of its model (Section~4.4), so each model $\theta_j$ that the planner queries receives a fixed action law $\pi_j(\cdot \mid \theta_j)$, and every belief that the planner forms is a fixed function of its parent, the action and the observation (the compressed update $\SEN$). Agent $i$'s problem with this action law and this update is a finite-horizon POMDP over the reachable interactive states, which are finitely many by (A1) and (A5). We call it the \emph{searched model}, write $Q^H_{\mathrm{s}}$ and $U^H_{\mathrm{s}}$ for its values, and write $\Pr(o, \mathrm{alive} \mid b, a)$ for the probability, under $b$, that $i$ observes $o$ and the episode continues. When every modeled level is solved exactly and no belief exceeds $N$ atoms, $\SEN = \SE$ and the searched model is the exact I-POMDP, so $Q^H_{\mathrm{s}} = Q^H$ of Eq.~2 of the paper. The guarantees below are therefore relative to $i$'s model of $j$: they certify a subjective best response, and they give no bound on exploitability by a $j$ outside that model.
 
-\paragraph{Return bounds.} Let $\ell_0 = u_0 = 0$, $\ell_r = R_{\min} + \gamma \min(0, \ell_{r-1})$ and $u_r = R_{\max} + \gamma \max(0, u_{r-1})$.
+\paragraph{Return bounds.} Let $\ell_0 = u_0 = 0$, $\ell_r = R_{\min} + \gamma \min(0, \ell_{r-1})$ and $u_r = R_{\max} + \gamma \max(0, u_{r-1})$, and $W_r = u_r - \ell_r$.
+
+\paragraph{Notation.} An \emph{extended state} is $x=(s,m)$, where $m$ is a model of $j$ with action law
+$\pi_j(\cdot\mid m)$ and successor $\tau(m,a_j,o_j)$. $S_\bot$ is the set of terminal physical states,
+$\bar R(s,a_i,a_j)=\sum_{s'}T_i(s,\langle a_i,a_j\rangle,s')R_i(s,\langle a_i,a_j\rangle,s')$, and
+$\kappa_{s,a_i,a_j}(o)=\sum_{s'\notin S_\bot}T_i(s,\langle a_i,a_j\rangle,s')\,O_i(s',\langle a_i,a_j\rangle,o)$.
+For a belief $b$ over extended states, $b(s)=\sum_m b(s,m)$,
+$w_b(s,a_j)=\sum_{m}b(s,m)\,\pi_j(a_j\mid m)$, and, for $s'\notin S_\bot$,
+$\mu_{b,a,o}(s')=\sum_{s,a_j}w_b(s,a_j)\,T_i(s,\langle a,a_j\rangle,s')\,O_i(s',\langle a,a_j\rangle,o)$,
+the unnormalized physical marginal of the posterior, so that
+$\sum_{s'}\mu_{b,a,o}(s')=\Pr(o,\mathrm{alive}\mid b,a)$. $W_r=u_r-\ell_r$.
+The \emph{Bayes searched model} is the searched model in which $i$'s own belief is not compressed
+inside the lookahead; $Q^r_{\mathrm s}$, $U^r_{\mathrm s}$ are its values.
 
 \begin{lemma}
 \label{lem:range}
@@ -143,15 +157,111 @@ Assume (A1)--(A5). For every budget $n \geq |A_i|$, every seed, and every root a
 We show by induction on the steps to go $r$ that the interval $I(h)$ computed at every history $h$ of the tree with $r$ steps to go contains $U^r_{\mathrm{s}}(b_h)$, and that the interval $I(h, a)$ of every action evaluated at $h$ contains $Q^r_{\mathrm{s}}(b_h, a)$. The scoring pass uses the same update $\SEN$ and the same modeled policies as the searched model, so $b_h$, $\ER_i(b_h, a)$ and $\Pr(o, \mathrm{alive} \mid b_h, a)$ are exact quantities of the searched model.
 \begin{itemize}
 \item $r = 1$: $I(h) = \{\max_a \ER_i(b_h, a)\} = \{U^1_{\mathrm{s}}(b_h)\}$.
-\item A rollout frontier with $r$ steps to go: $I(h) = [\ell_r, u_r] \ni U^r_{\mathrm{s}}(b_h)$ by Lemma~\ref{lem:range}(i).
-\item An evaluated action $a$ at $h$ with $r \geq 2$: $Q^r_{\mathrm{s}}(b_h, a) = \ER_i(b_h, a) + \gamma \sum_o p_o\, U^{r-1}_{\mathrm{s}}(b_{hao})$ with $p_o = \Pr(o, \mathrm{alive} \mid b_h, a) \geq 0$. Each branch enters as one of the following: with $r = 2$, its exact value $U^1_{\mathrm{s}}(b_{hao})$, sampled or not; when sampled with $r \geq 3$, $p_o\, I(hao)$, which contains $p_o U^{r-1}_{\mathrm{s}}(b_{hao})$ by the induction hypothesis; when unsampled with $r \geq 3$, $p_o [\ell_{r-1}, u_{r-1}]$, which contains it by Lemma~\ref{lem:range}. A sum of intervals contains the sum of their members, and $\gamma \geq 0$.
-\item An action never tried at $h$: since $\sum_o p_o \in [0, 1]$, $Q^r_{\mathrm{s}}(b_h, a) \in \ER_i(b_h, a) + \gamma [\min(0, \ell_{r-1}), \max(0, u_{r-1})]$, the interval used.
+\item A frontier with $r$ steps to go (a history reached once, valued by a rollout or by a bound): $I(h) = [\ell_r, u_r] \ni U^r_{\mathrm{s}}(b_h)$ by Lemma~\ref{lem:range}(i), intersected with the bounds of Theorem~\ref{thm:frontier} computed from its own belief or, when its belief is not computed, from its parent's, which contain it by that theorem.
+\item An evaluated action $a$ at $h$ with $r \geq 2$: $Q^r_{\mathrm{s}}(b_h, a) = \ER_i(b_h, a) + \gamma \sum_o p_o\, U^{r-1}_{\mathrm{s}}(b_{hao})$ with $p_o = \Pr(o, \mathrm{alive} \mid b_h, a) \geq 0$. Each branch enters as one of the following: with $r = 2$, its exact value $U^1_{\mathrm{s}}(b_{hao})$, sampled or not; when sampled with $r \geq 3$, $p_o\, I(hao)$, which contains $p_o U^{r-1}_{\mathrm{s}}(b_{hao})$ by the induction hypothesis; when unsampled with $r \geq 3$, $p_o [\ell_{r-1}, u_{r-1}]$, which contains it by Lemma~\ref{lem:range}, intersected with the branch bounds of Theorem~\ref{thm:frontier}, which contain it too. A sum of intervals contains the sum of their members, and $\gamma \geq 0$.
+\item An action never tried at $h$, or ruled out before it was tried: since $\sum_o p_o \in [0, 1]$, $Q^r_{\mathrm{s}}(b_h, a) \in \ER_i(b_h, a) + \gamma [\min(0, \ell_{r-1}), \max(0, u_{r-1})]$, intersected with $[L^r(b_h, a), Q^r_{\mathrm{I\text{-}FIB}}(b_h, a)]$ of Theorem~\ref{thm:frontier}.
 \item An expanded history: $U^r_{\mathrm{s}}(b_h) = \max_a Q^r_{\mathrm{s}}(b_h, a)$ over all legal actions, tried or not. If $x_a \in [\lambda_a, \mu_a]$ for every $a$, then $\max_a \lambda_a \leq \max_a x_a \leq \max_a \mu_a$, and $I(h) = [\max_a \lambda_a, \max_a \mu_a]$.
 \end{itemize}
-Every root action is evaluated, since $n \geq |A_i|$ and untried actions are selected first. (Ranges of values under any update are by Lemma~\ref{lem:range}(i).) Hence $Q^H_{\mathrm{s}}(b_i, a) \in I(\emptyset, a)$. Statement (i) follows because $Q^H_{\mathrm{s}}(b_i, a^\star) \geq Q^-(\emptyset, a^\star) \geq Q^+(\emptyset, a) \geq Q^H_{\mathrm{s}}(b_i, a)$ for every $a \neq a^\star$. Statement (ii) follows from $U^H_{\mathrm{s}}(b_i) \leq \max_{a'} Q^+(\emptyset, a')$ and $Q^H_{\mathrm{s}}(b_i, a) \geq Q^-(\emptyset, a)$. Statement (iii) follows because the searched model is then the exact I-POMDP.
+Every root action receives an interval, by the third case if it was evaluated and by the fourth otherwise. Certified search also keeps, at every expanded history, bounds on each action computed by the same rules from deeper histories; each interval is intersected with them, and an intersection of intervals that contain a value contains it. (Ranges of values under any update are by Lemma~\ref{lem:range}(i).) Hence $Q^H_{\mathrm{s}}(b_i, a) \in I(\emptyset, a)$. Statement (i) follows because $Q^H_{\mathrm{s}}(b_i, a^\star) \geq Q^-(\emptyset, a^\star) \geq Q^+(\emptyset, a) \geq Q^H_{\mathrm{s}}(b_i, a)$ for every $a \neq a^\star$. Statement (ii) follows from $U^H_{\mathrm{s}}(b_i) \leq \max_{a'} Q^+(\emptyset, a')$ and $Q^H_{\mathrm{s}}(b_i, a) \geq Q^-(\emptyset, a)$. Statement (iii) follows because the searched model is then the exact I-POMDP.
 \end{proof}
 
 The statement holds in exact arithmetic. The implementation sums with compensated summation, and the experiments test containment to $10^{-9}$.
+
+\paragraph{Belief-dependent frontier bounds.} The scalar range $[\ell_r, u_r]$ ignores the belief and the end of the episode. In UAV reconnaissance no return exceeds the reward for spotting the target, 50, yet $u_3 = 142.6$. The bounds below are computed from the belief at hand.
+
+\begin{definition}[Partner-optimistic and partner-pessimistic vectors]
+For $s\notin S_\bot$ and $r\ge1$, with $\bar Q^0\equiv0$ and $\underline\alpha^0_a\equiv0$,
+\begin{align*}
+\bar F^r(s,a_i,a_j)&=\bar R(s,a_i,a_j)+\gamma\sum_{o}\max_{a'}\sum_{s'\notin S_\bot}
+T_i(s,\langle a_i,a_j\rangle,s')\,O_i(s',\langle a_i,a_j\rangle,o)\,\bar Q^{r-1}(s',a'),\\
+\bar Q^r(s,a_i)&=\max_{a_j}\bar F^r(s,a_i,a_j),\\
+\underline\alpha^r_{a}(s)&=\min_{a_j}\Big[\bar R(s,a,a_j)+\gamma\sum_{s'\notin S_\bot}
+T_i(s,\langle a,a_j\rangle,s')\,\underline\alpha^{r-1}_{a}(s')\Big].
+\end{align*}
+Let $\mathcal B_1=\{\beta_{s,a_i,a_j,o}\}$ be the physical one-step beliefs,
+$\beta_{s,a_i,a_j,o}(s')=T_i(s,\langle a_i,a_j\rangle,s')O_i(s',\langle a_i,a_j\rangle,o)/\kappa_{s,a_i,a_j}(o)$,
+and define on $\mathcal B_1$, with $\bar Q^0_{\mathrm T}\equiv0$,
+\begin{multline*}
+\bar Q^r_{\mathrm T}(\beta,a')=\min\Big\{\sum_{s'}\beta(s')\bar Q^r(s',a'),\;
+\sum_{s'}\beta(s')\max_{a_j'}\bar R(s',a',a_j')\\
++\gamma\sum_{o'}\max_{a''}\sum_{s'}\beta(s')\max_{a_j'}
+\kappa_{s',a',a_j'}(o')\,\bar Q^{r-1}_{\mathrm T}(\beta_{s',a',a_j',o'},a'')\Big\}.
+\end{multline*}
+For a belief $b$ over extended states,
+\begin{align*}
+Q^r_{\mathrm{I\text{-}FIB}}(b,a)&=\ER_i(b,a)+\gamma\sum_o\max_{a'}\sum_{s'}\mu_{b,a,o}(s')\,\bar Q^{r-1}(s',a'),\\
+Q^r_{\mathrm{I\text{-}TIB}}(b,a)&=\ER_i(b,a)+\gamma\sum_o\max_{a'}\sum_{s,a_j}w_b(s,a_j)\,
+\kappa_{s,a,a_j}(o)\,\bar Q^{r-1}_{\mathrm T}(\beta_{s,a,a_j,o},a'),\\
+L^r(b,a)&=\ER_i(b,a)+\gamma\sum_o\max_{a'}\sum_{s'}\mu_{b,a,o}(s')\,\underline\alpha^{r-1}_{a'}(s').
+\end{align*}
+\end{definition}
+
+\begin{theorem}[Frontier soundness]\label{thm:frontier}
+Assume (A1)--(A5). In the Bayes searched model, for every belief $b$, action $a$ and $r\ge1$,
+\[
+\ell_r\;\le\;L^r(b,a)\;\le\;Q^r_{\mathrm s}(b,a)\;\le\;Q^r_{\mathrm{I\text{-}TIB}}(b,a)\;\le\;
+Q^r_{\mathrm{I\text{-}FIB}}(b,a)\;\le\;\sum_s b(s)\,\bar Q^r(s,a)\;\le\;u_r .
+\]
+Moreover, for every action $a$ and observation $o$ with $p_o=\Pr(o,\mathrm{alive}\mid b,a)>0$,
+\[
+\max_{a'}\sum_{s'}\mu_{b,a,o}(s')\,\underline\alpha^{r}_{a'}(s')\;\le\;p_o\,U^{r}_{\mathrm s}(b_{ao})\;\le\;
+\max_{a'}\sum_{s'}\mu_{b,a,o}(s')\,\bar Q^{r}(s',a'),
+\]
+so an observation branch is bounded from its parent's belief, without computing $b_{ao}$.
+If $T_i$ is deterministic, $Q^r_{\mathrm{I\text{-}TIB}}=Q^r_{\mathrm{I\text{-}FIB}}$.
+\end{theorem}
+\begin{proof}
+\emph{Unit bound.} We show $Q^r_{\mathrm s}(b,a)\le\sum_s b(s)\bar Q^r(s,a)$ for all $b,a$ by induction on $r$.
+For $r=1$, $Q^1_{\mathrm s}(b,a)=\sum_{s,a_j}w_b(s,a_j)\bar R(s,a,a_j)\le\sum_s b(s)\max_{a_j}\bar R(s,a,a_j)$,
+since $\sum_{a_j}w_b(s,a_j)=b(s)$. For $r\ge2$, Bayes' rule gives $p_o\,b_{ao}(s')=\mu_{b,a,o}(s')$, so by the
+induction hypothesis at $b_{ao}$,
+\[
+Q^r_{\mathrm s}(b,a)=\ER_i(b,a)+\gamma\sum_o\max_{a'}p_o\,Q^{r-1}_{\mathrm s}(b_{ao},a')
+\le\ER_i(b,a)+\gamma\sum_o\max_{a'}\sum_{s'}\mu_{b,a,o}(s')\bar Q^{r-1}(s',a')=Q^r_{\mathrm{I\text{-}FIB}}(b,a).
+\]
+Writing $\mu_{b,a,o}$ and $\ER_i$ as sums over $(s,a_j)$ weighted by $w_b$ and moving $\max_{a'}$ inside the sum,
+$Q^r_{\mathrm{I\text{-}FIB}}(b,a)\le\sum_{s,a_j}w_b(s,a_j)\bar F^r(s,a,a_j)\le\sum_s b(s)\bar Q^r(s,a)$.
+This proves the unit bound and the fifth inequality. The sixth follows by induction from
+$\bar R\le R_{\max}$ and $\sum_o\sum_{s'\notin S_\bot}T_iO_i\le1$, which bound the continuation by $\max(0,u_{r-1})$.
+
+\emph{One-step beliefs.} We show that every extended belief $b'$ whose physical marginal is some
+$\beta\in\mathcal B_1$ satisfies $Q^r_{\mathrm s}(b',a')\le\bar Q^r_{\mathrm T}(\beta,a')$, by induction on $r$.
+The first argument of the minimum is the unit bound. For the second,
+$\ER_i(b',a')\le\sum_{s'}\beta(s')\max_{a_j'}\bar R(s',a',a_j')$. The posterior $b'_{a'o'}$ is the convex
+combination, with weights $b'(x')\pi_j(a_j'\mid m')\kappa_{s',a',a_j'}(o')/p_{o'}$, of the extended one-step
+beliefs obtained from a known $x'=(s',m')$ and a known $a_j'$, each of which has physical marginal
+$\beta_{s',a',a_j',o'}\in\mathcal B_1$. Since $Q^{r-1}_{\mathrm s}(\cdot,a'')$ is convex
+(Lemma~\ref{lem:range}(ii)), the induction hypothesis gives
+$p_{o'}Q^{r-1}_{\mathrm s}(b'_{a'o'},a'')\le\sum_{x',a_j'}b'(x')\pi_j(a_j'\mid m')\kappa_{s',a',a_j'}(o')
+\bar Q^{r-1}_{\mathrm T}(\beta_{s',a',a_j',o'},a'')$, and an average over $a_j'$ and $m'$ is at most the
+maximum over $a_j'$.
+
+\emph{Third and fourth inequalities.} Decompose $b_{ao}$ in the same way, into extended one-step beliefs with
+weights $b(x)\pi_j(a_j\mid m)\kappa_{s,a,a_j}(o)/p_o$; convexity and the previous paragraph give
+$Q^r_{\mathrm s}\le Q^r_{\mathrm{I\text{-}TIB}}$. Replacing $\bar Q^{r-1}_{\mathrm T}(\beta,a')$ by the first
+argument of its minimum and using $\kappa_{s,a,a_j}(o)\beta_{s,a,a_j,o}(s')=T_iO_i$ gives
+$Q^r_{\mathrm{I\text{-}TIB}}\le Q^r_{\mathrm{I\text{-}FIB}}$.
+
+\emph{Lower bounds.} Let $V^r_a(x)$ be the value, from $x=(s,m)$, of repeating action $a$ for $r$ steps.
+$V^r_a(x)=\sum_{a_j}\pi_j(a_j\mid m)[\bar R(s,a,a_j)+\gamma\sum_{s',o_j}T_iO_jV^{r-1}_a(s',\tau(m,a_j,o_j))]
+\ge\underline\alpha^r_a(s)$ by induction, since an average over $a_j$ is at least the minimum. Hence
+$U^{r-1}_{\mathrm s}(b_{ao})\ge\max_{a'}\sum_{s'}b_{ao}(s')\underline\alpha^{r-1}_{a'}(s')$, and substituting in
+Eq.~2 of the paper gives $L^r\le Q^r_{\mathrm s}$. $\underline\alpha^r_a\ge\ell_r$ by the induction of
+Lemma~\ref{lem:range}(i), which gives $\ell_r\le L^r$. The displayed branch bounds are the unit bound and the
+blind bound at $b_{ao}$, multiplied by $p_o$. If $T_i$ is deterministic every $\beta\in\mathcal B_1$ is a point
+mass, the second argument of the minimum decouples $a_j'$ across terms and so is at least the first, and
+$\bar Q^r_{\mathrm T}(\delta_{s'},\cdot)=\bar Q^r(s',\cdot)$.
+\end{proof}
+
+\begin{remark}
+(i) Krale et al.\ define FIB and TIB for one infinite-horizon POMDP. Here the recursion is over steps to go, the
+state is the physical state, and the other agent's later actions are maximized, which is what keeps the tables
+of size $|S||A_i||A_j|$ instead of the size of the reachable model space. Their optimized and entropy variants
+need a linear program per $(b,a,o)$ and are not used. (ii) If $i$'s belief is compressed inside the lookahead,
+the bounds remain sound when evaluated at a node's own belief and widened by the compression slack of
+Theorem~\ref{thm:compress-det}; branch bounds from the parent's belief are then sound for the model that does
+not compress below the parent.
+\end{remark}
 
 \paragraph{T2: Consistency.}
 
@@ -177,26 +287,149 @@ By induction on depth, every history with at least two steps to go that is reach
 
 The theorem says more than asymptotic convergence: once the tree is complete, the scored values are exact, not merely close. This is the role of exact scoring with two steps to go. Without it, the leaves of the last level would carry sampled frequencies, and the scored values would converge only in the limit. Theorem~\ref{thm:sound} makes the property checkable at every finite budget, since a width of zero certifies completeness.
 
-\paragraph{T3: Compression.} Compression of the top-level belief is controlled by the sample size. Let $\widetilde{Q}^r$ denote the values under the update that compresses $i$'s own posterior to $N$ stratified draws whenever its support exceeds $N$, with the nested models held as in the searched model, and $Q^r$ the values under the same update without compression of $i$'s posterior. With $G_r$ as in Lemma~\ref{lem:range}(ii), $\log G_r \leq \frac{|\Omega_i|^{r} - 1}{|\Omega_i| - 1} \log |A_i|$ for $|\Omega_i| \geq 2$, and $G_r \leq G_H$.
+\paragraph{T3: Compression.} A bound on compression from Hoeffding's inequality with a union over $i$'s plans is valid but vacuous at the sizes used ($N = 64$ gives about 74 reward units in UAV at $H = 3$, against decision gaps near 1). The union is an artifact of bounding a random maximum: a deterministic $L_1$ bound holds for all plans at once.
 
-\begin{theorem}[Compression bound]
-\label{thm:compress}
-Assume (A1)--(A5), and treat the compression seeds as independent uniform draws. Stratified compression draws one independent uniform point in each of the $N$ strata, so the $N$ draws $X_1, \ldots, X_N$ are independent, and $\mathbb{E}[\frac{1}{N} \sum_k f(X_k)] = \sum_x f(x)\, b(x)$ for every $f$. Let $M$ be the number of compressions of $i$'s posterior over the reachable histories of the lookahead (finite by (A1), (A2) and (A5)), and fix $\eta \in (0, 1)$. With probability at least $1 - \eta$, for every root action $a$,
+\begin{lemma}\label{lem:l1}
+Let $f(b)=\max_\sigma\alpha_\sigma\cdot b$ with $\underline c\le\alpha_\sigma(x)\le\bar c$ for all $\sigma,x$.
+Then $|f(b)-f(b')|\le\frac12(\bar c-\underline c)\,\|b-b'\|_1$ for all beliefs $b,b'$.
+\end{lemma}
+\begin{proof}
+For one $\alpha$ and $c=(\bar c+\underline c)/2$, $\alpha\cdot(b-b')=(\alpha-c)\cdot(b-b')$ because both beliefs
+sum to one, and $|\alpha-c|\le(\bar c-\underline c)/2$. A maximum of functions with a common modulus has it.
+\end{proof}
+
+\begin{definition}[Head--tail compression]
+Given $N$ and $0\le n_t<N$, a belief with more than $N$ atoms keeps its $N-n_t$ heaviest atoms (ties in
+canonical order) with their exact masses, and replaces the remaining atoms, of total mass $\varepsilon$, by
+$n_t$ stratified draws from them in canonical order, each of mass $\varepsilon/n_t$. With $n_t=0$ the kept
+masses are divided by $1-\varepsilon$. $\varepsilon$ is recorded as the \emph{loss} of the compression.
+\end{definition}
+
+\begin{theorem}[Deterministic compression bound]\label{thm:compress-det}
+(a) Head--tail compression satisfies $\|\hat b-b\|_1\le2\varepsilon$ for every draw, and
+$\mathbb E[\hat b]=b$ when $n_t\ge1$. With $n_t=0$, $\|\hat b-b\|_1=2\varepsilon$, the minimum of
+$\|b'-b\|_1$ over all beliefs $b'$ with at most $N$ atoms.
+(b) Let $\widetilde Q^r$ be the values under the update that compresses $i$'s own posterior by head--tail
+compression whenever its support exceeds $N$, and $Q^r$ the values under the same update without compressing
+$i$'s posterior, with the nested models held as in the searched model. Let $\varepsilon_h$ be the loss
+recorded at history $h$ of the tree (zero if its belief was not compressed), $c_1\equiv0$ and
 \[
-\big|\widetilde{Q}^H(b_i, a) - Q^H(b_i, a)\big| \;\leq\; \sum_{k=0}^{H-1} \gamma^{k}\, (u_{H-k} - \ell_{H-k})\, \sqrt{\frac{\log(2 M |A_i| G_H / \eta)}{2N}},
+c_r(h,a)=\gamma\sum_o\Pr(o,\mathrm{alive}\mid b_h,a)\big[\bar W_{r-1}\,\varepsilon_{hao}+\max_{a'}c_{r-1}(hao,a')\big],
 \]
-where the $k = 0$ term is present only if the root belief itself is compressed. The right-hand side is at most $H\, (u_H - \ell_H) \sqrt{\log(2 M |A_i| G_H/\eta)/(2N)}$ for $\gamma \leq 1$, and $u_H - \ell_H = (R_{\max} - R_{\min}) \sum_{t < H} \gamma^t$ when $R_{\min} \leq 0 \leq R_{\max}$.
+where a branch whose value is computed from its own belief (an expanded child, and every branch with two steps
+to go, which scoring values exactly) is charged as written, and any other branch contributes zero, its value
+being bounded from its parent's belief (Theorem~\ref{thm:frontier}). Then, for every draw and every root action,
+$|\widetilde Q^H(b_i,a)-Q^H(b_i,a)|\le c_H(\emptyset,a)\le\sum_{k=1}^{H-1}\gamma^k\bar W_{H-k}\,
+\bar\varepsilon_k$, where $\bar\varepsilon_k$ is the largest loss at depth $k$ and
+$\bar W_r=\max_{s,a}\bar Q^r(s,a)-\min_s\underline w^r(s)\le W_r$, with
+$\underline w^r(s)=\min_{a,a_j}[\bar R(s,a,a_j)+\gamma\sum_{s'\notin S_\bot}T_i\,\underline w^{r-1}(s')]$.
+Consequently $[Q^-(\emptyset,a)-c_H(\emptyset,a),\,Q^+(\emptyset,a)+c_H(\emptyset,a)]$ contains the value of
+the searched model that does not compress $i$'s belief. The planner computes $c_H$ with $W_r \geq \bar W_r$ in place of $\bar W_r$.
 \end{theorem}
 \begin{proof}
-Let $\hat b$ be a compressed belief and $b$ the belief it replaces. For any linear function $\alpha \cdot b$ with coefficients in $[\ell_r, u_r]$, $\alpha \cdot \hat b - \alpha \cdot b = \frac{1}{N} \sum_k (\alpha(X_k) - \mathbb{E}\,\alpha(X_k))$, since the strata are unbiased in sum and merging duplicate atoms does not change the empirical measure. By Hoeffding's inequality for independent variables with values in $[\ell_r, u_r]$, $\Pr(|\alpha \cdot \hat b - \alpha \cdot b| > t) \leq 2 \exp(-2 N t^2 / (u_r - \ell_r)^2)$. By Lemma~\ref{lem:range}(ii), $Q^r(\cdot, a)$ is a maximum of at most $G_r \leq G_H$ such functions, and $|\max_\sigma \alpha_\sigma \cdot \hat b - \max_\sigma \alpha_\sigma \cdot b| \leq \max_\sigma |\alpha_\sigma \cdot (\hat b - b)|$. A union bound over the $M$ compressions, the $|A_i|$ actions and the $G_H$ plans gives, with probability at least $1 - \eta$, $|Q^r(\hat b, a) - Q^r(b, a)| \leq \epsilon_r := (u_r - \ell_r) \sqrt{\log(2 M |A_i| G_H / \eta) / (2N)}$ at every compression, for every action, hence also $|U^r(\hat b) - U^r(b)| \leq \epsilon_r$. Write $e_r$ for the largest $|\widetilde{Q}^r(b, a) - Q^r(b, a)|$ over actions and over the beliefs, with $r$ steps to go, of the reachable histories of the compressed process. The evidence is computed exactly under the current (possibly compressed) belief, so both updates weight the branches by the same $p_o = \Pr(o, \mathrm{alive} \mid b, a)$, and
-\[
-|\widetilde{Q}^r(b, a) - Q^r(b, a)| \leq \gamma \sum_o p_o \Big( |\widetilde{U}^{r-1}(\hat b_o) - U^{r-1}(\hat b_o)| + |U^{r-1}(\hat b_o) - U^{r-1}(b_o)| \Big) \leq \gamma (e_{r-1} + \epsilon_{r-1}),
-\]
-where $b_o$ is the uncompressed posterior and $\hat b_o$ its compression (equal to it when the support is at most $N$). With $e_1 = 0$, unrolling gives $e_H \leq \sum_{k=1}^{H-1} \gamma^k \epsilon_{H-k}$, and a compressed root adds $\epsilon_H$.
+(a) The kept atoms are exact, so $\hat b-b$ is supported on the tail and its replacement, each of mass
+$\varepsilon$; stratified draws are unbiased. For $n_t=0$, any $b'$ supported on a set $A$ of at most $N$
+atoms has $\|b'-b\|_1\ge b(A^c)+|b'(A)-b(A)|=2b(A^c)\ge2\varepsilon$, with equality for the renormalized head.
+(b) Every plan's vector lies between $\underline w^r(s)$ and $\max_a\bar Q^r(s,a)$ (the unit bound of
+Theorem~\ref{thm:frontier} at a point belief, and the same induction with a minimum), so by
+Lemma~\ref{lem:l1}, $|U^{r}(\hat b)-U^{r}(b)|\le\bar W_r\varepsilon$. The evidence is computed exactly under the
+current (possibly compressed) belief, so both updates weight the branches by the same probabilities, and
+$|\widetilde Q^r(b,a)-Q^r(b,a)|\le\gamma\sum_op_o\big(|\widetilde U^{r-1}(\hat b_o)-U^{r-1}(\hat b_o)|
++|U^{r-1}(\hat b_o)-U^{r-1}(b_o)|\big)$, which is the recursion. No probability and no union bound is involved.
 \end{proof}
 
 \begin{remark}
-The bound concerns compression of $i$'s own belief, whose error enters linearly. Compression of a nested belief enters through $j$'s predicted action, which is the maximizer of $j$'s own values and can switch discontinuously near a tie, so no Lipschitz bound of this form holds for it. The planner handles it in two ways: Theorem~\ref{thm:sound} certifies the decision relative to the searched model, whatever the nested compression; and near-tie escalation (Section~4.5 of the paper) re-decides close decisions with a larger $N$. The gap between the searched model and the exact I-POMDP is measured, not bounded: in Section~\ref{sec:coverage} we report how often the intervals of the compressed planner contain the exact I-POMDP values.
+The bound concerns compression of $i$'s own belief below the root. Compression of a nested belief enters through $j$'s predicted action, which can switch discontinuously near a tie, so no bound of this form holds for it; the planner's answer is T4 below, under which a tie that cannot be certified broken stays a tie. A near-uniform belief over many more than $N$ atoms has a loss near 1, and the bound is then void.
+\end{remark}
+
+\paragraph{T4: Searched models of the other agent.}
+
+\paragraph{Setting.} Index the models of $j$ by \emph{model nodes} $m=(\theta_j^0,h_j)$: an initial model in the
+support of the root belief and a private history of $j$. In the exact I-POMDP, $m$ carries the exact belief
+$b_j^\ast(m)$, the exact values $Q_j^\ast(m,\cdot)$ and the law
+$\pi^\ast(\cdot\mid m)=\mathrm{Unif}(\OPT_\tau(m))$, where $\OPT_\tau(m)=\{a_j:Q_j^\ast(m,a_j)\ge
+\max Q_j^\ast(m,\cdot)-\tau\}$ and $\tau\ge0$ is the tie tolerance of the exact solution. The planner holds a
+belief $\tilde b_j(m)$ and a law $\tilde\pi(\cdot\mid m)$. Both processes move on extended states
+$x=(s,m)$ with the same kernels, and differ only in the law at each node. A node is \emph{grounded} if
+$\tilde b_j(m)=b_j^\ast(m)$. Suppose that at a grounded node the nested solve returns intervals with
+$Q_j^-(m,a_j)\le Q_j^\ast(m,a_j)\le Q_j^+(m,a_j)$, and let $M^-=\max_{a_j}Q_j^-$, $M^+=\max_{a_j}Q_j^+$,
+\[
+\widehat{\OPT}(m)=\{a_j:Q_j^+(m,a_j)\ge M^--\tau\},\qquad
+\underline{\OPT}(m)=\{a_j:Q_j^-(m,a_j)\ge M^+-\tau\}.
+\]
+The node is \emph{resolved} if $\underline{\OPT}(m)=\widehat{\OPT}(m)$. The planner predicts
+$\tilde\pi(\cdot\mid m)=\mathrm{Unif}(\widehat{\OPT}(m))$, and
+$\hat\delta(m)=1-\max(1,|\underline{\OPT}(m)|)/|\widehat{\OPT}(m)|$; at a node that is not grounded,
+$\hat\delta(m)=1$. For a belief $b$ let $d(b)=\sum_{(s,m)}b(s,m)\hat\delta(m)$.
+
+\begin{theorem}[Bi-level soundness]\label{thm:bilevel}
+Assume (A1)--(A5) and no compression of beliefs.
+\begin{enumerate}
+\item[(i)] $\underline{\OPT}(m)\subseteq\OPT_\tau(m)\subseteq\widehat{\OPT}(m)$ at every grounded node, and
+$\|\pi^\ast(\cdot\mid m)-\tilde\pi(\cdot\mid m)\|_{TV}\le\hat\delta(m)$ at every node.
+\item[(ii)] If $m$ is resolved, $\tilde\pi(\cdot\mid m)=\pi^\ast(\cdot\mid m)$. If every node used in forming
+$\tilde b_j(m)$ is resolved, $m$ is grounded.
+\item[(iii)] Let $[Q^-(\emptyset,a),Q^+(\emptyset,a)]$ be the intervals of Theorem~\ref{thm:sound} for the
+searched model with law $\tilde\pi$, let $e^0\equiv0$, and for a history $h$ of the tree with $r$ steps to go let
+\[
+e^r(h)=\min\Big\{W_r,\;W_r\,d(b_h)+\gamma\max_{a}\sum_{o}\Pr(o,\mathrm{alive}\mid b_h,a)\,e^{r-1}(hao)\Big\},
+\]
+with $e^r(h)=W_r$ at a history that the tree has not expanded. Then, for every root action $a$, the exact
+I-POMDP value satisfies
+\[
+Q^-(\emptyset,a)-\Delta(a)\;\le\;Q^H(\langle b_i,\hth_i\rangle,a)\;\le\;Q^+(\emptyset,a)+\Delta(a),\quad
+\Delta(a)=\min\Big\{W_H,\;W_H\,d(b_i)+\gamma\sum_o\Pr(o,\mathrm{alive}\mid b_i,a)\,e^{H-1}(ao)\Big\}.
+\]
+\item[(iv)] The widened intervals of (iii), computed by the solver of level $l-1$, satisfy the hypothesis on
+nested intervals at level $l$. Hence, by induction on the level from level 1, whose models of level 0 are exact,
+the guarantee holds at every level, for every budget and seed. If every model node that the planner can reach
+within the lookahead is resolved, then $\Delta\equiv0$, the searched model is the exact I-POMDP, and the
+intervals of Theorem~\ref{thm:sound} contain the exact values.
+\end{enumerate}
+\end{theorem}
+\begin{proof}
+(i) If $a_j\in\OPT_\tau(m)$ then $Q_j^+(a_j)\ge Q_j^\ast(a_j)\ge\max Q_j^\ast-\tau\ge M^--\tau$. If
+$a_j\in\underline{\OPT}(m)$ then $Q_j^\ast(a_j)\ge Q_j^-(a_j)\ge M^+-\tau\ge\max Q_j^\ast-\tau$. So
+$\pi^\ast=\mathrm{Unif}(B)$ with $\underline{\OPT}\subseteq B\subseteq\widehat{\OPT}$ and $B\neq\emptyset$, and
+$\|\mathrm{Unif}(B)-\mathrm{Unif}(\widehat{\OPT})\|_{TV}=1-|B|/|\widehat{\OPT}|\le\hat\delta(m)$. Total
+variation never exceeds 1, which covers nodes that are not grounded. (ii) is immediate from (i) and from the
+fact that the exact update of $j$'s belief is a function of the laws at the nodes below it.
+
+(iii) Fix a conditional plan $\sigma$ of $i$ with $r$ steps to go and write $V^\ast(x;\sigma)$ and
+$\tilde V(x;\sigma)$ for its values from $x=(s,m)$ under $\pi^\ast$ and $\tilde\pi$. With
+$G^\ast(x,a_j)=\bar R+\gamma\sum_{x',o}P(x',o\mid x,\sigma_0,a_j)V^\ast(x';\sigma(o))$ and $\tilde G$ defined
+alike,
+\[
+V^\ast(x;\sigma)-\tilde V(x;\sigma)=\sum_{a_j}\big(\pi^\ast-\tilde\pi\big)(a_j\mid m)\,G^\ast(x,a_j)
++\sum_{a_j}\tilde\pi(a_j\mid m)\big(G^\ast-\tilde G\big)(x,a_j).
+\]
+$G^\ast(x,\cdot)\in[\ell_r,u_r]$ by Lemma~\ref{lem:range}(i), so the first sum is at most
+$\hat\delta(m)W_r$ in absolute value. The second is $\gamma$ times the expectation, under the planner's law, of
+$V^\ast-\tilde V$ at the successor. Hence, for $\epsilon^r(b;\sigma)=\sum_xb(x)|V^\ast(x;\sigma)-\tilde
+V(x;\sigma)|$,
+\[
+\epsilon^r(b;\sigma)\le W_r\,d(b)+\gamma\sum_o\Pr(o,\mathrm{alive}\mid b,\sigma_0)\,
+\epsilon^{r-1}(\tilde b_{\sigma_0o};\sigma(o)),
+\]
+because the planner's posterior $\tilde b_{\sigma_0o}$ is the normalized successor measure under
+$\tilde\pi$. Also $\epsilon^r\le W_r$, since both values lie in $[\ell_r,u_r]$. By induction,
+$\sup_\sigma\epsilon^r(b_h;\sigma)\le e^r(h)$ at every history of the tree. Finally
+$|\max_\sigma V^\ast(b;\sigma)-\max_\sigma\tilde V(b;\sigma)|\le\sup_\sigma\epsilon(b;\sigma)$, taken over the
+plans that start with $a$, gives $|Q^H-\tilde Q^H|(b_i,a)\le\Delta(a)$, and Theorem~\ref{thm:sound} bounds
+$\tilde Q^H$. The recursion follows only the planner's own transitions; branches that only the exact law
+reaches are covered by the range of $G^\ast$.
+
+(iv) The intervals of (iii) at level $l-1$ contain $Q_j^\ast$ at every grounded node, which is the hypothesis.
+At level 1 the modeled agents are level 0, whose law is known, so $\hat\delta\equiv0$ and (iii) is
+Theorem~\ref{thm:sound}(iii). If every reachable node is resolved, every node is grounded by (ii) and
+$d\equiv0$ on the tree; the rule that unexpanded histories carry $W_r$ is then not needed, because no node
+below them can deviate.
+\end{proof}
+
+\paragraph{Deterministic stopping.} A modeled solve grows one tree by doubling to its cap, computes the certified root intervals after each doubling, widened by $\Delta$, and stops when the root is resolved: every action satisfies $Q^+ < M^- - \tau$ or $Q^- \geq M^+ - \tau$. There are no pilot trees and no distributional assumption. The plausible set contains the exact optimal set at every checkpoint (Theorem~\ref{thm:bilevel}(i)); on a tree whose non-dominated part is complete, the intervals of the surviving actions are points, so the rule stops; at the cap the solve returns the plausible set flagged unresolved, and its uncertainty is charged to the caller through $\hat\delta$. The relative tolerance of the exact solution is made absolute conservatively: $\tau^+ = \tau \max(1, |M^-|, |M^+|)$ in the plausible set and $\tau^- = \tau \max(1, \min(|M^-|, |M^+|))$ in the certain set ($\tau$ when $[M^-, M^+]$ contains 0).
+
+\begin{remark}
+Theorem~\ref{thm:consistent} is stated for the index of Eq.~3 of the paper. The certified planner also ranks actions by their upper bounds and stops when the root is resolved; Theorems~\ref{thm:sound}, \ref{thm:frontier}, \ref{thm:compress-det} and \ref{thm:bilevel} hold for it at every budget, whatever the selection rule, and a width of zero still certifies an exact value.
 \end{remark}
 
 \section{Coverage of the Certified Intervals}
@@ -254,11 +487,81 @@ with equality if and only if $\sigma$ is also optimal for level $k+1$'s belief a
 Level $k+1$'s belief at $h$ is $b_{k+1}(h) = \sum_{m'} \Pr_{k+1}(m' \mid h)\, b^{m'}(h)$: its prior is the mixture of its models, it conditions on $h$ exactly, and each of its models equals the real agent at that level, so the component of level $m'$ is the exact conditional $b^{m'}(h)$. Every plan's value is linear in the belief (Lemma~\ref{lem:range}(ii)), so $\alpha_\sigma \cdot b_{k+1}(h) = \sum_{m'} \Pr_{k+1}(m' \mid h)\, V_{m'}(h, \sigma)$. The receding plan of level $k+1$ is a maximizer of $\alpha_\sigma \cdot b_{k+1}(h)$ over all conditional $H$-step plans, by backward induction in the finite POMDP of Lemma~\ref{lem:range}(ii): with $r$ steps to go it maximizes $Q^r$ at its own updated belief. This gives the inequality and the equality condition. For (i), the bracket for $m' \neq m$ is at most $u_H - \ell_H$ in magnitude, since both values lie in $[\ell_H, u_H]$, so $(1 - \epsilon)$ times the bracket for $m$ is at least $-\epsilon (u_H - \ell_H)$. (ii) is a rearrangement of the inequality. For (iii), $i$'s own actions are known to $i$, so the posterior $\Pr_{k+1}(m \mid h)$ does not depend on the policy that chose them, and the joint law of $m$ and $h$ under the prior is $\mu(m) \Pr_m(h)$; summing the inequality over histories weighted by $\Pr(h)$ gives (iii).
 \end{proof}
 
-The theorem says nothing about an opponent outside the support ($m > k$), and nothing about whole receding-horizon episodes, whose later decisions are taken at histories that the two levels reach with different probabilities. Both gaps are real: the experiments below find losses in each.
+The theorem says nothing about an opponent outside the support ($m > k$), and nothing about whole receding-horizon episodes, whose later decisions are taken at histories that the two levels reach with different probabilities. Both gaps are real: the experiments below find losses in each. It also holds against every plan, not specifically the plan of one level less. The statement specific to depth concerns the level that only the deeper agent models.
+
+\begin{theorem}[Dominance at the boundary level]\label{thm:boundary}
+Assume (A1)--(A5), exact agents at levels $k$ and $k+1$ whose models of each lower level are the real agents of
+that level, and \emph{nested priors}: $\mu_{k+1}(m')=(1-\rho)\,\mu_k(m')$ for $m'<k$ and $\mu_{k+1}(k)=\rho>0$
+(uniform priors satisfy this with $\rho=1/(k+1)$). Let the true level be $m=k$, and let $h$ be a history of $i$
+with $\Pr_k(h)>0$ and $\Pr(h\mid m=k)>0$. Write $b_l(h)$ for the belief of level $l$ at $h$,
+$b^k(h)$ for the exact conditional belief given level $k$, and $\lambda_h=\Pr_{k+1}(m=k\mid h)\in(0,1]$. Then
+\begin{equation}\label{eq:mixture}
+b_{k+1}(h)=(1-\lambda_h)\,b_k(h)+\lambda_h\,b^k(h),
+\end{equation}
+and
+\[
+V_k(h,\sigma_{k+1})-V_k(h,\sigma_k)\;\ge\;\frac{1-\lambda_h}{\lambda_h}\,
+\big[\alpha_{\sigma_k}\cdot b_k(h)-\alpha_{\sigma_{k+1}}\cdot b_k(h)\big]\;\ge\;0 .
+\]
+The plan gain against the level that only the deeper agent models is nonnegative at every such history, without
+weighting, and it is at least the deeper plan's regret under the shallower agent's belief times the posterior
+odds against the true level.
+\end{theorem}
+\begin{proof}
+For $m'<k$ both agents hold the same model of level $m'$, so both assign $h$ the likelihood $\Pr(h\mid m')$
+and the conditional belief $b^{m'}(h)$. By nesting, $\Pr_{k+1}(m'\mid h,m'<k)=\Pr_k(m'\mid h)$, which gives
+(\ref{eq:mixture}). $\sigma_k$ maximizes $\alpha_\sigma\cdot b_k(h)$ and $\sigma_{k+1}$ maximizes
+$\alpha_\sigma\cdot b_{k+1}(h)$ over conditional plans (backward induction, as in
+Theorem~\ref{thm:dominance}). Write $D=\alpha_{\sigma_{k+1}}-\alpha_{\sigma_k}$. Optimality of $\sigma_{k+1}$
+and (\ref{eq:mixture}) give $(1-\lambda_h)\,D\cdot b_k(h)+\lambda_h\,D\cdot b^k(h)\ge0$; optimality of
+$\sigma_k$ gives $D\cdot b_k(h)\le0$. Hence $\lambda_h\,D\cdot b^k(h)\ge-(1-\lambda_h)\,D\cdot b_k(h)\ge0$, and
+$D\cdot b^k(h)=V_k(h,\sigma_{k+1})-V_k(h,\sigma_k)$. Mixtures over tied maximizers preserve both inequalities.
+\end{proof}
+
+\begin{remark}
+(i) $\Pr_k(h)>0$ holds whenever level $k$'s prior has level-0 mass and $h$ is possible, because the
+no-information model gives every action positive probability; this is the role of level 0 in every prior.
+(ii) When $m<k$ the truth is a component of both beliefs and no pair of optimality conditions isolates it:
+only the weighted inequality of Theorem~\ref{thm:dominance} remains, and losses occur. (iii) The argument is
+not specific to levels: an exact agent whose prior adds one hypothesis to another exact agent's prior, in
+proportion, never loses to it at a decision when the added hypothesis is true.
+\end{remark}
+
+\begin{proposition}[Receding-horizon decomposition]\label{prop:telescope}
+Fix the true opponent, let $\pi_l$ be the receding policy of level $l$ (at $h$ it commits to the plan
+$\sigma_l(h)$ and executes its first action), $\mathbb E_l$ the expectation over $i$'s histories under $\pi_l$,
+$J_T(\pi_l)=\mathbb E_l\sum_{t<T}\gamma^tr_t$, $g_l(h)=V(h,\sigma_l(h))$ the true $H$-step value of the plan
+committed at $h$, and $V^{H-1}(h',\sigma|_o)$ the true value of the remaining $H-1$ steps of a plan after
+observation $o$. Define the \emph{replanning drift} and the \emph{cross drift}
+\[
+\zeta_l(h_t)=\gamma\,\mathbb E_l\big[g_l(h_{t+1})-V^{H-1}(h_{t+1},\sigma_l(h_t)|_{o_{t+1}})\,\big|\,h_t\big],
+\quad
+\xi(h_{t+1})=g_k(h_{t+1})-V^{H-1}(h_{t+1},\sigma_{k+1}(h_t)|_{o_{t+1}}).
+\]
+Then, with $G(h)=g_{k+1}(h)-g_k(h)$ the plan gain at $h$,
+\begin{align*}
+J_T(\pi_l)&=g_l(h_0)+\sum_{t<T}\gamma^t\,\mathbb E_l[\zeta_l(h_t)]-\gamma^T\,\mathbb E_l[g_l(h_T)],\\
+J_T(\pi_{k+1})-J_T(\pi_k)&=\sum_{t<T}\gamma^t\,\mathbb E_{k+1}[G(h_t)]
++\sum_{t<T}\gamma^{t+1}\,\mathbb E_{k+1}[\xi(h_{t+1})]-\sum_{t<T}\gamma^t\,\mathbb E_k[\zeta_k(h_t)]
+-\gamma^T\big(\mathbb E_{k+1}-\mathbb E_k\big)[g_k(h_T)].
+\end{align*}
+The cumulative gain and the plan gains along the deeper agent's histories therefore differ by the three drift
+terms, and can have opposite signs whenever these outweigh the plan gains.
+\end{proposition}
+\begin{proof}
+For any function $\Phi$ of histories,
+$\sum_{t<T}\gamma^tr_t=\Phi(h_0)-\gamma^T\Phi(h_T)+\sum_{t<T}\gamma^t[r_t+\gamma\Phi(h_{t+1})-\Phi(h_t)]$.
+With $\Phi=g_l$ under $\pi_l$: $g_l(h_t)=\mathbb E[r_t\mid h_t]+\gamma\,\mathbb
+E[V^{H-1}(h_{t+1},\sigma_l(h_t)|_{o_{t+1}})\mid h_t]$, since the executed action is the plan's first, so the
+bracket has conditional mean $\zeta_l(h_t)$. With $\Phi=g_k$ under $\pi_{k+1}$:
+$\mathbb E[r_t+\gamma g_k(h_{t+1})\mid h_t]=g_{k+1}(h_t)+\gamma\,\mathbb E[\xi(h_{t+1})\mid h_t]$, so the
+bracket has conditional mean $G(h_t)+\gamma\,\mathbb E[\xi(h_{t+1})\mid h_t]$. Subtract the first identity for
+$l=k$.
+\end{proof}
 
 \paragraph{The exact check.} For every cell of the level grids (tiger, coordination and published, $k \to k+1$ for $k \leq 3$; UAV and the Wumpus world, both roles, $k \leq 1$), we enumerate $i$'s histories against the true opponent, as played by the exact agent at level $k$ and, separately, at level $k+1$, and at each history we evaluate both levels' receding plans exactly against the true opponent. Comparing at the same history removes the timing effect of receding-horizon play. Each cell runs until its step count or a cap of 4~GB (8~GB for the four largest tiger cells) and 1~CPU-hour; 107 of the 116 cell-references stop at the memory cap, which fixes the number of steps covered.
 
-Over the 116 cell-references, 601{,}820 histories are scored. The inequality of Theorem~\ref{thm:dominance} holds at every one: the smallest residual is 0 and the mixture of the plan values differs from level $k+1$'s maximum by at most $2.1 \times 10^{-11}$. Where a cell overlaps the exact pair curves of Section~7 of the paper, the cumulative reward of the reference play reproduces them to $7.9 \times 10^{-12}$ at 545 steps. Table~\ref{tab:classes} gives the mean plan gain per step by class. In class (b) it is nonnegative at every step of every domain, and also at every single history. In class (a) every loss is against a random opponent except one: coordination tiger, $3 \to 4$ against level 1, $-0.35$ at step 3. By $i$'s posterior on the true level, the histories of class (a) at which the deeper level loses carry 12.8\% of the mass below 0.5, 29.0\% between 0.5 and 0.8, 14.3\% between 0.8 and 0.95, and none at 0.95 or above. Class (c) loses in UAV reconnaissance only: against a level-2 opponent, the level-1 target and the level-1 UAV lose up to 18.3 and 20.1 in plan value per step. Against the cumulative pair gains, the sign of the decision-point immediate gain differs at 26 of 300 cell-steps, the timing effect of Section~7.3 of the paper.
+Over the 116 cell-references, 601{,}820 histories are scored. The inequality of Theorem~\ref{thm:dominance} holds at every one: the smallest residual is 0 and the mixture of the plan values differs from level $k+1$'s maximum by at most $2.1 \times 10^{-11}$. Where a cell overlaps the exact pair curves of Section~7 of the paper, the cumulative reward of the reference play reproduces them to $7.9 \times 10^{-12}$ at 545 steps. Table~\ref{tab:classes} gives the mean plan gain per step by class. In class (b) it is nonnegative at every step of every domain, and also at every single history, as Theorem~\ref{thm:boundary} requires. Re-enumerating every class (b) cell with the posterior odds and the regret of the deeper plan under the shallower agent's belief, the stronger inequality of the theorem holds at each of the 8{,}628 histories (smallest margin 0; nontrivial, with positive regret and $\lambda_h < 1$, at 3{,}154), and the mixture identity holds to $2.6 \times 10^{-15}$. In class (a) every loss is against a random opponent except one: coordination tiger, $3 \to 4$ against level 1, $-0.35$ at step 3. By $i$'s posterior on the true level, the histories of class (a) at which the deeper level loses carry 12.8\% of the mass below 0.5, 29.0\% between 0.5 and 0.8, 14.3\% between 0.8 and 0.95, and none at 0.95 or above. Class (c) loses in UAV reconnaissance only: against a level-2 opponent, the level-1 target and the level-1 UAV lose up to 18.3 and 20.1 in plan value per step. Against the cumulative pair gains, the sign of the decision-point immediate gain differs at 26 of 300 cell-steps, the timing effect of Section~7.3 of the paper.
 
 \begin{table}[h]
 \centering
