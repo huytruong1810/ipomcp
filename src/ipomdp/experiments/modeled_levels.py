@@ -126,8 +126,13 @@ def modeled_keys(agent, level):
     ]
 
 
-def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stopping=None):
-    """The configuration of a planner of this kind whose root and modeled budgets are ``budget``."""
+def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stopping=None, backup=None):
+    """The configuration of a planner of this kind whose root and modeled budgets are ``budget``.
+
+    ``backup`` (IPF + RTS): "sparse" or "published"; None falls back to the IPOMDP_RTS_BACKUP environment
+    variable, then "sparse". The variant is part of ``RTSConfig``, so every row that records its config
+    records it.
+    """
     if planner_kind == "mcts":
         return PlannerConfig(
             simulations=budget,
@@ -141,7 +146,8 @@ def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stop
         raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
     # The RTS backup of grid drivers (panel, oracle) that build configs here: "sparse" unless the run sets
     # IPOMDP_RTS_BACKUP (e.g. "published" for IPF + RTS exactly as published, RESULTS 12.116-12.117).
-    backup = os.environ.get("IPOMDP_RTS_BACKUP", "sparse")
+    if backup is None:
+        backup = os.environ.get("IPOMDP_RTS_BACKUP", "sparse")
     return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma, backup=backup)
 
 

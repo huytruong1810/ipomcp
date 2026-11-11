@@ -236,6 +236,12 @@ class INTMCPAgent:
     visit counts; ``"greedy"`` is the nested tree's best explored action; a
     callable maps the other agent's own history, as ((action, observation),
     ...) domain values, to {action: probability}, e.g. the exact model's policy.
+
+    ``record_predictions`` (a callable of the same form, the exact law of the
+    other agent; audit spec 3.8) logs, without changing any draw, how the
+    nested tree's prediction compares with that law at every query inside
+    i's search, aggregated by lookahead depth ("root": the other agent's
+    current history; "deeper": below it): see ``prediction_summary``.
     """
 
     def __init__(
@@ -250,6 +256,7 @@ class INTMCPAgent:
         agents=("i", "j"),
         uct_c=None,
         opponent="search",
+        record_predictions=None,
     ):
         if variant not in VARIANTS:
             raise ValueError(f"variant must be one of {VARIANTS}")
@@ -279,6 +286,24 @@ class INTMCPAgent:
             _predict_by(self.tree.nested_trees[1], opponent)
         self.values, self.search_cpu_seconds, self.forced_shares = {}, 0.0, []
         self._started = False
+        self._root_steps = 0
+        self._log = {}
+        if record_predictions is not None:
+            if opponent != "search":
+                raise ValueError("Predictions are recorded for the published softmax (opponent='search') only")
+            if level < 2:
+                raise ValueError("Only a level-2 or higher agent predicts an intentional opponent")
+            _record_by(self, self.tree.nested_trees[1], record_predictions)
+
+    def prediction_summary(self):
+        """Per depth bucket: queries, mean total variation from the exact law, share of queried nodes
+        whose most-visited action is not a highest-value one, share with no visits, and mean mass on
+        the exact law's support (its optimal actions)."""
+        return {
+            bucket: dict(queries=n, tv=tv / n, argmax_n_not_v=mismatch / n, unvisited=unvisited / n,
+                         optimal_mass=mass / n)
+            for bucket, (n, tv, mismatch, unvisited, mass) in sorted(self._log.items())
+        }
 
     def search(self):
         started = time.process_time()
@@ -296,6 +321,7 @@ class INTMCPAgent:
         if not self._started:
             raise RuntimeError("I-NTMCP updates from the particles of a search: search first")
         self.tree.update(_Action(action), _Observation(observation))
+        self._root_steps += 1
         particles = self.tree.traverse(self.tree.history).belief.particles
         own = self.tree.history
         forced = sum(p.history.get_agent_history(0) != own for p in particles)
@@ -342,6 +368,46 @@ def _predict_by(nested, opponent):
             return _Action(random.choices(actions, weights=weights)[0])
     else:
         raise ValueError("opponent must be 'search', 'greedy' or a policy callable")
+    nested.sample_action = sample
+
+
+def _record_by(agent, nested, exact):
+    """Wrap ``nested.sample_action`` to log its law against ``exact`` (``INTMCPAgent.record_predictions``).
+
+    The softmax is the published one (``NestedSearchTree.sample_action``), recomputed without random draws;
+    the wrapped call then samples exactly as before, so recording changes nothing.
+    """
+    original, cache = nested.sample_action, {}
+
+    def law(node, temperature):
+        actions = [a.value for a in nested.action_space]
+        if node.n == 0 or len(node.children) == 0:
+            return {a: 1.0 / len(actions) for a in actions}, True
+        root_n = math.sqrt(node.n)
+        weights = [math.exp(child.n**temperature / root_n) for child in node.children]
+        total = sum(weights)
+        return {child.h.value: w / total for child, w in zip(node.children, weights)}, False
+
+    def sample(history, deterministic=False, temperature=1.0):
+        node = nested.traverse(history)
+        steps = tuple((a.value, o.value) for a, o in history.history if isinstance(a, _Action))
+        if steps not in cache:
+            cache[steps] = dict(exact(steps))
+        target = cache[steps]
+        predicted, unvisited = law(node, temperature)
+        tv = 0.5 * math.fsum(abs(predicted.get(a, 0.0) - target.get(a, 0.0)) for a in set(predicted) | set(target))
+        visited = [child for child in node.children if child.n > 0]
+        mismatch = False
+        if visited:
+            top_n = max(child.n for child in visited)
+            top_v = max(child.v for child in visited)
+            mismatch = not ({c.h for c in visited if c.n == top_n} & {c.h for c in visited if c.v == top_v})
+        mass = math.fsum(predicted.get(a, 0.0) for a in target if target[a] > 0)
+        bucket = "root" if len(steps) <= agent._root_steps else "deeper"
+        n, tv_sum, mismatches, unvisited_n, mass_sum = agent._log.get(bucket, (0, 0.0, 0, 0, 0.0))
+        agent._log[bucket] = (n + 1, tv_sum + tv, mismatches + mismatch, unvisited_n + unvisited, mass_sum + mass)
+        return original(history, deterministic, temperature)
+
     nested.sample_action = sample
 
 

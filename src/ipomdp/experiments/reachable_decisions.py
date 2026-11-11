@@ -86,6 +86,7 @@ from ipomdp.planning.stopping import ModeledResolution
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.best_response import BestResponseReference
+from ipomdp.reference.shared_horizon import SharedHorizonReference
 from ipomdp.reference.exact_agent import ExactIPOMDPPlanner, build_exact_agent
 
 GAMMA = 0.95
@@ -156,7 +157,7 @@ def _wide_rows(bank, physics, prior):
 
 
 def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_000, prior=None,
-              given_history=None):
+              given_history=None, opponent_horizon="fixed"):
     """The problem's history and the exact I-POMDP's Q after it (point-mass nesting, or ``prior``).
 
     ``given_history`` replays a stored history of i instead of generating one (the same history under
@@ -164,6 +165,9 @@ def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_00
 
     ``solve=False`` stops after the history: the row has the belief's digest and support but no Q, so a study
     can drop problems whose belief another problem already has before paying for their exact solves.
+
+    ``opponent_horizon="shared"`` also stores ``q_shared``: the exact Q when the modeled agent plays, at r
+    steps to go, its own r-step law (``reference.shared_horizon``; opponents of level <= 1).
     """
     if level < 2:
         raise ValueError("Reachable decisions need an intentional opponent: level >= 2")
@@ -197,6 +201,12 @@ def reference(domain, level, horizon, seed, steps, solve=True, cache_size=200_00
                     digest=canonical.belief_digest(agent.belief)) | extra
     started = time.process_time()
     q = agent.q_values(agent.model())
+    if opponent_horizon == "shared":
+        shared = SharedHorizonReference(physics, agent.solver_bank, GAMMA, max_branches=REFERENCE_BRANCHES)
+        extra["q_shared"] = {str(a): v for a, v in shared.q_values(agent.model(), horizon).items()}
+        extra["opponent_horizon"] = "shared"
+    elif opponent_horizon != "fixed":
+        raise ValueError("opponent_horizon must be 'fixed' or 'shared'")
     return dict(
         domain=domain,
         level=level,
@@ -329,7 +339,7 @@ def _loss(policy, q):
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
            variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None,
            cache_size=200_000, rts_published=False, certified=None, modeled_options=None,
-           compression="stratified"):
+           compression="stratified", intmcp_uct_c=None, intmcp_record=False):
     """One decision of an arm on a stored problem, scored against its exact Q.
 
     ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
@@ -376,14 +386,23 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
         if intmcp_opponent == "exact":
             opponent = _exact_opponent_policy(physics, level, horizon)
         started = time.process_time()
+        if intmcp_uct_c is not None:
+            row["intmcp_uct_c"] = intmcp_uct_c
+        record = None
+        if intmcp_record and intmcp_opponent == "search":
+            record = _exact_opponent_policy(physics, level, horizon)
         agent = INTMCPAgent(physics, level, budget, horizon, GAMMA, seed, variant=variant,
-                            opponent=opponent)
+                            opponent=opponent, uct_c=intmcp_uct_c, record_predictions=record)
         agent.search()
         for action, observation in steps_taken:
             agent.update_root(action, observation)
             agent.search()
         total = time.process_time() - started
         policy = greedy_policy(agent.values)
+        if record is not None:
+            row["intmcp_predictions"] = agent.prediction_summary()
+        if "q_shared" in problem:
+            row["loss_shared"] = _loss(policy, problem["q_shared"])
         return row | dict(
             loss=_loss(policy, q), policy={str(a): p for a, p in policy.items()},
             values={str(a): v for a, v in agent.values.items()}, cpu_seconds=agent.search_cpu_seconds,
@@ -424,6 +443,8 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     except UnsupportedObservation as error:
         # A sampled belief can lose every world that explains an observation (counted as not optimal).
         return row | dict(failure=str(error), loss=None)
+    if "q_shared" in problem:
+        row["loss_shared"] = _loss(policy, problem["q_shared"])
     row |= dict(
         loss=_loss(policy, q), policy={str(a): p for a, p in policy.items()},
         values={str(a): v for a, v in planner.recommendation_values.items()},
@@ -551,6 +572,8 @@ def main():
                      help="wide prior: weight of a level-0 (uniformly random) j")
     ref.add_argument("--history-from", type=Path,
                      help="replay the history stored in this problem file instead of generating one")
+    ref.add_argument("--opponent-horizon", choices=("fixed", "shared"), default="fixed",
+                     help="shared: also store q_shared, the modeled agent planning its remaining steps only")
     dec = sub.add_parser("decide")
     dec.add_argument("--problem", type=Path, required=True)
     dec.add_argument("--planner", choices=("mcts", "rts", "intmcp"), required=True)
@@ -592,6 +615,9 @@ def main():
     dec.add_argument("--modeled-prediction", choices=PREDICTIONS, default="argmax")
     dec.add_argument("--compression", choices=("stratified", "head-tail"), default="stratified",
                      help="I-POMCP with --particles: how beliefs are compressed (head-tail records its loss)")
+    dec.add_argument("--intmcp-uct-c", type=float, help="I-NTMCP exploration constant (default: theirs)")
+    dec.add_argument("--intmcp-record", action="store_true",
+                     help="I-NTMCP: log the nested prediction against the exact law of j (search opponent only)")
     dec.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if args.out.exists():
@@ -604,7 +630,7 @@ def main():
                      else json.loads(args.history_from.read_text())["history"])
             row = reference(args.domain, args.level, args.horizon, args.seed, args.steps,
                             solve=not args.digest_only, cache_size=args.reference_cache, prior=prior,
-                            given_history=given)
+                            given_history=given, opponent_horizon=args.opponent_horizon)
         except HistoryEnded as error:
             row = dict(domain=args.domain, level=args.level, horizon=args.horizon, seed=args.seed,
                        steps=args.steps, ended=str(error))
@@ -618,7 +644,8 @@ def main():
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
                      args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published,
-                     certified_options(args), modeled_options(args), args.compression)
+                     certified_options(args), modeled_options(args), args.compression,
+                     args.intmcp_uct_c, args.intmcp_record)
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 

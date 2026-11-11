@@ -168,3 +168,17 @@ def test_opponent_prediction_diagnostic_replaces_only_the_nested_sampler():
     with pytest.raises(ValueError):
         INTMCPAgent(TigerModel(), level=2, simulations=10, horizon=1, gamma=0.95, seed=0,
                     opponent="argmax")
+
+
+def test_recording_predictions_changes_no_draw():
+    from ipomdp.domains.tiger import JointTigerModel
+    from ipomdp.experiments.reachable_decisions import _exact_opponent_policy
+
+    physics = JointTigerModel(together_safe=40.0)
+    plain = INTMCPAgent(physics, 2, 300, 2, 0.95, 5)
+    plain_action = plain.search()
+    exact = _exact_opponent_policy(physics, 2, 2)
+    logged = INTMCPAgent(physics, 2, 300, 2, 0.95, 5, record_predictions=exact)
+    assert logged.search() == plain_action and logged.values == plain.values
+    summary = logged.prediction_summary()
+    assert summary and all(0 <= s["tv"] <= 1 and 0 <= s["optimal_mass"] <= 1 for s in summary.values())
