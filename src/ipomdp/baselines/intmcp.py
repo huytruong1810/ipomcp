@@ -242,6 +242,8 @@ class INTMCPAgent:
     nested tree's prediction compares with that law at every query inside
     i's search, aggregated by lookahead depth ("root": the other agent's
     current history; "deeper": below it): see ``prediction_summary``.
+    ``record_stride`` k records every k-th query only (a deterministic
+    systematic subsample, so large budgets stay affordable; no random draw).
     """
 
     def __init__(
@@ -257,6 +259,7 @@ class INTMCPAgent:
         uct_c=None,
         opponent="search",
         record_predictions=None,
+        record_stride=1,
     ):
         if variant not in VARIANTS:
             raise ValueError(f"variant must be one of {VARIANTS}")
@@ -293,7 +296,9 @@ class INTMCPAgent:
                 raise ValueError("Predictions are recorded for the published softmax (opponent='search') only")
             if level < 2:
                 raise ValueError("Only a level-2 or higher agent predicts an intentional opponent")
-            _record_by(self, self.tree.nested_trees[1], record_predictions)
+            if type(record_stride) is not int or record_stride < 1:
+                raise ValueError("record_stride must be a positive integer")
+            _record_by(self, self.tree.nested_trees[1], record_predictions, record_stride)
 
     def prediction_summary(self):
         """Per depth bucket: queries, mean total variation from the exact law, share of queried nodes
@@ -371,13 +376,13 @@ def _predict_by(nested, opponent):
     nested.sample_action = sample
 
 
-def _record_by(agent, nested, exact):
+def _record_by(agent, nested, exact, stride=1):
     """Wrap ``nested.sample_action`` to log its law against ``exact`` (``INTMCPAgent.record_predictions``).
 
     The softmax is the published one (``NestedSearchTree.sample_action``), recomputed without random draws;
     the wrapped call then samples exactly as before, so recording changes nothing.
     """
-    original, cache = nested.sample_action, {}
+    original, cache, counter = nested.sample_action, {}, [0]
 
     def law(node, temperature):
         actions = [a.value for a in nested.action_space]
@@ -389,6 +394,9 @@ def _record_by(agent, nested, exact):
         return {child.h.value: w / total for child, w in zip(node.children, weights)}, False
 
     def sample(history, deterministic=False, temperature=1.0):
+        counter[0] += 1
+        if (counter[0] - 1) % stride:
+            return original(history, deterministic, temperature)
         node = nested.traverse(history)
         steps = tuple((a.value, o.value) for a, o in history.history if isinstance(a, _Action))
         if steps not in cache:

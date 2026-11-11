@@ -182,3 +182,19 @@ def test_recording_predictions_changes_no_draw():
     assert logged.search() == plain_action and logged.values == plain.values
     summary = logged.prediction_summary()
     assert summary and all(0 <= s["tv"] <= 1 and 0 <= s["optimal_mass"] <= 1 for s in summary.values())
+
+
+def test_a_recording_stride_changes_no_draw_and_records_fewer_queries():
+    from ipomdp.domains.tiger import JointTigerModel
+    from ipomdp.experiments.reachable_decisions import _exact_opponent_policy
+
+    physics = JointTigerModel(together_safe=40.0)
+    exact = _exact_opponent_policy(physics, 2, 2)
+    # I-NTMCP draws from the process-global random module, seeded by each constructor: search first.
+    full = INTMCPAgent(physics, 2, 300, 2, 0.95, 5, record_predictions=exact)
+    full_action = full.search()
+    strided = INTMCPAgent(physics, 2, 300, 2, 0.95, 5, record_predictions=exact, record_stride=7)
+    assert strided.search() == full_action and full.values == strided.values
+    total = sum(s["queries"] for s in full.prediction_summary().values())
+    sampled = sum(s["queries"] for s in strided.prediction_summary().values())
+    assert sampled == -(-total // 7)

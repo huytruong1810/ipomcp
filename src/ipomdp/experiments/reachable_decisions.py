@@ -391,8 +391,12 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
         record = None
         if intmcp_record and intmcp_opponent == "search":
             record = _exact_opponent_policy(physics, level, horizon)
+        stride = max(1, budget // 1000)  # about 20,000 recorded queries per decision at any budget
+        if record is not None:
+            row["intmcp_record_stride"] = stride
         agent = INTMCPAgent(physics, level, budget, horizon, GAMMA, seed, variant=variant,
-                            opponent=opponent, uct_c=intmcp_uct_c, record_predictions=record)
+                            opponent=opponent, uct_c=intmcp_uct_c, record_predictions=record,
+                            record_stride=stride)
         agent.search()
         for action, observation in steps_taken:
             agent.update_root(action, observation)
