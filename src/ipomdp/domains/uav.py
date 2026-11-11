@@ -87,13 +87,13 @@ class UAVModel(POMDPModel):
         return tuple(((self.uav_start, cell), 1 / len(targets)) for cell in targets)
 
     def _move(self, cell, action):
-        dr, dc = _DELTAS[action]
-        return (min(max(cell[0] + dr, 0), self.rows - 1), min(max(cell[1] + dc, 0), self.cols - 1))
+        return _move(self.rows, self.cols, cell, action)
 
+    # The kernels are pure functions of the grid and are called millions of
+    # times per decision, so they are memoized; the caches live outside the
+    # instance because physics identity is derived from its attributes.
     def transition_distribution(self, state, joint_action):
-        uav, target = state
-        following = (self._move(uav, joint_action[UAV]), self._move(target, joint_action[TARGET]))
-        return ((following, 1.0),)
+        return _transition(self.rows, self.cols, state, joint_action[UAV], joint_action[TARGET])
 
     def observation_distribution(self, state, joint_action, agent_id):
         uav, target = state
@@ -101,7 +101,7 @@ class UAVModel(POMDPModel):
             accuracy = self.uav_accuracy if joint_action[UAV] == LISTEN else None
             return _row_report(target[0], self.rows, accuracy)
         accuracy = self.target_accuracy if joint_action[TARGET] == LISTEN else None
-        return tuple(((target, row), p) for row, p in _row_report(uav[0], self.rows, accuracy))
+        return _target_report(target, uav[0], self.rows, accuracy)
 
     def get_reward(self, state, joint_action, next_state, agent_id):
         spotted = self.is_terminal(next_state)
@@ -135,3 +135,21 @@ def _row_report(true_row, rows, accuracy):
     wrong = (1 - accuracy) / (rows - 1)
     law = ((row, accuracy if row == true_row else wrong) for row in range(rows))
     return tuple((row, p) for row, p in law if p > 0)
+
+
+@lru_cache(maxsize=None)
+def _move(rows, cols, cell, action):
+    dr, dc = _DELTAS[action]
+    return (min(max(cell[0] + dr, 0), rows - 1), min(max(cell[1] + dc, 0), cols - 1))
+
+
+@lru_cache(maxsize=None)
+def _transition(rows, cols, state, uav_action, target_action):
+    uav, target = state
+    following = (_move(rows, cols, uav, uav_action), _move(rows, cols, target, target_action))
+    return ((following, 1.0),)
+
+
+@lru_cache(maxsize=None)
+def _target_report(target, uav_row, rows, accuracy):
+    return tuple(((target, row), p) for row, p in _row_report(uav_row, rows, accuracy))
