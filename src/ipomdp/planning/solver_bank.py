@@ -35,6 +35,7 @@ from ipomdp.belief.particle_filter import (
     ParticleInteractiveFilter,
     PublishedParticleFilter,
 )
+from ipomdp.planning.frontier_bounds import FrontierBounds
 from ipomdp.planning.solver_types import SolverKey
 
 FILTERS = {
@@ -103,8 +104,9 @@ class SolverBank:
         # equal belief was built; see ipomdp.belief.canonical.
         self.ordered_mass = lru_cache(maxsize=16384)(canonical.canonical_mass)
         self._cumulative_mass = lru_cache(maxsize=16384)(self._cumulative)
-        self.expected_rewards = lru_cache(maxsize=1024)(self._expected_rewards)
+        self.expected_rewards = lru_cache(maxsize=65536)(self._expected_rewards)
         self.continuation_law = lru_cache(maxsize=4096)(self._continuation_law)
+        self._frontier_bounds = {}
 
     # ------------------------------------------------------------------ #
     # Physical prior
@@ -260,6 +262,24 @@ class SolverBank:
         law = ((o, math.fsum(weights)) for o, weights in terms.items())
         return tuple((o, p) for o, p in law if p > 0)
 
+    def frontier_bounds(self, model, gamma, depth, kind="ifib"):
+        """The shared ``FrontierBounds`` of ``model``'s agent (``planning.frontier_bounds``).
+
+        One instance per (physics, agent, opponent, gamma, depth, kind), so real
+        decisions and modeled solves of the same agent share the state tables.
+        """
+        physics, agent_id = model.frame.pomdp_model, model.frame.agent_id
+        others = {atom.opponent.frame.agent_id for atom, _ in model.belief.mass}
+        if len(others) != 1:
+            raise ValueError("Frontier bounds need exactly one opponent agent")
+        other_id = others.pop()
+        key = (physics, agent_id, other_id, gamma, depth, kind)
+        bounds = self._frontier_bounds.get(key)
+        if bounds is None:
+            bounds = FrontierBounds(physics, agent_id, other_id, gamma, depth, kind)
+            self._frontier_bounds[key] = bounds
+        return bounds
+
     def clear_caches(self):
         """Drop cached policies, posteriors and integrals (memory only, never results)."""
         self._cached_policy.cache_clear()
@@ -270,4 +290,6 @@ class SolverBank:
         canonical.belief_digest.cache_clear()
         self.expected_rewards.cache_clear()
         self.continuation_law.cache_clear()
+        for bounds in self._frontier_bounds.values():
+            bounds.clear_caches()
         gc.collect()
