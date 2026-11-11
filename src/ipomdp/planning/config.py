@@ -56,6 +56,24 @@ class PlannerConfig:
             12.90). The root tree grows by doubling until its two leading
             actions separate or its scores are exact; at the cap it is the flat
             search of ``simulations``. When None, one search of ``simulations``.
+        frontier_bounds: Bounds on what search left unknown, used by certified
+            scoring. ``"scalar"`` (default) is the horizon-only range of
+            ``chance_scoring._Span``; ``"ifib"`` is the belief-dependent
+            interactive fast-informed bound of ``frontier_bounds``.
+        scoring: ``"legacy"`` (default) keeps an action's whole search value
+            when one of its observation branches was never sampled at three or
+            more steps to go; ``"pw"`` weights every branch by its exact
+            probability, puts a bounded stand-in on the unsampled ones and clips
+            each value into its certified interval (it always computes bounds).
+        unsampled_value: Point of an unsampled branch's interval used as its
+            stand-in under ``scoring="pw"``: ``"lower"``, ``"mid"`` or ``"upper"``.
+
+    The search seed ignores the stopping rules and the scoring-only fields
+    (``SCORING_FIELDS``: they read a finished tree and never touch the search
+    stream, so scoring variants score the same tree). Search-changing fields
+    added later enter the seed only when they differ from their defaults
+    (``NEUTRAL_DEFAULTS``), so every stored result is reproduced by a default
+    configuration.
     """
 
     simulations: int
@@ -65,6 +83,9 @@ class PlannerConfig:
     exploration: float = 1.0
     modeled_stopping: ModeledStopping | None = None
     root_stopping: ModeledStopping | None = None
+    frontier_bounds: str = "scalar"
+    scoring: str = "legacy"
+    unsampled_value: str = "lower"
 
     def __post_init__(self):
         for name in ("simulations", "depth", "modeled_simulations"):
@@ -83,3 +104,20 @@ class PlannerConfig:
             if type(self.root_stopping) is not ModeledStopping:
                 raise TypeError("root_stopping must be a ModeledStopping")
             self.root_stopping.checkpoints(self.simulations)
+        if self.frontier_bounds not in FRONTIER_BOUNDS:
+            raise ValueError(f"frontier_bounds must be one of {FRONTIER_BOUNDS}")
+        if self.scoring not in SCORING:
+            raise ValueError(f"scoring must be one of {SCORING}")
+        if self.unsampled_value not in UNSAMPLED_VALUES:
+            raise ValueError(f"unsampled_value must be one of {UNSAMPLED_VALUES}")
+
+
+FRONTIER_BOUNDS = ("scalar", "ifib")
+SCORING = ("legacy", "pw")
+UNSAMPLED_VALUES = ("lower", "mid", "upper")
+
+# Fields that read the finished tree only; never part of the search seed.
+SCORING_FIELDS = ("frontier_bounds", "scoring", "unsampled_value")
+
+# Search-changing fields added later, dropped from the seed while they hold these values.
+NEUTRAL_DEFAULTS = {}

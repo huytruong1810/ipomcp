@@ -53,6 +53,21 @@ not the searched one. Width measures what the tree leaves unknown (contribution
 fallback actions too, so they cost more, and real decisions request them while
 modeled solves, scored at every stopping checkpoint, do not.
 
+Belief-dependent bounds and probability-weighted scoring (optional)
+-------------------------------------------------------------------
+``frontier`` (a ``frontier_bounds.FrontierBounds``) replaces the scalar
+[lo_r, hi_r] wherever a belief is at hand: an unsampled branch is bounded from
+its parent's belief, a rollout frontier and an untried action from their own
+(the I-FIB upper and blind lower bounds; intersected with the scalar ones).
+Values are unchanged; only intervals tighten.
+
+``scoring="pw"`` changes values: every branch of an evaluated action enters
+with its exact probability; an unsampled branch at three or more steps to go
+enters as a point of its bounded interval (``unsampled``: its lower end by
+default, the value of a default policy), and each value is clipped into its
+certified interval. It needs bounds. The default ``"legacy"`` keeps the
+behaviour described next.
+
 What stays approximate
 ----------------------
 - **Missing branches, three or more steps left.** If a positive-probability
@@ -86,7 +101,7 @@ still carry their own frequency errors; hence the recursion.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 
 @dataclass(frozen=True)
@@ -102,6 +117,9 @@ class ChanceScores:
         frontiers: Rollout frontiers whose estimate entered a rescored value.
         bounds: {a: (lo, hi)} certified to contain the exact Q*(root, a) of the
             searched model, when requested; else None.
+        heuristic_branches: Unsampled branches valued by a bounded stand-in
+            (``scoring="pw"`` only).
+        heuristic_mass: Sum of those branches' probabilities over the tree.
     """
 
     values: dict
@@ -109,12 +127,33 @@ class ChanceScores:
     fallback_actions: int
     frontiers: int
     bounds: dict | None = None
+    heuristic_branches: int = 0
+    heuristic_mass: float = 0.0
 
 
 @dataclass
 class _Tally:
     fallback_actions: int = 0
     frontiers: int = 0
+    heuristic_branches: int = 0
+    heuristic_mass: list = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _Ctx:
+    bank: object
+    successor: object
+    gamma: float
+    tally: _Tally
+    span: object
+    frontier: object = None
+    scoring: str = "legacy"
+    unsampled: str = "lower"
+
+    def node_bounds(self, model, remaining):
+        if self.frontier is None:
+            return None
+        return self.frontier.node_bounds(model, remaining, self.bank)
 
 
 class _Span:
@@ -127,7 +166,14 @@ class _Span:
             self.hi.append(r_max + gamma * max(0.0, self.hi[-1]))
 
 
-def score_tree(root, model, depth, bank, successor, gamma, bounds=False):
+SCORING = ("legacy", "pw")
+UNSAMPLED = ("lower", "mid", "upper")
+
+
+def score_tree(
+    root, model, depth, bank, successor, gamma, bounds=False, *,
+    frontier=None, scoring="legacy", unsampled="lower",
+):
     """Rescore a searched tree with exact chance probabilities (see module docstring).
 
     Args:
@@ -139,45 +185,77 @@ def score_tree(root, model, depth, bank, successor, gamma, bounds=False):
             update the search used, so scored and searched beliefs agree.
         gamma: Discount factor.
         bounds: Also return certified intervals for the root actions.
+        frontier: ``FrontierBounds`` for belief-dependent intervals, or None
+            for the scalar ones. Used only with ``bounds``.
+        scoring: ``"legacy"`` or ``"pw"`` (module docstring); ``"pw"`` needs ``bounds``.
+        unsampled: Stand-in of an unsampled branch under ``"pw"``.
     """
+    if scoring not in SCORING or unsampled not in UNSAMPLED:
+        raise ValueError(f"scoring must be in {SCORING} and unsampled in {UNSAMPLED}")
+    if scoring == "pw" and not bounds:
+        raise ValueError("Probability-weighted scoring needs bounds")
     tally = _Tally()
     span = None
     if bounds:
         r_min, r_max = model.frame.pomdp_model.reward_bounds(model.frame.agent_id)
         span = _Span(r_min, r_max, gamma, depth)
-    values, exact, intervals = _action_values(
-        root, model, depth, bank, successor, gamma, tally, span
+    ctx = _Ctx(bank, successor, gamma, tally, span, frontier if bounds else None, scoring, unsampled)
+    values, exact, intervals = _action_values(root, model, depth, ctx)
+    return ChanceScores(
+        values,
+        exact,
+        tally.fallback_actions,
+        tally.frontiers,
+        intervals,
+        tally.heuristic_branches,
+        math.fsum(tally.heuristic_mass),
     )
-    return ChanceScores(values, exact, tally.fallback_actions, tally.frontiers, intervals)
 
 
-def _value(node, model, remaining, bank, successor, gamma, tally, span):
+def _intersect(first, second):
+    return (max(first[0], second[0]), min(first[1], second[1]))
+
+
+def _value(node, model, remaining, ctx):
     """(V*(h), exact, interval or None) at a child history."""
+    bank, gamma, span = ctx.bank, ctx.gamma, ctx.span
     if remaining == 1:
         value = max(dict(bank.expected_rewards(model)).values())
         return value, True, (value, value)
     if not node.action_values:
         if node.rollout_value is None:
             raise ValueError("History node has neither action nor rollout estimates")
-        tally.frontiers += 1
+        ctx.tally.frontiers += 1
         interval = None if span is None else (span.lo[remaining], span.hi[remaining])
-        return node.rollout_value, False, interval
-    values, exact, intervals = _action_values(
-        node, model, remaining, bank, successor, gamma, tally, span
-    )
+        nb = ctx.node_bounds(model, remaining)
+        if nb is not None:
+            interval = _intersect(interval, (max(nb.q_lo.values()), max(nb.q_hi.values())))
+        value = node.rollout_value
+        if ctx.scoring == "pw":
+            value = min(max(value, interval[0]), interval[1])
+        return value, False, interval
+    values, exact, intervals = _action_values(node, model, remaining, ctx)
     interval = None
     if span is not None:
+        nb = ctx.node_bounds(model, remaining)
         lows, highs = [lo for lo, _ in intervals.values()], [hi for _, hi in intervals.values()]
         for action, reward in bank.expected_rewards(model):
             if action not in intervals:
-                lows.append(reward + gamma * min(0.0, span.lo[remaining - 1]))
-                highs.append(reward + gamma * max(0.0, span.hi[remaining - 1]))
+                untried = (
+                    reward + gamma * min(0.0, span.lo[remaining - 1]),
+                    reward + gamma * max(0.0, span.hi[remaining - 1]),
+                )
+                if nb is not None:
+                    untried = _intersect(untried, (nb.q_lo[action], nb.q_hi[action]))
+                lows.append(untried[0])
+                highs.append(untried[1])
         interval = (max(lows), max(highs))
     return max(values.values()), exact, interval
 
 
-def _action_values(node, model, remaining, bank, successor, gamma, tally, span):
+def _action_values(node, model, remaining, ctx):
     """({a: Q*(h, a)} over evaluated actions, exact, {a: interval} or None) at an expanded history."""
+    bank, successor, gamma, span, tally = ctx.bank, ctx.successor, ctx.gamma, ctx.span, ctx.tally
     rewards = dict(bank.expected_rewards(model))
     if remaining == 1:
         return rewards, True, None if span is None else {a: (r, r) for a, r in rewards.items()}
@@ -185,6 +263,7 @@ def _action_values(node, model, remaining, bank, successor, gamma, tally, span):
         raise ValueError("Search evaluated an action the model does not declare")
     values, intervals = {}, None if span is None else {}
     exact = set(node.action_values) == set(rewards)
+    nb = ctx.node_bounds(model, remaining) if remaining > 2 else None
     for action, search_q in node.action_values.items():
         if gamma == 0:
             values[action] = rewards[action]
@@ -195,7 +274,8 @@ def _action_values(node, model, remaining, bank, successor, gamma, tally, span):
         children = node.children.get(action, {})
         if not set(children) <= {o for o, _ in law}:
             raise ValueError("Search reached an observation with zero probability under b_h")
-        fallback = remaining > 2 and any(o not in children for o, _ in law)
+        missing = remaining > 2 and any(o not in children for o, _ in law)
+        fallback = missing and ctx.scoring == "legacy"
         if fallback:
             tally.fallback_actions += 1
             values[action] = search_q
@@ -204,9 +284,20 @@ def _action_values(node, model, remaining, bank, successor, gamma, tally, span):
                 continue
         terms, lows, highs = [], [], []
         for observation, probability in law:
-            if fallback and observation not in children:
-                lows.append(probability * span.lo[remaining - 1])
-                highs.append(probability * span.hi[remaining - 1])
+            if missing and observation not in children:
+                if nb is None:
+                    lo = probability * span.lo[remaining - 1]
+                    hi = probability * span.hi[remaining - 1]
+                else:
+                    lo = max(probability * span.lo[remaining - 1], nb.branch_lo[action][observation])
+                    hi = min(probability * span.hi[remaining - 1], nb.branch_hi[action][observation])
+                lows.append(lo)
+                highs.append(hi)
+                if not fallback:
+                    terms.append({"lower": lo, "upper": hi, "mid": 0.5 * (lo + hi)}[ctx.unsampled])
+                    tally.heuristic_branches += 1
+                    tally.heuristic_mass.append(probability)
+                    exact = False
                 continue
             following = successor(model, action, observation)
             if remaining == 2:
@@ -219,22 +310,22 @@ def _action_values(node, model, remaining, bank, successor, gamma, tally, span):
                     children[observation],
                     following,
                     remaining - 1,
-                    bank,
-                    successor,
-                    gamma,
-                    _Tally() if fallback else tally,
-                    span,
+                    replace(ctx, tally=_Tally()) if fallback else ctx,
                 )
             terms.append(probability * child_value)
             exact = exact and child_exact
             if span is not None:
                 lows.append(probability * child_interval[0])
                 highs.append(probability * child_interval[1])
-        if not fallback:
-            values[action] = rewards[action] + gamma * math.fsum(terms)
         if span is not None:
             intervals[action] = (
                 rewards[action] + gamma * math.fsum(lows),
                 rewards[action] + gamma * math.fsum(highs),
             )
+        if not fallback:
+            value = rewards[action] + gamma * math.fsum(terms)
+            if ctx.scoring == "pw":
+                lo, hi = intervals[action]
+                value = min(max(value, lo), hi)
+            values[action] = value
     return values, exact, intervals

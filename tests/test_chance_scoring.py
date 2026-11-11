@@ -187,3 +187,116 @@ def test_modeled_solves_skip_bounds_and_keep_their_values():
     assert planner.scores.bounds is not None
     assert rescore(planner).bounds is None
     assert rescore(planner).values == planner.scores.values
+
+
+# --------------------------------------------------------------------------- #
+# Belief-dependent bounds (I-FIB) and probability-weighted scoring
+# --------------------------------------------------------------------------- #
+
+
+def certified(planner, scoring="legacy", unsampled="lower", frontier=True):
+    bank, model = planner.solver_bank, planner.model()
+    bounds = bank.frontier_bounds(model, planner.config.gamma, planner.config.depth) if frontier else None
+    return score_tree(
+        planner.root, model, planner.config.depth, bank, planner._history_successor,
+        planner.config.gamma, True, frontier=bounds, scoring=scoring, unsampled=unsampled,
+    )
+
+
+def test_missing_branches_keep_the_whole_search_value_only_under_legacy():
+    planner = make_planner(depth=3, simulations=12)
+    planner.policy_for(planner.model())
+    legacy, pw = certified(planner, "legacy"), certified(planner, "pw")
+    assert legacy.values == planner.scores.values and legacy.fallback_actions > 0
+    assert pw.fallback_actions == 0 and pw.heuristic_branches > 0 and 0 < pw.heuristic_mass
+    assert not pw.exact
+
+
+@pytest.mark.parametrize("p", [0.08, 0.5, 0.85])
+def test_pw_equals_legacy_on_complete_trees(p):
+    planner = make_planner(depth=3, simulations=3000, p=p)
+    planner.policy_for(planner.model())
+    assert planner.scores.exact
+    for frontier in (False, True):
+        pw = certified(planner, "pw", frontier=frontier)
+        assert pw.values == planner.scores.values and pw.exact and pw.heuristic_branches == 0
+
+
+def test_pw_weights_sampled_branches_exactly():
+    # Remove one sampled branch at three steps to go: the action's value becomes
+    # ER + gamma * (sum of exact-weighted child values + the stand-in of the missing branch).
+    planner = make_planner(depth=3, simulations=3000, p=0.7)
+    planner.policy_for(planner.model())
+    bank, model, gamma = planner.solver_bank, planner.model(), planner.config.gamma
+    action = "L"
+    law = bank.continuation_law(model, action)
+    removed, removed_p = law[0]
+    del planner.root.children[action][removed]
+    frontier = bank.frontier_bounds(model, gamma, 3)
+    nb = frontier.node_bounds(model, 3, bank)
+    reference = BestResponseReference(planner.pomdp_model, bank, gamma)
+    exact = reference.q_values(model, 3)
+    for unsampled in ("lower", "mid", "upper"):
+        scores = certified(planner, "pw", unsampled)
+        stand_in = {
+            "lower": nb.branch_lo[action][removed],
+            "upper": nb.branch_hi[action][removed],
+            "mid": 0.5 * (nb.branch_lo[action][removed] + nb.branch_hi[action][removed]),
+        }[unsampled]
+        reward = dict(bank.expected_rewards(model))[action]
+        others = math.fsum(
+            p * max(reference.q_values(planner._history_successor(model, action, o), 2).values())
+            for o, p in law if o != removed
+        )
+        expected = reward + gamma * (others + stand_in)
+        assert scores.values[action] == pytest.approx(expected, abs=1e-9)
+        assert scores.heuristic_branches == 1 and scores.heuristic_mass == removed_p
+        lo, hi = scores.bounds[action]
+        assert lo - 1e-9 <= exact[action] <= hi + 1e-9
+
+
+@pytest.mark.parametrize("depth, simulations", [(3, 12), (3, 60), (4, 50), (4, 800)])
+@pytest.mark.parametrize("p", [0.08, 0.5, 0.85])
+def test_pw_scored_values_lie_in_their_intervals(depth, simulations, p):
+    planner = make_planner(depth=depth, simulations=simulations, p=p)
+    planner.policy_for(planner.model())
+    for frontier in (False, True):
+        scores = certified(planner, "pw", frontier=frontier)
+        for action, value in scores.values.items():
+            lo, hi = scores.bounds[action]
+            assert lo <= value <= hi
+
+
+@pytest.mark.parametrize("depth, simulations", [(2, 3), (3, 12), (3, 200), (4, 50), (4, 800)])
+@pytest.mark.parametrize("p", [0.08, 0.5, 0.85])
+@pytest.mark.parametrize("scoring", ["legacy", "pw"])
+def test_ifib_bounds_contain_the_exact_values_and_are_no_wider(depth, simulations, p, scoring):
+    planner = make_planner(depth=depth, simulations=simulations, p=p)
+    planner.policy_for(planner.model())
+    scalar = planner.scores
+    scores = certified(planner, scoring)
+    exact = BestResponseReference(planner.pomdp_model, planner.solver_bank, 0.95).q_values(
+        planner.model(), depth
+    )
+    if scoring == "legacy":
+        assert scores.values == scalar.values  # bounds never move legacy values
+    for action, (lo, hi) in scores.bounds.items():
+        assert lo - 1e-9 <= exact[action] <= hi + 1e-9
+        s_lo, s_hi = scalar.bounds[action]
+        assert s_lo - 1e-9 <= lo and hi <= s_hi + 1e-9
+
+
+def test_the_planner_threads_frontier_and_scoring_from_its_config():
+    from dataclasses import replace
+
+    planner = make_planner(depth=3, simulations=60)
+    plain = planner.config
+    planner.policy_for(planner.model())
+    tree = copy.deepcopy(planner.root.to_dict(max_depth=10))
+    planner.config = replace(plain, frontier_bounds="ifib", scoring="pw")
+    planner.policy_for(planner.model())
+    threaded = planner.scores
+    # The same tree is searched (scoring fields are outside the seed), and scored as configured.
+    assert planner.root.to_dict(max_depth=10) == tree
+    assert threaded == certified(planner, "pw")
+    assert threaded.fallback_actions == 0

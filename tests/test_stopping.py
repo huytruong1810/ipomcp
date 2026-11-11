@@ -75,9 +75,35 @@ def test_the_seed_digest_ignores_both_stopping_rules():
 
     # The fields that existed before either rule: seeds must not depend on the rules' presence.
     config = PlannerConfig(400, 3, 400)
-    assert {k for k in asdict(config) if k not in _STOPPING_FIELDS} == {
+    from ipomdp.planning.i_pomcp import seed_config
+
+    assert set(asdict(config)) >= set(_STOPPING_FIELDS)
+    assert set(seed_config(config)) == {
         "simulations", "depth", "modeled_simulations", "gamma", "exploration"
     }
+
+
+def test_a_default_config_hashes_as_before_the_certified_fields():
+    from dataclasses import replace
+
+    from ipomdp.belief import canonical
+    from ipomdp.planning.i_pomcp import seed_config
+
+    def digest(config):
+        settings = {"planner": "I-POMCP", "config": seed_config(config), "simulations": 400}
+        return canonical.digest([canonical.stable_value(settings)])
+
+    config = PlannerConfig(400, 3, 400)
+    # Digest of the default configuration on main at 20b8d6f (tag r-final-start).
+    assert digest(config) == "4a2e7fd99e973874dc2ca2fb8de67ac8151036372dccf5268901640c36f5439b"
+    assert seed_config(config) == {
+        "simulations": 400, "depth": 3, "modeled_simulations": 400, "gamma": 0.95, "exploration": 1.0
+    }
+    # Scoring-only fields never enter the seed: their variants score the same tree.
+    varied = replace(config, frontier_bounds="ifib", scoring="pw", unsampled_value="mid")
+    assert digest(varied) == digest(config)
+    with pytest.raises(ValueError):
+        PlannerConfig(400, 3, 400, scoring="other")
 
 
 def test_a_grown_tree_equals_a_flat_search_of_its_size():

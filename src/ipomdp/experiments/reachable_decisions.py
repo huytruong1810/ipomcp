@@ -71,7 +71,12 @@ from ipomdp.experiments.wumpus_qualification import (
     _model_at,
     nested_levels,
 )
-from ipomdp.planning.config import PlannerConfig
+from ipomdp.planning.config import (
+    FRONTIER_BOUNDS,
+    SCORING,
+    UNSAMPLED_VALUES,
+    PlannerConfig,
+)
 from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
@@ -213,7 +218,7 @@ def _decoded(value):
 
 
 def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, particle_filter,
-             modeled_exact=False, cache_size=200_000, prior=None, rts_published=False):
+             modeled_exact=False, cache_size=200_000, prior=None, rts_published=False, certified=None):
     """i at ``level`` with point-mass nesting; every modeled level is solved by the same kind of planner.
 
     With ``modeled_exact``, every modeled level is instead the exact best response at ``horizon`` to the
@@ -225,10 +230,16 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
     (RESULTS 12.116): their interactive particle filter (exact bottom level, enumerated observations of the other
     agent; "published-smoothed" when ``particle_filter`` is "smoothed"), their RTS backup, and every level-1 model
     (their level 0) solved exactly.
+
+    ``certified`` (I-POMCP only): ``PlannerConfig`` options of the certified planner (audit spec 3.0) for
+    i's own decision; modeled levels keep the default configuration.
     """
+    if certified and kind != "mcts":
+        raise ValueError("Certified options are I-POMCP arms")
     if kind == "mcts":
         config = PlannerConfig(
-            simulations=budget, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
+            simulations=budget, depth=horizon, modeled_simulations=modeled, gamma=GAMMA,
+            **(certified or {}),
         )
         lower = PlannerConfig(
             simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
@@ -308,12 +319,14 @@ def _loss(policy, q):
 
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
            variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None,
-           cache_size=200_000, rts_published=False):
+           cache_size=200_000, rts_published=False, certified=None):
     """One decision of an arm on a stored problem, scored against its exact Q.
 
     ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
     recorded under ``ladder`` with its certified intervals (V2 coverage); the row's own fields are the stage
     at ``budget``, identical to a decision without a ladder.
+
+    ``certified``: non-default ``PlannerConfig`` options of i's own planner (``_planner``), recorded in the row.
 
     A digest-only problem (no exact Q, beyond the exact solver's reach) gives an unscored row: its CPU and
     values, with ``scored`` false and no loss.
@@ -362,12 +375,16 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
             history_cpu_seconds=total - agent.search_cpu_seconds,
             forced_share=max(agent.forced_shares, default=0.0),
         )
+    defaults = PlannerConfig(1, 1, 1)
+    certified = {k: v for k, v in (certified or {}).items() if getattr(defaults, k) != v}
+    if certified:
+        row["certified"] = certified
     if modeled_exact:
         if kind != "mcts":
             raise ValueError("Exact modeled levels are an I-POMCP arm")
         row["modeled"] = "exact"
     planner = _planner(physics, kind, seed, budget, horizon, level, modeled or budget, particles,
-                       particle_filter, modeled_exact, cache_size, wide, rts_published)
+                       particle_filter, modeled_exact, cache_size, wide, rts_published, certified)
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -392,6 +409,8 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
         bounds = planner.scores.bounds
         row |= dict(exact_root=planner.scores.exact, bounds={str(a): b for a, b in bounds.items()},
                     bound_width=max(hi - lo for lo, hi in bounds.values()))
+        if certified:
+            row |= _heuristic(planner.scores)
         if q is not None:
             # Certified for the searched model; they must contain q when that model is the exact one
             # (exact modeled levels and exact beliefs).
@@ -407,11 +426,17 @@ def _stage(simulations, scores, cpu_seconds, q):
                  values={str(a): v for a, v in scores.values.items()},
                  bounds={str(a): b for a, b in bounds.items()},
                  bound_width=max(hi - lo for lo, hi in bounds.values()))
+    if scores.heuristic_branches:
+        stage |= _heuristic(scores)
     if q is not None:
         stage["loss"] = _loss(greedy_policy(scores.values, TIE_TOLERANCE if scores.exact else 0.0), q)
         stage["bounds_contain_reference"] = all(
             lo - 1e-9 <= q[str(a)] <= hi + 1e-9 for a, (lo, hi) in bounds.items())
     return stage
+
+
+def _heuristic(scores):
+    return dict(heuristic_branches=scores.heuristic_branches, heuristic_mass=scores.heuristic_mass)
 
 
 def _write(path, row):
@@ -460,6 +485,12 @@ def main():
                      help="IPF + RTS exactly as published (RESULTS 12.116): their filter, backup and exact level 0")
     dec.add_argument("--ladder", type=int, nargs="+",
                      help="I-POMCP: also score the same tree at these smaller budgets (anytime intervals)")
+    dec.add_argument("--frontier-bounds", choices=FRONTIER_BOUNDS, default="scalar",
+                     help="I-POMCP certified intervals: scalar (default) or belief-dependent I-FIB")
+    dec.add_argument("--scoring", choices=SCORING, default="legacy",
+                     help="I-POMCP scoring of unsampled branches: legacy (default) or probability-weighted")
+    dec.add_argument("--unsampled", choices=UNSAMPLED_VALUES, default="lower",
+                     help="stand-in of an unsampled branch under --scoring pw")
     dec.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if args.out.exists():
@@ -485,7 +516,9 @@ def main():
         started = time.process_time()
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
-                     args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published)
+                     args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published,
+                     dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
+                          unsampled_value=args.unsampled))
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 

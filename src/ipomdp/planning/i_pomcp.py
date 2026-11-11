@@ -63,7 +63,7 @@ from dataclasses import asdict
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.planning.chance_scoring import score_tree
-from ipomdp.planning.config import PlannerConfig
+from ipomdp.planning.config import NEUTRAL_DEFAULTS, SCORING_FIELDS, PlannerConfig
 from ipomdp.planning.exploration import HorizonBoundUCB
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import POMCPNode
@@ -222,7 +222,7 @@ class IPOMCPPlanner(Planner):
         prefix of the flat search of its cap. Pilot trees add their index as
         ``replicate``.
         """
-        config = {k: v for k, v in asdict(self.config).items() if k not in _STOPPING_FIELDS}
+        config = seed_config(self.config)
         settings = {"planner": "I-POMCP", "config": config, "simulations": simulations}
         if replicate is not None:
             settings["replicate"] = replicate
@@ -359,18 +359,46 @@ class _GrowingSearch:
         for _ in range(simulations - self.simulations):
             planner._simulate(self.root, 0, self.memory, self.model, self.rng)
         self.simulations = simulations
+        config = planner.config
+        # Probability-weighted scoring clips into certified intervals, so it always needs them.
+        bounds = bounds or config.scoring == "pw"
+        frontier = None
+        if bounds and config.frontier_bounds != "scalar":
+            frontier = planner.solver_bank.frontier_bounds(
+                self.model, config.gamma, config.depth, config.frontier_bounds
+            )
         return score_tree(
             self.root,
             self.model,
-            planner.config.depth,
+            config.depth,
             planner.solver_bank,
             planner._history_successor,
-            planner.config.gamma,
+            config.gamma,
             bounds,
+            frontier=frontier,
+            scoring=config.scoring,
+            unsampled=config.unsampled_value,
         )
 
 
 _STOPPING_FIELDS = ("modeled_stopping", "root_stopping")
+
+
+def seed_config(config):
+    """The configuration as it enters the search seed.
+
+    Drops the stopping rules, the scoring-only fields (``config.SCORING_FIELDS``)
+    and every later field that holds its neutral default
+    (``config.NEUTRAL_DEFAULTS``), so a default configuration hashes as it did
+    before those fields existed and scoring variants search the same tree.
+    """
+    return {
+        k: v
+        for k, v in asdict(config).items()
+        if k not in _STOPPING_FIELDS
+        and k not in SCORING_FIELDS
+        and not (k in NEUTRAL_DEFAULTS and v == NEUTRAL_DEFAULTS[k])
+    }
 
 
 def _policy(scores):
