@@ -468,7 +468,8 @@ def compression_bound(root, model, depth, bank, successor, gamma):
 
         c_1 = 0,  c_r(h, a) = gamma * sum_o P(o, alive | b_h, a) [W_{r-1} eps_{hao} + max_a' c_{r-1}(hao, a')]
 
-    over the children the tree expanded (an unexpanded branch contributes 0:
+    over the children the tree expanded, and over every branch with two steps to go (those are
+    always valued from their own belief) (any other unexpanded branch contributes 0:
     its interval comes from the parent's belief), with eps the mass a
     head-tail compression replaced to form the child's belief
     (``CompressedInteractiveFilter.loss``) and W_r the scalar return range,
@@ -497,6 +498,12 @@ def compression_bound(root, model, depth, bank, successor, gamma):
         terms = []
         for observation, probability in bank.continuation_law(belief_model, action):
             child = node.get_child(action, observation)
+            if r == 2:
+                # With two steps to go every branch is valued from its own (compressed) belief,
+                # by scoring and by the exact tail, whether or not it is a node of the tree.
+                following = successor(belief_model, action, observation)
+                terms.append(probability * width[1] * loss(following.belief))
+                continue
             if not expanded(child):
                 continue
             following = successor(belief_model, action, observation)

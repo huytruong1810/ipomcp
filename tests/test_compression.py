@@ -84,3 +84,42 @@ def test_the_compression_slack_contains_the_uncompressed_searched_value(seed):
                                      compression="head-tail")
     assert row["max_loss"] > 0  # the beliefs were compressed
     assert row["bounds_compression_widened_contain_searched"]
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_the_compression_slack_covers_the_exact_tail_of_certified_search(seed):
+    # With the exact two-step tail, histories with two steps to go are solved from compressed
+    # successor beliefs that never become tree nodes; their losses must enter the slack too.
+    problem = reachable_decisions.reference(
+        "tiger-joint", 2, 3, seed, 1, prior=dict(kind="wide", M=8, w0=0.0)
+    )
+    certified = dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, prune=True,
+                     leaf_eval="bound", lazy_expansion=True)
+    row = reachable_decisions.decide(problem, "mcts", 200, 0, modeled=50, particles=8,
+                                     compression="head-tail", certified=certified)
+    assert row["bounds_compression_widened_contain_searched"]
+
+
+def test_two_step_branches_are_charged_even_without_tree_nodes():
+    # A depth-2 certified search is solved by the exact tail at expansion: no child node exists,
+    # yet each branch is valued from its own compressed belief, so its loss must enter the slack.
+    from ipomdp.experiments.reachable_decisions import GAMMA, _planner, make_physics
+    from ipomdp.planning.chance_scoring import compression_bound
+
+    physics = make_physics("tiger-joint")
+    certified = dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, prune=True,
+                     leaf_eval="bound", lazy_expansion=True)
+    planner = _planner(physics, "mcts", 0, 50, 2, 2, 20, 4, "sampled", certified=certified,
+                       compression="head-tail", prior=(8, 0.0))
+    model = planner.model()
+    planner.policy_for(model)
+    bank = planner.solver_bank
+    slack = compression_bound(planner.root, model, 2, bank, planner._history_successor, GAMMA)
+    charged = 0
+    for action in planner.actions:
+        losses = [bank.search_filter.loss(planner._history_successor(model, action, o).belief)
+                  for o, _ in bank.continuation_law(model, action)]
+        if any(loss > 0 for loss in losses):
+            assert slack[action] > 0
+            charged += 1
+    assert charged >= 1
