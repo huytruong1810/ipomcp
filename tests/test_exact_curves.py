@@ -114,3 +114,20 @@ def test_node_records_sum_to_the_step_rows_and_respect_the_confidence_bound():
     for r in records:
         eps = 1 - r["posterior_true"]
         assert r["plan_gain"] >= -eps / (1 - eps) * width - 1e-9
+
+
+@pytest.mark.parametrize("game", ["published", "coordination"])
+def test_boundary_level_checks_hold_at_every_history(game):
+    # Theorem 2b (audit spec 2.4): with the truth at level k = 1, the mixture identity holds and the
+    # plan gain of level 2 is at least (1 - lambda) / lambda times its regret under level 1's belief.
+    from ipomdp.domains.tiger import JointTigerModel, TigerModel
+
+    physics = TigerModel() if game == "published" else JointTigerModel(together_safe=40.0)
+    records = []
+    list(exact_decision_gains(physics, "i", 1, 1, 3, 2, 2, on_node=records.append, boundary=True))
+    assert records
+    for r in records:
+        assert 0 < r["lambda"] <= 1
+        assert r["mixture_residual"] <= 1e-9
+        assert r["regret"] >= -1e-9
+        assert r["bound_slack"] >= -1e-9

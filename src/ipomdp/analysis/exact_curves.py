@@ -166,9 +166,26 @@ def _plan_value(truth, reference, stepper, belief, horizon, gamma):
     return math.fsum(terms)
 
 
+def _boundary_record(lower, upper, b_lower, b_upper, k, posterior, plan_gain, horizon, gamma):
+    """Theorem 2b's quantities at one history (``exact_decision_gains(boundary=True)``)."""
+    lam = posterior.get(k, 0.0)
+    shallow = dict(b_lower.mass)
+    deep = {atom: w for atom, w in b_upper.mass if atom.opponent.frame.level < k}
+    residual = max(
+        (abs(deep.get(x, 0.0) - (1 - lam) * shallow.get(x, 0.0)) for x in set(deep) | set(shallow)),
+        default=0.0,
+    )
+    own = lower.planner.model(b_lower)
+    reference = lower.planner.reference
+    regret = _plan_value(own, reference, lower, b_lower, horizon, gamma) - _plan_value(
+        own, reference, upper, b_upper, horizon, gamma)
+    slack = plan_gain - ((1 - lam) / lam) * regret if lam > 0 else None
+    return {"lambda": lam, "mixture_residual": residual, "regret": regret, "bound_slack": slack}
+
+
 def exact_decision_gains(
     physics, agent, k, m, steps, horizon, reference_level, gamma=0.95, max_nodes=2_000_000, on_node=None,
-    cache_size=200_000,
+    cache_size=200_000, boundary=False,
 ):
     """Yield, per step, the exact value of one more level at the decision points of that step.
 
@@ -192,7 +209,14 @@ def exact_decision_gains(
         ``on_node``, if given, receives one record per history: its step, mass, level k + 1's
         posterior on the true level, and its immediate gain, plan gain and residual.
         ``cache_size`` bounds each exact agent's reference caches (memory against CPU, values unchanged).
+        ``boundary`` (class (b): m = k >= 1, with ``on_node``) adds per history the checks of Theorem 2b
+        (audit spec 2.4, 4.6): ``lambda`` = P_{k+1}(m = k | h); ``mixture_residual``, the largest
+        |b_{k+1}(x) - (1 - lambda) b_k(x)| over atoms x whose model is below level k (0 by the
+        mixture identity); ``regret``, the value of level k's plan minus level k + 1's plan under level
+        k's own belief; and ``bound_slack`` = plan gain - (1 - lambda) / lambda * regret (>= 0).
     """
+    if boundary and not (m == k >= 1):
+        raise ValueError("Boundary checks are defined for class (b): m = k >= 1")
     if reference_level not in (k, k + 1):
         raise ValueError("The reference level must be k or k + 1")
     other = "j" if agent == "i" else "i"
@@ -260,9 +284,13 @@ def exact_decision_gains(
                 residual_min = min(residual_min, residual)
                 gap_max = max(gap_max, abs(mixture - max(up.reference.q_values(model, horizon).values())))
             if on_node is not None:
-                on_node({"step": step, "mass": mass, "posterior_true": posterior.get(m, 0.0),
-                         "immediate_gain": immediate_gain, "plan_gain": plan_gain,
-                         "residual": residual if per_level is not None else None})
+                record = {"step": step, "mass": mass, "posterior_true": posterior.get(m, 0.0),
+                          "immediate_gain": immediate_gain, "plan_gain": plan_gain,
+                          "residual": residual if per_level is not None else None}
+                if boundary:
+                    record |= _boundary_record(lower, upper, b_lower, b_upper, k, posterior, plan_gain,
+                                               horizon, gamma)
+                on_node(record)
             pi_ref = driver.policy(b_lower if driver is lower else b_upper, horizon)
             sums["reward_ref"].append(mass * math.fsum(p * immediate[a] for a, p in pi_ref.items()))
             for action, p_a in pi_ref.items():
