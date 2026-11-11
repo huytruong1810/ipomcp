@@ -385,6 +385,11 @@ def _action_values(node, model, remaining, ctx):
                 rewards[action] + gamma * math.fsum(lows),
                 rewards[action] + gamma * math.fsum(highs),
             )
+            cert = node.cert
+            if cert is not None and cert.expanded and action in cert.q_hi:
+                # Certified search's own bounds on this action (refreshed from deeper histories than
+                # the tree may still hold as nodes) are sound too: keep the tighter of the two.
+                intervals[action] = _intersect(intervals[action], (cert.q_lo[action], cert.q_hi[action]))
         if not fallback:
             value = rewards[action] + gamma * math.fsum(terms)
             if ctx.scoring == "pw":

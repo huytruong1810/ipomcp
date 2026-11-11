@@ -276,3 +276,11 @@ def test_a_solved_but_unresolved_root_keeps_searching():
     before = dict(root.action_counts)
     planner._simulate_certified(root, 0, planner._physical_marginal(model), model, stdlib_random.Random(1))
     assert root.action_counts == before
+
+
+def test_scored_intervals_are_no_wider_than_the_searchs_own_bounds():
+    planner = tiger(0.3, 4, 300, **dict(CERTIFIED, selection="iemax"))
+    planner.policy_for(planner.model())
+    cert = planner.root.cert
+    for action, (lo, hi) in planner.scores.bounds.items():
+        assert lo >= cert.q_lo[action] - 1e-12 and hi <= cert.q_hi[action] + 1e-12
