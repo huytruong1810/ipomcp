@@ -18,6 +18,34 @@ from typing import Any, Dict, Optional
 from ipomdp.model.pomdp import Action, Observation
 
 
+class CertifiedState:
+    """Bounds a certified search keeps at one history (``i_pomcp._simulate_certified``).
+
+    ``lo``/``hi`` bound V(h); ``q_lo``/``q_hi`` bound Q(h, a) for every action.
+    A frontier (``expanded`` False) holds only ``lo``, ``hi`` and ``estimate``,
+    taken from its parent's branch bounds, and has no belief computed yet.
+    Bounds only tighten. ``solved`` means ``hi - lo`` is within rounding slack,
+    so ``lo`` is the exact value of the history in the searched model.
+    """
+
+    __slots__ = ("lo", "hi", "estimate", "expanded", "solved", "q_lo", "q_hi",
+                 "pruned", "prior", "law", "branch_lo", "branch_hi")
+
+    def __init__(self, lo, hi, estimate=None):
+        self.lo, self.hi, self.estimate = lo, hi, estimate
+        self.expanded = self.solved = False
+        self.q_lo, self.q_hi, self.pruned = {}, {}, set()
+        self.prior = self.law = self.branch_lo = self.branch_hi = None
+
+    def to_dict(self):
+        return {
+            "lo": self.lo, "hi": self.hi, "estimate": self.estimate, "expanded": self.expanded,
+            "solved": self.solved, "pruned": sorted(map(str, self.pruned)),
+            "q_lo": {str(a): v for a, v in self.q_lo.items()},
+            "q_hi": {str(a): v for a, v in self.q_hi.items()},
+        }
+
+
 class POMCPNode:
     def __init__(self, parent: Optional["POMCPNode"] = None) -> None:
         self.visit_count: int = 0
@@ -34,6 +62,8 @@ class POMCPNode:
         # its own actions are evaluated. None means "no estimate", never zero.
         self.rollout_value: Optional[float] = None
         self.children: Dict[Action, Dict[Observation, "POMCPNode"]] = {}
+        # Certified search only (``CertifiedState``); None on the legacy path.
+        self.cert: Optional["CertifiedState"] = None
         self._parent_ref = weakref.ref(parent) if parent is not None else None
 
     @property
@@ -119,6 +149,8 @@ class POMCPNode:
                 for a, counts in self.continuation_counts.items()
             },
         }
+        if self.cert is not None:
+            result["cert"] = self.cert.to_dict()
         if current_depth < max_depth:
             result["children"] = {
                 str(action): {

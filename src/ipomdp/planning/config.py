@@ -67,6 +67,21 @@ class PlannerConfig:
             each value into its certified interval (it always computes bounds).
         unsampled_value: Point of an unsampled branch's interval used as its
             stand-in under ``scoring="pw"``: ``"lower"``, ``"mid"`` or ``"upper"``.
+        exact_tail: Solve a history with two steps to go exactly when search
+            first expands it (certified search, ``i_pomcp._simulate_certified``).
+        prune: Keep belief-dependent bounds on every expanded history, drop an
+            action whose upper bound falls below the history's lower bound, and
+            stop the search once the root decision is resolved.
+        selection: ``"ucb"`` (default), ``"puct"`` (prior from the I-FIB upper
+            bounds) or ``"iemax"`` (largest upper bound first).
+        puct_temperature: Temperature of the PUCT prior, in units of the
+            return width.
+        leaf_eval: Value of a new frontier: ``"rollout"`` (default) or
+            ``"bound"``, a point of its I-FIB branch interval (no belief update).
+        lazy_expansion: With bound leaves, compute a frontier's belief only at
+            its second visit.
+
+    Every certified-search field needs ``frontier_bounds != "scalar"``.
 
     The search seed ignores the stopping rules and the scoring-only fields
     (``SCORING_FIELDS``: they read a finished tree and never touch the search
@@ -86,6 +101,12 @@ class PlannerConfig:
     frontier_bounds: str = "scalar"
     scoring: str = "legacy"
     unsampled_value: str = "lower"
+    exact_tail: bool = False
+    prune: bool = False
+    selection: str = "ucb"
+    puct_temperature: float = 0.25
+    leaf_eval: str = "rollout"
+    lazy_expansion: bool = False
 
     def __post_init__(self):
         for name in ("simulations", "depth", "modeled_simulations"):
@@ -110,14 +131,47 @@ class PlannerConfig:
             raise ValueError(f"scoring must be one of {SCORING}")
         if self.unsampled_value not in UNSAMPLED_VALUES:
             raise ValueError(f"unsampled_value must be one of {UNSAMPLED_VALUES}")
+        for name in ("exact_tail", "prune", "lazy_expansion"):
+            if type(getattr(self, name)) is not bool:
+                raise TypeError(f"{name} must be a bool")
+        if self.selection not in SELECTIONS:
+            raise ValueError(f"selection must be one of {SELECTIONS}")
+        if self.leaf_eval not in LEAF_EVALS:
+            raise ValueError(f"leaf_eval must be one of {LEAF_EVALS}")
+        if not math.isfinite(self.puct_temperature) or self.puct_temperature <= 0:
+            raise ValueError("puct_temperature must be finite and positive")
+        if self.certified_search and self.frontier_bounds == "scalar":
+            raise ValueError("Certified search needs belief-dependent frontier bounds")
+        if self.lazy_expansion and self.leaf_eval != "bound":
+            raise ValueError("Lazy expansion needs bound leaves")
+
+    @property
+    def certified_search(self):
+        """True when search runs ``_simulate_certified`` instead of the legacy descent."""
+        return (
+            self.exact_tail
+            or self.prune
+            or self.selection != "ucb"
+            or self.leaf_eval != "rollout"
+            or self.lazy_expansion
+        )
 
 
 FRONTIER_BOUNDS = ("scalar", "ifib")
 SCORING = ("legacy", "pw")
 UNSAMPLED_VALUES = ("lower", "mid", "upper")
+SELECTIONS = ("ucb", "puct", "iemax")
+LEAF_EVALS = ("rollout", "bound")
 
 # Fields that read the finished tree only; never part of the search seed.
 SCORING_FIELDS = ("frontier_bounds", "scoring", "unsampled_value")
 
 # Search-changing fields added later, dropped from the seed while they hold these values.
-NEUTRAL_DEFAULTS = {}
+NEUTRAL_DEFAULTS = {
+    "exact_tail": False,
+    "prune": False,
+    "selection": "ucb",
+    "puct_temperature": 0.25,
+    "leaf_eval": "rollout",
+    "lazy_expansion": False,
+}

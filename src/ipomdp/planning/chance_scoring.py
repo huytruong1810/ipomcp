@@ -201,6 +201,12 @@ def score_tree(
         span = _Span(r_min, r_max, gamma, depth)
     ctx = _Ctx(bank, successor, gamma, tally, span, frontier if bounds else None, scoring, unsampled)
     values, exact, intervals = _action_values(root, model, depth, ctx)
+    if span is not None and depth > 1:
+        # Actions certified search pruned (or never tried) still get intervals,
+        # so a containment check covers every legal action.
+        for action, reward in bank.expected_rewards(model):
+            if action not in intervals:
+                intervals[action] = _untried_interval(root, model, depth, action, reward, ctx)
     return ChanceScores(
         values,
         exact,
@@ -216,12 +222,60 @@ def _intersect(first, second):
     return (max(first[0], second[0]), min(first[1], second[1]))
 
 
+def exact_two_step(model, action, bank, successor, gamma):
+    """Q^2(b, a) = ER(b, a) + gamma * sum over positive branches of p * max_a' ER(b_ao, a').
+
+    The arithmetic of the two-steps-left case of ``_action_values``, term for
+    term, so certified search and scoring agree bit for bit.
+    """
+    rewards = dict(bank.expected_rewards(model))
+    if gamma == 0:
+        return rewards[action]
+    terms = [
+        probability * max(dict(bank.expected_rewards(successor(model, action, observation))).values())
+        for observation, probability in bank.continuation_law(model, action)
+    ]
+    return rewards[action] + gamma * math.fsum(terms)
+
+
+def _untried_interval(node, model, remaining, action, reward, ctx):
+    """Interval of an action search did not evaluate (or pruned) at an expanded history."""
+    span, gamma = ctx.span, ctx.gamma
+    interval = (
+        reward + gamma * min(0.0, span.lo[remaining - 1]),
+        reward + gamma * max(0.0, span.hi[remaining - 1]),
+    )
+    nb = ctx.node_bounds(model, remaining)
+    if nb is not None:
+        interval = _intersect(interval, (nb.q_lo[action], nb.q_hi[action]))
+    cert = node.cert
+    if cert is not None and cert.expanded and action in cert.q_hi:
+        interval = _intersect(interval, (cert.q_lo[action], cert.q_hi[action]))
+    return interval
+
+
+def _frontier_child(node, remaining, ctx):
+    """(value, False, interval) of a certified-search frontier, without its belief."""
+    ctx.tally.frontiers += 1
+    cert = node.cert
+    interval = None
+    if ctx.span is not None:
+        interval = _intersect((ctx.span.lo[remaining], ctx.span.hi[remaining]), (cert.lo, cert.hi))
+    value = node.rollout_value
+    if ctx.scoring == "pw":
+        value = min(max(value, interval[0]), interval[1])
+    return value, False, interval
+
+
 def _value(node, model, remaining, ctx):
     """(V*(h), exact, interval or None) at a child history."""
     bank, gamma, span = ctx.bank, ctx.gamma, ctx.span
     if remaining == 1:
         value = max(dict(bank.expected_rewards(model)).values())
         return value, True, (value, value)
+    if node.cert is not None and node.cert.solved:
+        # Certified search closed this history's bounds: its value is exact.
+        return node.cert.lo, True, (node.cert.lo, node.cert.hi)
     if not node.action_values:
         if node.rollout_value is None:
             raise ValueError("History node has neither action nor rollout estimates")
@@ -230,6 +284,8 @@ def _value(node, model, remaining, ctx):
         nb = ctx.node_bounds(model, remaining)
         if nb is not None:
             interval = _intersect(interval, (max(nb.q_lo.values()), max(nb.q_hi.values())))
+        if interval is not None and node.cert is not None and node.cert.lo is not None:
+            interval = _intersect(interval, (node.cert.lo, node.cert.hi))
         value = node.rollout_value
         if ctx.scoring == "pw":
             value = min(max(value, interval[0]), interval[1])
@@ -237,19 +293,15 @@ def _value(node, model, remaining, ctx):
     values, exact, intervals = _action_values(node, model, remaining, ctx)
     interval = None
     if span is not None:
-        nb = ctx.node_bounds(model, remaining)
         lows, highs = [lo for lo, _ in intervals.values()], [hi for _, hi in intervals.values()]
         for action, reward in bank.expected_rewards(model):
             if action not in intervals:
-                untried = (
-                    reward + gamma * min(0.0, span.lo[remaining - 1]),
-                    reward + gamma * max(0.0, span.hi[remaining - 1]),
-                )
-                if nb is not None:
-                    untried = _intersect(untried, (nb.q_lo[action], nb.q_hi[action]))
+                untried = _untried_interval(node, model, remaining, action, reward, ctx)
                 lows.append(untried[0])
                 highs.append(untried[1])
         interval = (max(lows), max(highs))
+        if node.cert is not None and node.cert.lo is not None:
+            interval = _intersect(interval, (node.cert.lo, node.cert.hi))
     return max(values.values()), exact, interval
 
 
@@ -298,6 +350,17 @@ def _action_values(node, model, remaining, ctx):
                     tally.heuristic_branches += 1
                     tally.heuristic_mass.append(probability)
                     exact = False
+                continue
+            child = children.get(observation)
+            if remaining > 2 and child is not None and child.cert is not None and not child.cert.expanded:
+                # A certified-search frontier: its interval came from this
+                # history's belief, so its own belief is never computed.
+                child_value, child_exact, child_interval = _frontier_child(child, remaining - 1, ctx)
+                terms.append(probability * child_value)
+                exact = False
+                if span is not None:
+                    lows.append(probability * child_interval[0])
+                    highs.append(probability * child_interval[1])
                 continue
             following = successor(model, action, observation)
             if remaining == 2:

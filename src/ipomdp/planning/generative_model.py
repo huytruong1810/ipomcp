@@ -22,10 +22,14 @@ class InteractiveGenerativeModel:
     def __init__(self, solver_bank):
         self.solver_bank = solver_bank
 
-    def tree_step(self, particle, action, agent_id, physics, rng):
+    def tree_step(self, particle, action, agent_id, physics, rng, advance_opponent=True):
         """Return (next particle, joint action, agent's reward, terminal).
 
         In-tree work: the opponent's private model advances by the search filter.
+        With ``advance_opponent`` False the opponent's private observation is
+        not drawn and its model is returned unchanged: certified search draws
+        a fresh particle from the next history's exact belief, so the advanced
+        model would be discarded.
         """
         opponent = particle.opponent
         other = opponent.frame.agent_id
@@ -35,7 +39,7 @@ class InteractiveGenerativeModel:
         reward = physics.get_reward(particle.state, joint, following, agent_id)
         terminal = physics.is_terminal(following)
         # No future decision follows termination, so no private model needs advancing.
-        if opponent.frame.level > 0 and not terminal:
+        if advance_opponent and opponent.frame.level > 0 and not terminal:
             private = physics.sample_observation(following, joint, other, rng)
             opponent = self.solver_bank.search_filter.advance(
                 opponent, joint[other], private, terminal=False

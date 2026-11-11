@@ -56,17 +56,18 @@ policies pure functions of their beliefs. Real actions are sampled from a
 separate stream owned by the planner. Nothing touches the global ``random``.
 """
 
+import math
 import random
 import time
 from dataclasses import asdict
 
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.planning.chance_scoring import score_tree
+from ipomdp.planning.chance_scoring import exact_two_step, score_tree
 from ipomdp.planning.config import NEUTRAL_DEFAULTS, SCORING_FIELDS, PlannerConfig
-from ipomdp.planning.exploration import HorizonBoundUCB
+from ipomdp.planning.exploration import SELECTORS
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
-from ipomdp.planning.node import POMCPNode
+from ipomdp.planning.node import CertifiedState, POMCPNode
 from ipomdp.planning.planner import Planner
 from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy, sample_policy
 
@@ -76,9 +77,10 @@ class IPOMCPPlanner(Planner):
         self.key, self.pomdp_model, self.solver_bank = solver_key, pomdp_model, solver_bank
         self.config = config
         self.actions = list(pomdp_model.get_all_actions(solver_key.agent_id))
-        self.exploration = HorizonBoundUCB.for_agent(
+        self.exploration = SELECTORS[config.selection].for_agent(
             pomdp_model, solver_key.agent_id, config.exploration
         )
+        self._frontier_bounds = None
         self.gen_model = InteractiveGenerativeModel(solver_bank)
         # Stream for sampling this agent's real actions from its greedy policy.
         self.rng = random.Random(solver_bank.stream_seed("actions", str(solver_key)))
@@ -153,14 +155,29 @@ class IPOMCPPlanner(Planner):
 
         The tree is seeded as the flat search of ``config.simulations``, so the
         stage at that budget equals ``policy_for``'s scores; earlier stages are
-        its prefixes. Returns [(simulations, scores, cpu_seconds)], CPU cumulative.
+        its prefixes. Returns [(simulations, scores, cpu_seconds, work)], CPU
+        cumulative; ``work`` counts the simulations actually run (certified
+        search stops once the root is resolved), the root actions pruned, and
+        the belief updates and nested policy solves computed since the search
+        started (cache misses).
         """
         if max(checkpoints) != self.config.simulations:
             raise ValueError("The last checkpoint must be the configured budget")
+        bank = self.solver_bank
+        updates0 = bank.search_filter.advance.cache_info().misses
+        solves0 = bank._cached_policy.cache_info().misses
         started, tree, stages = time.process_time(), self._tree(model, self.config.simulations), []
         for simulations in sorted(checkpoints):
             scores = tree.grow(simulations, bounds=True)
-            stages.append((simulations, scores, time.process_time() - started))
+            cpu = time.process_time() - started
+            cert = tree.root.cert
+            work = dict(
+                sims_run=tree.simulations_run,
+                pruned_root=sorted(map(str, cert.pruned)) if cert is not None else [],
+                updates=bank.search_filter.advance.cache_info().misses - updates0,
+                nested_solves=bank._cached_policy.cache_info().misses - solves0,
+            )
+            stages.append((simulations, scores, cpu, work))
         return stages
 
     def _stopped_values(self, model):
@@ -300,6 +317,186 @@ class IPOMCPPlanner(Planner):
         return reward + self.config.gamma * self._rollout(depth + 1, next_memory, next_model, rng)
 
     # ------------------------------------------------------------------ #
+    # Certified search (audit spec 3.3; off unless a certified field is set)
+    # ------------------------------------------------------------------ #
+
+    def _bounds_for(self, model):
+        """This agent's shared ``FrontierBounds`` (one table per agent, physics and horizon)."""
+        if self._frontier_bounds is None:
+            self._frontier_bounds = self.solver_bank.frontier_bounds(
+                model, self.config.gamma, self.config.depth, self.config.frontier_bounds
+            )
+        return self._frontier_bounds
+
+    def _simulate_certified(self, node, depth, memory, history_model, rng):
+        """One descent of certified search; returns the backed-up Q estimate at ``node``.
+
+        Every history keeps bounds on its value from its own belief (expanded)
+        or from its parent's (frontier). Frontiers are valued by a point of
+        their bound interval (``leaf_eval="bound"``) or by a rollout clipped
+        into it; histories with two steps to go are solved exactly
+        (``exact_tail``); bounds are recomputed bottom-up along the descent and
+        only tighten; actions whose upper bound falls below the history's
+        lower bound are never selected again (``prune``).
+        """
+        config = self.config
+        remaining = config.depth - depth
+        if node.cert is None or not node.cert.expanded:
+            self._expand(node, history_model, remaining)
+        cert = node.cert
+        if cert.solved:
+            node.visit_count += 1
+            return cert.lo
+        live = [action for action in self.actions if action not in cert.pruned]
+        action = self.exploration.select_action(node, live, remaining, config.gamma, rng)
+        particle = self.solver_bank.draw(history_model.belief, rng)
+        following, joint, _, terminal = self.gen_model.tree_step(
+            particle, action, self.key.agent_id, self.pomdp_model, rng, advance_opponent=False
+        )
+        if terminal:
+            continuation = 0.0
+        else:
+            observation = self.pomdp_model.sample_observation(
+                following.state, joint, self.key.agent_id, rng
+            )
+            next_memory = self.pomdp_model.update_rollout_memory(
+                memory, action, observation, self.key.agent_id
+            )
+            child = node.get_child(action, observation)
+            if child is None:
+                child = node.create_child(action, observation)
+                probability = cert.law[action][observation]
+                child.cert = CertifiedState(
+                    cert.branch_lo[action][observation] / probability,
+                    cert.branch_hi[action][observation] / probability,
+                )
+                if config.leaf_eval == "bound":
+                    if not config.lazy_expansion:
+                        next_model = self._history_successor(history_model, action, observation)
+                        self._expand(child, next_model, remaining - 1)
+                    continuation = _pick(child.cert.lo, child.cert.hi, config.unsampled_value)
+                else:
+                    next_model = self._history_successor(history_model, action, observation)
+                    continuation = self._rollout(depth + 1, next_memory, next_model, rng)
+                    continuation = min(max(continuation, child.cert.lo), child.cert.hi)
+                child.cert.estimate = continuation
+                child.rollout_value = continuation
+            else:
+                next_model = self._history_successor(history_model, action, observation)
+                continuation = self._simulate_certified(
+                    child, depth + 1, next_memory, next_model, rng
+                )
+            counts = node.continuation_counts.setdefault(action, {})
+            counts[observation] = counts.get(observation, 0) + 1
+        immediate = dict(self.solver_bank.expected_rewards(history_model))[action]
+        node.action_counts[action] = node.action_counts.get(action, 0) + 1
+        node.bellman_backup(action, immediate, config.gamma)
+        node.visit_count += 1
+        self._refresh(node, history_model, action)
+        return node.action_values[action]
+
+    def _expand(self, node, model, remaining):
+        """Give ``node`` its own bounds (and, with two steps to go and ``exact_tail``, its exact value)."""
+        bank, config = self.solver_bank, self.config
+        nb = self._bounds_for(model).node_bounds(model, remaining, bank)
+        cert = node.cert
+        if cert is None:
+            cert = node.cert = CertifiedState(None, None)
+        cert.expanded = True
+        cert.q_lo, cert.q_hi = dict(nb.q_lo), dict(nb.q_hi)
+        cert.branch_lo, cert.branch_hi = nb.branch_lo, nb.branch_hi
+        if remaining == 1:
+            # Boundary history: exact, as on the legacy path.
+            if not node.action_values:
+                node.action_values.update(self._leaf_values(model))
+            value = max(node.action_values.values())
+            cert.lo = cert.hi = value
+            cert.solved = True
+            return
+        cert.law = {action: dict(bank.continuation_law(model, action)) for action in self.actions}
+        if config.prune:
+            self._prune(cert)
+        if remaining == 2 and config.exact_tail:
+            self._exact_tail(node, model)
+            return
+        self._close(cert)
+        if config.selection != "ucb":
+            width = self.exploration.return_width(remaining, config.gamma)
+            live = [a for a in self.actions if a not in cert.pruned]
+            top = max(cert.q_hi[a] for a in live)
+            weights = {
+                a: math.exp((cert.q_hi[a] - top) / (config.puct_temperature * width)) for a in live
+            }
+            total = math.fsum(weights.values())
+            cert.prior = {a: w / total for a, w in weights.items()}
+
+    def _exact_tail(self, node, model):
+        """Solve a two-steps-to-go history: exact Q^2 for every action not ruled out by its bounds."""
+        cert, gamma = node.cert, self.config.gamma
+        for action in self.actions:
+            if action in cert.pruned:
+                continue
+            value = exact_two_step(
+                model, action, self.solver_bank, self._history_successor, gamma
+            )
+            cert.q_lo[action] = cert.q_hi[action] = value
+            node.action_values[action] = value
+        cert.lo = cert.hi = max(cert.q_lo[a] for a in self.actions if a not in cert.pruned)
+        cert.solved = True
+
+    def _refresh(self, node, model, action):
+        """Recompute Q bounds of ``action`` from its children; keep the tighter; prune; clip."""
+        cert, gamma = node.cert, self.config.gamma
+        reward = dict(self.solver_bank.expected_rewards(model))[action]
+        lows, highs = [], []
+        for observation, probability in cert.law[action].items():
+            child = node.get_child(action, observation)
+            if child is not None and child.cert is not None:
+                lows.append(probability * child.cert.lo)
+                highs.append(probability * child.cert.hi)
+            else:
+                lows.append(cert.branch_lo[action][observation])
+                highs.append(cert.branch_hi[action][observation])
+        cert.q_lo[action] = max(cert.q_lo[action], reward + gamma * math.fsum(lows))
+        cert.q_hi[action] = min(cert.q_hi[action], reward + gamma * math.fsum(highs))
+        if self.config.prune:
+            self._prune(cert)
+        self._close(cert)
+        for evaluated, value in node.action_values.items():
+            node.action_values[evaluated] = min(
+                max(value, cert.q_lo[evaluated]), cert.q_hi[evaluated]
+            )
+
+    def _prune(self, cert):
+        best = max(cert.q_lo.values())
+        for action, upper in cert.q_hi.items():
+            if upper < best - _slack(best):
+                cert.pruned.add(action)
+
+    @staticmethod
+    def _close(cert):
+        """Node bounds from action bounds (intersected with the inherited ones); mark solved."""
+        lo, hi = max(cert.q_lo.values()), max(cert.q_hi.values())
+        cert.lo = lo if cert.lo is None else max(cert.lo, lo)
+        cert.hi = hi if cert.hi is None else min(cert.hi, hi)
+        if cert.hi - cert.lo <= _slack(cert.hi):
+            cert.solved = True
+
+    def _resolved(self, node, tie=TIE_TOLERANCE):
+        """True when bounds settle which root actions are optimal (within ``tie``)."""
+        cert = node.cert
+        if cert is None or not cert.expanded:
+            return False
+        if cert.solved and all(cert.q_lo[a] == cert.q_hi[a] for a in self.actions if a not in cert.pruned):
+            return True
+        live = [a for a in self.actions if a not in cert.pruned]
+        best_lo = max(cert.q_lo[a] for a in live)
+        best_hi = max(cert.q_hi[a] for a in live)
+        return all(
+            cert.q_hi[a] < best_lo - tie or cert.q_lo[a] >= best_hi - tie for a in live
+        )
+
+    # ------------------------------------------------------------------ #
     # Exact pieces
     # ------------------------------------------------------------------ #
 
@@ -348,6 +545,7 @@ class _GrowingSearch:
         self.root = POMCPNode()
         self.memory = planner._physical_marginal(model)
         self.simulations = 0
+        self.simulations_run = 0
 
     def grow(self, simulations, bounds=False):
         """Run simulations until the tree has ``simulations``; return its chance scores."""
@@ -356,10 +554,18 @@ class _GrowingSearch:
         if simulations < self.simulations:
             raise ValueError("A search tree cannot shrink")
         planner = self.planner
-        for _ in range(simulations - self.simulations):
-            planner._simulate(self.root, 0, self.memory, self.model, self.rng)
-        self.simulations = simulations
         config = planner.config
+        if config.certified_search:
+            for _ in range(simulations - self.simulations):
+                if config.prune and planner._resolved(self.root):
+                    break
+                planner._simulate_certified(self.root, 0, self.memory, self.model, self.rng)
+                self.simulations_run += 1
+        else:
+            for _ in range(simulations - self.simulations):
+                planner._simulate(self.root, 0, self.memory, self.model, self.rng)
+            self.simulations_run = simulations
+        self.simulations = simulations
         # Probability-weighted scoring clips into certified intervals, so it always needs them.
         bounds = bounds or config.scoring == "pw"
         frontier = None
@@ -382,6 +588,15 @@ class _GrowingSearch:
 
 
 _STOPPING_FIELDS = ("modeled_stopping", "root_stopping")
+
+
+def _slack(x):
+    """Outward rounding slack of every comparison that prunes or certifies (audit spec 3.1)."""
+    return 1e-9 * max(1.0, abs(x))
+
+
+def _pick(lo, hi, which):
+    return {"lower": lo, "upper": hi, "mid": 0.5 * (lo + hi)}[which]
 
 
 def seed_config(config):

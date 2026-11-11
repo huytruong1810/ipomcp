@@ -73,6 +73,8 @@ from ipomdp.experiments.wumpus_qualification import (
 )
 from ipomdp.planning.config import (
     FRONTIER_BOUNDS,
+    LEAF_EVALS,
+    SELECTIONS,
     SCORING,
     UNSAMPLED_VALUES,
     PlannerConfig,
@@ -404,7 +406,7 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
         cpu_seconds=cpu_seconds, root_support=len(planner.belief.mass),
     )
     if ladder:
-        row["ladder"] = [_stage(simulations, scores, cpu, q) for simulations, scores, cpu in stages]
+        row["ladder"] = [_stage(simulations, scores, cpu, q) | work for simulations, scores, cpu, work in stages]
     if kind == "mcts":
         bounds = planner.scores.bounds
         row |= dict(exact_root=planner.scores.exact, bounds={str(a): b for a, b in bounds.items()},
@@ -433,6 +435,17 @@ def _stage(simulations, scores, cpu_seconds, q):
         stage["bounds_contain_reference"] = all(
             lo - 1e-9 <= q[str(a)] <= hi + 1e-9 for a, (lo, hi) in bounds.items())
     return stage
+
+
+def certified_options(args):
+    """``PlannerConfig`` options of i's own planner from the ``decide`` flags."""
+    options = dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
+                   unsampled_value=args.unsampled, exact_tail=args.exact_tail, prune=args.prune,
+                   selection=args.selection, leaf_eval=args.leaf_eval, lazy_expansion=args.lazy)
+    if args.profile == "certified":
+        options |= dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, prune=True,
+                        leaf_eval="bound", lazy_expansion=True)
+    return options
 
 
 def _heuristic(scores):
@@ -491,6 +504,16 @@ def main():
                      help="I-POMCP scoring of unsampled branches: legacy (default) or probability-weighted")
     dec.add_argument("--unsampled", choices=UNSAMPLED_VALUES, default="lower",
                      help="stand-in of an unsampled branch under --scoring pw")
+    dec.add_argument("--exact-tail", action="store_true",
+                     help="certified search: solve two-steps-to-go histories exactly when expanded")
+    dec.add_argument("--prune", action="store_true",
+                     help="certified search: bounds at every history, action elimination, early stop")
+    dec.add_argument("--selection", choices=SELECTIONS, default="ucb")
+    dec.add_argument("--leaf-eval", choices=LEAF_EVALS, default="rollout")
+    dec.add_argument("--lazy", action="store_true", help="certified search: lazy frontier expansion")
+    dec.add_argument("--profile", choices=("certified",),
+                     help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
+                          "--leaf-eval bound --lazy (selection stays as given)")
     dec.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if args.out.exists():
@@ -517,8 +540,7 @@ def main():
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
                      args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published,
-                     dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
-                          unsampled_value=args.unsampled))
+                     certified_options(args))
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 
