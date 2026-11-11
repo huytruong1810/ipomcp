@@ -47,7 +47,7 @@ from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.escalation import EscalatingPlanner
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
-from ipomdp.planning.stopping import ModeledStopping
+from ipomdp.planning.stopping import ModeledResolution, ModeledStopping
 from ipomdp.reference.exact_agent import build_exact_agent
 
 DOMAINS = {
@@ -345,6 +345,8 @@ def _planner_config(entry):
     if entry["kind"] == "ipomcp":
         if isinstance(options.get("root_stopping"), dict):
             options["root_stopping"] = ModeledStopping(**options["root_stopping"])
+        if isinstance(options.get("modeled_resolution"), dict):
+            options["modeled_resolution"] = ModeledResolution(**options["modeled_resolution"])
         return PlannerConfig(**options)
     if entry["kind"] == "rts":
         return RTSConfig(**options)

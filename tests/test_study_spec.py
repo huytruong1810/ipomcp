@@ -79,3 +79,16 @@ def test_episode_rows_record_each_decision_and_its_bounds():
         prediction = json.loads(row["prediction_i"])
         assert prediction == pytest.approx(dict.fromkeys(["L", "OL", "OR"], 1 / 3))
         assert json.loads(row["prediction_j"]) is None
+
+
+def test_a_study_planner_can_carry_the_certified_profile():
+    from ipomdp.experiments.study import _planner_config
+    from ipomdp.planning.stopping import ModeledResolution
+
+    config = _planner_config({
+        "kind": "ipomcp", "simulations": 1000, "depth": 3, "modeled_simulations": 6400,
+        "frontier_bounds": "ifib", "scoring": "pw", "exact_tail": True, "prune": True,
+        "leaf_eval": "bound", "lazy_expansion": True, "selection": "iemax",
+        "modeled_resolution": {"pilot": 50}, "modeled_prediction": "plausible",
+    })
+    assert config.certified_search and config.modeled_resolution == ModeledResolution(pilot=50)
