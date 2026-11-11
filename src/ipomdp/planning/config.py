@@ -29,7 +29,7 @@ scalars of the decision problem.
 import math
 from dataclasses import dataclass
 
-from ipomdp.planning.stopping import ModeledStopping
+from ipomdp.planning.stopping import ModeledResolution, ModeledStopping
 
 
 @dataclass(frozen=True)
@@ -81,6 +81,14 @@ class PlannerConfig:
         lazy_expansion: With bound leaves, compute a frontier's belief only at
             its second visit.
 
+        modeled_resolution: When set, a modeled policy is solved by one tree
+            grown by doubling until its certified intervals resolve which
+            actions are optimal (``stopping.ModeledResolution``), with
+            ``modeled_simulations`` as the cap. Excludes ``modeled_stopping``.
+        modeled_prediction: ``"argmax"`` (default): a modeled agent plays its
+            greedy maximizers; ``"plausible"``: uniformly the actions its
+            intervals cannot rule out (Theorem 1b); needs ``modeled_resolution``.
+
     Every certified-search field needs ``frontier_bounds != "scalar"``.
 
     The search seed ignores the stopping rules and the scoring-only fields
@@ -107,6 +115,8 @@ class PlannerConfig:
     puct_temperature: float = 0.25
     leaf_eval: str = "rollout"
     lazy_expansion: bool = False
+    modeled_resolution: ModeledResolution | None = None
+    modeled_prediction: str = "argmax"
 
     def __post_init__(self):
         for name in ("simulations", "depth", "modeled_simulations"):
@@ -144,6 +154,16 @@ class PlannerConfig:
             raise ValueError("Certified search needs belief-dependent frontier bounds")
         if self.lazy_expansion and self.leaf_eval != "bound":
             raise ValueError("Lazy expansion needs bound leaves")
+        if self.modeled_resolution is not None:
+            if type(self.modeled_resolution) is not ModeledResolution:
+                raise TypeError("modeled_resolution must be a ModeledResolution")
+            if self.modeled_stopping is not None:
+                raise ValueError("Choose one modeled rule: stopping or resolution")
+            self.modeled_resolution.checkpoints(self.modeled_simulations)
+        if self.modeled_prediction not in PREDICTIONS:
+            raise ValueError(f"modeled_prediction must be one of {PREDICTIONS}")
+        if self.modeled_prediction == "plausible" and self.modeled_resolution is None:
+            raise ValueError("Plausible prediction needs modeled_resolution")
 
     @property
     def certified_search(self):
@@ -161,10 +181,13 @@ FRONTIER_BOUNDS = ("scalar", "ifib")
 SCORING = ("legacy", "pw")
 UNSAMPLED_VALUES = ("lower", "mid", "upper")
 SELECTIONS = ("ucb", "puct", "iemax")
+PREDICTIONS = ("argmax", "plausible")
 LEAF_EVALS = ("rollout", "bound")
 
-# Fields that read the finished tree only; never part of the search seed.
-SCORING_FIELDS = ("frontier_bounds", "scoring", "unsampled_value")
+# Fields that read the finished tree only, or decide how a finished modeled solve is
+# turned into a prediction; never part of the search seed (a resolution's main tree
+# is seeded as the flat search of its cap, like a stopping rule's).
+SCORING_FIELDS = ("frontier_bounds", "scoring", "unsampled_value", "modeled_resolution", "modeled_prediction")
 
 # Search-changing fields added later, dropped from the seed while they hold these values.
 NEUTRAL_DEFAULTS = {

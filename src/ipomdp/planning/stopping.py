@@ -106,3 +106,44 @@ class ModeledStopping:
         spread = math.sqrt(math.fsum((d - mean) ** 2 for d in differences) / (len(differences) - 1))
         critical = student.ppf(1 - self.alpha / (2 * tests), self.trees - 1)
         return bool(values[first] - values[second] > critical * spread * self.pilot / simulations)
+
+
+@dataclass(frozen=True)
+class ModeledResolution:
+    """Deterministic stopping for modeled solves (audit spec 2.2, Theorem 1b); the cap is ``modeled_simulations``.
+
+    One tree, grown by doubling from ``pilot`` to the cap. After each doubling
+    its certified root intervals (widened by the solve's deviation bound) give
+    the plausible and certain action sets (``policy.plausible_sets``); the
+    solve stops when they agree (resolved), when the relative width of the
+    leading interval is at most ``rel_width``, or at the cap. No pilot trees,
+    no distributional assumption, no selection of a tested pair: the plausible
+    set contains the exact optimal set at every checkpoint.
+
+    Attributes:
+        pilot: First checkpoint (at least one simulation per action).
+        rel_width: Also stop when (M^+ - M^-) / W_H <= rel_width (0: never).
+        tie: Tie tolerance tau of the exact solution (relative, as ``policy.TIE_TOLERANCE``).
+    """
+
+    pilot: int = 50
+    rel_width: float = 0.0
+    tie: float = 1e-9
+
+    def __post_init__(self):
+        if type(self.pilot) is not int or self.pilot < 1:
+            raise ValueError("pilot must be a positive integer")
+        if not math.isfinite(self.rel_width) or self.rel_width < 0:
+            raise ValueError("rel_width must be finite and nonnegative")
+        if not math.isfinite(self.tie) or self.tie < 0:
+            raise ValueError("tie must be finite and nonnegative")
+
+    def checkpoints(self, cap):
+        """Tree sizes at which resolution is checked: pilot, 2 pilot, 4 pilot, ..., the cap."""
+        if cap < self.pilot:
+            raise ValueError("The pilot cannot exceed the modeled cap")
+        sizes, n = [], self.pilot
+        while n < cap:
+            sizes.append(n)
+            n *= 2
+        return (*sizes, cap)

@@ -107,6 +107,8 @@ class SolverBank:
         self.expected_rewards = lru_cache(maxsize=65536)(self._expected_rewards)
         self.continuation_law = lru_cache(maxsize=4096)(self._continuation_law)
         self._frontier_bounds = {}
+        # Levels at which some modeled solve ended unresolved (Theorem 1b groundedness).
+        self.unresolved_levels = set()
 
     # ------------------------------------------------------------------ #
     # Physical prior
@@ -190,11 +192,44 @@ class SolverBank:
 
     def policy(self, model):
         """The modeled policy of an intentional mental model (cached, immutable)."""
-        return dict(self._cached_policy(model))
+        return dict(self._cached_policy(model)[0])
+
+    def policy_status(self, model):
+        """(resolved, delta_hat) of the modeled solve at ``model`` (audit spec 2.2, Theorem 1b).
+
+        Resolved solves predict the exact law; delta_hat bounds the total
+        variation between the predicted and the exact law, when grounded.
+        """
+        _, resolved, delta = self._cached_policy(model)
+        return resolved, delta
+
+    def deviation(self, model):
+        """delta_hat of an opponent model if it is grounded, else 1 (Theorem 1b).
+
+        Level 0 is known exactly (0). A model at level L is grounded when no
+        solve at a level below L ended unresolved, since its belief was formed
+        with the laws of those levels (conservative: tracked per level).
+        """
+        if model.frame.level == 0:
+            return 0.0
+        _, delta = self.policy_status(model)
+        if any(level < model.frame.level for level in self.unresolved_levels):
+            return 1.0
+        return delta
 
     def _evaluate_policy(self, model):
+        """(policy items, resolved, delta_hat), cached together so eviction cannot separate them."""
         solver = self.get_solver_for_frame(model.frame)
-        return tuple(solver.policy_for(model, modeled=True).items())
+        solution = getattr(solver, "modeled_solution", None)
+        if solution is None:
+            policy = solver.policy_for(model, modeled=True)
+            # Exact solvers play the exact law; any other solver claims nothing.
+            resolved, delta = (True, 0.0) if getattr(solver, "exact_policies", False) else (False, 1.0)
+        else:
+            policy, resolved, delta = solution(model)
+        if not resolved:
+            self.unresolved_levels.add(model.frame.level)
+        return tuple(policy.items()), resolved, delta
 
     def _expected_rewards(self, model):
         """E[R | b, a] for every action, integrated over the full joint belief.
@@ -283,6 +318,7 @@ class SolverBank:
     def clear_caches(self):
         """Drop cached policies, posteriors and integrals (memory only, never results)."""
         self._cached_policy.cache_clear()
+        # unresolved_levels is kept: forgetting an unresolved solve would be unsound.
         self.filter.clear_caches()
         self.search_filter.clear_caches()
         self.ordered_mass.cache_clear()

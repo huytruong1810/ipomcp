@@ -24,6 +24,9 @@ from ipomdp.reference.best_response import BestResponseReference
 
 
 class ExactIPOMDPPlanner(Planner):
+    # Modeled policies are the exact law (ties uniform), so the bank records them as resolved.
+    exact_policies = True
+
     def __init__(self, key, physics, bank, reference, horizon, tie_rng=None):
         self.key, self.pomdp_model, self.solver_bank = key, physics, bank
         self.reference, self.horizon = reference, horizon

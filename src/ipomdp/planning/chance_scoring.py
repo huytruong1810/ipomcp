@@ -392,3 +392,68 @@ def _action_values(node, model, remaining, ctx):
                 value = min(max(value, lo), hi)
             values[action] = value
     return values, exact, intervals
+
+
+def deviation_bound(root, model, depth, bank, successor, gamma):
+    """{a: Delta(a)} for every root action: Theorem 1b(iii) of the audit spec.
+
+    Widening the certified interval of root action a by Delta(a) on each side
+    makes it contain the exact I-POMDP value although the opponents' laws come
+    from searched (possibly unresolved) solves. With d(b) the belief-weighted
+    total-variation bound of the opponent models (``SolverBank.deviation``)
+    and W_r the scalar return range,
+
+        e^r(h)   = min(W_r, W_r d(b_h) + gamma max_a sum_o P(o, alive | b_h, a) e^{r-1}(hao)),
+        Delta(a) = min(W_H, W_H d(b) + gamma sum_o P(o, alive | b, a) e^{H-1}(ao)),
+
+    with e^0 = 0 and e^r = W_r at a history the tree has not expanded. When no
+    modeled solve was left unresolved, every model is grounded and resolved,
+    so Delta is 0 (part (iv)) and nothing is traversed.
+    """
+    physics, agent = model.frame.pomdp_model, model.frame.agent_id
+    actions = [a for a, _ in bank.expected_rewards(model)]
+    if not bank.unresolved_levels:
+        return {a: 0.0 for a in actions}
+    span = _Span(*physics.reward_bounds(agent), gamma, depth)
+    width = [span.hi[r] - span.lo[r] for r in range(depth + 1)]
+
+    def d(belief_model):
+        return math.fsum(
+            mass * bank.deviation(atom.opponent)
+            for atom, mass in belief_model.belief.mass
+            if not physics.is_terminal(atom.state)
+        )
+
+    def expanded(node):
+        if node is None:
+            return False
+        if node.cert is not None:
+            return node.cert.expanded
+        return bool(node.action_values)
+
+    def branch_sum(node, belief_model, action, r):
+        terms = []
+        for observation, probability in bank.continuation_law(belief_model, action):
+            child = node.get_child(action, observation) if node is not None else None
+            if r - 1 == 0:
+                continue
+            if expanded(child):
+                terms.append(probability * e(child, successor(belief_model, action, observation), r - 1))
+            else:
+                terms.append(probability * width[r - 1])
+        return math.fsum(terms)
+
+    def e(node, belief_model, r):
+        if r == 0:
+            return 0.0
+        base = width[r] * d(belief_model)
+        if r == 1 or base >= width[r]:
+            return min(width[r], base)
+        best = max(branch_sum(node, belief_model, a, r) for a in actions)
+        return min(width[r], base + gamma * best)
+
+    base = width[depth] * d(model)
+    return {
+        a: min(width[depth], base + (gamma * branch_sum(root, model, a, depth) if depth > 1 else 0.0))
+        for a in actions
+    }

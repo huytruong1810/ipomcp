@@ -63,13 +63,13 @@ from dataclasses import asdict
 
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
-from ipomdp.planning.chance_scoring import exact_two_step, score_tree
+from ipomdp.planning.chance_scoring import deviation_bound, exact_two_step, score_tree
 from ipomdp.planning.config import NEUTRAL_DEFAULTS, SCORING_FIELDS, PlannerConfig
 from ipomdp.planning.exploration import SELECTORS
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import CertifiedState, POMCPNode
 from ipomdp.planning.planner import Planner
-from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy, sample_policy
+from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy, plausible_policy, sample_policy
 
 
 class IPOMCPPlanner(Planner):
@@ -134,7 +134,11 @@ class IPOMCPPlanner(Planner):
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
         if modeled and self.config.modeled_stopping is not None:
-            return _policy(self._stopped_scores(model))
+            scores = self._stopped_scores(model)
+            self._modeled_exact = scores.exact
+            return _policy(scores)
+        if modeled and self.config.modeled_resolution is not None:
+            return self.modeled_solution(model)[0]
         if not modeled and self.config.root_stopping is not None:
             node, scores = self._stopped_search(
                 model, self.config.root_stopping, self.config.simulations, root=True
@@ -143,12 +147,66 @@ class IPOMCPPlanner(Planner):
             simulations = self.config.modeled_simulations if modeled else self.config.simulations
             node, scores = self._search(model, simulations, bounds=not modeled)
         policy = _policy(scores)
+        if modeled:
+            self._modeled_exact = scores.exact
         if not modeled:
             self.root = node
             self.search_values = dict(node.action_values)
             self.recommendation_values = dict(scores.values)
             self.scores = scores
         return policy
+
+    def modeled_solution(self, model):
+        """(policy, resolved, delta_hat) of this planner as a modeled agent at ``model`` (Theorem 1b).
+
+        Without ``modeled_resolution``: today's modeled policy, resolved only
+        when its scores are exact (then it is the exact law). With it: one tree
+        grown until its widened intervals resolve (``_resolved_search``); the
+        prediction is uniform over the plausible actions (``"plausible"``) or
+        the greedy policy (``"argmax"``, resolved only if it equals the
+        plausible law).
+        """
+        rule = self.config.modeled_resolution
+        if rule is None:
+            policy = self.policy_for(model, modeled=True)
+            exact = self._modeled_exact
+            return policy, exact, 0.0 if exact else 1.0
+        if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
+            raise ValueError("Condition on public continuation before requesting a policy")
+        scores, plausible, resolved, delta = self._resolved_search(model, rule)
+        if self.config.modeled_prediction == "plausible":
+            return plausible, resolved, delta
+        policy = _policy(scores)
+        exact_law = resolved and set(policy) == set(plausible)
+        return policy, exact_law, 0.0 if exact_law else 1.0
+
+    def _resolved_search(self, model, rule):
+        """(scores, plausible law, resolved, delta_hat) of one tree grown by ``rule`` (``stopping.ModeledResolution``).
+
+        The tree is seeded as the flat search of the cap, so a solve that
+        never resolves returns that search's scores. Intervals are widened by
+        the deviation bound before the sets are formed.
+        """
+        cap, config = self.config.modeled_simulations, self.config
+        tree = self._tree(model, cap)
+        width = self.exploration.return_width(config.depth, config.gamma)
+        for simulations in rule.checkpoints(cap):
+            scores = tree.grow(simulations, bounds=True)
+            deviation = deviation_bound(
+                tree.root, tree.model, config.depth, self.solver_bank, self._history_successor,
+                config.gamma,
+            )
+            widened = {
+                a: (scores.bounds[a][0] - deviation[a], scores.bounds[a][1] + deviation[a])
+                for a in self.actions
+            }
+            plausible, resolved, delta = plausible_policy(widened, rule.tie)
+            m_lo = max(lo for lo, _ in widened.values())
+            m_hi = max(hi for _, hi in widened.values())
+            narrow = rule.rel_width > 0 and (m_hi - m_lo) / width <= rule.rel_width
+            if resolved or narrow or simulations == cap:
+                self.modeled_simulations_run = tree.simulations_run
+                return scores, plausible, resolved, delta
 
     def anytime_scores(self, model, checkpoints):
         """Certified chance scores of the root search at each checkpoint, one tree grown through them.

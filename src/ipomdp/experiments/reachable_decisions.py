@@ -73,13 +73,16 @@ from ipomdp.experiments.wumpus_qualification import (
 )
 from ipomdp.planning.config import (
     FRONTIER_BOUNDS,
+    PREDICTIONS,
     LEAF_EVALS,
     SELECTIONS,
     SCORING,
     UNSAMPLED_VALUES,
     PlannerConfig,
 )
+from ipomdp.planning.chance_scoring import deviation_bound
 from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
+from ipomdp.planning.stopping import ModeledResolution
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.best_response import BestResponseReference
@@ -220,7 +223,8 @@ def _decoded(value):
 
 
 def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, particle_filter,
-             modeled_exact=False, cache_size=200_000, prior=None, rts_published=False, certified=None):
+             modeled_exact=False, cache_size=200_000, prior=None, rts_published=False, certified=None,
+             modeled_options=None):
     """i at ``level`` with point-mass nesting; every modeled level is solved by the same kind of planner.
 
     With ``modeled_exact``, every modeled level is instead the exact best response at ``horizon`` to the
@@ -234,7 +238,8 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
     (their level 0) solved exactly.
 
     ``certified`` (I-POMCP only): ``PlannerConfig`` options of the certified planner (audit spec 3.0) for
-    i's own decision; modeled levels keep the default configuration.
+    i's own decision; ``modeled_options`` (I-POMCP only) are those of every modeled level (certified search,
+    ``modeled_resolution``, ``modeled_prediction``). Both default to today's configuration.
     """
     if certified and kind != "mcts":
         raise ValueError("Certified options are I-POMCP arms")
@@ -244,7 +249,8 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
             **(certified or {}),
         )
         lower = PlannerConfig(
-            simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
+            simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA,
+            **(modeled_options or {}),
         )
         bank = SolverBank(seed, particles=particles or None, max_branches=REFERENCE_BRANCHES)
     elif kind == "rts":
@@ -321,7 +327,7 @@ def _loss(policy, q):
 
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
            variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None,
-           cache_size=200_000, rts_published=False, certified=None):
+           cache_size=200_000, rts_published=False, certified=None, modeled_options=None):
     """One decision of an arm on a stored problem, scored against its exact Q.
 
     ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
@@ -329,6 +335,9 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     at ``budget``, identical to a decision without a ladder.
 
     ``certified``: non-default ``PlannerConfig`` options of i's own planner (``_planner``), recorded in the row.
+    ``modeled_options``: the same for every modeled level. With them the row also carries Theorem 1b's
+    deviation bound per root action, the widened intervals and their containment, and ``model_certified``
+    (no modeled solve ended unresolved, so the searched model is the exact I-POMDP).
 
     A digest-only problem (no exact Q, beyond the exact solver's reach) gives an unscored row: its CPU and
     values, with ``scored`` false and no loss.
@@ -381,12 +390,19 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     certified = {k: v for k, v in (certified or {}).items() if getattr(defaults, k) != v}
     if certified:
         row["certified"] = certified
+    modeled_options = {k: v for k, v in (modeled_options or {}).items() if getattr(defaults, k) != v}
+    if modeled_options:
+        if modeled_exact:
+            raise ValueError("Modeled options need searched modeled levels")
+        row["modeled_options"] = {k: (str(v) if k == "modeled_resolution" else v)
+                                  for k, v in modeled_options.items()}
     if modeled_exact:
         if kind != "mcts":
             raise ValueError("Exact modeled levels are an I-POMCP arm")
         row["modeled"] = "exact"
     planner = _planner(physics, kind, seed, budget, horizon, level, modeled or budget, particles,
-                       particle_filter, modeled_exact, cache_size, wide, rts_published, certified)
+                       particle_filter, modeled_exact, cache_size, wide, rts_published, certified,
+                       modeled_options)
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
@@ -413,6 +429,18 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
                     bound_width=max(hi - lo for lo, hi in bounds.values()))
         if certified:
             row |= _heuristic(planner.scores)
+        if modeled_options:
+            bank = planner.solver_bank
+            deviation = deviation_bound(planner.root, planner.model(), horizon, bank,
+                                        planner._history_successor, GAMMA)
+            widened = {a: (lo - deviation[a], hi + deviation[a]) for a, (lo, hi) in bounds.items()}
+            row |= dict(deviation={str(a): v for a, v in deviation.items()},
+                        bounds_widened={str(a): b for a, b in widened.items()},
+                        model_certified=not bank.unresolved_levels,
+                        unresolved_levels=sorted(bank.unresolved_levels))
+            if q is not None:
+                row["bounds_widened_contain_reference"] = all(
+                    lo - 1e-9 <= q[str(a)] <= hi + 1e-9 for a, (lo, hi) in widened.items())
         if q is not None:
             # Certified for the searched model; they must contain q when that model is the exact one
             # (exact modeled levels and exact beliefs).
@@ -445,6 +473,24 @@ def certified_options(args):
     if args.profile == "certified":
         options |= dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, prune=True,
                         leaf_eval="bound", lazy_expansion=True)
+    return options
+
+
+def modeled_options(args):
+    """``PlannerConfig`` options of every modeled level from the ``decide`` flags.
+
+    ``--profile certified`` gives modeled levels the certified search of i's own decision (selection
+    included), resolution to the ``--modeled`` cap, and plausible prediction.
+    """
+    options = {}
+    if args.modeled_exact:
+        return options  # exact modeled levels: nothing to search or resolve
+    cap = args.modeled or args.budget
+    if args.modeled_resolve or args.profile == "certified":
+        options["modeled_resolution"] = ModeledResolution(pilot=min(args.modeled_pilot, cap))
+        options["modeled_prediction"] = args.modeled_prediction
+    if args.profile == "certified":
+        options |= {k: v for k, v in certified_options(args).items()} | {"modeled_prediction": "plausible"}
     return options
 
 
@@ -514,6 +560,10 @@ def main():
     dec.add_argument("--profile", choices=("certified",),
                      help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
                           "--leaf-eval bound --lazy (selection stays as given)")
+    dec.add_argument("--modeled-resolve", action="store_true",
+                     help="modeled levels: deterministic resolution to the --modeled cap (Theorem 1b)")
+    dec.add_argument("--modeled-pilot", type=int, default=50, help="first resolution checkpoint")
+    dec.add_argument("--modeled-prediction", choices=PREDICTIONS, default="argmax")
     dec.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if args.out.exists():
@@ -540,7 +590,7 @@ def main():
         row = decide(problem, args.planner, args.budget, args.seed, args.modeled, args.particles,
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
                      args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published,
-                     certified_options(args))
+                     certified_options(args), modeled_options(args))
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 
