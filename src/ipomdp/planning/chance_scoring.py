@@ -414,6 +414,10 @@ def deviation_bound(root, model, depth, bank, successor, gamma):
     actions = [a for a, _ in bank.expected_rewards(model)]
     if not bank.unresolved_levels:
         return {a: 0.0 for a in actions}
+    if all(atom.opponent.frame.level == 0 for atom, _ in model.belief.mass):
+        # Opponents' levels never change along a history, and level 0's law is known exactly,
+        # so d = 0 at every history of the tree, expanded or not: Delta = 0 (part (iv), level 1).
+        return {a: 0.0 for a in actions}
     span = _Span(*physics.reward_bounds(agent), gamma, depth)
     width = [span.hi[r] - span.lo[r] for r in range(depth + 1)]
 

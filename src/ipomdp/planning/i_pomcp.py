@@ -69,7 +69,13 @@ from ipomdp.planning.exploration import SELECTORS
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import CertifiedState, POMCPNode
 from ipomdp.planning.planner import Planner
-from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy, plausible_policy, sample_policy
+from ipomdp.planning.policy import (
+    TIE_TOLERANCE,
+    greedy_policy,
+    plausible_policy,
+    plausible_sets,
+    sample_policy,
+)
 
 
 class IPOMCPPlanner(Planner):
@@ -558,12 +564,10 @@ class IPOMCPPlanner(Planner):
             return False
         if cert.solved and all(cert.q_lo[a] == cert.q_hi[a] for a in self.actions if a not in cert.pruned):
             return True
-        live = [a for a in self.actions if a not in cert.pruned]
-        best_lo = max(cert.q_lo[a] for a in live)
-        best_hi = max(cert.q_hi[a] for a in live)
-        return all(
-            cert.q_hi[a] < best_lo - tie or cert.q_lo[a] >= best_hi - tie for a in live
-        )
+        # The same sets as a modeled solve's resolution (policy.plausible_sets), so search never
+        # stops while the solve's own rule still calls the decision unresolved.
+        certain, plausible = plausible_sets({a: (cert.q_lo[a], cert.q_hi[a]) for a in self.actions}, tie)
+        return certain == plausible
 
     # ------------------------------------------------------------------ #
     # Exact pieces

@@ -143,3 +143,15 @@ def test_unresolved_solves_widen_the_callers_intervals_and_stay_sound(seed, mode
     assert row["bounds_widened_contain_reference"]
     if row["model_certified"]:
         assert row["bounds_contain_reference"]
+
+
+def test_a_level_one_solve_resolves_although_other_solves_did_not():
+    # Level 1's opponents are level 0 at every history, so its deviation is 0 even when the bank
+    # has recorded unresolved solves elsewhere (the bound used to charge W to unexpanded histories).
+    planner, physics, bank = j_planner(6400, pilot=50, **PROFILE)
+    bank.unresolved_levels.add(1)
+    model = j_model(physics, 0.5)
+    policy, resolved, delta = planner.modeled_solution(model)
+    assert resolved and delta == 0
+    exact = BestResponseReference(physics, bank, GAMMA).q_values(model, 3)
+    assert policy == pytest.approx(greedy_policy(exact, TIE_TOLERANCE))
