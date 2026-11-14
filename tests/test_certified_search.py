@@ -284,3 +284,14 @@ def test_scored_intervals_are_no_wider_than_the_searchs_own_bounds():
     cert = planner.root.cert
     for action, (lo, hi) in planner.scores.bounds.items():
         assert lo >= cert.q_lo[action] - 1e-12 and hi <= cert.q_hi[action] + 1e-12
+
+
+def test_the_certified_profile_selects_by_upper_bound_unless_told_otherwise():
+    from types import SimpleNamespace
+    from ipomdp.experiments.reachable_decisions import certified_options
+
+    base = dict(frontier_bounds="scalar", scoring="legacy", unsampled="lower", exact_tail=False,
+                prune=False, leaf_eval="rollout", lazy=False)
+    assert certified_options(SimpleNamespace(**base, selection=None, profile=None))["selection"] == "ucb"
+    assert certified_options(SimpleNamespace(**base, selection=None, profile="certified"))["selection"] == "iemax"
+    assert certified_options(SimpleNamespace(**base, selection="ucb", profile="certified"))["selection"] == "ucb"

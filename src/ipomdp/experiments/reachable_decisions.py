@@ -520,10 +520,10 @@ def certified_options(args):
     """``PlannerConfig`` options of i's own planner from the ``decide`` flags."""
     options = dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
                    unsampled_value=args.unsampled, exact_tail=args.exact_tail, prune=args.prune,
-                   selection=args.selection, leaf_eval=args.leaf_eval, lazy_expansion=args.lazy)
+                   selection=args.selection or "ucb", leaf_eval=args.leaf_eval, lazy_expansion=args.lazy)
     if args.profile == "certified":
         options |= dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, prune=True,
-                        leaf_eval="bound", lazy_expansion=True)
+                        leaf_eval="bound", lazy_expansion=True, selection=args.selection or "iemax")
     return options
 
 
@@ -607,12 +607,13 @@ def main():
                      help="certified search: solve two-steps-to-go histories exactly when expanded")
     dec.add_argument("--prune", action="store_true",
                      help="certified search: bounds at every history, action elimination, early stop")
-    dec.add_argument("--selection", choices=SELECTIONS, default="ucb")
+    dec.add_argument("--selection", choices=SELECTIONS, default=None,
+                     help="ucb by default; iemax under --profile certified (adopted Nov 14, RESULTS 12.129)")
     dec.add_argument("--leaf-eval", choices=LEAF_EVALS, default="rollout")
     dec.add_argument("--lazy", action="store_true", help="certified search: lazy frontier expansion")
     dec.add_argument("--profile", choices=("certified",),
                      help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
-                          "--leaf-eval bound --lazy (selection stays as given)")
+                          "--leaf-eval bound --lazy --selection iemax (an explicit --selection overrides)")
     dec.add_argument("--modeled-resolve", action="store_true",
                      help="modeled levels: deterministic resolution to the --modeled cap (Theorem 1b)")
     dec.add_argument("--modeled-pilot", type=int, default=50, help="first resolution checkpoint")
