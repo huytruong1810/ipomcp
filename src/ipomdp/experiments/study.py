@@ -41,6 +41,7 @@ from ipomdp.belief import canonical
 from ipomdp.domains.tiger import JointTigerModel, TigerModel
 from ipomdp.domains.uav import UAVModel
 from ipomdp.domains.wumpus.model import WumpusModel
+from ipomdp.experiments import profile as profiles
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.experiments.modeled_levels import parse_stack, planner_config
 from ipomdp.planning.config import PlannerConfig
@@ -111,6 +112,10 @@ class AgentSpec:
     Attributes:
         level: Reasoning level (0 = uniform random).
         planner: ``{"kind": "ipomcp", ...PlannerConfig fields}``,
+            optionally with ``"profile": "certified"`` (``experiments.profile``:
+            the profile sets the agent's own search and that of every modeled
+            level, each resolved to its budget as a cap; only ``selection`` may
+            be stated beside it),
             ``{"kind": "rts", ...RTSConfig fields}``,
             ``{"kind": "intmcp", ...INTMCPConfig fields}`` or
             ``{"kind": "exact", ...ExactConfig fields}``; unused at level 0.
@@ -166,7 +171,7 @@ class AgentSpec:
                 _check_intmcp(self)
             elif isinstance(config, ExactConfig):
                 _check_exact(self)
-            elif self.modeled is not None:
+            elif self.modeled is not None or self.planner.get("profile") is not None:
                 _modeled_configs(self)
         if self.escalation is not None:
             _check_escalation(self)
@@ -343,6 +348,14 @@ def _planner_config(entry):
         raise ValueError("An intentional agent needs a planner with a 'kind'")
     options = {k: v for k, v in entry.items() if k != "kind"}
     if entry["kind"] == "ipomcp":
+        profile = options.pop("profile", None)
+        if profile is not None:
+            own = profiles.own_options(profile, options.get("selection"))
+            owned = (set(own) | {"modeled_resolution", "modeled_prediction"}) - {"selection"}
+            stated = sorted(owned & set(options))
+            if stated:
+                raise ValueError(f"The profile sets {', '.join(stated)}; drop them from the planner")
+            options |= own
         if isinstance(options.get("root_stopping"), dict):
             options["root_stopping"] = ModeledStopping(**options["root_stopping"])
         if isinstance(options.get("modeled_resolution"), dict):
@@ -399,16 +412,35 @@ def exact_window(spec: StudySpec):
 
 
 def _modeled_configs(agent_spec):
-    """{level: configuration} of the intentional levels below the agent, from its stack label."""
-    if agent_spec.modeled is None:
-        return None
+    """{level: configuration} of the intentional levels below the agent, from its stack label.
+
+    Under a planner profile each modeled level also takes the profile's modeled-level options, with
+    its budget as the resolution's cap; without a stack label that budget is the planner's
+    ``modeled_simulations`` at every level.
+    """
+    profile = (agent_spec.planner or {}).get("profile")
     levels = agent_spec.level - 1
+    if agent_spec.modeled is None:
+        if profile is None or levels < 1:
+            return None
+        base = _planner_config(agent_spec.planner)
+        return {
+            level: _profiled(base, base.modeled_simulations, profile)
+            for level in range(levels, 0, -1)
+        }
     if levels < 1:
         raise ValueError("A level-1 agent models no intentional level; drop 'modeled'")
     stack = parse_stack(agent_spec.modeled, levels)
     if any(solve is None for solve in stack):
         raise ValueError("Exact modeled levels are not supported in episode studies")
     base = _planner_config(agent_spec.planner)
+    if profile is not None:
+        if any(solve.stopping is not None for solve in stack):
+            raise ValueError("A profile resolves modeled levels to their budgets; drop the stopping rule")
+        return {
+            level: _profiled(base, solve.budget, profile)
+            for level, solve in zip(range(levels, 0, -1), stack)
+        }
     kind = "mcts" if isinstance(base, PlannerConfig) else "rts"
     return {
         level: planner_config(
@@ -421,6 +453,14 @@ def _modeled_configs(agent_spec):
         )
         for level, solve in zip(range(levels, 0, -1), stack)
     }
+
+
+def _profiled(base, budget, profile):
+    """A modeled level of a profile agent: the flat configuration at ``budget`` with the profile's options."""
+    return replace(
+        planner_config("mcts", budget, base.depth, base.gamma, base.exploration),
+        **profiles.modeled_options(profile, budget, base.selection),
+    )
 
 
 def _int_keys(mapping):

@@ -62,7 +62,7 @@ from pathlib import Path
 from ipomdp.baselines.rts import RTSConfig
 from ipomdp.belief import canonical
 from ipomdp.belief.finite_filter import UnsupportedObservation
-from ipomdp.experiments import wide_prior
+from ipomdp.experiments import profile, wide_prior
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
 from ipomdp.experiments.oracle import REFERENCE_BRANCHES
 from ipomdp.experiments.wumpus_qualification import (
@@ -521,9 +521,8 @@ def certified_options(args):
     options = dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
                    unsampled_value=args.unsampled, exact_tail=args.exact_tail, prune=args.prune,
                    selection=args.selection or "ucb", leaf_eval=args.leaf_eval, lazy_expansion=args.lazy)
-    if args.profile == "certified":
-        options |= dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, prune=True,
-                        leaf_eval="bound", lazy_expansion=True, selection=args.selection or "iemax")
+    if args.profile is not None:
+        options |= profile.own_options(args.profile, args.selection)
     return options
 
 
@@ -537,11 +536,12 @@ def modeled_options(args):
     if args.modeled_exact:
         return options  # exact modeled levels: nothing to search or resolve
     cap = args.modeled or args.budget
-    if args.modeled_resolve or args.profile == "certified":
+    if args.modeled_resolve or args.profile is not None:
         options["modeled_resolution"] = ModeledResolution(pilot=min(args.modeled_pilot, cap))
         options["modeled_prediction"] = args.modeled_prediction
-    if args.profile == "certified":
-        options |= {k: v for k, v in certified_options(args).items()} | {"modeled_prediction": "plausible"}
+    if args.profile is not None:
+        options |= certified_options(args) | profile.modeled_options(
+            args.profile, cap, args.selection, args.modeled_pilot)
     return options
 
 
@@ -611,7 +611,7 @@ def main():
                      help="ucb by default; iemax under --profile certified (adopted Nov 14, RESULTS 12.129)")
     dec.add_argument("--leaf-eval", choices=LEAF_EVALS, default="rollout")
     dec.add_argument("--lazy", action="store_true", help="certified search: lazy frontier expansion")
-    dec.add_argument("--profile", choices=("certified",),
+    dec.add_argument("--profile", choices=profile.PROFILES,
                      help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
                           "--leaf-eval bound --lazy --selection iemax (an explicit --selection overrides)")
     dec.add_argument("--modeled-resolve", action="store_true",

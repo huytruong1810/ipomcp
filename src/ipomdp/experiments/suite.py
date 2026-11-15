@@ -172,14 +172,21 @@ def load_manifest(output):
 # Builders ------------------------------------------------------------------------------------
 
 
-def ipomcp(simulations, depth):
-    """An I-POMCP planner entry whose own modeled queries use the same budget."""
-    return {
+def ipomcp(simulations, depth, profile=None):
+    """An I-POMCP planner entry whose own modeled queries use the same budget.
+
+    ``profile`` names a planner profile of ``experiments.profile`` (e.g. "certified") for the
+    agent and its modeled levels; None is the default configuration.
+    """
+    entry = {
         "kind": "ipomcp",
         "simulations": simulations,
         "depth": depth,
         "modeled_simulations": simulations,
     }
+    if profile is not None:
+        entry["profile"] = profile
+    return entry
 
 
 def hierarchy_agent(level, planner, modeled, particles, level_weights=None):
@@ -217,14 +224,16 @@ def level_matrix(
     pairs=None,
     timeout_seconds=14400.0,
     max_rss_mb=3072.0,
+    profile=None,
 ):
     """Every (i, j) level pair (or only ``pairs``); cell labels ``i<level>_j<level>``.
 
     Defaults are RESULTS 12.27's design: horizon 2, where chance scoring makes
     every decision exact for the searched model at any budget, so a budget of
     100 only needs to try every action; modeled levels solve the same way.
+    ``profile``: the planner profile of every agent and modeled level (``ipomcp``).
     """
-    planner = ipomcp(simulations, depth)
+    planner = ipomcp(simulations, depth, profile)
     pairs = pairs or [(li, lj) for li in levels for lj in levels]
     # Expensive cells first within each trial round, so stragglers start early.
     pairs = sorted(pairs, key=lambda pair: (-max(pair), -min(pair), pair))
@@ -314,6 +323,7 @@ def anytime_comparison(
     domain_options=None,
     timeout_seconds=14400.0,
     max_rss_mb=3072.0,
+    profile=None,
 ):
     """i at level 2 with every planner and budget against one real level-1 I-POMCP j.
 
@@ -328,18 +338,20 @@ def anytime_comparison(
     - ``rts-<filter>-k<K>``: IPF + RTS on the sampled (published) or smoothed
       (repaired, 12.62) IPF, every level with RTS at K.
     - ``intmcp-<variant>-<M>``: I-NTMCP, which models j with its own nested trees.
+
+    ``profile``: the planner profile of the real j and of every I-POMCP arm (``ipomcp``).
     """
-    opponent = hierarchy_agent(1, ipomcp(opponent_simulations, depth), None, particles)
+    opponent = hierarchy_agent(1, ipomcp(opponent_simulations, depth, profile), None, particles)
     modeled = str(opponent_simulations)
     arms = {}
     for n in ipomcp_simulations:
-        arms[f"ipomcp-{n}"] = hierarchy_agent(2, ipomcp(n, depth), modeled, particles)
+        arms[f"ipomcp-{n}"] = hierarchy_agent(2, ipomcp(n, depth, profile), modeled, particles)
         arms[f"ipomcp-pm-{n}"] = hierarchy_agent(
-            2, ipomcp(n, depth), modeled, particles, level_weights={1: 1.0}
+            2, ipomcp(n, depth, profile), modeled, particles, level_weights={1: 1.0}
         )
     for n in ipomcp_own_simulations:
         arms[f"ipomcp-pm-own-{n}"] = hierarchy_agent(
-            2, ipomcp(n, depth), str(n), particles, level_weights={1: 1.0}
+            2, ipomcp(n, depth, profile), str(n), particles, level_weights={1: 1.0}
         )
     for particle_filter in rts_filters:
         for samples in rts_samples:
@@ -398,15 +410,17 @@ def prior_sensitivity(
     domain_options=None,
     timeout_seconds=14400.0,
     max_rss_mb=3072.0,
+    profile=None,
 ):
     """i at ``level`` with each prior of ``prior_arms`` against the matrix's j at ``opponent_level``.
 
     The real j and every model of it are the level matrix's agents, so the
     ``uniform`` arm is the matrix cell (level, opponent_level) on the same seeds.
+    ``profile``: the planner profile of every agent and modeled level (``ipomcp``).
     """
     if not 0 <= opponent_level < level:
         raise ValueError("The opponent's level must lie below i's")
-    planner = ipomcp(simulations, depth)
+    planner = ipomcp(simulations, depth, profile)
     opponent = hierarchy_agent(opponent_level, planner, str(simulations), particles)
     cells = {
         arm: StudySpec(
