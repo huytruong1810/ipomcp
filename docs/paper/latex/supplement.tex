@@ -558,6 +558,7 @@ $\mathbb E[r_t+\gamma g_k(h_{t+1})\mid h_t]=g_{k+1}(h_t)+\gamma\,\mathbb E[\xi(h
 bracket has conditional mean $G(h_t)+\gamma\,\mathbb E[\xi(h_{t+1})\mid h_t]$. Subtract the first identity for
 $l=k$.
 \end{proof}
+Plan values are discounted $H$-step values; the cumulative gains of Section~7.3 of the paper are undiscounted sums of reward.
 
 \paragraph{The exact check.} For every cell of the level grids (tiger, coordination and published, $k \to k+1$ for $k \leq 3$; UAV and the Wumpus world, both roles, $k \leq 1$), we enumerate $i$'s histories against the true opponent, as played by the exact agent at level $k$ and, separately, at level $k+1$, and at each history we evaluate both levels' receding plans exactly against the true opponent. Comparing at the same history removes the timing effect of receding-horizon play. Each cell runs until its step count or a cap of 4~GB and 1~CPU-hour (8~GB and 2~CPU-hours for the four largest tiger cells); 107 of the 116 cell-references stop at the memory cap, which fixes the number of steps covered.
 
@@ -689,6 +690,8 @@ A level-2 UAV plans with $H = 4$ or 5 in 20-step episodes from the common prior 
 
 \section{Further Results}
 \label{sec:further}
+
+\paragraph{Planner seeds.} The comparison of Figure~1 of the paper was repeated at two further planner seeds for I-POMCP, for I-NTMCP at $M = 4{,}000$ and 16{,}000, and for IPF + RTS at $K = 4$ in both configurations; the other arms were run at one seed. In none of these runs is I-POMCP wrong where a baseline is right.
 
 \paragraph{Episodes inside the exact window.} The exact pair's expected reward lies within the I-POMCP pair's 95\% interval at 97 of 100 agent-steps of the coordination tiger grid and at 31 of 36 of the UAV grid.
 
