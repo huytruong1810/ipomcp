@@ -10,6 +10,7 @@ from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, JointTigerModel
 from ipomdp.domains.uav import UAVModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
+from ipomdp.model.pomdp import POMDPModel
 from ipomdp.planning.chance_scoring import _Span
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
@@ -55,10 +56,52 @@ def random_model(physics, level, rng, states):
     return MentalModel(AgentFrame("i", level, physics), belief)
 
 
+class RevealModel(POMDPModel):
+    """Each agent observes the other's action exactly, and every reward is negative.
+
+    An observation then excludes all but one action of the other agent. A bound
+    that maximizes over that agent's actions must keep the excluded ones at
+    zero: dropping them charges every observation branch in full, which falls
+    below the exact value when continuations are negative.
+    """
+
+    def __init__(self, miss=-3.0):
+        self.miss = float(miss)
+
+    def initial_distribution(self):
+        return (("A", 0.5), ("B", 0.5))
+
+    def transition_distribution(self, state, joint_action):
+        if joint_action["i"] == joint_action["j"]:
+            return ((state, 1.0),)
+        return (("A", 0.5), ("B", 0.5))
+
+    def observation_distribution(self, state, joint_action, agent_id):
+        other_action = next(a for agent, a in joint_action.items() if agent != agent_id)
+        return ((other_action, 1.0),)
+
+    def get_reward(self, state, joint_action, next_state, agent_id):
+        return -1.0 if (state == "A") == (joint_action[agent_id] == "u") else self.miss
+
+    def reward_bounds(self, agent_id):
+        return (min(-1.0, self.miss), max(-1.0, self.miss))
+
+    def is_terminal(self, state):
+        return False
+
+    def get_all_actions(self, agent_id):
+        return ["u", "v"]
+
+    def get_all_observations(self, agent_id):
+        return ["u", "v"]
+
+
 CASES = [
     ("tiger", 1, 3),
     ("tiger", 2, 3),
     ("uav", 1, 3),
+    ("reveal", 1, 3),
+    ("reveal", 2, 3),
 ]
 
 
@@ -66,6 +109,9 @@ def setup(domain, level, depth):
     if domain == "tiger":
         physics = JointTigerModel(together_safe=40.0)
         states = [TIGER_LEFT, TIGER_RIGHT]
+    elif domain == "reveal":
+        physics = RevealModel()
+        states = ["A", "B"]
     else:
         physics = UAVModel(rows=2, cols=2)
         states = [s for s in ((u, t) for u in physics.cells() for t in physics.cells())
@@ -167,3 +213,21 @@ def test_itib_lies_between_the_exact_value_and_ifib(domain, level, depth):
     # Measured (Nov 12): I-TIB equals I-FIB on these tiger cells too (a reset's observation is
     # uninformative, and I-FIB already conditions i's next action on the observation only).
     assert tighter >= 0
+
+
+def test_itib_keeps_opponent_actions_that_an_observation_excludes():
+    # Every reward is -1, so Q^3 = -(1 + 0.95 + 0.95^2) whatever anyone does, and both upper
+    # bounds must equal it. Maximizing only over the opponent actions that can produce an
+    # observation gave -3.755 here: each of i's two observations was charged a full branch.
+    physics = RevealModel(miss=-1.0)
+    bank = hierarchy(physics, 1, 3)
+    model = MentalModel(
+        AgentFrame("i", 1, physics),
+        FiniteBelief(((InteractiveState("A", MentalModel(AgentFrame("j", 0, physics))), 1.0),)),
+    )
+    exact = BestResponseReference(physics, bank, GAMMA).q_values(model, 3)
+    for kind in ("ifib", "itib"):
+        upper = bank.frontier_bounds(model, GAMMA, 3, kind).node_bounds(model, 3, bank).q_hi
+        for action, value in exact.items():
+            assert math.isclose(value, -(1 + GAMMA + GAMMA**2), rel_tol=0, abs_tol=1e-12)
+            assert math.isclose(upper[action], value, rel_tol=0, abs_tol=1e-9)

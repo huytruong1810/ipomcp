@@ -209,13 +209,19 @@ class FrontierBounds:
                 for kk in range(len(self.actions)):
                     terms = []
                     for s, p in beta:
+                        # The maximum ranges over every action of the other agent. One under
+                        # which this observation cannot occur (kappa = 0) adds nothing to the
+                        # branch, so it enters at zero; leaving it out would charge the branch
+                        # in full and fall below the exact value when continuations are negative.
                         options = []
                         for aj in self.other_actions:
                             kappa, _ = self._one_step(s, action, aj, observation)
-                            if kappa > 0:
-                                options.append(kappa * self.qbar_t(r - 1, (s, action, aj, observation))[kk])
-                        if options:
-                            terms.append(p * max(options))
+                            options.append(
+                                kappa * self.qbar_t(r - 1, (s, action, aj, observation))[kk]
+                                if kappa > 0
+                                else 0.0
+                            )
+                        terms.append(p * max(options))
                     best = max(best, math.fsum(terms))
                 continuation.append(best)
             tight = reward + self.gamma * math.fsum(continuation)
