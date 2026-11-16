@@ -30,7 +30,6 @@ i-L1 it models with a flat 400. A single label applies to every level, so
 ``400`` at level 3 means ``400/400`` and ``exact`` means an exact hierarchy.
 """
 
-import os
 import random
 import re
 from dataclasses import dataclass
@@ -126,12 +125,13 @@ def modeled_keys(agent, level):
     ]
 
 
-def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stopping=None, backup=None):
+def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stopping=None, backup="sparse"):
     """The configuration of a planner of this kind whose root and modeled budgets are ``budget``.
 
-    ``backup`` (IPF + RTS): "sparse" or "published"; None falls back to the IPOMDP_RTS_BACKUP environment
-    variable, then "sparse". The variant is part of ``RTSConfig``, so every row that records its config
-    records it.
+    ``backup`` (IPF + RTS): the ``RTSConfig`` backup, "sparse" unless the caller names another. It is an
+    argument and nothing else: a result must not depend on the environment of the shell that ran it, so
+    there is no environment-variable override. The variant is part of ``RTSConfig``, so every row that
+    records its configuration records it.
     """
     if planner_kind == "mcts":
         return PlannerConfig(
@@ -144,10 +144,6 @@ def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stop
         )
     if modeled_stopping is not None:
         raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
-    # The RTS backup of grid drivers (panel, oracle) that build configs here: "sparse" unless the run sets
-    # IPOMDP_RTS_BACKUP (e.g. "published" for IPF + RTS exactly as published, RESULTS 12.116-12.117).
-    if backup is None:
-        backup = os.environ.get("IPOMDP_RTS_BACKUP", "sparse")
     return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma, backup=backup)
 
 
