@@ -7,16 +7,21 @@ from ipomdp.model.pomdp import AgentID, POMDPModel
 
 @dataclass(frozen=True, slots=True)
 class AgentFrame:
-    """A descriptor that pairs an agent identifier and reasoning level with a physics model.
+    """An agent's identifier, reasoning level and physics model: everything about it but its belief.
 
-    ``AgentFrame`` is stored inside each immutable mental model to
-    record which model of an opponent the particle assumes.
+    Every ``MentalModel`` holds one: the modeled opponent's inside a belief
+    atom, and the planning agent's own at the root of its hierarchy.
 
     Attributes:
-        agent_id:    The opponent's identifier.
-        level:       The reasoning level attributed to the opponent.
-        pomdp_model: The POMDPModel instance the opponent is assumed to
-                     use (typically the same shared environment model).
+        agent_id:    The agent's identifier.
+        level:       Its reasoning level (0 is the uniformly random agent).
+        pomdp_model: The ``POMDPModel`` it is assumed to act in (typically the
+                     one shared environment model).
+
+    Two frames are equal when their agent and level are equal and their physics
+    is the *same object*. Comparing physics by value would cost a structural
+    comparison inside every atom hash; ``canonical.physics_identity`` gives the
+    value-based identity where one is needed (digests and seeds).
     """
 
     agent_id: AgentID
@@ -25,8 +30,8 @@ class AgentFrame:
     _hash: int = field(init=False, repr=False, compare=False)
 
     def __post_init__(self):
-        # Frames are few and long-lived but hashed inside every atom hash
-        # (20M times in 10 L3 H4 queries), so the hash is computed once.
+        # Frames are few and long-lived but hashed inside every atom hash (tens
+        # of millions of times per level-3 decision), so the hash is computed once.
         object.__setattr__(self, "_hash", hash((self.agent_id, self.level, id(self.pomdp_model))))
 
     def __repr__(self) -> str:

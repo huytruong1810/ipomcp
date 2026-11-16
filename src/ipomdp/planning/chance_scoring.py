@@ -269,7 +269,7 @@ def _frontier_child(node, remaining, ctx):
 
 def _value(node, model, remaining, ctx):
     """(V*(h), exact, interval or None) at a child history."""
-    bank, gamma, span = ctx.bank, ctx.gamma, ctx.span
+    bank, span = ctx.bank, ctx.span
     if remaining == 1:
         value = max(dict(bank.expected_rewards(model)).values())
         return value, True, (value, value)

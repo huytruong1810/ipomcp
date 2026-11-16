@@ -278,8 +278,8 @@ def exact_decision_gains(
             if set(pi_up) != set(pi_lo) or any(abs(pi_up[a] - pi_lo[a]) > 1e-12 for a in pi_up):
                 sums["differ_mass"].append(mass)
             if per_level is not None:
-                residual = math.fsum(posterior[l] * (v_up - v_lo) for l, (v_up, v_lo) in per_level.items())
-                mixture = math.fsum(posterior[l] * v_up for l, (v_up, _) in per_level.items())
+                residual = math.fsum(posterior[level] * (v_up - v_lo) for level, (v_up, v_lo) in per_level.items())
+                mixture = math.fsum(posterior[level] * v_up for level, (v_up, _) in per_level.items())
                 sums["residual"].append(mass * residual)
                 residual_min = min(residual_min, residual)
                 gap_max = max(gap_max, abs(mixture - max(up.reference.q_values(model, horizon).values())))

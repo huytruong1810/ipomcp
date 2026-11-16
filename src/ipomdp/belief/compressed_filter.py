@@ -4,8 +4,8 @@ Why not sample the update
 -------------------------
 The sampled interactive particle filter (``belief.particle_filter``) samples
 every term of the update per particle: the opponent's action, the successor
-state and the opponent's private observation. Two errors follow, measured on
-L2 Tiger against exact beliefs (docs/RESULTS.md):
+state and the opponent's private observation. Two errors follow, both measured
+on level-2 Tiger against exact beliefs:
 
 - **Quantization of small beliefs.** A nested belief with two physical states
   is held as N equal-weight samples, so its probabilities move in steps of
@@ -23,8 +23,11 @@ Given a belief with at most N atoms:
    every opponent action, successor state and private opponent observation, with
    nested opponents updated by this same filter, recursively);
 2. if the posterior has more than N distinct atoms, replace it by N stratified
-   draws in canonical order (``belief.resampling``; systematic draws aliased
-   on structured uniform beliefs, docs/RESULTS.md 12.57), with identical draws merged.
+   draws in canonical order (``belief.resampling``), with identical draws merged.
+   Stratified, not systematic: the single offset of systematic draws aliases
+   with the period of a structured uniform belief (a uniform prior over a grid
+   in canonical order) and can drop a whole class of atoms; one independent
+   point per stratum cannot (``tests/test_bounded_beliefs.py``).
 
 Small beliefs therefore stay exact, and the only approximation is step 2,
 whose per-atom mass error is below 2/N. ``evidence`` is the exact
@@ -34,8 +37,8 @@ compressed the same way.
 Cost: one update enumerates at most N x |A_j| x |S'| x |O_j| branches per
 level, against N propagations for the sampled filter. Supports never exceed N at
 any level, so the planner's per-history cost stays bounded as histories grow.
-Measured on L2 Tiger mid-episode decisions, N = 64 was both faster than the
-sampled filter at N = 64 and as accurate as exact beliefs (docs/RESULTS.md).
+Measured on level-2 Tiger mid-episode decisions, N = 64 was both faster than
+the sampled filter at N = 64 and as accurate as exact beliefs.
 
 Compression draws from a stream seeded by the filter seed and the posterior's
 canonical digest, so the update is a pure function, cacheable like the exact one.
@@ -66,16 +69,17 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
             raise TypeError("A compressed filter needs an explicit integer seed")
         # An update enumerates at most N x |A_j| x |S'| x |O_j| branches; the
         # default guard is far above that for every current domain.
-        # Cache: at 4,096 entries an L3 episode evicted and recomputed 22% of its
-        # updates, and each recomputed posterior is a new object equal to cached
-        # ones downstream, so later lookups compared whole beliefs recursively
-        # (PLAN, cheaper nested solves, S3).
+        # Cache: at 4,096 entries a level-3 episode evicted and recomputed 22% of
+        # its updates, and each recomputed posterior is a new object equal to
+        # cached ones downstream, so later lookups compared whole beliefs
+        # recursively; hence the larger default here.
         super().__init__(policy, cache_size, max_branches or 10_000 * particles)
         self.particles, self.seed = particles, seed
         if compression not in COMPRESSIONS:
             raise ValueError(f"compression must be one of {COMPRESSIONS}")
-        # Head-tail (audit spec 2.3): the heaviest atoms exact, ``tail`` stratified draws for the rest,
-        # and the lost mass recorded per compressed belief (``loss``). Default: stratified, no record.
+        # Head-tail: the heaviest atoms exact, ``tail`` stratified draws for the rest, and the lost mass
+        # recorded per compressed belief (``loss``), which is what a deterministic bound on the
+        # compression error needs. Default: stratified, no record.
         self.compression = compression
         self.tail = particles // 4 if tail is None else tail
         if compression == "head-tail" and not 0 <= self.tail < particles:

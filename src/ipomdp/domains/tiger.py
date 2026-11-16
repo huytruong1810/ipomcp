@@ -122,8 +122,9 @@ class TigerModel(POMDPModel):
 
         This cheap memory drives the rollout heuristic only. It is not the
         interactive posterior, which the planner carries separately. Memoized
-        (``_rollout_posterior``): it ran 2M times in four L3 episode steps, 14% of
-        their CPU, over few distinct arguments.
+        (``_rollout_posterior``): rollouts repeat the same few (memory, action,
+        observation) arguments millions of times per level-3 decision, where the
+        unmemoized update was about a seventh of the CPU.
         """
         return dict(_rollout_posterior(self, tuple(memory.items()), action, observation, agent_id))
 
@@ -146,10 +147,13 @@ class TigerModel(POMDPModel):
 
 @lru_cache(maxsize=65536)
 def _rollout_posterior(physics, memory, action, observation, agent_id):
-    """``physics._rollout_update`` keyed by value; ``memory`` is its items in order.
+    """``physics._rollout_update``, memoized; ``memory`` is its items in order.
 
-    Module-level, so physics gains no attribute (its attributes are its
-    canonical identity, ``canonical.physics_identity``).
+    The key holds the physics object itself (hashed by identity), so two equal
+    models built separately do not share entries; that costs recomputation, not
+    correctness. The memo is module-level so that physics gains no attribute:
+    its attributes are its canonical identity (``canonical.physics_identity``)
+    and enter every search seed.
     """
     return tuple(physics._rollout_update(dict(memory), action, observation, agent_id).items())
 
@@ -176,11 +180,12 @@ class JointTigerModel(TigerModel):
     Why
     ---
     In the published game an agent's reward depends only on its own door, so
-    the other agent matters only through resets and creaks, and a deeper level
-    of reasoning cannot pay off in reward (RESULTS.md 12.18, 12.21). These
-    variants keep the published states, transitions and observations and change
-    only the payoff of opening a door, so every exact reference, gate and tool
-    applies unchanged:
+    the other agent matters only through resets and creaks, and reasoning one
+    level deeper about it is worth almost nothing in reward (by the exact
+    solver: no decision changes at horizon 2, and about 0.01 on average at
+    horizon 3). These variants keep the published states, transitions and
+    observations and change only the payoff of opening a door, so every exact
+    reference and tool applies unchanged:
 
     - ``together_safe``: each agent's reward for opening the safe door when the
       other opens the same door in the same step (published: 10). Above 10 it
@@ -211,6 +216,13 @@ class JointTigerModel(TigerModel):
         return reward - self.solo_penalty if other_action == LISTEN else reward
 
     def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
-        # Both are reached: the tiger's door opened alone; the safe door opened
-        # beside an opener of the other door (10) or of the same door.
-        return (-100.0 - self.solo_penalty, max(10.0, self.together_safe))
+        # The four payoffs of opening a door: the tiger's door beside a listener
+        # (-100 - solo_penalty) or beside an opener (-100); the safe door beside an
+        # opener of the other door (10), of the same door (together_safe) or beside
+        # a listener (10 - solo_penalty). Listening pays -1, which lies between.
+        # ``together_safe`` has no sign constraint, so it can be the minimum (a
+        # race harsh enough to cost more than the tiger) as well as the maximum.
+        return (
+            min(-100.0 - self.solo_penalty, self.together_safe),
+            max(10.0, self.together_safe),
+        )

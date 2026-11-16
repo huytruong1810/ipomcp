@@ -12,8 +12,17 @@ A domain states *what can happen and with what probability*:
 Sampling (``sample_initial_state``, ``sample_transition``,
 ``sample_observation``) and likelihoods (``observation_probability``) are
 derived from those kernels here, so a sampler can never disagree with the law
-that exact belief updates and exact references use. Earlier versions let each
-domain implement sampler and likelihood separately; they had to agree by hand.
+that exact belief updates and exact references use. The rejected alternative,
+a domain that implements its sampler and its likelihood separately, makes the
+two agree only by hand, and a disagreement is invisible: sampled search and
+exact filtering would then solve two different games.
+
+A kernel is a tuple of ``(outcome, probability)`` pairs with distinct outcomes
+and strictly positive probabilities that sum to one. Zero-probability outcomes
+are omitted rather than listed, so that a kernel's listed outcomes are exactly
+its support: exhaustive references, reachability enumeration and branch
+budgets all count listed outcomes. (``belief.finite_filter.checked_distribution``
+drops a zero entry if one is listed; the contract tests reject it.)
 
 Observations depend on the post-transition state and the joint action. Any
 transition event an observation must report (for example a bump or a scream)
@@ -82,8 +91,11 @@ class POMDPModel(abc.ABC):
     def reward_bounds(self, agent_id: AgentID) -> Tuple[float, float]:
         """Inclusive (min, max) of ``get_reward`` over every reachable transition.
 
-        The planner's exploration scale is derived from these bounds, so they
-        must hold for all states and joint actions, not only the likely ones.
+        The planner's exploration scale and every certified value interval are
+        derived from these bounds, so they must hold for all states and joint
+        actions, not only the likely ones: a reward outside them makes a
+        certificate unsound. They should also be attained, because slack widens
+        every interval (``tests/test_domain_exhaustive.py`` checks both).
         """
 
     @abc.abstractmethod

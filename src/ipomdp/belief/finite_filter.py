@@ -12,8 +12,10 @@ hypothesis. U_j marginalizes unknown actions using j's SUBJECTIVE models. It nev
 receives the outer physical state or action. O_j is included once because private
 observations are enumerated here; a sampling implementation must not double-weight it.
 
-The sensors are conditionally independent given post-state and joint action, as
-in the three current domains. Correlated sensors require a different joint kernel.
+The two agents' sensors are conditionally independent given post-state and joint
+action. The domain contract can express nothing else (``observation_distribution``
+is per agent), so this holds in every domain; correlated sensors would need a
+joint observation kernel in the contract and a joint enumeration here.
 Policy and dynamics providers must remain fixed and pure for this object's lifetime.
 An externally mutable MCTS node cannot be a policy or belief cache key.
 
@@ -110,7 +112,7 @@ class InteractiveFilter:
         Memoized separately from ``update`` so that every nested update with
         the same arguments shares one successor object: atoms built from it
         hash and compare by identity instead of rebuilding an equal model
-        (millions of times per L3 H4 modeled solve).
+        (millions of times per level-3 modeled solve).
         """
         return MentalModel(
             model.frame, self.update(model, action, observation, terminal=terminal).belief

@@ -13,10 +13,10 @@ encoding:
 - the order in which belief atoms are presented to ``random.choices``;
 - deterministic bounded resampling in the interactive filter.
 
-Before this module existed, the solver bank had such an encoding but the filter
-did not, so bounded resampling depended on insertion order (two equal beliefs
-could compress to different posteriors). Keeping the encoding here, next to the
-belief types, lets every layer share it without importing the solver layer.
+The encoding lives here, next to the belief types, so that every layer shares
+one definition without importing the solver layer. Two encodings (one for
+seeding, one for resampling) would let two equal beliefs compress to different
+posteriors whenever the encodings ordered their atoms differently.
 
 Encoding rules
 --------------
@@ -143,8 +143,8 @@ def _row_encodings(atom, mass):
     """``atom_row(atom, mass)`` as (``json.dumps``, ``digest``'s compact JSON), from cached parts.
 
     Encoding the opponent frame's physics for every atom was about a third of
-    an L3 episode's CPU (PLAN, cheaper nested solves, S0), so the frame's part
-    is encoded once per frame (``_frame_encodings``). The strings are the ones
+    a level-3 episode's CPU, so the frame's part is encoded once per frame
+    (``_frame_encodings``). The strings are the ones
     ``json`` would produce for the whole row (tests/test_canonical.py).
     """
     opponent = atom.opponent

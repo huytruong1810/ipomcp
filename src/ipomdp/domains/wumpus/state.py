@@ -1,3 +1,11 @@
+"""Immutable value types of the Wumpus world: an agent's pose and the full physical state.
+
+Both are frozen dataclasses, so states hash by value and serve directly as
+belief atoms and kernel outcomes; ``belief.canonical`` encodes them field by
+field, which makes every field part of a state's identity and of the search
+seeds derived from beliefs over it.
+"""
+
 from dataclasses import dataclass
 from typing import FrozenSet, Tuple
 

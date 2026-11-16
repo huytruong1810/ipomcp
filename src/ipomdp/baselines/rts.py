@@ -41,7 +41,6 @@ from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.planner import Planner
 from ipomdp.planning.policy import greedy_policy, sample_policy
 
-
 # How a node backs up its sampled observations (RESULTS 12.116):
 # "sparse": (1/K) sum_k V(b'_k), the unbiased sparse-sampling estimate (this module's default);
 # "published": Doshi & Gmytrasiewicz (2009), Fig. 18, lines 17-23: the distinct sampled observations, each

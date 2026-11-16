@@ -71,25 +71,25 @@ from ipomdp.experiments.wumpus_qualification import (
     _model_at,
     nested_levels,
 )
+from ipomdp.planning.chance_scoring import compression_bound, deviation_bound
 from ipomdp.planning.config import (
     FRONTIER_BOUNDS,
+    LEAF_EVALS,
     OUTCOMES,
     PREDICTIONS,
-    LEAF_EVALS,
     ROOT_RULES,
-    SELECTIONS,
     SCORING,
+    SELECTIONS,
     UNSAMPLED_VALUES,
     PlannerConfig,
 )
-from ipomdp.planning.chance_scoring import compression_bound, deviation_bound
 from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
-from ipomdp.planning.stopping import ModeledResolution
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
+from ipomdp.planning.stopping import ModeledResolution
 from ipomdp.reference.best_response import BestResponseReference
-from ipomdp.reference.shared_horizon import SharedHorizonReference
 from ipomdp.reference.exact_agent import ExactIPOMDPPlanner, build_exact_agent
+from ipomdp.reference.shared_horizon import SharedHorizonReference
 
 GAMMA = 0.95
 

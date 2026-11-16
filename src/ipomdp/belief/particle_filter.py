@@ -7,7 +7,7 @@ Approximating Interactive POMDPs", JAIR 34 (2009).
 other agent's private observation, and holds every nested level as particles.
 ``PublishedParticleFilter`` (below) is the filter exactly as published: the
 bottom intentional level is updated exactly and the other agent's observations
-are enumerated (see its docstring and RESULTS 12.116).
+are enumerated (see its docstring).
 The planner's default bounded belief is ``belief.compressed_filter``, which
 enumerates each update instead of sampling it and is far more accurate at the
 same N (see that module).
@@ -46,7 +46,7 @@ update raises ``UnsupportedObservation``; the same holds for a nested model
 that cannot explain its own sampled observation. With noisy sensors (Tiger,
 UAV) every observation has positive likelihood under every particle, so this
 cannot happen. With deterministic sensors (Wumpus) the particle set can miss
-the true world, and such failures surface explicitly (RESULTS 12.59).
+the true world, and such failures surface explicitly.
 
 ``smoothing`` ε > 0 is the standard likelihood-smoothing repair: every
 particle is weighted by (1 - ε) O_i(o_i | s', a) + ε / |Ω_i|, at every nesting
@@ -71,8 +71,8 @@ from ipomdp.belief.finite_filter import (
 )
 from ipomdp.belief.resampling import systematic_draws
 
-# The ε of the solver bank's "smoothed" filter, declared before the G3 runs
-# (docs/PLAN.md, publication gaps): a 1% uniform sensor-noise floor.
+# The ε of the solver bank's "smoothed" filter: a 1% uniform sensor-noise floor,
+# fixed before any run that uses it, so it is not a tuned quantity.
 IPF_SMOOTHING = 0.01
 
 

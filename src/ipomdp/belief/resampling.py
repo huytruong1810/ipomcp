@@ -43,7 +43,7 @@ def stratified_draws(weighted_atoms, count, rng):
 
 
 def head_tail(weighted_atoms, count, tail, rng):
-    """Head-tail compression (audit spec 2.3): ((atom, mass), ...) with at most ``count`` atoms, and its loss.
+    """Head-tail compression: ((atom, mass), ...) with at most ``count`` atoms, and its loss.
 
     The ``count - tail`` heaviest atoms keep their exact masses (ties broken by
     the order given, which callers make canonical). The rest, of total mass

@@ -295,6 +295,7 @@ def test_scored_intervals_are_no_wider_than_the_searchs_own_bounds():
 
 def test_the_certified_profile_selects_by_upper_bound_unless_told_otherwise():
     from types import SimpleNamespace
+
     from ipomdp.experiments.reachable_decisions import certified_options
 
     base = dict(frontier_bounds="scalar", scoring="legacy", unsampled="lower", exact_tail=False,

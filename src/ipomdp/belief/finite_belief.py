@@ -46,8 +46,8 @@ class MentalModel:
             raise TypeError("An intentional model requires an immutable FiniteBelief")
         # The belief summarizes its opponents once (``FiniteBelief.opponents``):
         # models are built millions of times per nested solve from a few
-        # thousand beliefs, and scanning the support each time was 14% of an
-        # L3 H4 modeled solve's CPU (results/w1_profile_20261005).
+        # thousand beliefs, and scanning the support each time was about a
+        # seventh of a level-3 modeled solve's CPU.
         identities, top_level = self.belief.opponents
         if self.frame.agent_id in identities or top_level >= self.frame.level:
             raise ValueError("Opponent nesting must change agent and strictly decrease level")
@@ -101,8 +101,8 @@ class FiniteBelief:
         if not entries:
             raise ValueError("A belief cannot be empty")
         # One pass validates and finds the scale; beliefs are built hundreds of
-        # thousands of times per nested solve (results/w1_profile_20261005).
-        # A type error is reported before a mass error, as before.
+        # thousands of times per nested solve. A type error is reported before a
+        # mass error, whatever their order in the input.
         typed, valid, scale = True, True, 0.0
         for atom, w in entries:
             if not isinstance(atom, InteractiveState):
@@ -171,7 +171,7 @@ class FiniteBelief:
         # so keys and hashes are recomputed. The masses are restored bit for bit,
         # never renormalized: normalizing normalized masses moves them by an ulp,
         # which changes the canonical digest and hence every search seed derived
-        # from it (504 of 549 queried beliefs changed digest before this).
+        # from it (renormalizing on load changed the digest of nine beliefs in ten).
         return _restore_belief, (self.mass,)
 
 

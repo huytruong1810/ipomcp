@@ -65,7 +65,9 @@ class UAVModel(POMDPModel):
     ):
         if type(rows) is not int or type(cols) is not int or min(rows, cols) < 1:
             raise ValueError("The grid needs positive integer dimensions")
-        if rows < 2 or rows * cols < 2:
+        # Two rows at least: the UAV's observation is the target's row, and one
+        # row would make it constant (``_row_report`` also divides by rows - 1).
+        if rows < 2:
             raise ValueError("The grid needs at least two rows")
         start = (rows - 1, 0) if uav_start is None else tuple(uav_start)
         if not (0 <= start[0] < rows and 0 <= start[1] < cols):
