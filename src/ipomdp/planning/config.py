@@ -88,6 +88,27 @@ class PlannerConfig:
         modeled_prediction: ``"argmax"`` (default): a modeled agent plays its
             greedy maximizers; ``"plausible"``: uniformly the actions its
             intervals cannot rule out (Theorem 1b); needs ``modeled_resolution``.
+        outcome: How certified search chooses the next observation below the
+            selected action. ``"sample"`` (default): drawn with its probability;
+            a new history is a frontier and is expanded at its second visit
+            (``lazy_expansion``). ``"gap"``: the open branch with the largest
+            probability-weighted gap between its bounds, the rule of
+            bound-directed solvers (HSVI); ``"gap_sample"``: an open branch
+            drawn in proportion to that weighted gap (BRTDP). Under both gap
+            rules the first history on the path that is not yet expanded is
+            expanded and the simulation ends (one expansion per simulation),
+            ties between actions are broken without the random stream, and
+            ``leaf_eval`` and ``lazy_expansion`` have no effect. They need
+            ``prune`` and ``selection="iemax"``.
+        root_rule: Which root action a gap rule refines. ``"upper"`` (default,
+            the only value under ``outcome="sample"``): the largest upper
+            bound. ``"open"``: the largest upper bound among the actions that
+            may still be optimal and whose own interval is open, so that a
+            decision is never left unresolved because the action that keeps it
+            open is not the largest upper bound. ``"challenger"``: of the
+            leading action and its strongest challenger, the one with the
+            wider interval (the leader-and-challenger rule of best-arm
+            identification), restricted in the same way.
 
     Every certified-search field needs ``frontier_bounds != "scalar"``.
 
@@ -117,6 +138,8 @@ class PlannerConfig:
     lazy_expansion: bool = False
     modeled_resolution: ModeledResolution | None = None
     modeled_prediction: str = "argmax"
+    outcome: str = "sample"
+    root_rule: str = "upper"
 
     def __post_init__(self):
         for name in ("simulations", "depth", "modeled_simulations"):
@@ -164,6 +187,17 @@ class PlannerConfig:
             raise ValueError(f"modeled_prediction must be one of {PREDICTIONS}")
         if self.modeled_prediction == "plausible" and self.modeled_resolution is None:
             raise ValueError("Plausible prediction needs modeled_resolution")
+        if self.outcome not in OUTCOMES:
+            raise ValueError(f"outcome must be one of {OUTCOMES}")
+        if self.root_rule not in ROOT_RULES:
+            raise ValueError(f"root_rule must be one of {ROOT_RULES}")
+        if self.outcome == "sample" and self.root_rule != "upper":
+            raise ValueError("The root rules 'open' and 'challenger' belong to a gap-directed outcome rule")
+        if self.outcome != "sample":
+            if self.selection != "iemax" or not self.prune:
+                raise ValueError("A gap-directed outcome rule needs pruning and selection by upper bound")
+            if self.root_rule == "upper":
+                raise ValueError("A gap-directed outcome rule needs the root rule 'open' or 'challenger'")
 
     @property
     def certified_search(self):
@@ -174,6 +208,7 @@ class PlannerConfig:
             or self.selection != "ucb"
             or self.leaf_eval != "rollout"
             or self.lazy_expansion
+            or self.outcome != "sample"
         )
 
 
@@ -183,6 +218,8 @@ UNSAMPLED_VALUES = ("lower", "mid", "upper")
 SELECTIONS = ("ucb", "puct", "iemax")
 PREDICTIONS = ("argmax", "plausible")
 LEAF_EVALS = ("rollout", "bound")
+OUTCOMES = ("sample", "gap", "gap_sample")
+ROOT_RULES = ("upper", "open", "challenger")
 
 # Fields that read the finished tree only, or decide how a finished modeled solve is
 # turned into a prediction; never part of the search seed (a resolution's main tree
@@ -197,4 +234,6 @@ NEUTRAL_DEFAULTS = {
     "puct_temperature": 0.25,
     "leaf_eval": "rollout",
     "lazy_expansion": False,
+    "outcome": "sample",
+    "root_rule": "upper",
 }

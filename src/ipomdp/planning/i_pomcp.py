@@ -87,6 +87,10 @@ class IPOMCPPlanner(Planner):
             pomdp_model, solver_key.agent_id, config.exploration
         )
         self._frontier_bounds = None
+        # One absolute tolerance per search under a gap-directed outcome rule (_tolerance); None otherwise.
+        self._epsilon = None
+        if config.outcome != "sample":
+            self._epsilon = 1e-9 * self.exploration.return_width(config.depth, config.gamma)
         self.gen_model = InteractiveGenerativeModel(solver_bank)
         # Stream for sampling this agent's real actions from its greedy policy.
         self.rng = random.Random(solver_bank.stream_seed("actions", str(solver_key)))
@@ -415,6 +419,8 @@ class IPOMCPPlanner(Planner):
             node.visit_count += 1
             return cert.lo
         live = [action for action in self.actions if action not in cert.pruned]
+        if config.outcome != "sample":
+            return self._directed_step(node, depth, memory, history_model, rng, live)
         action = self.exploration.select_action(node, live, remaining, config.gamma, rng)
         particle = self.solver_bank.draw(history_model.belief, rng)
         following, joint, _, terminal = self.gen_model.tree_step(
@@ -461,6 +467,121 @@ class IPOMCPPlanner(Planner):
         node.visit_count += 1
         self._refresh(node, history_model, action)
         return node.action_values[action]
+
+    def _directed_step(self, node, depth, memory, history_model, rng, live):
+        """The rest of one descent under a gap-directed outcome rule (``config.outcome``).
+
+        The next observation is an open branch of the selected action: the one
+        with the largest probability-weighted gap between its bounds
+        (``"gap"``), or one drawn in proportion to that gap (``"gap_sample"``).
+        The first history on the path that is not yet expanded is expanded and
+        the descent ends, so a simulation expands at most one history and the
+        next one chooses again from the root with the new bounds. The action
+        value kept at each history is the expectation over every branch under
+        its exact probability (a branch without a history counts at the
+        stand-in of its interval), since visit counts no longer follow the
+        chance law.
+        """
+        config, cert = self.config, node.cert
+        remaining = config.depth - depth
+        action = self._directed_action(cert, live, depth)
+        weights = {}
+        for observation, probability in cert.law[action].items():
+            child = node.get_child(action, observation)
+            if child is None:
+                gap = cert.branch_hi[action][observation] - cert.branch_lo[action][observation]
+            elif child.cert.solved:
+                continue
+            else:
+                gap = probability * (child.cert.hi - child.cert.lo)
+            if gap > 0.0:
+                weights[observation] = gap
+        if weights:
+            if config.outcome == "gap":
+                observation = max(weights, key=weights.get)
+            else:
+                observation = rng.choices(list(weights), weights=list(weights.values()))[0]
+            child = node.get_child(action, observation)
+            if child is None:
+                child = node.create_child(action, observation)
+                probability = cert.law[action][observation]
+                child.cert = CertifiedState(
+                    cert.branch_lo[action][observation] / probability,
+                    cert.branch_hi[action][observation] / probability,
+                )
+            next_model = self._history_successor(history_model, action, observation)
+            if not child.cert.expanded:
+                self._expand(child, next_model, remaining - 1)
+                child.visit_count += 1
+                estimate = _pick(child.cert.lo, child.cert.hi, config.unsampled_value)
+                child.cert.estimate = child.rollout_value = estimate
+            else:
+                next_memory = self.pomdp_model.update_rollout_memory(
+                    memory, action, observation, self.key.agent_id
+                )
+                self._simulate_certified(child, depth + 1, next_memory, next_model, rng)
+            counts = node.continuation_counts.setdefault(action, {})
+            counts[observation] = counts.get(observation, 0) + 1
+        node.action_counts[action] = node.action_counts.get(action, 0) + 1
+        node.visit_count += 1
+        terms = []
+        for observation, probability in cert.law[action].items():
+            child = node.get_child(action, observation)
+            if child is None:
+                terms.append(_pick(cert.branch_lo[action][observation],
+                                   cert.branch_hi[action][observation], config.unsampled_value))
+            else:
+                terms.append(probability * child.value_estimate())
+        reward = dict(self.solver_bank.expected_rewards(history_model))[action]
+        node.action_values[action] = reward + config.gamma * math.fsum(terms)
+        self._refresh(node, history_model, action)
+        return node.action_values[action]
+
+    def _tolerance(self, x):
+        """How far apart two bounds may be and still count as equal.
+
+        The sampled outcome rule keeps the outward rounding slack relative to
+        the value at hand. The gap-directed rules use one absolute tolerance
+        per search, 1e-9 times the return range of the planning horizon, so
+        that a history whose children are all closed is closed itself whatever
+        the magnitudes of their values (a relative slack does not compose).
+        """
+        return _slack(x) if self._epsilon is None else self._epsilon
+
+    def _directed_action(self, cert, live, depth):
+        """The action a gap-directed descent refines: the largest upper bound, widest interval first.
+
+        At the root the choice is among the actions that may still be optimal
+        and whose own interval is open (``root_rule="open"``): while the
+        decision is unresolved such an action exists, and refining any other
+        cannot resolve it. ``root_rule="challenger"`` takes, of the leading
+        action and its strongest challenger, the one with the wider interval.
+        Ties are broken by interval width, then by the order of the actions.
+        """
+        def width(action):
+            return cert.q_hi[action] - cert.q_lo[action]
+
+        candidates = live
+        if depth == 0:
+            # Pruning under a gap rule removes only actions that are not plausible (_prune), so the
+            # plausible actions are all unpruned; the set is formed from the stop test's own sets.
+            _, plausible = plausible_sets({a: (cert.q_lo[a], cert.q_hi[a]) for a in self.actions})
+            contenders = [a for a in self.actions if a in plausible]
+            unsettled = [a for a in contenders if width(a) > self._tolerance(cert.q_hi[a])]
+            if unsettled:
+                candidates = unsettled
+                if self.config.root_rule == "challenger" and len(contenders) > 1:
+                    index = {
+                        k: max(cert.q_hi[i] for i in contenders if i != k) - cert.q_lo[k]
+                        for k in contenders
+                    }
+                    leader = min(contenders, key=index.get)
+                    challenger = max((k for k in contenders if k != leader), key=cert.q_hi.get)
+                    pair = [a for a in (leader, challenger) if a in unsettled]
+                    if pair:
+                        return max(pair, key=width)
+        best = max(cert.q_hi[a] for a in candidates)
+        return max((a for a in candidates if cert.q_hi[a] == best), key=width)
 
     def _expand(self, node, model, remaining):
         """Give ``node`` its own bounds (and, with two steps to go and ``exact_tail``, its exact value)."""
@@ -535,13 +656,19 @@ class IPOMCPPlanner(Planner):
             )
 
     def _prune(self, cert):
+        if self._epsilon is not None:
+            # Gap-directed rules: an action is removed only when the stop test no longer counts it as
+            # possibly optimal. A tighter rule could remove an action the stop test still waits for,
+            # which would then never be refined.
+            _, plausible = plausible_sets({a: (cert.q_lo[a], cert.q_hi[a]) for a in cert.q_hi})
+            cert.pruned.update(a for a in cert.q_hi if a not in plausible)
+            return
         best = max(cert.q_lo.values())
         for action, upper in cert.q_hi.items():
             if upper < best - _slack(best):
                 cert.pruned.add(action)
 
-    @staticmethod
-    def _close(node):
+    def _close(self, node):
         """Node bounds from action bounds (intersected with the inherited ones); mark solved.
 
         A solved history may never have been searched (its bounds can close at
@@ -554,10 +681,10 @@ class IPOMCPPlanner(Planner):
         lo, hi = max(cert.q_lo.values()), max(cert.q_hi.values())
         cert.lo = lo if cert.lo is None else max(cert.lo, lo)
         cert.hi = hi if cert.hi is None else min(cert.hi, hi)
-        if cert.hi - cert.lo <= _slack(cert.hi):
+        if cert.hi - cert.lo <= self._tolerance(cert.hi):
             cert.solved = True
             for action, upper in cert.q_hi.items():
-                if action not in node.action_values and upper - cert.q_lo[action] <= _slack(upper):
+                if action not in node.action_values and upper - cert.q_lo[action] <= self._tolerance(upper):
                     node.action_values[action] = cert.q_lo[action]
 
     def _resolved(self, node, tie=TIE_TOLERANCE):
@@ -565,7 +692,11 @@ class IPOMCPPlanner(Planner):
         cert = node.cert
         if cert is None or not cert.expanded:
             return False
-        if cert.solved and all(cert.q_lo[a] == cert.q_hi[a] for a in self.actions if a not in cert.pruned):
+        if self._epsilon is None:
+            closed = all(cert.q_lo[a] == cert.q_hi[a] for a in self.actions if a not in cert.pruned)
+        else:
+            closed = all(cert.q_hi[a] - cert.q_lo[a] <= self._epsilon for a in self.actions if a not in cert.pruned)
+        if cert.solved and closed:
             return True
         # The same sets as a modeled solve's resolution (policy.plausible_sets), so search never
         # stops while the solve's own rule still calls the decision unresolved.

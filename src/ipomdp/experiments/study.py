@@ -460,6 +460,8 @@ def _profiled(base, budget, profile):
     return replace(
         planner_config("mcts", budget, base.depth, base.gamma, base.exploration),
         **profiles.modeled_options(profile, budget, base.selection),
+        outcome=base.outcome,
+        root_rule=base.root_rule,
     )
 
 

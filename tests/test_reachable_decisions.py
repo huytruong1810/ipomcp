@@ -69,3 +69,33 @@ def test_a_budget_ladder_scores_prefixes_of_the_same_tree_and_ends_at_the_decisi
     assert row["values"] == plain["values"] and row["bounds"] == plain["bounds"]
     assert row["ladder"][-1]["values"] == plain["values"] and row["ladder"][-1]["bounds"] == plain["bounds"]
     assert all(stage["bounds_contain_reference"] for stage in row["ladder"])
+
+
+CERTIFIED_OPTIONS = dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, prune=True, leaf_eval="bound",
+                         lazy_expansion=True, selection="iemax")
+
+
+@pytest.mark.parametrize("extra", [{}, dict(outcome="gap", root_rule="open"),
+                                   dict(outcome="gap_sample", root_rule="open")])
+def test_counting_work_changes_no_score_and_counts_from_a_cold_start(extra):
+    problem = json.loads(json.dumps(rd.reference("tiger-joint", 2, 3, seed=1, steps=1)))
+    options = CERTIFIED_OPTIONS | extra
+    plain = rd.decide(problem, "mcts", 100, seed=0, modeled_exact=True, ladder=[10, 30], certified=options)
+    counted = rd.decide(problem, "mcts", 100, seed=0, modeled_exact=True, ladder=[10, 30], certified=options,
+                        count_work=True)
+    assert counted["work_counted"] and "work_counted" not in plain
+    for key in ("loss", "policy", "values", "bounds", "bounds_contain_reference"):
+        assert counted[key] == plain[key]
+    for cold, warm in zip(counted["ladder"], plain["ladder"]):
+        for key in ("budget", "loss", "bounds", "sims_run", "pruned_root", "bounds_contain_reference"):
+            assert cold[key] == warm[key]
+        assert warm["updates"] == 0  # scored after a warm first search: nothing is counted
+    assert counted["ladder"][-1]["updates"] > 0
+    assert all(stage["bounds_contain_reference"] for stage in counted["ladder"])
+    assert counted["loss"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_counting_work_needs_a_ladder():
+    problem = json.loads(json.dumps(rd.reference("tiger-joint", 2, 2, seed=1, steps=1)))
+    with pytest.raises(ValueError, match="needs a ladder"):
+        rd.decide(problem, "mcts", 100, seed=0, modeled_exact=True, count_work=True)

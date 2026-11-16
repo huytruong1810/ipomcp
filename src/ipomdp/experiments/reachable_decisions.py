@@ -73,8 +73,10 @@ from ipomdp.experiments.wumpus_qualification import (
 )
 from ipomdp.planning.config import (
     FRONTIER_BOUNDS,
+    OUTCOMES,
     PREDICTIONS,
     LEAF_EVALS,
+    ROOT_RULES,
     SELECTIONS,
     SCORING,
     UNSAMPLED_VALUES,
@@ -339,12 +341,18 @@ def _loss(policy, q):
 def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter="sampled",
            variant="published", modeled_exact=False, intmcp_opponent="search", ladder=None,
            cache_size=200_000, rts_published=False, certified=None, modeled_options=None,
-           compression="stratified", intmcp_uct_c=None, intmcp_record=False):
+           compression="stratified", intmcp_uct_c=None, intmcp_record=False, count_work=False):
     """One decision of an arm on a stored problem, scored against its exact Q.
 
     ``ladder`` (I-POMCP only): budgets below ``budget`` at which the same tree is also scored, each stage
     recorded under ``ladder`` with its certified intervals (V2 coverage); the row's own fields are the stage
     at ``budget``, identical to a decision without a ladder.
+
+    ``count_work`` (with ``ladder``): grow the ladder's tree before the decision's own search instead of
+    after it, so that each stage's ``updates`` and ``nested_solves`` (cache misses) count the belief updates
+    and nested solves the search really needed; scored after a warm first search, as by default, they are
+    zero. The decision and every score are unchanged; the row's ``cpu_seconds`` is then the warm repeat, and
+    the cost of the search is the last stage's ``cpu_seconds``. The row carries ``work_counted``.
 
     ``certified``: non-default ``PlannerConfig`` options of i's own planner (``_planner``), recorded in the row.
     ``modeled_options``: the same for every modeled level. With them the row also carries Theorem 1b's
@@ -437,12 +445,16 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     try:
         for action, observation in steps_taken:
             planner.update_root(action, observation)
+        if ladder and kind != "mcts":
+            raise ValueError("A budget ladder is an I-POMCP arm")
+        if count_work:
+            if not ladder:
+                raise ValueError("Counting work needs a ladder")
+            stages = planner.anytime_scores(planner.model(), sorted(set(ladder) | {budget}))
         started = time.process_time()
         policy = planner.policy_for(planner.model())
         cpu_seconds = time.process_time() - started
-        if ladder:
-            if kind != "mcts":
-                raise ValueError("A budget ladder is an I-POMCP arm")
+        if ladder and not count_work:
             stages = planner.anytime_scores(planner.model(), sorted(set(ladder) | {budget}))
     except UnsupportedObservation as error:
         # A sampled belief can lose every world that explains an observation (counted as not optimal).
@@ -456,6 +468,8 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     )
     if ladder:
         row["ladder"] = [_stage(simulations, scores, cpu, q) | work for simulations, scores, cpu, work in stages]
+    if count_work:
+        row["work_counted"] = True
     if kind == "mcts":
         bounds = planner.scores.bounds
         row |= dict(exact_root=planner.scores.exact, bounds={str(a): b for a, b in bounds.items()},
@@ -520,7 +534,8 @@ def certified_options(args):
     """``PlannerConfig`` options of i's own planner from the ``decide`` flags."""
     options = dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
                    unsampled_value=args.unsampled, exact_tail=args.exact_tail, prune=args.prune,
-                   selection=args.selection or "ucb", leaf_eval=args.leaf_eval, lazy_expansion=args.lazy)
+                   selection=args.selection or "ucb", leaf_eval=args.leaf_eval, lazy_expansion=args.lazy,
+                   outcome=getattr(args, "outcome", "sample"), root_rule=getattr(args, "root_rule", "upper"))
     if args.profile is not None:
         options |= profile.own_options(args.profile, args.selection)
     return options
@@ -611,6 +626,15 @@ def main():
                      help="ucb by default; iemax under --profile certified (adopted Nov 14, RESULTS 12.129)")
     dec.add_argument("--leaf-eval", choices=LEAF_EVALS, default="rollout")
     dec.add_argument("--lazy", action="store_true", help="certified search: lazy frontier expansion")
+    dec.add_argument("--count-work", action="store_true",
+                     help="with --ladder: grow the ladder before the decision's search, so each stage's updates and "
+                          "nested_solves count the work from a cold start")
+    dec.add_argument("--outcome", choices=OUTCOMES, default="sample",
+                     help="certified search: next observation sampled (default), or the open branch with the "
+                          "largest probability-weighted gap (gap), or drawn in proportion to it (gap_sample)")
+    dec.add_argument("--root-rule", choices=ROOT_RULES, default="upper",
+                     help="with a gap outcome rule: open (largest upper bound among undecided actions) or "
+                          "challenger (leader against challenger)")
     dec.add_argument("--profile", choices=profile.PROFILES,
                      help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
                           "--leaf-eval bound --lazy --selection iemax (an explicit --selection overrides)")
@@ -650,7 +674,7 @@ def main():
                      args.particle_filter, args.intmcp_variant, args.modeled_exact,
                      args.intmcp_opponent, args.ladder, args.reference_cache, args.rts_published,
                      certified_options(args), modeled_options(args), args.compression,
-                     args.intmcp_uct_c, args.intmcp_record)
+                     args.intmcp_uct_c, args.intmcp_record, args.count_work)
         row["total_cpu_seconds"] = time.process_time() - started
     _write(args.out, row)
 

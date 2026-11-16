@@ -219,3 +219,30 @@ def test_an_episode_runs_under_the_certified_profile():
     again = [[row[f"{field}_{agent}"] for agent in "ij" for field in ("action", "action_values", "bounds")]
              for row in run_episode(study, 0)]
     assert decided == again
+
+
+def test_a_profile_study_passes_the_gap_options_to_every_modeled_level_as_decide_does():
+    from ipomdp.experiments.reachable_decisions import _planner, certified_options, modeled_options
+
+    arguments = _decide_arguments(outcome="gap", root_rule="open")
+    study = StudySpec(
+        name="profile-gap",
+        domain="tiger",
+        trials=1,
+        steps=1,
+        agents={
+            "i": AgentSpec(level=3, planner=PROFILED | {"outcome": "gap", "root_rule": "open"}, modeled="30/30",
+                           particles=16),
+            "j": AgentSpec(level=0),
+        },
+    )
+    decided = _planner(study.physics(), "mcts", 0, 50, 2, 3, 30, 16, "compressed",
+                       certified=certified_options(arguments), modeled_options=modeled_options(arguments))
+    _, planners = build_agents(study, seed=0)
+    assert planners["i"].config == decided.config and planners["i"].config.outcome == "gap"
+    for agent in ("i", "j"):
+        for lower in (1, 2):
+            key = SolverKey(agent, lower)
+            ours = planners["i"].solver_bank.get_solver(key).config
+            assert ours == decided.solver_bank.get_solver(key).config
+            assert (ours.outcome, ours.root_rule) == ("gap", "open")
