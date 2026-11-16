@@ -123,3 +123,27 @@ def test_two_step_branches_are_charged_even_without_tree_nodes():
             assert slack[action] > 0
             charged += 1
     assert charged >= 1
+
+
+def test_a_compression_bound_is_refused_where_no_loss_is_recorded():
+    """Zero slack is the answer only for exact beliefs; stratified and sampled beliefs have no recorded loss."""
+    from ipomdp.experiments.reachable_decisions import GAMMA, _planner, make_physics
+    from ipomdp.planning.chance_scoring import compression_bound
+
+    physics = make_physics("tiger-joint")
+
+    def slack(particles, particle_filter, compression="stratified"):
+        planner = _planner(physics, "mcts", 0, 50, 3, 2, 20, particles, particle_filter,
+                           compression=compression, prior=(8, 0.0))
+        model = planner.model()
+        planner.policy_for(model)
+        return compression_bound(planner.root, model, 3, planner.solver_bank, planner._history_successor, GAMMA)
+
+    assert set(slack(0, "sampled").values()) == {0.0}  # exact beliefs
+    assert max(slack(4, "compressed", "head-tail").values()) > 0
+    for particle_filter in ("compressed", "sampled"):
+        with pytest.raises(ValueError, match="compression bound"):
+            slack(4, particle_filter)
+    stratified = _planner(physics, "mcts", 0, 50, 3, 2, 20, 4, "compressed", prior=(8, 0.0))
+    with pytest.raises(ValueError, match="records no loss"):
+        stratified.solver_bank.search_filter.loss(stratified.belief)

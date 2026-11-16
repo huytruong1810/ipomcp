@@ -150,7 +150,7 @@ def test_an_unseparated_solve_returns_the_flat_search_of_the_cap(monkeypatch):
     plain, _ = j_planner(6, None, simulations=800, depth=4)
     model = chain_model(physics, "j", 1, tiger_chain(0.5))
     sizes = counting(monkeypatch)
-    values = ruled._stopped_values(model)
+    values = ruled._stopped_scores(model).values
     assert sizes == [100, 100, 200, 400, 800]
     assert (
         values

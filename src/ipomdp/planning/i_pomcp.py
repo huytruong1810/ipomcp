@@ -101,6 +101,9 @@ class IPOMCPPlanner(Planner):
         self.scores = None
         self.belief = None
         self.initial_belief = None
+        # Whether the last modeled solve's scores were exact; ``policy_for(modeled=True)`` sets it and
+        # ``modeled_solution`` reads it straight after, to report that solve as resolved.
+        self._modeled_exact = None
 
     # ------------------------------------------------------------------ #
     # Beliefs
@@ -215,7 +218,6 @@ class IPOMCPPlanner(Planner):
             m_hi = max(hi for _, hi in widened.values())
             narrow = rule.rel_width > 0 and (m_hi - m_lo) / width <= rule.rel_width
             if resolved or narrow or simulations == cap:
-                self.modeled_simulations_run = tree.simulations_run
                 return scores, plausible, resolved, delta
 
     def anytime_scores(self, model, checkpoints):
@@ -247,9 +249,6 @@ class IPOMCPPlanner(Planner):
             )
             stages.append((simulations, scores, cpu, work))
         return stages
-
-    def _stopped_values(self, model):
-        return self._stopped_scores(model).values
 
     def _stopped_scores(self, model):
         """Chance scores of a modeled solve by sequential stopping (``stopping``)."""

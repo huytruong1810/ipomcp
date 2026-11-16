@@ -197,14 +197,14 @@ class FrontierBounds:
             reward = math.fsum(
                 p * max(self._kernel(s, action, aj)[0] for aj in self.other_actions) for s, p in beta
             )
-            # Successor one-step beliefs, grouped by the agent's next observation o'.
-            by_observation = {}
+            # Every next observation o' that some state of beta and some action of the other agent can
+            # produce (a dict keeps first-seen order; the sum below does not depend on it).
+            observations = {}
             for s, p in beta:
                 for aj in self.other_actions:
-                    for observation in self._kernel(s, action, aj)[2]:
-                        by_observation.setdefault(observation, set()).add(None)
+                    observations.update(dict.fromkeys(self._kernel(s, action, aj)[2]))
             continuation = []
-            for observation in by_observation:
+            for observation in observations:
                 best = -math.inf
                 for kk in range(len(self.actions)):
                     terms = []

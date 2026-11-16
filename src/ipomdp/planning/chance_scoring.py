@@ -103,6 +103,9 @@ still carry their own frequency errors; hence the recursion.
 import math
 from dataclasses import dataclass, field, replace
 
+from ipomdp.belief.compressed_filter import CompressedInteractiveFilter
+from ipomdp.belief.finite_filter import FiniteInteractiveFilter
+
 
 @dataclass(frozen=True)
 class ChanceScores:
@@ -482,10 +485,16 @@ def compression_bound(root, model, depth, bank, successor, gamma):
     by c_H makes them contain the value of the searched model that does not
     compress i's own belief below the root. Nested compression is outside it.
     """
-    loss = getattr(bank.search_filter, "loss", None)
     actions = [a for a, _ in bank.expected_rewards(model)]
-    if loss is None or depth < 2:
+    search_filter = bank.search_filter
+    if type(search_filter) is FiniteInteractiveFilter or depth < 2:
+        # Exact beliefs are never compressed, and a one-step lookahead reads only the root belief.
         return {a: 0.0 for a in actions}
+    if not (isinstance(search_filter, CompressedInteractiveFilter) and search_filter.compression == "head-tail"):
+        # Stratified compression and the sampled filters record no loss; answering 0 for them would
+        # present an unknown error as a certified one.
+        raise ValueError("A compression bound needs exact beliefs or head-tail compression (it records its loss)")
+    loss = search_filter.loss
     physics, agent = model.frame.pomdp_model, model.frame.agent_id
     span = _Span(*physics.reward_bounds(agent), gamma, depth)
     width = [span.hi[r] - span.lo[r] for r in range(depth + 1)]

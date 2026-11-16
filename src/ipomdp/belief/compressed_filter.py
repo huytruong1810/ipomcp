@@ -91,7 +91,13 @@ class CompressedInteractiveFilter(FiniteInteractiveFilter):
         self._losses.clear()
 
     def loss(self, belief):
-        """The mass epsilon a head-tail compression replaced to produce ``belief`` (0 if none recorded)."""
+        """The mass epsilon a head-tail compression replaced to produce ``belief`` (0 if it was not compressed).
+
+        Only head-tail compression records its loss. Under stratified compression the replaced mass is
+        not tracked, and 0 would read as "nothing was lost", so the question is refused.
+        """
+        if self.compression != "head-tail":
+            raise ValueError("Stratified compression records no loss; use head-tail compression for a bound")
         return self._losses.get(belief, 0.0)
 
     def initial_belief(self, rows):
