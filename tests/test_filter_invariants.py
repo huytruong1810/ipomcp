@@ -24,15 +24,23 @@ import random
 
 import pytest
 
-from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
+from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.finite_filter import FiniteInteractiveFilter, UnsupportedObservation
-from ipomdp.belief.frame import AgentFrame
 from ipomdp.belief.particle_filter import ParticleInteractiveFilter
 from ipomdp.belief.resampling import stratified_draws, systematic_draws
 from ipomdp.domains.runner_chaser import RunnerChaserModel
 from ipomdp.domains.tiger import JointTigerModel, TigerModel
 from ipomdp.domains.uav import UAVModel
 from ipomdp.domains.wumpus.model import WumpusModel
+from tests.independent_reference import (
+    GROWL,
+    TIGER_OBSERVATIONS,
+    level_one_update,
+    nested_model,
+    physical_marginal,
+    signature,
+    tiger_closed_form,
+)
 
 # --------------------------------------------------------------------------- #
 # Models built by hand (no hierarchy builder, no solver bank)
@@ -60,54 +68,9 @@ def leaning_policy(model):
     return leaning_split(actions, physical_marginal(model.belief))
 
 
-def nested_model(physics, agent, other, level, prior=None):
-    """``agent`` at ``level`` whose opponents are all at ``level - 1``, every belief the domain prior."""
-    frame = AgentFrame(agent, level, physics)
-    if level == 0:
-        return MentalModel(frame)
-    opponent = nested_model(physics, other, agent, level - 1)
-    rows = physics.initial_distribution() if prior is None else prior
-    return MentalModel(frame, FiniteBelief(tuple((InteractiveState(s, opponent), p) for s, p in rows)))
-
-
-def physical_marginal(belief):
-    marginal = {}
-    for atom, mass in belief.mass:
-        marginal[atom.state] = marginal.get(atom.state, 0.0) + mass
-    return marginal
-
-
 # --------------------------------------------------------------------------- #
 # 1. Closed form: level-1 Tiger against the uniformly random level 0
 # --------------------------------------------------------------------------- #
-
-GROWL, CREAK = 0.85, 0.9
-TRUE_CREAK = {"L": "S", "OL": "CL", "OR": "CR"}
-TIGER_OBSERVATIONS = [(g, c) for g in ("GL", "GR") for c in ("CL", "CR", "S")]
-
-
-def tiger_closed_form(p_left, action, observation):
-    """(P(TL | action, observation), evidence) for prior ``p_left``, from Table 1.
-
-    The other agent listens with probability 1/3 (the tiger stays) and opens a door with 2/3 (the tiger is
-    placed uniformly). A listener hears the correct growl with 0.85 and the creak that reports the other
-    agent's action with 0.9 (each other creak 0.05); an opener hears each of the six pairs with 1/6.
-    """
-    if action != "L":
-        return 0.5, 1 / 6
-    growl, creak = observation
-    weights = {}
-    for state, prior in (("TL", p_left), ("TR", 1 - p_left)):
-        hears = GROWL if growl == ("GL" if state == "TL" else "GR") else 1 - GROWL
-        stays = (1 / 3) * prior * (CREAK if creak == TRUE_CREAK["L"] else (1 - CREAK) / 2)
-        resets = sum(
-            (1 / 3) * 0.5 * (CREAK if creak == TRUE_CREAK[door] else (1 - CREAK) / 2)
-            for door in ("OL", "OR")
-        )
-        weights[state] = hears * (stays + resets)
-    evidence = weights["TL"] + weights["TR"]
-    return weights["TL"] / evidence, evidence
-
 
 @pytest.mark.parametrize("p_left", [0.5, 0.08, 0.93])
 def test_level_one_tiger_posterior_equals_the_closed_form_along_every_three_step_history(p_left):
@@ -227,29 +190,12 @@ def test_evidence_sums_to_one_and_posteriors_average_to_the_prediction(name):
     assert visited >= len(actions) * 2
 
 
-def reference_level_one_update(physics, agent, other, prior, action, observation):
-    """A level-1 Bayes update over physical states (uniform level-0 opponent), written out directly."""
-    other_actions = physics.get_all_actions(other)
-    weights = {}
-    for state, mass in prior.items():
-        for other_action in other_actions:
-            joint = {agent: action, other: other_action}
-            for successor, p_next in physics.transition_distribution(state, joint):
-                if physics.is_terminal(successor):
-                    continue
-                likelihood = dict(physics.observation_distribution(successor, joint, agent)).get(observation, 0.0)
-                if likelihood:
-                    weights[successor] = weights.get(successor, 0.0) + mass * p_next * likelihood / len(other_actions)
-    total = math.fsum(weights.values())
-    return {state: weight / total for state, weight in weights.items()} if total else None
-
-
 def reference_level_two_updates(physics, agent, other, rows, action):
     """{own observation: (posterior over (s', the opponent's updated level-1 belief), evidence)}, by brute force.
 
     ``rows`` is ((state, the opponent's level-1 belief as {state: p}, mass), ...). The opponent acts by
     ``leaning_split`` at its own belief and updates that belief on its own action and private observation
-    with ``reference_level_one_update``: nothing here calls the filter under test.
+    with ``independent_reference.level_one_update``: nothing here calls the filter under test.
     """
     other_actions = physics.get_all_actions(other)
     weights, advanced_cache = {}, {}
@@ -264,7 +210,7 @@ def reference_level_two_updates(physics, agent, other, rows, action):
                     cache_key = (nested_key, other_action, private)
                     if cache_key not in advanced_cache:
                         advanced_cache[cache_key] = signature(
-                            reference_level_one_update(physics, other, agent, nested, other_action, private)
+                            level_one_update(physics, other, agent, nested, other_action, private)
                         )
                     key = (successor, advanced_cache[cache_key])
                     for observation, likelihood in physics.observation_distribution(successor, joint, agent):
@@ -275,15 +221,6 @@ def reference_level_two_updates(physics, agent, other, rows, action):
         total = math.fsum(table.values())
         out[observation] = ({key: weight / total for key, weight in table.items()}, total)
     return out
-
-
-def signature(marginal):
-    """A belief over physical states as a hashable key, rounded so two summation orders agree.
-
-    A frozenset of (state, probability) pairs: lossless in the state (a state's ``repr`` need not be) and
-    free of any ordering of the states.
-    """
-    return frozenset((state, round(p, 9)) for state, p in marginal.items())
 
 
 @pytest.mark.parametrize(

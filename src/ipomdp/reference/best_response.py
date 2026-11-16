@@ -72,12 +72,24 @@ class BestResponseReference:
         Successor probabilities sum to the probability that the episode continues.
         """
         self._check_model(model)
+        return self._enumerate(model, action, self.bank.filter.action_distribution, expand=True)
+
+    def _enumerate(self, model, action, law, expand):
+        """``branches`` under any opponent action law ``law(opponent) -> ((action, probability), ...)``.
+
+        One enumeration serves every convention about how the modeled agent
+        acts (``reference.shared_horizon`` passes a law that depends on the
+        steps left), so the conventions cannot drift apart in how they treat
+        rewards, termination or the opponent's private observation. With
+        ``expand`` False no successor is built (the last step of a lookahead
+        needs only the expected reward).
+        """
         me = model.frame.agent_id
         rewards, rows, terminal_mass, count = [], defaultdict(list), [], 0
         for atom, prior in model.belief.mass:
             opponent = atom.opponent
             other = opponent.frame.agent_id
-            for other_action, policy_mass in self.bank.filter.action_distribution(opponent):
+            for other_action, policy_mass in law(opponent):
                 joint = {me: action, other: other_action}
                 for following, transition in checked_distribution(
                     self.physics.transition_distribution(atom.state, joint), "Transition"
@@ -86,7 +98,7 @@ class BestResponseReference:
                     rewards.append(
                         event * self.physics.get_reward(atom.state, joint, following, me)
                     )
-                    if self.physics.is_terminal(following):
+                    if self.physics.is_terminal(following) or not expand:
                         terminal_mass.append(event)
                         continue
                     for advanced, private_mass in self._advanced(

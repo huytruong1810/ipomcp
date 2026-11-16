@@ -1,4 +1,4 @@
-"""Shared-horizon reference (audit spec 3.8): the modeled agent plays its own r-step law at r steps to go."""
+"""Shared-horizon reference: the modeled agent plays its own r-step law at r steps to go."""
 
 import math
 

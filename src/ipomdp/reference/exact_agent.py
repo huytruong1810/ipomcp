@@ -11,6 +11,7 @@ Cost grows exponentially with horizon and nesting depth. Use it as a reference
 at small horizons and levels, never as a planner.
 """
 
+import math
 import random
 
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
@@ -74,7 +75,11 @@ def build_exact_agent(
     """Build an exact agent and its exact nested models in a fresh bank.
 
     Args:
-        nested: {level: {opponent level: weight}} for every intentional level.
+        nested: {level: {opponent level: weight}}: the prior of an agent at ``level`` over the other
+            agent's level, independent of the physical state. Weights are nonnegative and are
+            normalized; a level with weight 0 is left out of the support. A level missing from
+            ``nested`` holds the uniform prior over every lower level (the convention of the level
+            grids), so a caller states only the levels whose priors differ from it.
         horizon: Receding lookahead of every exact agent in the hierarchy.
         seed: Seeds the real agent's tie-breaking stream only; exact policies
             consume no search randomness, so modeled policies do not depend on it.
@@ -102,10 +107,16 @@ def build_exact_agent(
             create(who, lower)
             create(other, lower)
         weights = nested.get(lvl) or dict.fromkeys(range(lvl), 1 / lvl)
+        if any(type(lower) is not int or not 0 <= lower < lvl for lower in weights):
+            raise ValueError(f"Level {lvl} can only model levels 0 to {lvl - 1}")
+        if any(not math.isfinite(mass) or mass < 0 for mass in weights.values()):
+            raise ValueError("Level weights must be finite and nonnegative")
         total = sum(weights.values())
+        if total <= 0:
+            raise ValueError("Level weights need a positive total")
         rows = []
         for lower, mass in weights.items():
-            if mass <= 0:
+            if mass == 0:
                 continue
             solver = bank.get_solver(SolverKey(other, lower))
             opponent = MentalModel(

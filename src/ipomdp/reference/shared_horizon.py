@@ -1,4 +1,4 @@
-"""Exact best response under the shared-horizon convention for the modeled agent (audit spec 3.8, M10).
+"""Exact best response under the shared-horizon convention for the modeled agent.
 
 Why
 ---
@@ -17,11 +17,8 @@ own opponent is the uniformly random level 0); above that it raises.
 """
 
 import math
-from collections import defaultdict
 from functools import lru_cache
 
-from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
-from ipomdp.belief.finite_filter import InferenceBudgetExceeded, checked_distribution
 from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
 from ipomdp.reference.best_response import BestResponseReference
 
@@ -71,33 +68,4 @@ class SharedHorizonReference(BestResponseReference):
 
     def _shared_branches(self, model, action, r):
         """``BestResponseReference.branches`` with the opponent's law at ``r`` steps to go."""
-        me = model.frame.agent_id
-        rewards, rows, terminal_mass, count = [], defaultdict(list), [], 0
-        for atom, prior in model.belief.mass:
-            opponent = atom.opponent
-            other = opponent.frame.agent_id
-            for other_action, policy_mass in self._law(opponent, r):
-                joint = {me: action, other: other_action}
-                for following, transition in checked_distribution(
-                    self.physics.transition_distribution(atom.state, joint), "Transition"
-                ):
-                    event = prior * policy_mass * transition
-                    rewards.append(event * self.physics.get_reward(atom.state, joint, following, me))
-                    if self.physics.is_terminal(following) or r == 1:
-                        terminal_mass.append(event)
-                        continue
-                    for advanced, private_mass in self._advanced(opponent, other_action, following, joint):
-                        for observation, likelihood in checked_distribution(
-                            self.physics.observation_distribution(following, joint, me), "Observation"
-                        ):
-                            count += 1
-                            if count > self.max_branches:
-                                raise InferenceBudgetExceeded("Reference branch budget exceeded")
-                            rows[observation].append(
-                                (InteractiveState(following, advanced), event * private_mass * likelihood)
-                            )
-        branches = tuple(
-            (o, math.fsum(w for _, w in entries), MentalModel(model.frame, FiniteBelief(tuple(entries))))
-            for o, entries in rows.items()
-        )
-        return math.fsum(rewards), branches
+        return self._enumerate(model, action, lambda opponent: self._law(opponent, r), expand=r > 1)

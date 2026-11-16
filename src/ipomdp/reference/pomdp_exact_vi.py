@@ -1,7 +1,16 @@
-"""Exact Value Iteration with Incremental Pruning for 2-State POMDPs / Level 1 I-POMDPs.
+"""Exact value iteration with incremental pruning for two-state POMDPs (a level-1 I-POMDP agent).
 
-Computes the exact analytical, Bayes-optimal value function V_t*(p), action-value
-vectors Q_t*(p, a), policy decision boundaries, and alpha-vector representations.
+A level-1 agent facing an opponent with a fixed, state-independent policy (the
+uniformly random level 0 by default) solves a POMDP over the physical state.
+For a domain with two non-terminal states that POMDP's value function is a
+maximum of lines over p = P(first state), and this module computes it exactly:
+V_t*(p), Q_t*(p, a), the alpha vectors and the decision boundaries.
+
+Why it exists beside ``reference.best_response``: it is a different algorithm
+(alpha vectors over the whole belief interval, against enumeration of one
+belief's observation tree), so agreement between the two is evidence that
+neither is wrong. It reads the domain only through its kernels and names no
+domain; the "first state" is the first state of the model's prior.
 """
 
 from __future__ import annotations
@@ -10,6 +19,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from ipomdp.belief.finite_filter import checked_distribution
 from ipomdp.reference.alpha_vector import (
     AlphaVector2D,
     prune_2d,
@@ -34,11 +44,15 @@ class PolicySegment:
 
 
 class ExactPOMDPSolver:
-    """Exact Value Iteration solver for 2-State POMDPs and Level 1 I-POMDPs.
+    """Exact value iteration for a two-state domain against a fixed opponent policy.
 
-    Supports Tiger dynamics, finite horizons, discount factors and fixed
-    state-independent opponent policies. Alpha pruning uses floating tolerances;
-    'exact' means exhaustive finite-model backup, not symbolic arithmetic.
+    The model's prior must list exactly two states, and every transition must
+    stay among them without ending the episode (an episode that can end needs
+    a third, absorbing value, which two-dimensional alpha vectors cannot carry;
+    use ``reference.best_response`` there). Finite horizons, any discount in
+    [0, 1], and any state-independent opponent policy. Alpha pruning uses
+    floating tolerances: "exact" means exhaustive finite-model backup, not
+    symbolic arithmetic.
     """
 
     def __init__(
@@ -50,27 +64,22 @@ class ExactPOMDPSolver:
         agent_id: str = "i",
         opponent_id: str = "j",
     ):
-        from ipomdp.domains.tiger import TigerModel
-
-        if not isinstance(model, TigerModel):
-            raise TypeError("This two-state reference supports TigerModel only")
         self._check_horizon(horizon)
         if not math.isfinite(gamma) or not 0 <= gamma <= 1:
             raise ValueError("gamma must lie in [0, 1]")
-        if {agent_id, opponent_id} != {"i", "j"}:
-            raise ValueError("Tiger requires distinct agents i and j")
+        if agent_id == opponent_id:
+            raise ValueError("The agent and its opponent must be distinct")
         self.model = model
         self.horizon = horizon
         self.gamma = gamma
         self.agent_id = agent_id
         self.opponent_id = opponent_id
 
-        # Determine states and actions
-        from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT
-
-        self.states: Tuple[Any, Any] = (TIGER_LEFT, TIGER_RIGHT)
+        # p is the probability of the first state of the prior.
+        self.states: Tuple[Any, ...] = tuple(state for state, _ in model.initial_distribution())
         self.actions: Tuple[Any, ...] = tuple(model.get_all_actions(agent_id))
         self.opponent_actions: Tuple[Any, ...] = tuple(model.get_all_actions(opponent_id))
+        self._check_two_state_model()
 
         if opponent_policy is None:
             # Default to uniform L0
@@ -78,8 +87,6 @@ class ExactPOMDPSolver:
             self.opponent_policy = {a: 1.0 / n_opp for a in self.opponent_actions}
         else:
             self.opponent_policy = dict(opponent_policy)
-
-        from ipomdp.belief.finite_filter import checked_distribution
 
         self.opponent_policy = dict(
             checked_distribution(self.opponent_policy.items(), "Opponent policy")
@@ -100,6 +107,20 @@ class ExactPOMDPSolver:
         # Precompute immediate rewards and transitions
         self._immediate_rewards: Dict[Any, Tuple[float, float]] = {}
         self._precompute_immediate_rewards()
+
+    def _check_two_state_model(self):
+        """Two states, closed under every joint action, none of them terminal."""
+        if len(self.states) != 2:
+            raise ValueError("This reference needs a domain whose prior lists exactly two states")
+        for state in self.states:
+            if self.model.is_terminal(state):
+                raise ValueError("This reference needs non-terminal states")
+            for own in self.actions:
+                for other in self.opponent_actions:
+                    joint = {self.agent_id: own, self.opponent_id: other}
+                    for following, _ in self.model.transition_distribution(state, joint):
+                        if following not in self.states:
+                            raise ValueError("This reference needs transitions that stay within its two states")
 
     @staticmethod
     def _check_horizon(horizon):

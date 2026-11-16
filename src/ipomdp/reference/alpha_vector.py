@@ -79,7 +79,7 @@ def prune_2d_with_intervals(
     if len(vecs) <= 1:
         return [(vecs[0], 0.0, 1.0)]
 
-    # 2. Sort by slope ascending, breaking ties by intercept descending
+    # 2. Sort by slope ascending, ties by intercept ascending (step 3 then keeps the last, the highest)
     vecs.sort(key=lambda v: (v.slope, v.intercept))
 
     # 3. Filter parallel lines: keep only the highest intercept for identical slopes
