@@ -122,11 +122,14 @@ def history(physics, steps, seed, opponent):
     out = []
     for _ in range(steps):
         other = opponent.act(world)
+        # An action is safe when no successor it can lead to ends the episode, read from the kernel
+        # (one sampled successor would misjudge an action that ends the episode only sometimes).
         safe = [
             a
             for a in physics.get_all_actions("i")
-            if not physics.is_terminal(
-                physics.sample_transition(state, {"i": a, "j": other}, random.Random(0))
+            if not any(
+                physics.is_terminal(following)
+                for following, _ in physics.transition_distribution(state, {"i": a, "j": other})
             )
         ]
         if not safe:

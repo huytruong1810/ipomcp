@@ -152,8 +152,9 @@ def history(physics, steps, seed, script="fixed", wumpus=None, human=None):
             safe = [
                 a
                 for a in physics.get_all_actions("i")
-                if not physics.is_terminal(
-                    physics.sample_transition(state, {"i": a, "j": other}, random.Random(0))
+                if not any(
+                    physics.is_terminal(following)
+                    for following, _ in physics.transition_distribution(state, {"i": a, "j": other})
                 )
             ]
             action = human.act(rng, allowed=safe)
