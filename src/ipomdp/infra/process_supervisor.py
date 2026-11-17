@@ -26,6 +26,8 @@ import time
 import traceback
 from pathlib import Path
 
+from ipomdp.infra.resources import process_tree_rss_mb
+
 
 def _worker(job, result_path, log_path, source_lock=None):
     os.setsid()
@@ -56,30 +58,6 @@ def _worker(job, result_path, log_path, source_lock=None):
         with temporary.open("wb") as stream:
             pickle.dump(result, stream, protocol=pickle.HIGHEST_PROTOCOL)
         temporary.replace(path)
-
-
-def _rss_tree_mb(pid):
-    """Sum resident memory for the worker and its current descendants.
-
-    Shared pages count in each process's RSS, making this conservative for forks.
-    A process may exit between reads; only that race is ignored. Other telemetry
-    errors propagate rather than silently disabling the resource limit.
-    """
-    pending, seen, kib = [pid], set(), 0
-    while pending:
-        current = pending.pop()
-        if current in seen:
-            continue
-        seen.add(current)
-        try:
-            for line in Path(f"/proc/{current}/status").read_text().splitlines():
-                if line.startswith("VmRSS:"):
-                    kib += int(line.split()[1])
-            children = Path(f"/proc/{current}/task/{current}/children").read_text()
-            pending.extend(map(int, children.split()))
-        except FileNotFoundError:
-            pass
-    return kib / 1024
 
 
 def _stop(process):
@@ -156,7 +134,7 @@ def supervise_jobs(
                     active[identifier] = [process, started, 0.0, result_path, log_path]
                 for identifier, entry in list(active.items()):
                     process, started, peak, result_path, log_path = entry
-                    peak = max(peak, _rss_tree_mb(process.pid))
+                    peak = max(peak, process_tree_rss_mb(process.pid))
                     entry[2] = peak
                     elapsed = time.monotonic() - started
                     reason = None
