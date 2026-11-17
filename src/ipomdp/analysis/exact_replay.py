@@ -9,7 +9,7 @@ actions and observations, and is compared with what the agent recorded:
 - ``level_tv``: total variation between the agent's posterior over the
   opponent's level and the exact one (both before the decision);
 - ``prediction_tv``: total variation between the agent's predicted opponent
-  action and the exact prediction (``episodes.predicted_opponent_action``).
+  action and the exact prediction (``SolverBank.predicted_action``).
 
 The exact agent's policies and updates are pure functions of its models, so
 one ``ExactReplay`` serves any number of trials and its caches only save work.
@@ -23,8 +23,8 @@ import math
 from ipomdp.analysis.exact_curves import uniform_nesting
 from ipomdp.analysis.hierarchy import level_posterior
 from ipomdp.belief.finite_filter import InferenceBudgetExceeded
-from ipomdp.experiments.episodes import predicted_opponent_action
-from ipomdp.reference.exact_agent import TIE_TOLERANCE, build_exact_agent
+from ipomdp.planning.policy import TIE_TOLERANCE
+from ipomdp.reference.exact_agent import build_exact_agent
 
 
 class ExactReplay:
@@ -89,7 +89,7 @@ class ExactReplay:
                     "level_tv": _tv(
                         {k: before[f"prob_l{k}_{other}"] for k in range(self.level)}, exact_levels
                     ),
-                    "prediction_tv": _tv(recorded, predicted_opponent_action(planner)),
+                    "prediction_tv": _tv(recorded, planner.solver_bank.predicted_action(planner.belief)),
                     "support": len(planner.belief.mass),
                 }
             )

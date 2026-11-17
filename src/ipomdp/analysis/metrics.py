@@ -1,6 +1,6 @@
 """Long-format metrics from episode records, computed once and reused by every figure.
 
-Input is the per-step frame written by ``experiments.batch_runner`` (one row per
+Input is the per-step frame written by ``experiments.episodes`` (one row per
 trial and step, step 0 being the prior). Every table is long format, so a
 figure or test never parses column names itself.
 

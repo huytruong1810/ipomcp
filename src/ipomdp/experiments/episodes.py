@@ -140,22 +140,12 @@ def _step(
 
 
 def predicted_opponent_action(planner):
-    """The agent's predicted distribution of the opponent's next action, or None at level 0.
-
-    sum over (s, m_j) of b(s, m_j) pi_j(a_j | m_j), with the same modeled policies
-    the agent plans against. Compared with the opponent's actual action along the
-    realized path, it measures whether predictions merge with play, the
-    subjective-equilibrium criterion (Kalai & Lehrer 1993; Doshi & Gmytrasiewicz
-    2006); see docs/EQUILIBRIA.md.
-    """
+    """The agent's predicted distribution of the opponent's next action (``SolverBank.predicted_action``;
+    see docs/EQUILIBRIA.md), or None for an agent that holds no belief (level 0, I-NTMCP)."""
     belief = getattr(planner, "belief", None)
     if belief is None:
         return None
-    predicted = {}
-    for atom, mass in belief.mass:
-        for action, probability in planner.solver_bank.filter.action_distribution(atom.opponent):
-            predicted[str(action)] = predicted.get(str(action), 0.0) + mass * probability
-    return predicted
+    return planner.solver_bank.predicted_action(belief)
 
 
 def _row(trial_id, step, state, status, planners, spec, cumulative):

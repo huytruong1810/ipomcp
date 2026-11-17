@@ -202,6 +202,22 @@ class SolverBank:
         """The modeled policy of an intentional mental model (cached, immutable)."""
         return dict(self._cached_policy(model)[0])
 
+    def predicted_action(self, belief):
+        """{str(action): probability} of the opponent's next action, as the holder of ``belief`` predicts it.
+
+        sum over (s, m_j) of b(s, m_j) pi_j(a_j | m_j), with the same modeled policies the agent
+        plans against. Compared with the opponent's actual action along the realized path, it
+        measures whether predictions merge with play, the subjective-equilibrium criterion
+        (Kalai & Lehrer 1993; Doshi & Gmytrasiewicz 2006). It lives here because it is a function
+        of a belief and of this bank's models only: the episode loop records it and the exact
+        replay recomputes it, and neither should import the other for it.
+        """
+        predicted = {}
+        for atom, mass in belief.mass:
+            for action, probability in self.filter.action_distribution(atom.opponent):
+                predicted[str(action)] = predicted.get(str(action), 0.0) + mass * probability
+        return predicted
+
     def policy_status(self, model):
         """(resolved, delta_hat) of the modeled solve at ``model`` (audit spec 2.2, Theorem 1b).
 

@@ -54,7 +54,12 @@ def paired_difference(a, b, seed=0):
     low, high = bootstrap_interval(difference, seed)
     if len(difference) > 1 and difference.std() > 0:
         p = float(stats.ttest_1samp(difference, 0.0).pvalue)
+    elif len(difference) > 1 and difference[0] != 0:
+        # Every trial differs by the same nonzero amount: the t statistic is infinite. Reporting 1 here
+        # (as for no difference at all) would call the most consistent effect possible "no evidence".
+        p = 0.0
     else:
+        # No difference in any trial, or fewer than two trials: nothing is tested.
         p = 1.0
     mean = float(difference.mean()) if len(difference) else float("nan")
     return {"n": len(difference), "mean": mean, "low": low, "high": high, "p": p}
