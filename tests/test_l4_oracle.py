@@ -57,6 +57,7 @@ def test_nested_chain_length_must_match_the_level():
         evaluate_case("mcts", 1, 10, 0, 0.5, level=3, opponent_depth=1, nested_beliefs=(0.5, 0.5))
 
 
+@pytest.mark.slow
 def test_level_four_panel_crosses_every_nested_level_on_the_variant(tmp_path):
     cells = [("mcts", 4, 1, 20, "exact", 0, "exact", 0)]
     summary, failures = run_panel(

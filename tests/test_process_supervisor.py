@@ -37,6 +37,7 @@ def _success():
     return [{"worker_pid": os.getpid()}]
 
 
+@pytest.mark.slow
 def test_supervisor_retains_errors_and_reaps_timed_out_workers(tmp_path):
     started = time.monotonic()
     outcomes = dict(
@@ -59,6 +60,7 @@ def test_supervisor_retains_errors_and_reaps_timed_out_workers(tmp_path):
     assert len(list(tmp_path.glob("*.log"))) == 4
 
 
+@pytest.mark.slow
 def test_supervisor_enforces_rss_budget():
     limit = 256  # Fresh child RSS is independent of parent import history.
     outcomes = dict(supervise_jobs({0: _allocate}, workers=1, timeout_seconds=15, max_rss_mb=limit))
@@ -66,6 +68,7 @@ def test_supervisor_enforces_rss_budget():
     assert outcomes[0]["monitored_peak_rss_mb"] > limit
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("workers", [1, 2])
 def test_failed_trial_is_recorded_and_resume_runs_only_missing_trials(tmp_path, workers):
     spec = random_tiger(trials=2, steps=1)
@@ -97,6 +100,7 @@ def _spawn_descendant(pid_file):
     time.sleep(30)
 
 
+@pytest.mark.slow
 def test_timeout_stops_descendant_processes(tmp_path):
     path = tmp_path / "child.pid"
     outcomes = dict(
@@ -115,6 +119,7 @@ def test_timeout_stops_descendant_processes(tmp_path):
         assert "State:\tZ" in status.read_text()
 
 
+@pytest.mark.slow
 def test_supervisor_monotonic_intervals_fit_parent_and_concurrency():
     """All worker lifetimes lie inside the parent's same-clock measurement."""
     started = time.monotonic()

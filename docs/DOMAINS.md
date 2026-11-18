@@ -21,18 +21,18 @@ A listening opponent therefore causes a false creak with probability 0.1.
 
 ### Joint-payoff Tiger (`JointTigerModel`, study domain `tiger-joint`)
 
-A declared variant for this project. In the published game an agent's reward depends only on its own door, so a deeper level of reasoning cannot pay in reward (RESULTS.md 12.18, 12.21). The variant keeps the states, transitions and observations above and changes only the payoff of opening a door:
+A declared variant for this project. In the published game an agent's reward depends only on its own door, so reasoning one level deeper about the other agent is worth almost nothing in reward (by the exact solver: no decision changes at horizon 2, and about 0.01 on average at horizon 3). The variant keeps the states, transitions and observations above and changes only the payoff of opening a door:
 
 | Parameter | Meaning | Published value |
 |---|---|---|
 | `together_safe` | each agent's reward for opening the safe door when the other opens the same door in the same step | 10 |
 | `solo_penalty` | subtracted from an agent that opens a door while the other listens | 0 |
 
-The coordination game used from RESULTS.md 12.22 on is `together_safe = 40`: it was chosen by an exact screen of the value of one more level of reasoning (`results/p2_payoff_screen_20261007`).
+The coordination game is `together_safe = 40`, chosen by an exact screen of the value of one more level of reasoning over a grid of payoffs. Every payoff keeps the declared reward bounds attained (`JointTigerModel.reward_bounds`, checked exhaustively in `tests/test_domain_exhaustive.py`).
 
 ## UAV reconnaissance (`domains/uav.py`)
 
-The domain of Doshi & Gmytrasiewicz (2009), "Monte Carlo Sampling Methods for Approximating Interactive POMDPs", JAIR 34, Section 8.3.2 (arXiv:1401.3455): **the paper's structure, with declared values where it is silent.** The 2009 paper states no sensor accuracy, rewards, target observations or priors. Values come from the same group's UAV reconnaissance domain in Zeng & Doshi (2012), "Exploiting Model Equivalences for Solving Interactive Dynamic Influence Diagrams", JAIR 43, Section 7 and Appendix B.3 (arXiv:1401.4600), where it states them (its CPTs are "available upon request"); the rest are declared here. The original values were not available (the user could not be asked on October 12; HANDOFF 0.2).
+The domain of Doshi & Gmytrasiewicz (2009), "Monte Carlo Sampling Methods for Approximating Interactive POMDPs", JAIR 34, Section 8.3.2 (arXiv:1401.3455): **the paper's structure, with declared values where it is silent.** The 2009 paper states no sensor accuracy, rewards, target observations or priors. Values come from the same group's UAV reconnaissance domain in Zeng & Doshi (2012), "Exploiting Model Equivalences for Solving Interactive Dynamic Influence Diagrams", JAIR 43, Section 7 and Appendix B.3 (arXiv:1401.4600), where it states them (its CPTs are "available upon request"); the rest are declared here. The original values were not available.
 
 | Element | 2009 paper | Here | Source of the value |
 |---|---|---|---|
@@ -50,7 +50,6 @@ The domain of Doshi & Gmytrasiewicz (2009), "Monte Carlo Sampling Methods for Ap
 
 **Deviation.** The package's prior is common to every agent and nesting level and never conditions on the true state (`experiments/bootstrapper.py`). T's own sector is therefore part of T's observation, so T learns its sector from its first observation; its first decision is made without it.
 
-The previous `domains/uav.py` was a declared pursuit game (72 states, compass sensors, ±1 rewards; RESULTS Section 2). It was replaced on October 12, 2026, without a compatibility shim.
 
 ## Wumpus world (`domains/wumpus/`)
 
@@ -66,3 +65,16 @@ This is a declared specification for this project.
 | Rewards | human +1000 gold, −1000 death, −10 per shot, −1 otherwise; wumpus +1000 for killing the human, −1000 when shot, −1 otherwise |
 
 **Known limit.** Deterministic sensors make particle beliefs fragile. If no particle matches the true world, an observation has zero evidence and the update raises. Exact beliefs at level 1 are tractable. The IPF needs reinvigoration before Wumpus studies at higher levels.
+
+## Runner-Chaser (`domains/runner_chaser.py`)
+
+The test domain of Schwartz, Zhou & Kurniawati (2022), restated as finite kernels so that their planner can be run on it through this package and compared with their own runner. Every rule follows their `RCModel` (`third_party/i-ntmcp`), and `tests/test_runner_chaser.py` checks next states, observations, rewards and termination against it for every state and joint action of each layout.
+
+| Element | Specification |
+|---|---|
+| Agents | the runner `r` and the chaser `c`, on a grid with blocked and safe cells; layouts `cap3`, `cap4`, `cap7` (the authors' "choose a path" grids) |
+| State | (runner cell, chaser cell); both start cells are fixed by the layout, so the prior is a point mass |
+| Actions | N, S, E, W for each; a move off the grid or into a blocked cell leaves the agent in place; the chaser moves first, and the runner does not move if the chaser lands on its cell |
+| Observations | for each agent, what lies in the four adjacent cells: the other agent, a wall, or nothing |
+| Rewards | runner +100 on a safe cell, -100 when it shares or borders the chaser's cell, -1 otherwise; the chaser the negatives of the first two and -1 otherwise; either event ends the episode |
+

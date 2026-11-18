@@ -40,3 +40,8 @@ select = ["E4", "E7", "E9", "F", "I"]
 [tool.pytest.ini_options]
 # The I-NTMCP baseline (src/ipomdp/baselines/intmcp.py) imports the pinned submodule.
 pythonpath = ["third_party/i-ntmcp"]
+# `pytest -m "not slow"` is the fast tier for the edit loop (about a minute); the full suite
+# (about nine minutes) is the gate before every push. A test is marked slow when it took two
+# seconds or more, all its parameters together, in a full run.
+markers = ["slow: takes two seconds or more; left out of the fast tier"]
+addopts = "--strict-markers"

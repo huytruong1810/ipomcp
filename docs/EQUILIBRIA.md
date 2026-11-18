@@ -1,6 +1,6 @@
 # Equilibria: what is measured, and why
 
-Contribution 3 asks for equilibria alongside the sunbursts. This note fixes which notion the code measures (PLAN.md W8).
+Contribution 3 asks for equilibria alongside the sunbursts. This note fixes which notion the code measures.
 
 ## Which notion
 

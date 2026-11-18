@@ -91,6 +91,7 @@ def test_equal_budgets_use_identical_real_and_modeled_policy():
     assert solver.policy_for(solver.model()) == bank.policy(solver.model())
 
 
+@pytest.mark.slow
 def test_nested_initial_models_share_the_unconditional_physical_prior():
     bank, solver = build(2, model=WumpusModel(width=3, height=3, n_pits=1), seed=4)
     outer_states = {atom.state for atom, _ in solver.belief.mass}

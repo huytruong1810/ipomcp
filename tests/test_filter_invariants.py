@@ -168,6 +168,7 @@ def assert_bayes_laws(exact, model, action, policy):
     return posteriors
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("name", CASES)
 def test_evidence_sums_to_one_and_posteriors_average_to_the_prediction(name):
     """At the prior and along a branching sample of two-step histories, for every action."""
@@ -223,6 +224,7 @@ def reference_level_two_updates(physics, agent, other, rows, action):
     return out
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "physics, agent, other",
     [
@@ -333,6 +335,7 @@ def test_resampling_is_unbiased():
             assert tally[atom] / repeats == pytest.approx(count * weight, abs=5 * 2 / math.sqrt(repeats))
 
 
+@pytest.mark.slow
 def test_sampled_filter_error_falls_like_one_over_root_n():
     """Mean total variation of the physical posterior, N = 64 against N = 1,024: a factor near 4."""
     physics = TigerModel()

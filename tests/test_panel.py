@@ -16,6 +16,7 @@ from ipomdp.experiments.problems import (
 )
 
 
+@pytest.mark.slow
 def test_panel_rows_cover_every_problem_and_name_their_cell(tmp_path):
     cells = [("rts", 2, 2, 2, "2", 16, "sampled", 0), ("mcts", 2, 2, 30, "exact", 0, "exact", 2)]
     summary, failures = run_panel(tmp_path / "panel", cells, seeds=[0], workers=2)
@@ -57,6 +58,7 @@ def test_rts_only_panels_summarize_without_search_columns(tmp_path):
     assert summary["search_optimal_rate"].isna().all()
 
 
+@pytest.mark.slow
 def test_panel_takes_a_belief_grid_and_bounds_each_optimal_rate(tmp_path):
     cells = [("mcts", 2, 1, 20, "exact", 0, "exact", 0)]
     summary, failures = run_panel(
@@ -124,6 +126,7 @@ def test_tiger_level_one_problems_are_beliefs_alone():
     ]
 
 
+@pytest.mark.slow
 def test_uav_cells_are_scored_at_levels_one_and_two(tmp_path):
     physics = UAVModel()
     uniform = {"uniform": uav_laws(physics)["uniform"]}
@@ -151,6 +154,7 @@ def test_uav_cells_are_scored_at_levels_one_and_two(tmp_path):
     assert manifest["panel"]["physics"][1] == "UAVModel"
 
 
+@pytest.mark.slow
 def test_uav_cells_take_a_history_of_listening(tmp_path):
     physics = UAVModel()
     uniform = {"uniform": uav_laws(physics)["uniform"]}

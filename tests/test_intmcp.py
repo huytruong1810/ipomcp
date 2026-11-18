@@ -63,6 +63,7 @@ def test_invalid_use_is_refused():
         agent.update_root(LISTEN, ("GL", "S"))
 
 
+@pytest.mark.slow
 def test_tuned_variant_keeps_beliefs_consistent_with_deterministic_senses():
     physics = WumpusModel(3, 3, 1)
     agent = INTMCPAgent(

@@ -1,5 +1,7 @@
 """The Wumpus qualification's problems (experiments.wumpus_qualification)."""
 
+import pytest
+
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.wumpus_qualification import history, human
 
@@ -12,6 +14,7 @@ def test_histories_are_prefixes_and_reproducible():
     assert all(action in physics.get_all_actions("i") for action, _ in full)
 
 
+@pytest.mark.slow
 def test_the_human_filters_exactly_and_searches_compressed():
     planner = human(WumpusModel(), seed=0, simulations=10, horizon=2, search_particles=64)
     bank = planner.solver_bank
@@ -27,6 +30,7 @@ def test_random_scripts_are_reproducible_prefixes_that_differ_across_seeds():
     assert len({tuple(map(str, history(physics, 4, s, script="random"))) for s in range(10)}) > 1
 
 
+@pytest.mark.slow
 def test_level_two_problems_replay_the_exact_wumpus_history_to_the_planner():
     from ipomdp.experiments.wumpus_qualification import evaluate, reference
 
@@ -47,6 +51,7 @@ def test_zero_search_particles_searches_exact_beliefs():
     assert bank.search_model(planner.model()) == planner.model()
 
 
+@pytest.mark.slow
 def test_level_three_histories_from_the_modeled_human_have_positive_evidence():
     from ipomdp.experiments.wumpus_qualification import evaluate, reference
 
@@ -84,6 +89,7 @@ def test_a_modeled_human_with_only_ending_actions_ends_the_history():
         uniform.act(random.Random(0), allowed=[])
 
 
+@pytest.mark.slow
 def test_ipf_rts_baseline_is_scored_against_the_same_reference():
     from ipomdp.experiments.wumpus_qualification import evaluate, reference
 

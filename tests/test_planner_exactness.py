@@ -91,6 +91,7 @@ def first_step(planner):
 CASES = [(*cell, steps) for cell in CELLS for steps in (0, 1) if steps == 0 or cell[1] < 3]
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("arm", ARMS)
 @pytest.mark.parametrize("domain, level, horizon, simulations, steps", CASES)
 def test_intervals_contain_the_exact_values_and_resolved_decisions_are_optimal(
@@ -136,6 +137,7 @@ def test_intervals_contain_the_exact_values_and_resolved_decisions_are_optimal(
         assert set(policy) == set(greedy_policy(exact, TIE_TOLERANCE))
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("arm", ["B", "C", "D"])
 @pytest.mark.parametrize("domain, level, horizon", [("tiger-joint", 2, 3), ("uav2", 2, 3), ("tiger-joint", 3, 3)])
 def test_a_gap_directed_search_resolves_every_small_decision_within_its_budget(arm, domain, level, horizon):

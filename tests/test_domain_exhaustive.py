@@ -101,6 +101,7 @@ def assert_distribution(distribution, support=None):
         assert set(values) <= support
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("name", SMALL)
 def test_every_reachable_kernel_is_a_distribution_and_every_reward_is_within_bounds(name):
     model, agents = SMALL[name]
@@ -128,6 +129,7 @@ def test_every_reachable_kernel_is_a_distribution_and_every_reward_is_within_bou
                     )
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("name", SMALL)
 def test_declared_reward_bounds_are_attained(name):
     """Loose bounds are sound but waste the planner's exploration scale and widen every interval."""

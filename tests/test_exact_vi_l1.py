@@ -40,6 +40,7 @@ def test_alpha_vector_2d_intervals():
     assert intervals[1][2] == pytest.approx(1.0)
 
 
+@pytest.mark.slow
 def test_exact_vi_matches_reference_oracle():
     """Verify that ExactPOMDPSolver matches finite_horizon_values to machine precision."""
     model = TigerModel()

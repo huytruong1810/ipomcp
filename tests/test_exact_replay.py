@@ -18,6 +18,7 @@ def episodes(agents, steps, trials, domain="tiger"):
     return spec.physics(), [pd.DataFrame(run_episode(spec, t)) for t in range(trials)]
 
 
+@pytest.mark.slow
 def test_exact_episodes_replay_with_full_agreement_and_no_error():
     nested = {1: {0: 1.0}}
     agents = {

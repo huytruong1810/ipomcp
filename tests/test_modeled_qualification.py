@@ -31,6 +31,7 @@ def test_observer_sees_every_modeled_policy_and_level_one_rejects_it():
         evaluate_case("mcts", 2, 20, 0, 0.3, opponent_observer=lambda *_: None)
 
 
+@pytest.mark.slow
 def test_ladder_reproduces_the_search_and_reports_a_qualifying_rung(tmp_path):
     # The driver raises if the rung equal to ``modeled`` does not reproduce the
     # policy i's search used, so a complete run is itself that check.
@@ -66,6 +67,7 @@ def test_ladder_reproduces_the_search_and_reports_a_qualifying_rung(tmp_path):
     assert all(abs(sum(r["physical_belief"].values()) - 1) < 1e-9 for r in rows)
 
 
+@pytest.mark.slow
 def test_level_three_rungs_are_whole_stacks_and_reproduce_the_search(tmp_path):
     summary, qualifying, failures = run_qualification(
         tmp_path / "q3",
@@ -89,6 +91,7 @@ def test_level_three_rungs_are_whole_stacks_and_reproduce_the_search(tmp_path):
     assert qualifying[(3, 2, 30, "20/5", 0)] in ("20/5", "40s[20,2,0.05]/exact", None)
 
 
+@pytest.mark.slow
 def test_unscored_decisions_skip_the_reference_but_still_qualify(tmp_path):
     row = evaluate_case(
         "mcts", 2, 20, 0, 0.3, level=2, opponent_depth=2, modeled="5", reference="none"
@@ -111,6 +114,7 @@ def test_unscored_decisions_skip_the_reference_but_still_qualify(tmp_path):
     assert summary["wrong_where_decision_wrong"].isna().all()
 
 
+@pytest.mark.slow
 def test_saved_queries_score_a_new_ladder_without_searching_again(tmp_path):
     common = dict(
         horizons=[2],

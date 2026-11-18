@@ -84,6 +84,7 @@ def _two_cells(trials):
     )
 
 
+@pytest.mark.slow
 def test_suite_runs_round_robin_and_resumes(tmp_path):
     log = tmp_path / "order.log"
     output = tmp_path / "run"

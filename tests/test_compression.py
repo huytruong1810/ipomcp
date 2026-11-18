@@ -75,6 +75,7 @@ def test_small_beliefs_are_untouched():
     assert loss == 0.0 and rows == tuple(belief)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_the_compression_slack_contains_the_uncompressed_searched_value(seed):
     problem = reachable_decisions.reference(
@@ -86,6 +87,7 @@ def test_the_compression_slack_contains_the_uncompressed_searched_value(seed):
     assert row["bounds_compression_widened_contain_searched"]
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_the_compression_slack_covers_the_exact_tail_of_certified_search(seed):
     # With the exact two-step tail, histories with two steps to go are solved from compressed

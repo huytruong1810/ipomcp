@@ -75,6 +75,7 @@ CERTIFIED_OPTIONS = dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, 
                          lazy_expansion=True, selection="iemax")
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("extra", [{}, dict(outcome="gap", root_rule="open"),
                                    dict(outcome="gap_sample", root_rule="open")])
 def test_counting_work_changes_no_score_and_counts_from_a_cold_start(extra):

@@ -98,6 +98,7 @@ def test_next_state_rewards_and_termination_match_brute_force():
         assert (rows[(rows.step > 0) & rows.action_i.isna()]["rb_reward_i"] == 0).all()
 
 
+@pytest.mark.slow
 def test_the_mean_is_unchanged_and_the_variance_falls():
     # Uniform L0 pairs on published Tiger earn -91/3 per step in expectation
     # (listen -1; an open is -100 or +10 with equal probability).

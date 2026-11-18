@@ -80,6 +80,7 @@ def test_metrics_tables_are_long_and_complete(episodes):
     assert set(summary["n_trials"]) == {3}
 
 
+@pytest.mark.slow
 def test_figures_render(episodes, tmp_path):
     figures.cumulative_rewards(episodes, tmp_path / "rewards.pdf")
     figures.decision_costs(episodes, tmp_path / "costs.pdf")

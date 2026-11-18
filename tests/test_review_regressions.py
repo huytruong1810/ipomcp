@@ -68,6 +68,7 @@ def test_nested_hierarchy_averages_different_private_beliefs():
     assert weights["i_L3/j_L2"] == pytest.approx(1)
 
 
+@pytest.mark.slow
 def test_resume_requires_matching_manifest_and_complete_trials(tmp_path):
     spec = random_tiger(trials=2, steps=3)
     result = run_study(spec, tmp_path, workers=1)

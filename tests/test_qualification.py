@@ -22,6 +22,7 @@ def test_root_decisions_are_exactly_optimal_at_one_thousand_simulations(horizon)
     assert all(row["optimal"] for row in rows), [r for r in rows if not r["optimal"]]
 
 
+@pytest.mark.slow
 def test_q_error_shrinks_with_budget():
     rows = [row for budget in (100, 3000) for row in evaluate_cell(budget, 4, SEEDS, BELIEFS)]
     summary = summarize(rows).set_index("budget")

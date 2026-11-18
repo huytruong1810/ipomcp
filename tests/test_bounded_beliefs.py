@@ -60,6 +60,7 @@ def test_support_is_bounded_at_every_nesting_level(particle_filter):
     assert max(supports(planner.model())) <= 16
 
 
+@pytest.mark.slow
 @FILTERS
 def test_posterior_agrees_with_the_exact_update_within_monte_carlo_error(particle_filter):
     exact, approximate = agent(), agent(particles=4000, particle_filter=particle_filter)

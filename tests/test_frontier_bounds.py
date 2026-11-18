@@ -119,6 +119,7 @@ def setup(domain, level, depth):
     return physics, states, hierarchy(physics, level, depth)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("domain, level, depth", CASES)
 def test_the_frontier_chain_holds_at_random_beliefs(domain, level, depth):
     physics, states, bank = setup(domain, level, depth)
@@ -184,6 +185,7 @@ def test_the_bank_shares_one_table_per_agent_and_clears_only_beliefs():
     assert frontier.node_bounds(first, 3, bank) == before
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("domain, level, depth", CASES)
 def test_itib_lies_between_the_exact_value_and_ifib(domain, level, depth):
     physics, states, bank = setup(domain, level, depth)

@@ -128,6 +128,7 @@ def test_the_bank_caches_policy_and_status_together():
         assert 1 in bank.unresolved_levels  # never forgotten: forgetting would be unsound
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("seed", [0, 1])
 @pytest.mark.parametrize("modeled", [10, 40])
 def test_unresolved_solves_widen_the_callers_intervals_and_stay_sound(seed, modeled):

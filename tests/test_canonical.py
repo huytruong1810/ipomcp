@@ -73,6 +73,7 @@ def prior_belief(physics, atoms):
     return FiniteBelief(planner.belief.mass[:atoms])
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "beliefs",
     [

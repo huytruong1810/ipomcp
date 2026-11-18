@@ -43,6 +43,7 @@ def test_the_node_cap_raises():
         curve(1, 1, 3, max_nodes=100)
 
 
+@pytest.mark.slow
 def test_exact_episodes_average_to_the_exact_curve():
     exact = {"kind": "exact", "horizon": 2}
     spec = StudySpec(
@@ -62,6 +63,7 @@ def gains(physics, k, m, steps, reference_level):
     return list(exact_decision_gains(physics, "i", k, m, steps, 2, reference_level))
 
 
+@pytest.mark.slow
 def test_decision_gains_follow_the_reference_pair_curve():
     # Histories are those of the reference level against the true opponent, so its rewards are the pair curve's.
     for reference_level in (1, 2):
@@ -73,12 +75,14 @@ def test_decision_gains_follow_the_reference_pair_curve():
             assert cumulative == pytest.approx(exact["cum_reward_i"], abs=1e-9)
 
 
+@pytest.mark.slow
 def test_step_three_gain_against_random_matches_the_enumeration():
     # results/step3_exact_20261028/step3.json: E[r3] is 2.9335 at level 1 and 3.394 at level 2.
     rows = gains(JointTigerModel(together_safe=40.0), 1, 0, 3, 2)
     assert rows[2]["immediate_gain"] == pytest.approx(3.394 - 2.9335, abs=1e-9)
 
 
+@pytest.mark.slow
 def test_the_bayes_residual_is_never_negative():
     # Level k + 1 is Bayes-optimal over its own support at every history (V3 proposition).
     for k, m in ((1, 0), (1, 1), (0, 1), (1, 2)):
@@ -89,6 +93,7 @@ def test_the_bayes_residual_is_never_negative():
             assert row["mass"] == pytest.approx(1.0)
 
 
+@pytest.mark.slow
 def test_the_restricted_truth_equals_a_separately_built_oracle():
     # Against a level-1 opponent, histories of a level-1 agent: the truth is level 2's belief restricted
     # to level 1 when k = 1, and a level-2 oracle with a point prior when k = 0.
@@ -100,6 +105,7 @@ def test_the_restricted_truth_equals_a_separately_built_oracle():
         assert a["nodes"] == b["nodes"]
 
 
+@pytest.mark.slow
 def test_node_records_sum_to_the_step_rows_and_respect_the_confidence_bound():
     # Against a level in its support, the deeper agent's loss at h is at most eps / (1 - eps) times the
     # return range, eps = 1 - P_{k+1}(m | h); here H = 2 and gamma = 0.95.
@@ -116,6 +122,7 @@ def test_node_records_sum_to_the_step_rows_and_respect_the_confidence_bound():
         assert r["plan_gain"] >= -eps / (1 - eps) * width - 1e-9
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("game", ["published", "coordination"])
 def test_boundary_level_checks_hold_at_every_history(game):
     # Theorem 2b (audit spec 2.4): with the truth at level k = 1, the mixture identity holds and the

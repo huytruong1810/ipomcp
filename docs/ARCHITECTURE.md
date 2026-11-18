@@ -1,14 +1,23 @@
 # Architecture
 
-The package is organised as bounded contexts with one-way dependencies:
+The package is organised as bounded contexts with one-way dependencies. A context
+may import only the contexts listed after it; `tests/test_architecture.py` reads
+every import statement of the package and fails on any other.
 
-```
-model  <-  domains
-model  <-  belief  <-  planning  <-  reference
-                        ^   ^            ^
-                        |   experiments -+---- analysis
-                       infra
-```
+| Context | May import |
+|---|---|
+| `model` | nothing |
+| `domains` | `model` |
+| `belief` | `model` |
+| `planning` | `belief`, `model` |
+| `reference` | `belief`, `planning` |
+| `baselines` | `belief`, `planning` |
+| `analysis` | `belief`, `planning`, `reference` |
+| `infra` | nothing |
+| `experiments` | every context above |
+
+Only `experiments` names a domain; exact references, planners and analysis work
+for any domain that implements the contract.
 
 ## Contexts
 
@@ -53,7 +62,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 
   These components are fixed rather than configurable. They are the estimator shown to converge against exact references; the alternatives that did not converge were removed.
 
-  One budget policy is configurable: `PlannerConfig.modeled_stopping` (`stopping.ModeledStopping`). When set, a *modeled* policy is solved by one main tree, seeded as the flat search of the cap (`modeled_simulations`) and grown by doubling from a pilot size. It stops once its leading gap exceeds a t critical value times the spread that 3 small pilot trees measure, scaled by sqrt(pilot / n). The decision always comes from the main tree, so at the cap the rule is the flat search, and it is consistent. It replaced averaging 200-simulation replicates, which converged to a shallow tree's biased value (RESULTS.md 12.10–12.11).
+  One budget policy is configurable: `PlannerConfig.modeled_stopping` (`stopping.ModeledStopping`). When set, a *modeled* policy is solved by one main tree, seeded as the flat search of the cap (`modeled_simulations`) and grown by doubling from a pilot size. It stops once its leading gap exceeds a t critical value times the spread that 3 small pilot trees measure, scaled by sqrt(pilot / n). The decision always comes from the main tree, so at the cap the rule is the flat search, and it is consistent. It replaced averaging 200-simulation replicates, which converged to a shallow tree's biased value.
 - **`SolverBank`** is one agent's registry of nested models. It holds:
   - the domain prior;
   - the belief update (exact or particle);
@@ -92,6 +101,7 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 ### `baselines`
 
 - `RTSPlanner`: reachability-tree sampling over interactive beliefs (Doshi & Gmytrasiewicz, 2009). With an IPF bank it is the IPF + RTS baseline. It uses the same reward integrator and declared opponents as I-POMCP, so comparisons vary only the lookahead.
+- `intmcp`: I-NTMCP (Schwartz, Zhou & Kurniawati, 2022), the authors' planner from the pinned submodule `third_party/i-ntmcp`, run on these domains through an adapter that changes only the domain interface (`POSGAdapter`).
 
 ### `analysis`
 
@@ -102,19 +112,21 @@ Tiger, UAV and Wumpus implement the contract. Their specifications, with sources
 - `endpoints`: the suites' pre-registered endpoints (paired differences by trial, the one-level endpoint of a level matrix, arm differences, per-cell tables with prediction misses).
 - `error_attribution`: an additive decomposition of search-tree error.
 - `rao_blackwell`: each sampled episode reward replaced by its exact expectation given both agents' actions and observations (forward–backward over the physical state with the domain's kernels): the same estimand at lower variance. `endpoints.final_rewards(..., column="rb_cum_reward")` reads it.
-- `exact_curves`: the exact expected cumulative reward curve of a pair of exact agents, by forward enumeration of (state, belief i, belief j) with merging, up to a node cap.
+- `exact_curves`: the exact expected cumulative reward curve of a pair of exact agents, by forward enumeration of (state, belief i, belief j) with merging, up to a node cap; and the exact value of one more level of reasoning at the same decision points.
+- `exact_replay`: a recorded episode replayed through the exact agent of the same level, decision by decision.
 
 ### `infra`
 
-- Process supervision with per-job wall-time and process-tree memory limits.
-- Source locks verified inside every worker.
-- Resource measurement.
-- Repository paths.
+- `process_supervisor`: trials in supervised processes with per-job wall-time and process-tree memory limits.
+- `job_queue`: a list of one-process jobs run with bounded workers and a budget on their total memory, skipping outputs that exist, with one stop file and a record per output (CPU, wall time, peak memory from the kernel's accounting).
+- `source_lock`: source hashes verified inside every supervised worker before and after its job.
+- `resources`: memory of a process, of a process tree, and of the machine.
+- `paths`: repository roots.
 
 ## Design decisions worth knowing
 
 - **Determinism by content, not by call order.** All randomness flows from explicit `random.Random` streams. No code uses the global `random` module. Per-solve and per-update streams are seeded from canonical digests.
-- **Exactness where it buys convergence, bounds where they buy scale.** The planner integrates immediate rewards and the last step exactly. Bounded beliefs cap supports at N atoms at every level, keeping updates exact until a posterior exceeds N. Both are measured against exact references (see [RESULTS.md](RESULTS.md)).
+- **Exactness where it buys convergence, bounds where they buy scale.** The planner integrates immediate rewards and the last step exactly. Bounded beliefs cap supports at N atoms at every level, keeping updates exact until a posterior exceeds N. Both are measured against exact references.
 - **Failures are explicit.**
   - Zero evidence raises `UnsupportedObservation`.
   - Enumeration budgets raise `InferenceBudgetExceeded`.
