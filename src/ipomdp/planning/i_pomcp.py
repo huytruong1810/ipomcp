@@ -607,7 +607,11 @@ class IPOMCPPlanner(Planner):
             self._exact_tail(node, model)
             return
         self._close(node)
-        if config.selection != "ucb":
+        if config.selection != "ucb" and config.outcome == "sample":
+            # The prior is read only by select_action (PUCT's score, and IEMax's tie-break, which is
+            # PUCT's score). The gap-directed rules choose by _directed_action and never call
+            # select_action, so under them the softmax would be work without a reader. No random
+            # draw is involved either way.
             width = self.exploration.return_width(remaining, config.gamma)
             live = [a for a in self.actions if a not in cert.pruned]
             top = max(cert.q_hi[a] for a in live)
