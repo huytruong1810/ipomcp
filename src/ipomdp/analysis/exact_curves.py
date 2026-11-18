@@ -167,7 +167,7 @@ def _plan_value(truth, reference, stepper, belief, horizon, gamma):
 
 
 def _boundary_record(lower, upper, b_lower, b_upper, k, posterior, plan_gain, horizon, gamma):
-    """Theorem 2b's quantities at one history (``exact_decision_gains(boundary=True)``)."""
+    """The quantities of dominance at the boundary level (THEORY.md) at one history (``exact_decision_gains(boundary=True)``)."""
     lam = posterior.get(k, 0.0)
     shallow = dict(b_lower.mass)
     deep = {atom: w for atom, w in b_upper.mass if atom.opponent.frame.level < k}
@@ -209,8 +209,8 @@ def exact_decision_gains(
         ``on_node``, if given, receives one record per history: its step, mass, level k + 1's
         posterior on the true level, and its immediate gain, plan gain and residual.
         ``cache_size`` bounds each exact agent's reference caches (memory against CPU, values unchanged).
-        ``boundary`` (class (b): m = k >= 1, with ``on_node``) adds per history the checks of Theorem 2b
-        (audit spec 2.4, 4.6): ``lambda`` = P_{k+1}(m = k | h); ``mixture_residual``, the largest
+        ``boundary`` (class (b): m = k >= 1, with ``on_node``) adds per history the checks of dominance at
+        the boundary level (THEORY.md): ``lambda`` = P_{k+1}(m = k | h); ``mixture_residual``, the largest
         |b_{k+1}(x) - (1 - lambda) b_k(x)| over atoms x whose model is below level k (0 by the
         mixture identity); ``regret``, the value of level k's plan minus level k + 1's plan under level
         k's own belief; and ``bound_slack`` = plan gain - (1 - lambda) / lambda * regret (>= 0).

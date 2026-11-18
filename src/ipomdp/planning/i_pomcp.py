@@ -170,7 +170,7 @@ class IPOMCPPlanner(Planner):
         return policy
 
     def modeled_solution(self, model):
-        """(policy, resolved, delta_hat) of this planner as a modeled agent at ``model`` (Theorem 1b).
+        """(policy, resolved, delta_hat) of this planner as a modeled agent at ``model`` (bi-level soundness, THEORY.md).
 
         Without ``modeled_resolution``: today's modeled policy, resolved only
         when its scores are exact (then it is the exact law). With it: one tree
@@ -384,7 +384,7 @@ class IPOMCPPlanner(Planner):
         return reward + self.config.gamma * self._rollout(depth + 1, next_memory, next_model, rng)
 
     # ------------------------------------------------------------------ #
-    # Certified search (audit spec 3.3; off unless a certified field is set)
+    # Certified search (THEORY.md, "Certified search"; off unless a certified field is set)
     # ------------------------------------------------------------------ #
 
     def _bounds_for(self, model):
@@ -801,7 +801,7 @@ _STOPPING_FIELDS = ("modeled_stopping", "root_stopping")
 
 
 def _slack(x):
-    """Outward rounding slack of every comparison that prunes or certifies (audit spec 3.1)."""
+    """Outward rounding slack of every comparison that prunes or certifies (THEORY.md, "Tolerances")."""
     return 1e-9 * max(1.0, abs(x))
 
 

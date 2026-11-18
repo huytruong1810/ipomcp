@@ -238,7 +238,7 @@ class INTMCPAgent:
     ...) domain values, to {action: probability}, e.g. the exact model's policy.
 
     ``record_predictions`` (a callable of the same form, the exact law of the
-    other agent; audit spec 3.8) logs, without changing any draw, how the
+    other agent) logs, without changing any draw, how the
     nested tree's prediction compares with that law at every query inside
     i's search, aggregated by lookahead depth ("root": the other agent's
     current history; "deeper": below it): see ``prediction_summary``.

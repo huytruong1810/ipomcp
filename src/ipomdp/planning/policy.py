@@ -34,7 +34,7 @@ def sample_policy(policy, rng):
 
 
 def plausible_sets(bounds, tie=TIE_TOLERANCE):
-    """(certain, plausible) actions from certified intervals {a: (lo, hi)} (audit spec 2.2).
+    """(certain, plausible) actions from certified intervals {a: (lo, hi)} (THEORY.md, "Plausible and certain sets").
 
     With M^- = max lo and M^+ = max hi, an action is plausible if hi >= M^- - tau^+
     (it may be within tau of the optimum) and certain if lo >= M^+ - tau^- (it is
@@ -55,7 +55,7 @@ def plausible_sets(bounds, tie=TIE_TOLERANCE):
 
 
 def plausible_policy(bounds, tie=TIE_TOLERANCE):
-    """(Unif(plausible), resolved, delta_hat): the prediction of Theorem 1b and its total-variation bound."""
+    """(Unif(plausible), resolved, delta_hat): the prediction of bi-level soundness (THEORY.md) and its total-variation bound."""
     certain, plausible = plausible_sets(bounds, tie)
     policy = {a: 1.0 / len(plausible) for a in bounds if a in plausible}  # action order, as greedy_policy
     delta = 1.0 - max(1, len(certain)) / len(plausible)

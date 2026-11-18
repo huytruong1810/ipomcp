@@ -1,4 +1,4 @@
-"""Plausible sets, deterministic resolution and the deviation bound (audit spec 2.2, 3.5; Theorem 1b)."""
+"""Plausible sets, deterministic resolution and the deviation bound (THEORY.md, "Bi-level soundness")."""
 
 import random
 

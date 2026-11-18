@@ -252,7 +252,7 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
     agent; "published-smoothed" when ``particle_filter`` is "smoothed"), their RTS backup, and every level-1 model
     (their level 0) solved exactly.
 
-    ``certified`` (I-POMCP only): ``PlannerConfig`` options of the certified planner (audit spec 3.0) for
+    ``certified`` (I-POMCP only): ``PlannerConfig`` options of the certified planner (THEORY.md, "Certified search") for
     i's own decision; ``modeled_options`` (I-POMCP only) are those of every modeled level (certified search,
     ``modeled_resolution``, ``modeled_prediction``). Both default to today's configuration.
     """
@@ -358,11 +358,11 @@ def decide(problem, kind, budget, seed, modeled=0, particles=0, particle_filter=
     the cost of the search is the last stage's ``cpu_seconds``. The row carries ``work_counted``.
 
     ``certified``: non-default ``PlannerConfig`` options of i's own planner (``_planner``), recorded in the row.
-    ``modeled_options``: the same for every modeled level. With them the row also carries Theorem 1b's
+    ``modeled_options``: the same for every modeled level. With them the row also carries bi-level soundness's
     deviation bound per root action, the widened intervals and their containment, and ``model_certified``
     (no modeled solve ended unresolved, so the searched model is the exact I-POMDP).
     ``compression="head-tail"`` (I-POMCP, with ``particles``): head-tail compression of every belief; the row
-    carries the compression slack per root action and the intervals widened by it (audit spec 2.3).
+    carries the compression slack per root action and the intervals widened by it (THEORY.md, "Compression slack").
 
     A digest-only problem (no exact Q, beyond the exact solver's reach) gives an unscored row: its CPU and
     values, with ``scored`` false and no loss.
@@ -642,7 +642,7 @@ def main():
                      help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
                           "--leaf-eval bound --lazy --selection iemax (an explicit --selection overrides)")
     dec.add_argument("--modeled-resolve", action="store_true",
-                     help="modeled levels: deterministic resolution to the --modeled cap (Theorem 1b)")
+                     help="modeled levels: deterministic resolution to the --modeled cap (bi-level soundness)")
     dec.add_argument("--modeled-pilot", type=int, default=50, help="first resolution checkpoint")
     dec.add_argument("--modeled-prediction", choices=PREDICTIONS, default="argmax")
     dec.add_argument("--compression", choices=("stratified", "head-tail"), default="stratified",

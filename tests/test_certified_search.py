@@ -1,4 +1,4 @@
-"""Certified search (audit spec 3.3-3.4): bounds at every history contain the exact values."""
+"""Certified search (THEORY.md, "Soundness"): bounds at every history contain the exact values."""
 
 import math
 import random

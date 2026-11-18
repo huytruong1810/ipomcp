@@ -403,7 +403,7 @@ def _action_values(node, model, remaining, ctx):
 
 
 def deviation_bound(root, model, depth, bank, successor, gamma):
-    """{a: Delta(a)} for every root action: Theorem 1b(iii) of the audit spec.
+    """{a: Delta(a)} for every root action: part 3 of bi-level soundness (THEORY.md).
 
     Widening the certified interval of root action a by Delta(a) on each side
     makes it contain the exact I-POMDP value although the opponents' laws come
@@ -472,7 +472,7 @@ def deviation_bound(root, model, depth, bank, successor, gamma):
 
 
 def compression_bound(root, model, depth, bank, successor, gamma):
-    """{a: c_H(a)} for every root action: the deterministic compression slack (audit spec 2.3, Theorem b).
+    """{a: c_H(a)} for every root action: the deterministic compression slack (THEORY.md, "Compression slack", over the tree).
 
         c_1 = 0,  c_r(h, a) = gamma * sum_o P(o, alive | b_h, a) [W_{r-1} eps_{hao} + max_a' c_{r-1}(hao, a')]
 

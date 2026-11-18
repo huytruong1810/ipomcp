@@ -10,7 +10,7 @@ UAV no return exceeds the spotting reward (50), yet the scalar upper bound is
 142.6 at three steps to go; that alone sets the certified widths of the
 paper's H = 4 and 5 cells.
 
-Construction (audit spec 2.1, "Frontier soundness")
+Construction (THEORY.md, "Frontier bounds")
 ---------------------------------------------------
 Project onto physical states. The first step uses the modeled action law of
 every atom of b, which the planner holds; afterwards the other agent's

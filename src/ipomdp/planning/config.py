@@ -86,7 +86,7 @@ class PlannerConfig:
             ``modeled_simulations`` as the cap. Excludes ``modeled_stopping``.
         modeled_prediction: ``"argmax"`` (default): a modeled agent plays its
             greedy maximizers; ``"plausible"``: uniformly the actions its
-            intervals cannot rule out (Theorem 1b); needs ``modeled_resolution``.
+            intervals cannot rule out (bi-level soundness, THEORY.md); needs ``modeled_resolution``.
         outcome: How certified search chooses the next observation below the
             selected action. ``"sample"`` (default): drawn with its probability;
             a new history is a frontier and is expanded at its second visit

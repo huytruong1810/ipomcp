@@ -140,7 +140,7 @@ class AgentSpec:
         level_weights: Prior over the opponent's levels ({level: weight}).
         nested_level_weights: {level: {level: weight}} for nested models.
         compression: ``"stratified"`` (default) or ``"head-tail"`` compression of
-            bounded beliefs (``SolverBank(compression=...)``; audit spec 2.3).
+            bounded beliefs (``SolverBank(compression=...)``; THEORY.md, "Compression slack").
         escalation: None, or ``{"gap": g, "particles": n}``: an I-POMCP agent
             with a belief bound keeps a shadow at bound ``n`` (same seeds,
             same history) that decides whenever the agent's top-two action-value

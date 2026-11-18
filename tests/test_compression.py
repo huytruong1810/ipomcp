@@ -1,4 +1,4 @@
-"""Head-tail compression and the deterministic compression slack (audit spec 2.3)."""
+"""Head-tail compression and the deterministic compression slack (THEORY.md, "Compression slack")."""
 
 import math
 import random

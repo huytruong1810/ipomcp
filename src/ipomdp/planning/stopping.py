@@ -110,7 +110,7 @@ class ModeledStopping:
 
 @dataclass(frozen=True)
 class ModeledResolution:
-    """Deterministic stopping for modeled solves (audit spec 2.2, Theorem 1b); the cap is ``modeled_simulations``.
+    """Deterministic stopping for modeled solves (THEORY.md, "Modeled levels and bi-level soundness"); the cap is ``modeled_simulations``.
 
     One tree, grown by doubling from ``pilot`` to the cap. After each doubling
     its certified root intervals (widened by the solve's deviation bound) give

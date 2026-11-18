@@ -125,7 +125,7 @@ def test_node_records_sum_to_the_step_rows_and_respect_the_confidence_bound():
 @pytest.mark.slow
 @pytest.mark.parametrize("game", ["published", "coordination"])
 def test_boundary_level_checks_hold_at_every_history(game):
-    # Theorem 2b (audit spec 2.4): with the truth at level k = 1, the mixture identity holds and the
+    # Dominance at the boundary level (THEORY.md): with the truth at level k = 1, the mixture identity holds and the
     # plan gain of level 2 is at least (1 - lambda) / lambda times its regret under level 1's belief.
     from ipomdp.domains.tiger import JointTigerModel, TigerModel
 
