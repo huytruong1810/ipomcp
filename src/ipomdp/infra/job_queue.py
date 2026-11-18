@@ -18,7 +18,10 @@ A tab-separated file, one job per line:
 - ``OUT``: the file the command writes. A job whose ``OUT`` exists is done
   and is never run again, which is all that resuming needs. Commands must
   therefore write ``OUT`` atomically (write a temporary file, then rename),
-  as the package's drivers do.
+  as the package's drivers do. A command that writes its result
+  progressively (a script appending to a file as it goes) gets a marker
+  instead: ``OUT`` = ``<result>.done`` and ``COMMAND`` = ``<script> && touch
+  <result>.done``, so a killed run leaves no ``OUT`` and is run again.
 - ``PEAK_MB``: the job's expected peak resident memory, used for the memory
   budget until the job itself is measured larger; empty means the runner's
   default.
