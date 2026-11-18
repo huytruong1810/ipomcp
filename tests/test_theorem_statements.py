@@ -8,6 +8,10 @@ import random
 
 import pytest
 
+from ipomdp.experiments import profile
+from ipomdp.experiments.reachable_decisions import _planner
+from tests.test_planner_exactness import ARMS, physics_of
+
 
 @pytest.mark.parametrize("seed", range(50))
 def test_the_l1_lemma_holds_with_its_constant_and_the_constant_is_attained(seed):
@@ -36,3 +40,30 @@ def test_the_l1_lemma_holds_with_its_constant_and_the_constant_is_attained(seed)
     alphas[:] = [tight]
     b, c = [1.0] + [0.0] * (states - 1), [0.0, 1.0] + [0.0] * (states - 2)
     assert abs(f(b) - f(c)) == pytest.approx(0.5 * (c_hi - c_lo) * 2.0)
+
+
+@pytest.mark.parametrize("arm", ["B", "C", "D"])
+@pytest.mark.parametrize("domain, level, horizon", [("tiger-joint", 1, 4), ("tiger-joint", 2, 3), ("uav2", 2, 3)])
+def test_each_gap_directed_simulation_expands_exactly_one_history(arm, domain, level, horizon):
+    """Termination proof, Theorem 2 (docs/review/CHECK_20261117_termination.md): while the stop test is false, every
+    simulation of a gap-directed rule expands exactly one history, so the search stops within |T| + 1 simulations.
+
+    The first simulation also expands the root, so a stopped tree holds exactly one more expanded history than it ran
+    simulations (or one, if the root was settled at expansion), and the search ends resolved before its cap.
+    """
+    physics = physics_of(domain)
+    certified = profile.own_options("certified") | ARMS[arm]
+    planner = _planner(physics, "mcts", 5, 5000, horizon, level, 5000, 0, "sampled",
+                       modeled_exact=True, certified=certified)
+    tree = planner._tree(planner.model(), 5000)
+    tree.grow(5000)
+    stack, expanded = [tree.root], 0
+    while stack:
+        node = stack.pop()
+        if node.cert is None or not node.cert.expanded:
+            continue
+        expanded += 1
+        stack.extend(child for children in node.children.values() for child in children.values())
+    assert planner._resolved(tree.root)
+    assert tree.simulations_run < 5000
+    assert expanded == tree.simulations_run + 1 or (expanded == 1 and tree.simulations_run == 1)
