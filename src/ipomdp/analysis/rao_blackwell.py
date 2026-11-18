@@ -12,7 +12,7 @@ actions and observations, the physical state is a plain hidden Markov chain,
 whose transition at step t is T(s' | s, a_t) and whose emission is the product
 of both agents' observation likelihoods. By the tower property the mean over
 trials is unchanged, and the variance cannot increase (N0 measured 2.3–3.8x
-less on 10,000 Tiger trials, HANDOFF 0.00000).
+less on 10,000 Tiger trials).
 
 The pairwise posterior over (s_{t-1}, s_t) is used, so rewards that read the
 next state are handled. A terminal step has no observation; its emission is 1

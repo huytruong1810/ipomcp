@@ -1,8 +1,7 @@
 """Near-tie escalation: decide with a larger belief bound only where the decision is close.
 
 Inside the exact window, every departure of the level grid's agents from the
-Bayes-optimal agent is a belief-compression error at a near-tie (RESULTS
-12.74-12.75). The planner's own gap between its two best action values flags
+Bayes-optimal agent is a belief-compression error at a near-tie. The planner's own gap between its two best action values flags
 those decisions (AUC 0.996; a gap of at most 1 catches 93.5% of the misses and
 flags 1.5% of decisions, 12.77). A larger bound on the real-step belief alone
 does not fix them, because at level 3 the harmful compression is in the nested

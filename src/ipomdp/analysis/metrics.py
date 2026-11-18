@@ -14,8 +14,8 @@ Conventions:
   reports how many trials contribute.
 - A prediction **miss** is a decision at which the agent gave the opponent's
   actual action probability below ``MISS_PROBABILITY`` (zero up to rounding).
-  Bounded beliefs cause them by dropping the branch that actually happened
-  (RESULTS 12.26, 12.29); the level-posterior distance cannot see them, so
+  Bounded beliefs cause them by dropping the branch that actually happened;
+  the level-posterior distance cannot see them, so
   every bounded-belief run reports the miss rate.
 - Confidence intervals resample whole trials (cluster bootstrap). Steps within
   a trial are correlated, so treating rows as independent would understate

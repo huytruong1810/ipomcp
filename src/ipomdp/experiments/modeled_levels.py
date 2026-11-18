@@ -5,7 +5,7 @@ Why per level
 An agent at level L models its opponent at L - 1, who models it at L - 2, and
 so on down to level 1. Each of those levels is queried at different beliefs and
 needs a different budget: at Tiger H4 the modeled L1 needs a 6,400 cap with
-sequential stopping (RESULTS.md Sections 12.5 and 12.8), while at L3 H3 a flat
+sequential stopping, while at L3 H3 a flat
 400 for both modeled levels already reproduces the exact policies and stopping
 costs 1.3x (12.8). Each level's own ``PlannerConfig`` already carries its
 budget and rule; this module names the per-level choice once, so the oracle,

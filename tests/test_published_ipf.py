@@ -1,4 +1,4 @@
-"""The interactive particle filter and RTS backup as Doshi & Gmytrasiewicz (2009) publish them (RESULTS 12.116)."""
+"""The interactive particle filter and RTS backup as Doshi & Gmytrasiewicz (2009) publish them."""
 
 import math
 

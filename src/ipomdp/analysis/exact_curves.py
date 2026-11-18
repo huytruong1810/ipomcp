@@ -7,13 +7,13 @@ uniform over actions) and updates its belief with the exact filter, so the
 curve is the expectation of exactly the pair that exact episodes play
 (``study.ExactConfig``). Terminal successors absorb: they earn nothing after.
 
-Nodes grow about 10x per step on Tiger (1.5M at step 6 for L1 against L1,
-HANDOFF 0.00000), so the curve covers a short window; ``max_nodes`` bounds it.
+Nodes grow about 10x per step on Tiger (1.5M at step 6 for L1 against L1),
+so the curve covers a short window; ``max_nodes`` bounds it.
 
 ``exact_decision_gains`` compares two levels at the same decision points instead:
 it enumerates one agent's histories against the true opponent and scores both
 levels' receding plans there, so the receding-horizon timing of whole episodes
-does not enter (V3, PLAN.md).
+does not enter.
 """
 
 import math

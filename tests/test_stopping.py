@@ -176,7 +176,7 @@ def root_planner(seed, root_stopping, simulations=800, depth=4):
 
 
 def test_root_stopping_at_its_cap_is_the_flat_root_search_with_bounds(monkeypatch):
-    # Near-tie root escalation (RESULTS 12.90): unseparated, the root tree is the flat search of
+    # Near-tie root escalation: unseparated, the root tree is the flat search of
     # ``simulations``, with the same certified bounds.
     ruled, physics = root_planner(7, ModeledStopping(pilot=100, trees=2, alpha=1e-12))
     plain, _ = root_planner(7, None)

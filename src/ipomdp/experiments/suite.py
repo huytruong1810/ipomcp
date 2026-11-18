@@ -16,8 +16,7 @@ cells pair by trial (until their actions diverge).
    lock per episode; a killed episode loses only itself) and writes it
    atomically to ``trials/<cell>/<trial>.csv``; finished files are skipped.
 
-Three suite builders cover the packaged Tiger suite (docs/PLAN.md, "Tiger
-experiment suite"); each takes the domain as a parameter:
+Three suite builders cover the packaged Tiger suite; each takes the domain as a parameter:
 
 - ``level_matrix``: every pair of levels (i, j), level 0 included; each agent
   holds a uniform prior over the opponent's lower levels, at every nesting;
@@ -27,10 +26,10 @@ experiment suite"); each takes the domain as a parameter:
   misspecified, against one real opponent;
 - ``anytime_comparison``: i at level 2 with every planner (I-POMCP, IPF + RTS,
   I-NTMCP) at several budgets against one real level-1 opponent, for anytime
-  curves (RESULTS 12.67).
+  curves.
 
 Every model of the opponent matches the real opponent's whole configuration
-(depth, budgets, belief bound, nested priors; RESULTS 12.30), except where the
+(depth, budgets, belief bound, nested priors), except where the
 baseline under test itself models the opponent with its own method (RTS).
 
 Command line: ``python -m ipomdp.experiments.suite <builder> --output DIR [options]``.
@@ -228,7 +227,7 @@ def level_matrix(
 ):
     """Every (i, j) level pair (or only ``pairs``); cell labels ``i<level>_j<level>``.
 
-    Defaults are RESULTS 12.27's design: horizon 2, where chance scoring makes
+    Defaults are the level matrix's design: horizon 2, where chance scoring makes
     every decision exact for the searched model at any budget, so a budget of
     100 only needs to try every action; modeled levels solve the same way.
     ``profile``: the planner profile of every agent and modeled level (``ipomcp``).

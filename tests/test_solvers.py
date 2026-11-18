@@ -41,7 +41,7 @@ def test_random_planner_and_shared_greedy_tie_rule():
 
 
 def test_exact_values_tie_within_the_reference_tolerance():
-    # Algebraically equal exact values that differ in the last bits (RESULTS 12.87's gate rows).
+    # Algebraically equal exact values that differ in the last bits.
     values = {LISTEN: -1.95, OPEN_LEFT: -86.95, OPEN_RIGHT: -1.95 + 1.8e-15}
     assert greedy_policy(values) == {OPEN_RIGHT: 1.0}
     assert greedy_policy(values, TIE_TOLERANCE) == {LISTEN: 0.5, OPEN_RIGHT: 0.5}

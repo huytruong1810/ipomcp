@@ -32,7 +32,7 @@ def test_a_level_one_agent_listens_first():
 
 
 def test_level_one_pairs_reproduce_n0():
-    # HANDOFF 0.00000: steps 3 and 4 are 2.148 and 1.308 for L1 against L1.
+    # The enumeration's values at steps 3 and 4 are 2.148 and 1.308 for L1 against L1.
     rows = curve(1, 1, 4)
     assert [round(r["cum_reward_i"], 3) for r in rows] == [-1.0, -2.0, 2.148, 1.308]
     assert all(r["cum_reward_i"] == pytest.approx(r["cum_reward_j"]) for r in rows)

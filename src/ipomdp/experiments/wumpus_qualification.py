@@ -2,20 +2,19 @@
 
 The human (level L) models the wumpus at level L - 1, down to uniform L0, on
 a ``width x height`` board with ``n_pits`` pits (``--board``; default the
-4 x 4 board with 2 pits and its exact 94,500-state prior, RESULTS.md Section
-10). Real beliefs are exact (filtering is cheap: deterministic sensors prune
+4 x 4 board with 2 pits and its exact 94,500-state prior). Real beliefs are exact (filtering is cheap: deterministic sensors prune
 the support fast); each search starts from the belief compressed to
 ``search_particles`` atoms. At level 1 the Section 10 pilot lost 1.8-7.7 in 13
 of 18 decisions without separating the two suspects: root compression (N) and
 the simulation budget over 5 actions x 32 observations. This grid separates
 them. At level 2 and above, the modeled wumpus is solved by I-POMCP with
-``modeled`` simulations at every level below the human (RESULTS.md 12.56: on a
-3 x 3 board with 1 pit the exact I-POMDP is tractable at L2 H3 and L3 H2).
+``modeled`` simulations at every level below the human (on a 3 x 3 board with 1
+pit the exact I-POMDP is tractable at L2 H3 and L3 H2).
 
 Problems: a scripted history (turn, step, turn, step, step; a step that would
 end the episode is replaced by a turn) cut after 0, 2 or 4 steps, per seed.
 That script gives every seed the same observations, so 3 seeds held 3 distinct
-beliefs (RESULTS.md 12.19). ``--script random`` draws each step's action
+beliefs. ``--script random`` draws each step's action
 uniformly per seed instead; references record the belief's digest so analyses
 count distinct beliefs; ``--script modeled`` (level 2 and above) draws the
 human's actions from the wumpus's model of the human, which level 3 needs
@@ -75,7 +74,7 @@ def nested_levels(level, l0=0.0):
     every action of the modeled agent positive probability. With deterministic
     percepts a near-deterministic modeled policy otherwise leaves some of the
     modelling agent's counterfactual actions with zero-evidence nested updates,
-    and the exact I-POMDP is undefined there (Wumpus L3; docs/RESULTS.md 12.58).
+    and the exact I-POMDP is undefined there (Wumpus L3).
     """
     if l0 == "uniform":
         # Uniform over every lower level, as the episode suite's agents hold (suite.hierarchy_agent).
@@ -206,7 +205,7 @@ def human(
     if published and planner != "rts":
         raise ValueError("The published IPF is the IPF + RTS baseline's filter")
     if planner == "rts":
-        # "published" / "published-smoothed": IPF + RTS exactly as published (RESULTS 12.116-12.117): their filter,
+        # "published" / "published-smoothed": IPF + RTS exactly as Doshi and Gmytrasiewicz (2009) publish it: their filter,
         # their RTS backup, and every level-1 model (their level 0) solved exactly.
         config = lower = RTSConfig(depth=horizon, observation_samples=simulations, gamma=GAMMA,
                                    backup="published" if published else "sparse")
@@ -500,7 +499,7 @@ def main():
         "--particle-filter",
         choices=("sampled", "smoothed", "published", "published-smoothed"),
         default="sampled",
-        help="rts: our sampled IPF, with likelihood smoothing, or IPF + RTS exactly as published (RESULTS 12.116)",
+        help="rts: our sampled IPF, with likelihood smoothing, or IPF + RTS exactly as Doshi and Gmytrasiewicz (2009) publish it",
     )
     parser.add_argument(
         "--intmcp-variant",

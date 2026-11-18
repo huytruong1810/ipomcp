@@ -45,7 +45,7 @@ def test_the_l1_lemma_holds_with_its_constant_and_the_constant_is_attained(seed)
 @pytest.mark.parametrize("arm", ["B", "C", "D"])
 @pytest.mark.parametrize("domain, level, horizon", [("tiger-joint", 1, 4), ("tiger-joint", 2, 3), ("uav2", 2, 3)])
 def test_each_gap_directed_simulation_expands_exactly_one_history(arm, domain, level, horizon):
-    """Termination proof, Theorem 2 (docs/review/CHECK_20261117_termination.md): while the stop test is false, every
+    """Termination of the gap-directed rules: while the stop test is false, every
     simulation of a gap-directed rule expands exactly one history, so the search stops within |T| + 1 simulations.
 
     The first simulation also expands the root, so a stopped tree holds exactly one more expanded history than it ran

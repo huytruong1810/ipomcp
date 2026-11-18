@@ -212,7 +212,7 @@ def test_search_beliefs_are_bounded_while_real_beliefs_stay_exact():
 
 def test_compression_does_not_alias_structured_uniform_beliefs():
     # Systematic draws at N = 256 over the 3 x 3 prior's canonical order dropped
-    # every world with a pit at (1, 0) (RESULTS.md 12.57); its mass is 1/8.
+    # every world with a pit at (1, 0); its mass is 1/8.
     physics = WumpusModel(3, 3, 1)
     compressed = CompressedInteractiveFilter(greedy_one_step, particles=256, seed=0)
     belief = compressed.initial_belief(wumpus_prior(physics))

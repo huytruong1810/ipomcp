@@ -2,7 +2,7 @@
 
 A profile names a full I-POMCP configuration, so a single decision and an episode that
 state the same profile run the same planner. ``certified`` is certified search with
-bound-directed selection (RESULTS 12.127, 12.129): belief-dependent frontier bounds,
+bound-directed selection: belief-dependent frontier bounds,
 probability-weighted scoring, the exact two-step tail, pruning, bound leaves, lazy
 expansion and IEMax selection for an agent's own decision; every modeled level runs
 the same search, resolved to its budget as a cap, and is predicted by its plausible set.

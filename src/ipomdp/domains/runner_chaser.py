@@ -3,7 +3,7 @@
 This is the authors' own test domain (``intmcp.envs.rc.RCModel`` in
 ``third_party/i-ntmcp``), restated as finite kernels so that their planner can
 run on it through ``baselines.intmcp.POSGAdapter`` and be compared with their
-own runner (PLAN.md S2). Every rule below follows ``RCModel``;
+own runner. Every rule below follows ``RCModel``;
 ``tests/test_runner_chaser.py`` checks next states, observations, rewards and
 termination against it for every state and joint action.
 

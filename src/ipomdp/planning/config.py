@@ -52,8 +52,7 @@ class PlannerConfig:
             as the cap (``stopping``). When None, one search of
             ``modeled_simulations``.
         root_stopping: The same rule for this agent's own decisions, with
-            ``simulations`` as the cap: near-tie root escalation (RESULTS
-            12.90). The root tree grows by doubling until its two leading
+            ``simulations`` as the cap: near-tie root escalation. The root tree grows by doubling until its two leading
             actions separate or its scores are exact; at the cap it is the flat
             search of ``simulations``. When None, one search of ``simulations``.
         frontier_bounds: Bounds on what search left unknown, used by certified

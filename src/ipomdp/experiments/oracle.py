@@ -121,7 +121,7 @@ def evaluate_case(
     ``reference="none"`` returns the planner's decision, values and CPU without
     solving a reference: for drivers that need i's search but not its score,
     where the exact reference is intractable (``modeled_qualification`` at L3
-    beyond H3; RESULTS.md Section 12.7).
+    beyond H3).
 
     Otherwise ``reference`` matters only for a level-2 to level-4 problem with a finite
     modeled level: "declared" scores the planner against the best response to its
@@ -297,8 +297,7 @@ def optimal_q_error(estimates, exact):
 
     The all-action maximum (``max_abs_q_error``) is dominated by clearly wrong
     actions: search rightly spends few simulations below them, so their
-    continuation values stay noisy while the decision is unaffected (RESULTS.md
-    Section 12.2: L1 H5 at 5,000 simulations, 1.35 over all actions vs 0.12 on
+    continuation values stay noisy while the decision is unaffected (L1 H5 at 5,000 simulations, 1.35 over all actions vs 0.12 on
     the optimal one). Error bounds on the value an agent acts on are reported
     with this metric; both are recorded.
     """

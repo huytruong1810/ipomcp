@@ -5,8 +5,8 @@ Why
 A modeled opponent's policy is a greedy decision on searched values, and a
 flat budget pays for the hardest decision at every belief the outer search
 queries. Most queried beliefs are clear; a few are near ties that need
-thousands of simulations (RESULTS.md Sections 12.5-12.6: the spread of a value
-estimate, not the allocation, sets that floor). Spending adaptively per
+thousands of simulations (the spread of a value estimate, not the allocation,
+sets that floor). Spending adaptively per
 belief is the lever.
 
 Why one growing tree, not replicate searches

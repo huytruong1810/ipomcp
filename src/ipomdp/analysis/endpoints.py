@@ -3,13 +3,13 @@
 Every comparison pairs trials: suite cells share trial ids, so the environment
 and both agents' streams match across cells until actions diverge. Comparing i
 with j inside one cell is not done: each agent's sensor luck repeats across
-every cell of a seed-paired suite (HANDOFF 6).
+every cell of a seed-paired suite.
 
 - ``paired_difference``: mean of a minus b over common trials, a 95% trial
   bootstrap interval and a two-sided paired t-test;
 - ``one_level_endpoint``: the level matrix's primary endpoint, the agent at
   k + 1 minus the same agent at k against the same opponent level, for both
-  agents, Holm-corrected over the family (RESULTS 12.27);
+  agents, Holm-corrected over the family;
 - ``arm_differences``: each arm minus a reference arm (planner comparison, prior
   sensitivity), Holm-corrected;
 - ``cell_table``: per-cell rewards, welfare, prediction loss and misses (with

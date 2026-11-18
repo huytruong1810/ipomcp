@@ -11,7 +11,7 @@ exact reference, or a search whose chance scores are exact) are compared with
 ``TIE_TOLERANCE``, relative, because algebraically equal values computed along
 different paths can differ in the last bits; the exact I-POMDP then plays all
 its tied maximizers, and so does a modeled agent whose values are exact
-(THEORY.md, "Tie convention"; RESULTS 12.87).
+(THEORY.md, "Tie convention").
 """
 
 import math

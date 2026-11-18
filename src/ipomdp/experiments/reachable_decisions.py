@@ -1,4 +1,4 @@
-"""Decisions at histories reachable from the common prior, every planner against the exact I-POMDP (PLAN.md S4).
+"""Decisions at histories reachable from the common prior, every planner against the exact I-POMDP.
 
 Why reachable histories
 -----------------------
@@ -243,12 +243,12 @@ def _planner(physics, kind, seed, budget, horizon, level, modeled, particles, pa
     """i at ``level`` with point-mass nesting; every modeled level is solved by the same kind of planner.
 
     With ``modeled_exact``, every modeled level is instead the exact best response at ``horizon`` to the
-    levels below it, on the planner's own belief filter: search only at i's root (R2, RESULTS 12.97).
+    levels below it, on the planner's own belief filter: search only at i's root.
     ``prior`` (``_check_prior``'s (M, w0)) replaces i's root belief by the wide prior in the bank's
     representation.
 
-    ``rts_published`` (IPF + RTS only) is the algorithm as Doshi and Gmytrasiewicz (2009) publish it
-    (RESULTS 12.116): their interactive particle filter (exact bottom level, enumerated observations of the other
+    ``rts_published`` (IPF + RTS only) is the algorithm as Doshi and Gmytrasiewicz (2009) publish it:
+    their interactive particle filter (exact bottom level, enumerated observations of the other
     agent; "published-smoothed" when ``particle_filter`` is "smoothed"), their RTS backup, and every level-1 model
     (their level 0) solved exactly.
 
@@ -612,7 +612,7 @@ def main():
     dec.add_argument("--reference-cache", type=int, default=200_000,
                      help="with --modeled-exact: entries of the exact solver's caches (memory against CPU)")
     dec.add_argument("--rts-published", action="store_true",
-                     help="IPF + RTS exactly as published (RESULTS 12.116): their filter, backup and exact level 0")
+                     help="IPF + RTS exactly as Doshi and Gmytrasiewicz (2009) publish it: their filter, backup and exact level 0")
     dec.add_argument("--ladder", type=int, nargs="+",
                      help="I-POMCP: also score the same tree at these smaller budgets (anytime intervals)")
     dec.add_argument("--frontier-bounds", choices=FRONTIER_BOUNDS, default="scalar",
@@ -626,7 +626,7 @@ def main():
     dec.add_argument("--prune", action="store_true",
                      help="certified search: bounds at every history, action elimination, early stop")
     dec.add_argument("--selection", choices=SELECTIONS, default=None,
-                     help="ucb by default; iemax under --profile certified (adopted Nov 14, RESULTS 12.129)")
+                     help="ucb by default; iemax under --profile certified")
     dec.add_argument("--leaf-eval", choices=LEAF_EVALS, default="rollout")
     dec.add_argument("--lazy", action="store_true", help="certified search: lazy frontier expansion")
     dec.add_argument("--count-work", action="store_true",

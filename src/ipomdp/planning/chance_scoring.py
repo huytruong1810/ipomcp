@@ -74,7 +74,7 @@ What stays approximate
   observation of (h, a) was never sampled, there is no child value to weight,
   so the action keeps its search Q as a whole. Mixing exact weights for
   sampled branches with nothing for unsampled ones would bias Q toward zero
-  (and renormalizing over the sampled ones biased it upward, RESULTS.md 6).
+  (and renormalizing over the sampled ones biases it upward).
 - **Rollout frontiers.** A child reached once has only its rollout estimate.
 - **Unevaluated actions.** V* maximizes over the actions search tried; one
   never tried is not given a fictitious value.

@@ -59,7 +59,7 @@ class HierarchyBuilder:
                 this agent. Required for level > 0.
             modeled_configs: {level: configuration} of the lower intentional
                 models, one per level for both agents (levels are queried at
-                different beliefs and need different budgets, RESULTS.md 12.9;
+                different beliefs and need different budgets;
                 ``experiments.modeled_levels`` names such stacks). A level not
                 listed uses the configuration of the level that models it, so a
                 hierarchy is homogeneous unless a study states otherwise.

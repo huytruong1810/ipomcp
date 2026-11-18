@@ -6,8 +6,7 @@ A level-L decision is only as good as its model of the level-(L-1) opponent,
 and that model is solved by a finite search at every belief the level-L search
 reaches. The L1 gate (``l1_qualification``) scores decisions at the real
 agent's beliefs, which are not those beliefs: it passed at 1,000 simulations
-while L2 H4 decisions failed with modeled budgets up to 1,000 (RESULTS.md
-Sections 5 and 12.4). This driver scores the modeled agent where it is
+while L2 H4 decisions failed with modeled budgets up to 1,000. This driver scores the modeled agent where it is
 actually queried.
 
 What it does
@@ -52,14 +51,13 @@ modeled decision.
 
 Why zero wrong decisions, not a loss tolerance: the modeled agent's own loss
 does not separate mistakes that change i's decision from those that do not
-(L2 H4: the harmful ones lose 0.66, harmless ones 0.2-1.0; RESULTS.md Section
-12.5). Zero wrong is sufficient for i to be unaffected and needs only the
+(L2 H4: the harmful ones lose 0.66, harmless ones 0.2-1.0). Zero wrong is sufficient for i to be unaffected and needs only the
 modeled level's exact reference, never level L's, which is what makes it
 usable where level L's exact solution is out of reach (L3 beyond H3 k = 0;
 12.7). It is conservative (H4: it certifies 6,400 where i's decisions are
 already 380/380 at 1,600). Scope: exact beliefs.
 
-Ties (RESULTS.md 12.50): the exact reference plays a modeled agent's tied best
+Ties: the exact reference plays a modeled agent's tied best
 actions uniformly, while a modeled solve plays whatever its search returns, so
 an optimal modeled policy can still break a tie differently. Tied actions give
 the modeled agent different observations, and so can change i's best response;
@@ -101,7 +99,7 @@ from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.planning.solver_types import SolverKey
 from ipomdp.reference.best_response import BestResponseReference
 
-# RESULTS.md Section 12.3's grid: 19 beliefs of i x 5 private beliefs of j.
+# The qualification grid: 19 beliefs of i x 5 private beliefs of j.
 BELIEFS = tuple(round(0.05 * k, 2) for k in range(1, 20))
 OPPONENT_BELIEFS = (0.085, 0.3, 0.5, 0.7, 0.915)
 NESTED_BELIEFS = (0.5,)
