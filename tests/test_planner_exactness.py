@@ -34,9 +34,10 @@ from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
 from ipomdp.reference.best_response import BestResponseReference
 
 SLACK = 1e-9
-ARMS = {
-    "A": {},
-    "B": dict(outcome="gap", root_rule="open"),
+# Outcome rules: the certified profile's gap rule, and the sampled rule its ablations return to.
+RULES = {
+    "gap": {},
+    "sampled": dict(outcome="sample", root_rule="upper"),
 }
 # (domain, level, horizon, simulations): every cell runs in about a second or less.
 CELLS = [
@@ -87,13 +88,13 @@ CASES = [(*cell, steps) for cell in CELLS for steps in (0, 1) if steps == 0 or c
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("arm", ARMS)
+@pytest.mark.parametrize("rule", RULES)
 @pytest.mark.parametrize("domain, level, horizon, simulations, steps", CASES)
 def test_intervals_contain_the_exact_values_and_resolved_decisions_are_optimal(
-    arm, domain, level, horizon, simulations, steps
+    rule, domain, level, horizon, simulations, steps
 ):
     physics = physics_of(domain)
-    certified = profile.own_options("certified") | ARMS[arm]
+    certified = profile.own_options("certified") | RULES[rule]
     planner = _planner(physics, "mcts", 5, simulations, horizon, level, simulations, 0, "sampled",
                        modeled_exact=True, certified=certified)
     for _ in range(steps):
@@ -137,7 +138,7 @@ def test_intervals_contain_the_exact_values_and_resolved_decisions_are_optimal(
 def test_a_gap_directed_search_resolves_every_small_decision_within_its_budget(domain, level, horizon):
     """The gap rule terminates with a certificate on a finite tree; 2,000 simulations is far above these trees."""
     physics = physics_of(domain)
-    certified = profile.own_options("certified") | ARMS["B"]
+    certified = profile.own_options("certified")
     planner = _planner(physics, "mcts", 5, 2000, horizon, level, 2000, 0, "sampled",
                        modeled_exact=True, certified=certified)
     policy = planner.policy_for(planner.model())

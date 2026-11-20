@@ -41,21 +41,21 @@ and the last decision uses max_a E[R | b_h, a]. Terminal mass contributes zero a
 
 ## Certified search
 
-Certified search (`i_pomcp._simulate_certified`, enabled by the certified options of `PlannerConfig`; the profile `experiments.profile` "certified" sets all of them) keeps an interval [q⁻(h, a), q⁺(h, a)] for every action at every expanded history.
+Certified search (`i_pomcp._simulate_certified`, enabled by the certified options of `PlannerConfig`; the profile `experiments.profile` "certified" sets all of them) keeps an interval [q⁻(h, a), q⁺(h, a)] for every action at every expanded history. The profile "certified" is I-FIB bounds, probability-weighted scoring, the exact two-step tail, pruning, IEMax selection and the gap rule with the root rule `"open"`; the other options below are the components its ablations switch off.
 
 - **Frontier bounds** (`planning.frontier_bounds`): `"scalar"` uses only the horizon's return range [ℓ_r, u_r], with ℓ_r = R_min + γ min(0, ℓ_{r−1}) and u_r = R_max + γ max(0, u_{r−1}); `"ifib"` uses the belief-dependent interactive fast-informed bound and blind-policy lower bound of "Frontier bounds" below.
 - **Exact two-step tail** (`exact_tail`): a history with two steps to go is solved exactly when it is expanded; every child is the last decision, whose value needs only its posterior.
 - **Pruning** (`prune`): bounds are backed up along every descent and only tighten; an action ruled out by its bounds is never selected again; the search stops when the root decision is settled.
-- **Leaves** (`leaf_eval`, `lazy_expansion`): a new frontier is valued by a point of its interval (`"bound"`) or by a rollout clipped into it, and with lazy expansion its belief is computed only when it is visited again (its interval comes from the parent's belief meanwhile).
+- **Leaves** (`leaf_eval`, `lazy_expansion`; sampled rule only): a new frontier is valued by a point of its interval (`"bound"`) or by a rollout clipped into it, and with lazy expansion its belief is computed only when it is visited again (its interval comes from the parent's belief meanwhile).
 - **Action selection** (`selection`): UCB with the horizon's return width (`"ucb"`), or the largest upper bound first, ties by the PUCT score with a softmax prior of the upper bounds (`"iemax"`, the action rule of bound-directed solvers such as HSVI).
 - **Observation rule** (`outcome`): `"sample"` draws the next observation with its probability; `"gap"` takes the open branch with the largest probability-weighted gap between its bounds. Under the gap rule, the first history on the path that is not yet expanded is expanded and the simulation ends.
-- **Root rule** (`root_rule`, gap rule): `"upper"` takes the largest upper bound among unpruned actions; `"open"` takes the largest upper bound among the plausible actions whose interval is still open.
+- **Root rule** (`root_rule`): under the sampled rule, the largest upper bound among unpruned actions (`"upper"`); under the gap rule, the largest upper bound among the plausible actions whose interval is still open (`"open"`).
 
 **Plausible and certain sets** (`planning.policy.plausible_sets`). With M⁻ the largest lower bound and M⁺ the largest upper bound at a history, an action is plausible if q⁺ ≥ M⁻ − τ⁺ and certain if q⁻ ≥ M⁺ − τ⁻, with τ⁺ = 10⁻⁹ max(1, |M⁻|, |M⁺|) and τ⁻ = 10⁻⁹ max(1, min(|M⁻|, |M⁺|)), or 10⁻⁹ when [M⁻, M⁺] contains 0. Then certain ⊆ exactly optimal (within the relative tie tolerance 10⁻⁹) ⊆ plausible.
 
-**Tolerances.** Every comparison that prunes or certifies under the sampled rule uses the outward slack 10⁻⁹ max(1, |x|). The gap rules use one absolute tolerance per search, ε = 10⁻⁹ (u_H − ℓ_H): an interval is closed when its width is at most ε. A relative slack does not compose across levels of the tree; an absolute one does.
+**Tolerances.** Every comparison that prunes or certifies under the sampled rule uses the outward slack 10⁻⁹ max(1, |x|). The gap rule uses one absolute tolerance per search, ε = 10⁻⁹ (u_H − ℓ_H): an interval is closed when its width is at most ε. A relative slack does not compose across levels of the tree; an absolute one does.
 
-**Stop test** (`i_pomcp._resolved`). The root decision is settled when every unpruned action's interval is closed and the root is solved, or when the certain set equals the plausible set. Under a gap rule, pruning removes exactly the actions that are not plausible.
+**Stop test** (`i_pomcp._resolved`). The root decision is settled when every unpruned action's interval is closed and the root is solved, or when the certain set equals the plausible set. Under the gap rule, pruning removes exactly the actions that are not plausible.
 
 ## Modeled levels and bi-level soundness
 
@@ -109,7 +109,7 @@ Let T be the set of i's histories with at least two steps to go. Under `outcome=
 - the plausible set only shrinks, because τ⁺ = 10⁻⁹ max(1, M⁺, −M⁻) is non-increasing as the bounds tighten, so a pruned action is never needed again;
 - under `scoring="pw"` with the lower stand-in and `leaf_eval="bound"`, every scored value lies in [q⁻(a), Q*(a)], so at any stop the decision's loss is at most M⁺ − m + τ, with m the largest lower bound among scored actions. When the agent's rewards satisfy R_min ≤ 0 ≤ R_max and u_H − ℓ_H ≥ 1 (true for both agents of every packaged domain), τ⁻ ≤ ε, so a settled root has every plausible action closed and recorded, and the loss is at most ε + τ.
 
-Tests: `test_theorem_statements.py` (expanded histories equal simulations run plus one under arm B), `test_planner_exactness.py` (every small decision settles within its budget and plays exactly the exact maximizers).
+Tests: `test_theorem_statements.py` (expanded histories equal simulations run plus one under the certified profile), `test_planner_exactness.py` (every small decision settles within its budget and plays exactly the exact maximizers).
 
 ### Consistency of UCB selection
 

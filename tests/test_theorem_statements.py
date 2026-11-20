@@ -10,7 +10,7 @@ import pytest
 
 from ipomdp.experiments import profile
 from ipomdp.experiments.reachable_decisions import _planner
-from tests.test_planner_exactness import ARMS, physics_of
+from tests.test_planner_exactness import physics_of
 
 
 @pytest.mark.parametrize("seed", range(50))
@@ -51,7 +51,7 @@ def test_each_gap_directed_simulation_expands_exactly_one_history(domain, level,
     simulations (or one, if the root was settled at expansion), and the search ends resolved before its cap.
     """
     physics = physics_of(domain)
-    certified = profile.own_options("certified") | ARMS["B"]
+    certified = profile.own_options("certified")
     planner = _planner(physics, "mcts", 5, 5000, horizon, level, 5000, 0, "sampled",
                        modeled_exact=True, certified=certified)
     tree = planner._tree(planner.model(), 5000)

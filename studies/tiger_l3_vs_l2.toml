@@ -6,9 +6,11 @@
 # Both agents plan a fixed 3-step receding lookahead with 1,000 root simulations
 # and compressed beliefs (exact updates, supports bounded to 64 atoms; THEORY.md).
 # Modeled levels use the stacks certified at horizon 3 (RESULTS.md 12.5, 12.9,
-# 12.11, 12.14): i models j/L2 with stopping capped at 6,400 over i/L1 flat 100;
-# j models i/L1 with a flat 400. Gated under these mixed priors against the exact
-# I-POMDP in results/w4_mixed_prior_gate_20261006 (120/120 optimal).
+# 12.11, 12.14): i models j/L2 with a flat 6,400 over i/L1 flat 100; j models i/L1
+# with a flat 400. The gate under these mixed priors against the exact I-POMDP
+# (results/w4_mixed_prior_gate_20261006, 120/120 optimal) used sequential stopping
+# capped at 6,400 for j/L2; that rule was removed in the consolidation release
+# (November 2026), and its cap is searched flat here.
 name = "tiger-l3-vs-l2"
 domain = "tiger"
 trials = 100
@@ -22,7 +24,7 @@ max_trial_rss_mb = 4096.0
 level = 3
 particles = 64
 planner = { kind = "ipomcp", simulations = 1000, depth = 3, modeled_simulations = 1000 }
-modeled = "6400s/100"
+modeled = "6400/100"
 level_weights = { 1 = 0.8, 2 = 0.1, 0 = 0.1 }
 nested_level_weights = { 2 = { 1 = 0.5, 0 = 0.5 }, 1 = { 0 = 1.0 } }
 
