@@ -14,7 +14,7 @@ Only the domain is adapted: ``POSGAdapter`` presents a kernel-only domain
 ``uct_c`` = r_max - r_min, 1/16 extra particles per step and uniformly random
 rollouts.
 
-- **Reinvigoration: two variants.** I-NTMCP refills a belief after a real
+- **Reinvigoration: three variants.** I-NTMCP refills a belief after a real
   step to about M (1 + 1/16) particles by rejection sampling from the parent
   node. After 3,000 rejections it *force-fills* the rest with particles whose
   own observation contradicts the real one. With deterministic senses (Wumpus)
@@ -29,6 +29,13 @@ rollouts.
     the target (``TUNED_REJECTIONS`` per particle), so force-filling is rare.
     This uses our explicit kernels, more than I-NTMCP's generative-model
     contract, so it favours the baseline.
+  - ``variant="rejection"``: the authors' refill (rejection sampling, no
+    reinvigoration function) with the tuned variant's rejection budget. A
+    rejected draw is one whose observation disagrees with the real one, so the
+    refill keeps the likelihood of the agent's own observation, which the tuned
+    repair does not weigh for the other agent's past action (register S8: on
+    coordination tiger the repair keeps "the other agent opened a door" too
+    likely).
 
 - **Dynamics.** ``step`` draws s' from the transition kernel and each agent's
   observation from its observation kernel independently given (s', a), the
@@ -211,9 +218,9 @@ class POSGAdapter(M.POSGModel):
 
 
 TUNED_REJECTIONS = 50
-"""The tuned variant's rejection budget per particle of a belief's refill target."""
+"""The rejection budget of the tuned and rejection variants, per particle of a belief's refill target."""
 
-VARIANTS = ("published", "tuned")
+VARIANTS = ("published", "tuned", "rejection")
 
 
 class INTMCPAgent:
@@ -278,7 +285,7 @@ class INTMCPAgent:
             epsilon=gamma ** (horizon - 1.5),
             uct_c=uct_c,
         )
-        if variant == "tuned":
+        if variant in ("tuned", "rejection"):
             target = simulations * 17 / 16
             limit = math.ceil(TUNED_REJECTIONS * target / NestedSearchTree.SAMPLE_RETRY_LIMIT)
             for tree in _trees(self.tree):

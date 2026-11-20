@@ -611,7 +611,7 @@ def main():
     dec.add_argument("--modeled", type=int, default=0)
     dec.add_argument("--particles", type=int, default=0)
     dec.add_argument("--particle-filter", choices=("sampled", "smoothed"), default="sampled")
-    dec.add_argument("--intmcp-variant", choices=("published", "tuned"), default="published")
+    dec.add_argument("--intmcp-variant", choices=("published", "tuned", "rejection"), default="published")
     dec.add_argument("--intmcp-opponent", choices=("search", "greedy", "exact"), default="search",
                      help="diagnostic: how I-NTMCP's nested tree predicts j (R3)")
     dec.add_argument("--modeled-exact", action="store_true",

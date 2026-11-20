@@ -75,8 +75,8 @@ class INTMCPConfig:
                 raise ValueError(f"{name} must be a positive integer")
         if not 0 < self.gamma < 1:
             raise ValueError("I-NTMCP needs a discount strictly between 0 and 1")
-        if self.variant not in ("published", "tuned"):
-            raise ValueError("variant must be 'published' or 'tuned'")
+        if self.variant not in ("published", "tuned", "rejection"):
+            raise ValueError("variant must be 'published', 'tuned' or 'rejection'")
 
 
 @dataclass(frozen=True)

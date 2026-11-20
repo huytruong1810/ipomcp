@@ -516,7 +516,7 @@ def main():
     )
     parser.add_argument(
         "--intmcp-variant",
-        choices=("published", "tuned"),
+        choices=("published", "tuned", "rejection"),
         default="published",
         help="intmcp: the authors' defaults, or kernel reinvigoration (baselines.intmcp)",
     )

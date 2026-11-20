@@ -81,6 +81,25 @@ def test_variants_are_validated():
         INTMCPAgent(TigerModel(), 1, 10, 1, 0.95, 0, variant="other")
 
 
+def _trees(tree):
+    yield tree
+    for nested in getattr(tree, "nested_trees", {}).values():
+        yield from _trees(nested)
+
+
+def test_the_rejection_variant_is_the_published_refill_with_the_tuned_budget():
+    """No reinvigoration function in any tree (as published) and the tuned rejection budget (as tuned)."""
+    kwargs = dict(physics=TigerModel(), level=2, simulations=300, horizon=2, gamma=0.95, seed=4)
+    published, tuned, rejection = (INTMCPAgent(**kwargs, variant=v) for v in ("published", "tuned", "rejection"))
+    for p, t, r in zip(_trees(published.tree), _trees(tuned.tree), _trees(rejection.tree)):
+        assert r._reinvigorate_fn is None and p._reinvigorate_fn is None and t._reinvigorate_fn is not None
+        assert r.SAMPLE_FAIL_LIMIT == t.SAMPLE_FAIL_LIMIT != p.SAMPLE_FAIL_LIMIT
+    rejection.search()
+    rejection.update_root(LISTEN, ("GL", "S"))
+    rejection.search()
+    assert set(rejection.values) == {LISTEN, OPEN_LEFT, OPEN_RIGHT}
+
+
 def _uav_spec(variant="tuned", **i_options):
     from ipomdp.experiments.study import AgentSpec, StudySpec
     from ipomdp.experiments.suite import hierarchy_agent, ipomcp
