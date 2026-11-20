@@ -16,10 +16,9 @@ where
 - ``modeled`` labels how each modeled intentional level below i is solved, at
   depth equal to the horizon (``modeled_levels``): the same kind of planner
   with its own budget (I-POMCP simulations, or RTS samples as in IPF + RTS
-  where every level is solved by RTS) and, for I-POMCP, optionally sequential
-  stopping (``6400s``); per level top-down (``6400s/400`` at level 3), or one
-  label for all. ``exact`` makes every lower level exact, which isolates i's
-  own search and belief error;
+  where every level is solved by RTS); per level top-down (``1600/400`` at
+  level 3), or one label for all. ``exact`` makes every lower level exact,
+  which isolates i's own search and belief error;
 - ``particles`` bounds belief supports to N atoms, or 0 for exact beliefs;
 - ``particle filter`` is ``compressed`` (exact updates compressed to N; the
   planner's default) or ``sampled`` (the published IPF; with ``rts`` this is
@@ -296,7 +295,7 @@ def main():
         "--modeled",
         nargs="+",
         default=[EXACT, "100", "400"],
-        help="modeled stacks (modeled_levels): exact, 400, 6400s, 6400s/400",
+        help="modeled stacks (modeled_levels): exact, 400, 1600/400",
     )
     parser.add_argument(
         "--particles", type=int, nargs="+", default=[0], help="0 means exact beliefs"

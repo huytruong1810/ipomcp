@@ -25,7 +25,7 @@ history k, on the run's ``physics``:
    and score its policy against the exact level-(L-1) agent of the same depth
    (``reference.best_response``, every level below exact). A rung names j's
    own solve and, at level 3, the solve of the i-L1 that j models, so a rung
-   is a whole modeled stack (``400``, ``6400s``, ``1600s/400``). Re-solving
+   is a whole modeled stack (``400``, ``6400``, ``1600/400``). Re-solving
    uses the search's seeds and settings, so the rung equal to ``modeled`` must
    reproduce the policy i used; the driver checks this on every query, which
    guards against the ladder silently solving a different problem.
@@ -225,7 +225,7 @@ def _queried_solver(physics, level, rung, horizon, seed, gamma):
     reference = BestResponseReference(physics, bank, gamma)
     register_levels(bank, physics, "j", level, rung[1:], horizon, reference, gamma=gamma)
     solve = rung[0]
-    config = planner_config("mcts", solve.budget, horizon, gamma, 1.0, solve.stopping)
+    config = planner_config("mcts", solve.budget, horizon, gamma, 1.0)
     planner = IPOMCPPlanner(SolverKey("j", level), physics, bank, config)
     bank.register_solver(SolverKey("j", level), planner)
     return planner

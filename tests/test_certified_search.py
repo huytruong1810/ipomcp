@@ -85,17 +85,14 @@ def check_every_history(planner):
 CONFIGS = [
     dict(CERTIFIED),
     dict(CERTIFIED, lazy_expansion=False),
-    dict(CERTIFIED, selection="puct"),
     dict(CERTIFIED, selection="iemax"),
     dict(frontier_bounds="ifib", exact_tail=True),
     dict(frontier_bounds="ifib", prune=True),
     dict(frontier_bounds="ifib", prune=True, leaf_eval="bound"),
 ]
-# Gap-directed outcome rules: every soundness test below also runs under each of them.
+# The gap-directed outcome rule: every soundness test below also runs under each of these.
 DIRECTED = [
     dict(CERTIFIED, selection="iemax", outcome="gap", root_rule="open"),
-    dict(CERTIFIED, selection="iemax", outcome="gap_sample", root_rule="open"),
-    dict(CERTIFIED, selection="iemax", outcome="gap", root_rule="challenger"),
     dict(frontier_bounds="ifib", prune=True, selection="iemax", outcome="gap", root_rule="open"),
 ]
 
@@ -115,7 +112,7 @@ def test_bounds_at_every_history_contain_the_exact_values_in_tiger(options, p, d
     assert set(planner.scores.bounds) == set(planner.actions)
 
 
-@pytest.mark.parametrize("options", [CONFIGS[0], CONFIGS[3]] + DIRECTED)
+@pytest.mark.parametrize("options", [CONFIGS[0], CONFIGS[2]] + DIRECTED)
 @pytest.mark.parametrize("seed", range(4))
 def test_bounds_at_every_history_contain_the_exact_values_in_a_small_uav(options, seed):
     planner = small_uav(seed, 3, 60, **options)
@@ -140,7 +137,7 @@ def test_h3_root_is_resolved_early_and_decides_optimally(p, joint):
 
 
 def test_bounds_only_tighten():
-    planner = tiger(0.3, 4, 600, **dict(CERTIFIED, selection="puct"))
+    planner = tiger(0.3, 4, 600, **dict(CERTIFIED, selection="iemax"))
     tree = planner._tree(planner.model(), 600)
     previous = None
     for budget in range(10, 601, 10):
@@ -224,7 +221,7 @@ def _nodes(root):
             stack.extend(children.values())
 
 
-@pytest.mark.parametrize("options", [CONFIGS[0], CONFIGS[3]])
+@pytest.mark.parametrize("options", [CONFIGS[0], CONFIGS[2]])
 def test_a_root_solved_at_expansion_still_decides(options):
     # When an action's bounds close at the largest upper bound before any search (UAV problem
     # s4_k3: spotting for certain), the root is solved at expansion; it must still decide.
@@ -298,14 +295,14 @@ def test_the_certified_profile_selects_by_upper_bound_unless_told_otherwise():
 
     from ipomdp.experiments.reachable_decisions import certified_options
 
-    base = dict(frontier_bounds="scalar", scoring="legacy", unsampled="lower", exact_tail=False,
+    base = dict(frontier_bounds="scalar", scoring="legacy", exact_tail=False,
                 prune=False, leaf_eval="rollout", lazy=False)
     assert certified_options(SimpleNamespace(**base, selection=None, profile=None))["selection"] == "ucb"
     assert certified_options(SimpleNamespace(**base, selection=None, profile="certified"))["selection"] == "iemax"
     assert certified_options(SimpleNamespace(**base, selection="ucb", profile="certified"))["selection"] == "ucb"
 
 
-# Gap-directed outcome rules (config.outcome, config.root_rule).
+# The gap-directed outcome rule (config.outcome, config.root_rule).
 
 def test_the_default_configuration_and_its_seed_are_unchanged_by_the_gap_options():
     from ipomdp.planning.i_pomcp import seed_config
@@ -321,9 +318,9 @@ def test_the_default_configuration_and_its_seed_are_unchanged_by_the_gap_options
 @pytest.mark.parametrize(
     "options, message",
     [
-        (dict(CERTIFIED, selection="iemax", root_rule="open"), "belong to a gap-directed"),
+        (dict(CERTIFIED, selection="iemax", root_rule="open"), "belongs to a gap-directed"),
         (dict(CERTIFIED, selection="iemax", outcome="gap"), "needs the root rule"),
-        (dict(CERTIFIED, selection="puct", outcome="gap", root_rule="open"), "needs pruning and selection"),
+        (dict(CERTIFIED, outcome="gap", root_rule="open"), "needs pruning and selection"),
         (dict(frontier_bounds="ifib", exact_tail=True, selection="iemax", outcome="gap", root_rule="open"),
          "needs pruning and selection"),
         (dict(CERTIFIED, selection="iemax", outcome="widest", root_rule="open"), "outcome must be one of"),

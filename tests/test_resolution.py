@@ -106,13 +106,13 @@ def test_resolution_needs_no_pilot_trees(monkeypatch):
     trees = []
     original = IPOMCPPlanner._tree
 
-    def counting(self, model, simulations, replicate=None):
-        trees.append(replicate)
-        return original(self, model, simulations, replicate)
+    def counting(self, model, simulations):
+        trees.append(simulations)
+        return original(self, model, simulations)
 
     monkeypatch.setattr(IPOMCPPlanner, "_tree", counting)
     planner.modeled_solution(j_model(physics, 0.3))
-    assert trees == [None]
+    assert trees == [320]  # one tree, seeded as the flat search of the cap
 
 
 def test_the_bank_caches_policy_and_status_together():

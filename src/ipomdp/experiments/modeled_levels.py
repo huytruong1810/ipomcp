@@ -4,12 +4,9 @@ Why per level
 -------------
 An agent at level L models its opponent at L - 1, who models it at L - 2, and
 so on down to level 1. Each of those levels is queried at different beliefs and
-needs a different budget: at Tiger H4 the modeled L1 needs a 6,400 cap with
-sequential stopping, while at L3 H3 a flat
-400 for both modeled levels already reproduces the exact policies and stopping
-costs 1.3x (12.8). Each level's own ``PlannerConfig`` already carries its
-budget and rule; this module names the per-level choice once, so the oracle,
-the panel and the qualification driver build the same hierarchy from it.
+may need a different budget. Each level's own ``PlannerConfig`` already carries
+its budget; this module names the per-level choice once, so the oracle, the
+panel and the qualification driver build the same hierarchy from it.
 
 Labels
 ------
@@ -18,16 +15,12 @@ level below the agent, top-down. Its label, used on the command line and as
 the panel's ``modeled`` cell value, joins the levels' labels with "/":
 
 - ``400``: one flat search of 400 simulations;
-- ``6400s``: one tree grown until its decision separates, with the default
-  ``ModeledStopping`` rule and a cap of 6,400;
-- ``6400s[400,3,0.05]``: the same with a non-default rule (pilot, trees,
-  alpha);
 - ``exact``: the exact best response to the levels below it
   (``reference.exact_agent``).
 
-``6400s/400`` at level 3 solves j-L2 with stopping capped at 6,400 and the
-i-L1 it models with a flat 400. A single label applies to every level, so
-``400`` at level 3 means ``400/400`` and ``exact`` means an exact hierarchy.
+``1600/400`` at level 3 solves j-L2 with a flat 1,600 and the i-L1 it models
+with a flat 400. A single label applies to every level, so ``400`` at level 3
+means ``400/400`` and ``exact`` means an exact hierarchy.
 """
 
 import random
@@ -39,26 +32,21 @@ from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.i_pomcp import IPOMCPPlanner
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_types import SolverKey
-from ipomdp.planning.stopping import ModeledStopping
 from ipomdp.reference.exact_agent import ExactIPOMDPPlanner
 
 EXACT = "exact"
-_SOLVE = re.compile(r"^(\d+)(?:(s)(?:\[(\d+),(\d+),([0-9.]+)\])?)?$")
+_SOLVE = re.compile(r"^(\d+)$")
 
 
 @dataclass(frozen=True)
 class ModeledSolve:
-    """One finite modeled level: its budget and, optionally, its stopping rule.
+    """One finite modeled level: its budget.
 
     Attributes:
-        budget: I-POMCP simulations (the cap when ``stopping`` is set), or RTS
-            observation samples per node.
-        stopping: Sequential stopping (``planning.stopping``); None for one
-            search of ``budget``. I-POMCP only.
+        budget: I-POMCP simulations, or RTS observation samples per node.
     """
 
     budget: int
-    stopping: ModeledStopping | None = None
 
     def __post_init__(self):
         if type(self.budget) is not int or self.budget < 1:
@@ -66,12 +54,7 @@ class ModeledSolve:
 
     @property
     def label(self):
-        if self.stopping is None:
-            return str(self.budget)
-        if self.stopping == ModeledStopping():
-            return f"{self.budget}s"
-        rule = self.stopping
-        return f"{self.budget}s[{rule.pilot},{rule.trees},{rule.alpha}]"
+        return str(self.budget)
 
 
 def parse_stack(label, levels):
@@ -101,16 +84,8 @@ def _parse_solve(text):
         return None
     match = _SOLVE.match(text)
     if match is None:
-        raise ValueError(f"Not a modeled solve: {text!r} (e.g. 400, 6400s, exact)")
-    budget, stopping, pilot, trees, alpha = match.groups()
-    if stopping is None:
-        return ModeledSolve(int(budget))
-    rule = (
-        ModeledStopping()
-        if pilot is None
-        else ModeledStopping(int(pilot), int(trees), float(alpha))
-    )
-    return ModeledSolve(int(budget), rule)
+        raise ValueError(f"Not a modeled solve: {text!r} (e.g. 400, exact)")
+    return ModeledSolve(int(match.group(1)))
 
 
 def modeled_keys(agent, level):
@@ -125,7 +100,7 @@ def modeled_keys(agent, level):
     ]
 
 
-def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stopping=None, backup="sparse"):
+def planner_config(planner_kind, budget, depth, gamma, exploration, backup="sparse"):
     """The configuration of a planner of this kind whose root and modeled budgets are ``budget``.
 
     ``backup`` (IPF + RTS): the ``RTSConfig`` backup, "sparse" unless the caller names another. It is an
@@ -140,10 +115,7 @@ def planner_config(planner_kind, budget, depth, gamma, exploration, modeled_stop
             modeled_simulations=budget,
             gamma=gamma,
             exploration=exploration,
-            modeled_stopping=modeled_stopping,
         )
-    if modeled_stopping is not None:
-        raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
     return RTSConfig(depth=depth, observation_samples=budget, gamma=gamma, backup=backup)
 
 
@@ -170,8 +142,8 @@ def register_levels(
 
     ``stack`` gives one ``ModeledSolve`` or None (exact) per level, top-down
     (``modeled_keys``). A finite level is solved by a planner of
-    ``planner_kind`` at ``depth`` whose modeled budget and rule are its
-    ``ModeledSolve``; an exact level is the exact best response at ``depth`` to
+    ``planner_kind`` at ``depth`` whose modeled budget is its
+    ``ModeledSolve``'s; an exact level is the exact best response at ``depth`` to
     whatever is registered below it. ``wrap(key, solver)`` may replace a
     solver before registration (for example to observe its queries).
     """
@@ -186,8 +158,6 @@ def register_levels(
         if solve is None:
             solver = ExactIPOMDPPlanner(key, physics, bank, best_response, depth)
         else:
-            config = planner_config(
-                planner_kind, solve.budget, depth, gamma, exploration, solve.stopping
-            )
+            config = planner_config(planner_kind, solve.budget, depth, gamma, exploration)
             solver = make_planner(planner_kind, key, physics, bank, config)
         bank.register_solver(key, solver if wrap is None else wrap(key, solver))

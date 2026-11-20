@@ -70,19 +70,26 @@ class HorizonBoundUCB:
         return rng.choice([action for action, score in scores.items() if score == best])
 
 
-class PUCT(HorizonBoundUCB):
-    """PUCT with a prior from belief-dependent upper bounds (certified search only).
+# Temperature of the PUCT prior (``i_pomcp._expand``), in units of the return width.
+PUCT_TEMPERATURE = 0.25
+
+
+class IEMax(HorizonBoundUCB):
+    """Largest upper bound first (the rule of bound-directed solvers); ties by the PUCT score.
+
+    Certified search only. Among the actions tied at the largest I-FIB upper
+    bound, the one with the largest PUCT score is taken:
 
         score(h, a) = Q(h, a) + c * W_H * P(a) * sqrt(N(h)) / (1 + N(h, a))
 
-    An untried action's Q is its I-FIB upper bound, so there is no untried-first
-    rule. ``P`` is ``node.cert.prior``, a softmax of the upper bounds
-    (``i_pomcp._expand``). The prior is positive and the bonus grows without
-    bound in N(h) for fixed N(h, a), so every live action is selected
-    infinitely often. Exact ties are broken uniformly from the solve's stream.
+    An untried action's Q is its I-FIB upper bound. ``P`` is ``node.cert.prior``,
+    a softmax of the upper bounds at temperature ``PUCT_TEMPERATURE``
+    (``i_pomcp._expand``). Exact ties of the score are broken uniformly from the
+    solve's stream.
     """
 
     def scores(self, node, actions, remaining_horizon, gamma):
+        """PUCT scores of ``actions`` at ``node``."""
         coefficient = self.exploration * self.return_width(remaining_horizon, gamma)
         root_n = math.sqrt(max(1, node.visit_count))
         cert = node.cert
@@ -94,24 +101,15 @@ class PUCT(HorizonBoundUCB):
 
     def select_action(self, node, actions, remaining_horizon, gamma, rng):
         if not actions:
-            raise ValueError("PUCT requires at least one legal action")
-        scores = self.scores(node, actions, remaining_horizon, gamma)
-        best = max(scores.values())
-        return rng.choice([action for action, score in scores.items() if score == best])
-
-
-class IEMax(PUCT):
-    """Largest upper bound first (the rule of bound-directed solvers); ties by the PUCT score."""
-
-    def select_action(self, node, actions, remaining_horizon, gamma, rng):
-        if not actions:
             raise ValueError("IEMax requires at least one legal action")
         q_hi = node.cert.q_hi
         top = max(q_hi[action] for action in actions)
         tied = [action for action in actions if q_hi[action] == top]
         if len(tied) == 1:
             return tied[0]
-        return super().select_action(node, tied, remaining_horizon, gamma, rng)
+        scores = self.scores(node, tied, remaining_horizon, gamma)
+        best = max(scores.values())
+        return rng.choice([action for action, score in scores.items() if score == best])
 
 
-SELECTORS = {"ucb": HorizonBoundUCB, "puct": PUCT, "iemax": IEMax}
+SELECTORS = {"ucb": HorizonBoundUCB, "iemax": IEMax}

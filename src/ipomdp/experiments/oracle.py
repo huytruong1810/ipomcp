@@ -26,8 +26,8 @@ Problems
   beliefs. The reference is the exact I-POMDP.
 - Levels 2-4 with finite opponents: ``modeled`` names how each level below i
   is solved (``modeled_levels``: per level, the same kind of planner as i with
-  its own budget and optional stopping rule, or exact; RTS samples per node as
-  in IPF + RTS, where every level is solved by RTS). The reference is either
+  its own budget, or exact; RTS samples per node as in IPF + RTS, where every
+  level is solved by RTS). The reference is either
   the exact best response to that declared hierarchy (``declared``: search
   error only) or the exact I-POMDP (``exact``: search plus opponent-model
   error).
@@ -82,6 +82,7 @@ from ipomdp.experiments.problems import chain_model, tiger_chain
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.policy import greedy_policy
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
 from ipomdp.planning.solver_types import SolverKey
@@ -116,7 +117,7 @@ def evaluate_case(
     """Solve one matched problem with the planner and the exact reference.
 
     ``modeled`` (levels 2-4) labels the modeled stack, one solve per level
-    below i, top-down (``modeled_levels``): ``exact``, ``400``, ``6400s/400``.
+    below i, top-down (``modeled_levels``): ``exact``, ``400``, ``1600/400``.
 
     ``reference="none"`` returns the planner's decision, values and CPU without
     solving a reference: for drivers that need i's search but not its score,
@@ -210,7 +211,7 @@ def evaluate_case(
     estimates = dict(planner.recommendation_values)
     row = {
         "planner": planner_kind,
-        "planner_config": asdict(config),
+        "planner_config": _recorded_config(config),
         "level": level,
         "opponent": _opponent_description(
             level, opponent_depth, opponent_belief, stack, nested_beliefs
@@ -404,6 +405,28 @@ def _nested_chain(level, nested_beliefs):
     return chain
 
 
+# Planner options retired in the consolidation release, keyed by the field they followed in
+# ``PlannerConfig``, at the only values an oracle planner ever held for them. Rows keep recording
+# them, so a row of a remaining configuration is the row it was before the release.
+_RETIRED_FIELDS = {
+    "exploration": {"modeled_stopping": None, "root_stopping": None},
+    "scoring": {"unsampled_value": "lower"},
+    "selection": {"puct_temperature": 0.25},
+}
+
+
+def _recorded_config(config):
+    """``asdict(config)``, with an I-POMCP configuration's retired fields in their former places."""
+    data = asdict(config)
+    if not isinstance(config, PlannerConfig):
+        return data
+    recorded = {}
+    for key, value in data.items():
+        recorded[key] = value
+        recorded.update(_RETIRED_FIELDS.get(key, {}))
+    return recorded
+
+
 def _opponent_description(level, depth, belief, stack, nested_beliefs):
     if level == 1:
         return {"policy": "uniform_l0"}
@@ -438,8 +461,6 @@ def _validate_problem(
     stack = parse_stack(modeled, level - 1)
     if particles is not None and reference == "declared" and any(stack):
         raise ValueError("A declared reference is not exact with particle beliefs; use 'exact'")
-    if planner_kind != "mcts" and any(solve and solve.stopping for solve in stack):
-        raise ValueError("Sequential modeled stopping is defined for I-POMCP only")
     return stack
 
 
@@ -569,7 +590,7 @@ def main():
     parser.add_argument("--level", type=int, choices=[1, 2, 3, 4], default=1)
     parser.add_argument("--opponent-depth", type=int)
     parser.add_argument("--opponent-belief", type=float, default=0.5)
-    parser.add_argument("--modeled", default=EXACT, help="modeled stack, e.g. 400 or 6400s")
+    parser.add_argument("--modeled", default=EXACT, help="modeled stack, e.g. 400 or 1600/400")
     parser.add_argument("--reference", choices=["declared", "exact", "none"], default="declared")
     parser.add_argument("--particles", type=int)
     parser.add_argument("--particle-filter", choices=sorted(FILTERS), default="compressed")

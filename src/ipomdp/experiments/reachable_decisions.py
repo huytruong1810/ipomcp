@@ -80,7 +80,6 @@ from ipomdp.planning.config import (
     ROOT_RULES,
     SCORING,
     SELECTIONS,
-    UNSAMPLED_VALUES,
     PlannerConfig,
 )
 from ipomdp.planning.policy import TIE_TOLERANCE, greedy_policy
@@ -536,7 +535,7 @@ def _stage(simulations, scores, cpu_seconds, q):
 def certified_options(args):
     """``PlannerConfig`` options of i's own planner from the ``decide`` flags."""
     options = dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
-                   unsampled_value=args.unsampled, exact_tail=args.exact_tail, prune=args.prune,
+                   exact_tail=args.exact_tail, prune=args.prune,
                    selection=args.selection or "ucb", leaf_eval=args.leaf_eval, lazy_expansion=args.lazy,
                    outcome=getattr(args, "outcome", "sample"), root_rule=getattr(args, "root_rule", "upper"))
     if args.profile is not None:
@@ -619,8 +618,6 @@ def main():
                      help="I-POMCP certified intervals: scalar (default) or belief-dependent I-FIB")
     dec.add_argument("--scoring", choices=SCORING, default="legacy",
                      help="I-POMCP scoring of unsampled branches: legacy (default) or probability-weighted")
-    dec.add_argument("--unsampled", choices=UNSAMPLED_VALUES, default="lower",
-                     help="stand-in of an unsampled branch under --scoring pw")
     dec.add_argument("--exact-tail", action="store_true",
                      help="certified search: solve two-steps-to-go histories exactly when expanded")
     dec.add_argument("--prune", action="store_true",
@@ -634,10 +631,9 @@ def main():
                           "nested_solves count the work from a cold start")
     dec.add_argument("--outcome", choices=OUTCOMES, default="sample",
                      help="certified search: next observation sampled (default), or the open branch with the "
-                          "largest probability-weighted gap (gap), or drawn in proportion to it (gap_sample)")
+                          "largest probability-weighted gap (gap)")
     dec.add_argument("--root-rule", choices=ROOT_RULES, default="upper",
-                     help="with a gap outcome rule: open (largest upper bound among undecided actions) or "
-                          "challenger (leader against challenger)")
+                     help="with the gap outcome rule: open (largest upper bound among undecided actions)")
     dec.add_argument("--profile", choices=profile.PROFILES,
                      help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
                           "--leaf-eval bound --lazy --selection iemax (an explicit --selection overrides)")

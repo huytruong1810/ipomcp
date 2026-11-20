@@ -42,17 +42,16 @@ def test_the_l1_lemma_holds_with_its_constant_and_the_constant_is_attained(seed)
     assert abs(f(b) - f(c)) == pytest.approx(0.5 * (c_hi - c_lo) * 2.0)
 
 
-@pytest.mark.parametrize("arm", ["B", "C", "D"])
 @pytest.mark.parametrize("domain, level, horizon", [("tiger-joint", 1, 4), ("tiger-joint", 2, 3), ("uav2", 2, 3)])
-def test_each_gap_directed_simulation_expands_exactly_one_history(arm, domain, level, horizon):
-    """Termination of the gap-directed rules: while the stop test is false, every
-    simulation of a gap-directed rule expands exactly one history, so the search stops within |T| + 1 simulations.
+def test_each_gap_directed_simulation_expands_exactly_one_history(domain, level, horizon):
+    """Termination of the gap-directed rule: while the stop test is false, every
+    simulation of the gap-directed rule expands exactly one history, so the search stops within |T| + 1 simulations.
 
     The first simulation also expands the root, so a stopped tree holds exactly one more expanded history than it ran
     simulations (or one, if the root was settled at expansion), and the search ends resolved before its cap.
     """
     physics = physics_of(domain)
-    certified = profile.own_options("certified") | ARMS[arm]
+    certified = profile.own_options("certified") | ARMS["B"]
     planner = _planner(physics, "mcts", 5, 5000, horizon, level, 5000, 0, "sampled",
                        modeled_exact=True, certified=certified)
     tree = planner._tree(planner.model(), 5000)

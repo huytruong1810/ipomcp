@@ -37,7 +37,7 @@ where the other agent acts by its modeled policy. Each simulation draws (s, m_j)
 
     Q*(h, a) = E[R | b_h, a] + γ Σ_o P(o, alive | b_h, a) V*(h a o),   V*(h) = max_{evaluated a} Q*(h, a),
 
-and the last decision uses max_a E[R | b_h, a]. Terminal mass contributes zero and is not renormalised away. Under `scoring="pw"`, a branch the tree never sampled enters with a point of its certified interval (`unsampled_value`, default its lower end), and each scored value is clipped into its interval. Under `scoring="legacy"`, an action with an unsampled branch at three or more steps to go keeps its search value as a whole.
+and the last decision uses max_a E[R | b_h, a]. Terminal mass contributes zero and is not renormalised away. Under `scoring="pw"`, a branch the tree never sampled enters at the lower end of its certified interval, and each scored value is clipped into its interval. Under `scoring="legacy"`, an action with an unsampled branch at three or more steps to go keeps its search value as a whole.
 
 ## Certified search
 
@@ -47,9 +47,9 @@ Certified search (`i_pomcp._simulate_certified`, enabled by the certified option
 - **Exact two-step tail** (`exact_tail`): a history with two steps to go is solved exactly when it is expanded; every child is the last decision, whose value needs only its posterior.
 - **Pruning** (`prune`): bounds are backed up along every descent and only tighten; an action ruled out by its bounds is never selected again; the search stops when the root decision is settled.
 - **Leaves** (`leaf_eval`, `lazy_expansion`): a new frontier is valued by a point of its interval (`"bound"`) or by a rollout clipped into it, and with lazy expansion its belief is computed only when it is visited again (its interval comes from the parent's belief meanwhile).
-- **Action selection** (`selection`): UCB with the horizon's return width (`"ucb"`), PUCT with a softmax prior of the upper bounds (`"puct"`), or the largest upper bound first, ties by the PUCT score (`"iemax"`, the action rule of bound-directed solvers such as HSVI).
-- **Observation rule** (`outcome`): `"sample"` draws the next observation with its probability; `"gap"` takes the open branch with the largest probability-weighted gap between its bounds, and `"gap_sample"` draws an open branch in proportion to that gap. Under both gap rules, the first history on the path that is not yet expanded is expanded and the simulation ends.
-- **Root rule** (`root_rule`, gap rules): `"upper"` takes the largest upper bound among unpruned actions; `"open"` takes the largest upper bound among the plausible actions whose interval is still open; `"challenger"` takes, of the leading action and its strongest challenger, the one with the wider interval.
+- **Action selection** (`selection`): UCB with the horizon's return width (`"ucb"`), or the largest upper bound first, ties by the PUCT score with a softmax prior of the upper bounds (`"iemax"`, the action rule of bound-directed solvers such as HSVI).
+- **Observation rule** (`outcome`): `"sample"` draws the next observation with its probability; `"gap"` takes the open branch with the largest probability-weighted gap between its bounds. Under the gap rule, the first history on the path that is not yet expanded is expanded and the simulation ends.
+- **Root rule** (`root_rule`, gap rule): `"upper"` takes the largest upper bound among unpruned actions; `"open"` takes the largest upper bound among the plausible actions whose interval is still open.
 
 **Plausible and certain sets** (`planning.policy.plausible_sets`). With M⁻ the largest lower bound and M⁺ the largest upper bound at a history, an action is plausible if q⁺ ≥ M⁻ − τ⁺ and certain if q⁻ ≥ M⁺ − τ⁻, with τ⁺ = 10⁻⁹ max(1, |M⁻|, |M⁺|) and τ⁻ = 10⁻⁹ max(1, min(|M⁻|, |M⁺|)), or 10⁻⁹ when [M⁻, M⁺] contains 0. Then certain ⊆ exactly optimal (within the relative tie tolerance 10⁻⁹) ⊆ plausible.
 
@@ -103,13 +103,13 @@ Tests: `test_resolution.py` (the set inclusions on random cases; the plausible s
 
 ### Termination of the gap-directed rules
 
-Let T be the set of i's histories with at least two steps to go. Under `outcome="gap"` or `"gap_sample"` with the root rule `"open"` (or `"challenger"`), and with pruning aligned with the plausible set:
+Let T be the set of i's histories with at least two steps to go. Under `outcome="gap"` with the root rule `"open"`, and with pruning aligned with the plausible set:
 
 - every simulation started while the stop test is false expands exactly one history, so the search settles within |T| + 1 simulations, with no probabilistic argument. Lemma: at an expanded history, U − L ≤ q⁺(a*) − q⁻(a*) ≤ γ Σ_o P(o | h, a*) (U(ha*o) − L(ha*o)) for the action a* with the largest upper bound, so an open history has an open action with an open branch;
 - the plausible set only shrinks, because τ⁺ = 10⁻⁹ max(1, M⁺, −M⁻) is non-increasing as the bounds tighten, so a pruned action is never needed again;
 - under `scoring="pw"` with the lower stand-in and `leaf_eval="bound"`, every scored value lies in [q⁻(a), Q*(a)], so at any stop the decision's loss is at most M⁺ − m + τ, with m the largest lower bound among scored actions. When the agent's rewards satisfy R_min ≤ 0 ≤ R_max and u_H − ℓ_H ≥ 1 (true for both agents of every packaged domain), τ⁻ ≤ ε, so a settled root has every plausible action closed and recorded, and the loss is at most ε + τ.
 
-Tests: `test_theorem_statements.py` (expanded histories equal simulations run plus one under arms B, C and D), `test_planner_exactness.py` (every small decision settles within its budget and plays exactly the exact maximizers).
+Tests: `test_theorem_statements.py` (expanded histories equal simulations run plus one under arm B), `test_planner_exactness.py` (every small decision settles within its budget and plays exactly the exact maximizers).
 
 ### Consistency of UCB selection
 

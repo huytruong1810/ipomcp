@@ -51,7 +51,7 @@ maximizes over every legal action, tried or not, so it bounds the true optimum,
 not the searched one. Width measures what the tree leaves unknown (contribution
 2's error bound); it is zero for an exact root. Bounds need the subtrees of
 fallback actions too, so they cost more, and real decisions request them while
-modeled solves, scored at every stopping checkpoint, do not.
+flat modeled solves do not.
 
 Belief-dependent bounds and probability-weighted scoring (optional)
 -------------------------------------------------------------------
@@ -63,10 +63,9 @@ Values are unchanged; only intervals tighten.
 
 ``scoring="pw"`` changes values: every branch of an evaluated action enters
 with its exact probability; an unsampled branch at three or more steps to go
-enters as a point of its bounded interval (``unsampled``: its lower end by
-default, the value of a default policy), and each value is clipped into its
-certified interval. It needs bounds. The default ``"legacy"`` keeps the
-behaviour described next.
+enters at the lower end of its bounded interval (the value of a default
+policy), and each value is clipped into its certified interval. It needs
+bounds. The default ``"legacy"`` keeps the behaviour described next.
 
 What stays approximate
 ----------------------
@@ -120,7 +119,7 @@ class ChanceScores:
         frontiers: Rollout frontiers whose estimate entered a rescored value.
         bounds: {a: (lo, hi)} certified to contain the exact Q*(root, a) of the
             searched model, when requested; else None.
-        heuristic_branches: Unsampled branches valued by a bounded stand-in
+        heuristic_branches: Unsampled branches valued by the lower end of their interval
             (``scoring="pw"`` only).
         heuristic_mass: Sum of those branches' probabilities over the tree.
     """
@@ -151,7 +150,6 @@ class _Ctx:
     span: object
     frontier: object = None
     scoring: str = "legacy"
-    unsampled: str = "lower"
 
     def node_bounds(self, model, remaining):
         if self.frontier is None:
@@ -170,12 +168,11 @@ class _Span:
 
 
 SCORING = ("legacy", "pw")
-UNSAMPLED = ("lower", "mid", "upper")
 
 
 def score_tree(
     root, model, depth, bank, successor, gamma, bounds=False, *,
-    frontier=None, scoring="legacy", unsampled="lower",
+    frontier=None, scoring="legacy",
 ):
     """Rescore a searched tree with exact chance probabilities (see module docstring).
 
@@ -191,10 +188,9 @@ def score_tree(
         frontier: ``FrontierBounds`` for belief-dependent intervals, or None
             for the scalar ones. Used only with ``bounds``.
         scoring: ``"legacy"`` or ``"pw"`` (module docstring); ``"pw"`` needs ``bounds``.
-        unsampled: Stand-in of an unsampled branch under ``"pw"``.
     """
-    if scoring not in SCORING or unsampled not in UNSAMPLED:
-        raise ValueError(f"scoring must be in {SCORING} and unsampled in {UNSAMPLED}")
+    if scoring not in SCORING:
+        raise ValueError(f"scoring must be in {SCORING}")
     if scoring == "pw" and not bounds:
         raise ValueError("Probability-weighted scoring needs bounds")
     tally = _Tally()
@@ -202,7 +198,7 @@ def score_tree(
     if bounds:
         r_min, r_max = model.frame.pomdp_model.reward_bounds(model.frame.agent_id)
         span = _Span(r_min, r_max, gamma, depth)
-    ctx = _Ctx(bank, successor, gamma, tally, span, frontier if bounds else None, scoring, unsampled)
+    ctx = _Ctx(bank, successor, gamma, tally, span, frontier if bounds else None, scoring)
     values, exact, intervals = _action_values(root, model, depth, ctx)
     if span is not None and depth > 1:
         # Actions certified search pruned (or never tried) still get intervals,
@@ -349,7 +345,7 @@ def _action_values(node, model, remaining, ctx):
                 lows.append(lo)
                 highs.append(hi)
                 if not fallback:
-                    terms.append({"lower": lo, "upper": hi, "mid": 0.5 * (lo + hi)}[ctx.unsampled])
+                    terms.append(lo)
                     tally.heuristic_branches += 1
                     tally.heuristic_mass.append(probability)
                     exact = False

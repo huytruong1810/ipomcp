@@ -76,8 +76,7 @@ CERTIFIED_OPTIONS = dict(frontier_bounds="ifib", scoring="pw", exact_tail=True, 
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("extra", [{}, dict(outcome="gap", root_rule="open"),
-                                   dict(outcome="gap_sample", root_rule="open")])
+@pytest.mark.parametrize("extra", [{}, dict(outcome="gap", root_rule="open")])
 def test_counting_work_changes_no_score_and_counts_from_a_cold_start(extra):
     problem = json.loads(json.dumps(rd.reference("tiger-joint", 2, 3, seed=1, steps=1)))
     options = CERTIFIED_OPTIONS | extra

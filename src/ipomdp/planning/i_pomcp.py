@@ -65,7 +65,7 @@ from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.planning.chance_scoring import deviation_bound, exact_two_step, score_tree
 from ipomdp.planning.config import NEUTRAL_DEFAULTS, SCORING_FIELDS, PlannerConfig
-from ipomdp.planning.exploration import SELECTORS
+from ipomdp.planning.exploration import PUCT_TEMPERATURE, SELECTORS
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import CertifiedState, POMCPNode
 from ipomdp.planning.planner import Planner
@@ -146,19 +146,10 @@ class IPOMCPPlanner(Planner):
         """Greedy policy at ``model``'s belief; ``modeled`` selects the opponent budget."""
         if any(self.pomdp_model.is_terminal(atom.state) for atom, _ in model.belief.mass):
             raise ValueError("Condition on public continuation before requesting a policy")
-        if modeled and self.config.modeled_stopping is not None:
-            scores = self._stopped_scores(model)
-            self._modeled_exact = scores.exact
-            return _policy(scores)
         if modeled and self.config.modeled_resolution is not None:
             return self.modeled_solution(model)[0]
-        if not modeled and self.config.root_stopping is not None:
-            node, scores = self._stopped_search(
-                model, self.config.root_stopping, self.config.simulations, root=True
-            )
-        else:
-            simulations = self.config.modeled_simulations if modeled else self.config.simulations
-            node, scores = self._search(model, simulations, bounds=not modeled)
+        simulations = self.config.modeled_simulations if modeled else self.config.simulations
+        node, scores = self._search(model, simulations, bounds=not modeled)
         policy = _policy(scores)
         if modeled:
             self._modeled_exact = scores.exact
@@ -250,39 +241,6 @@ class IPOMCPPlanner(Planner):
             stages.append((simulations, scores, cpu, work))
         return stages
 
-    def _stopped_scores(self, model):
-        """Chance scores of a modeled solve by sequential stopping (``stopping``)."""
-        rule, cap = self.config.modeled_stopping, self.config.modeled_simulations
-        return self._stopped_search(model, rule, cap)[1]
-
-    def _stopped_search(self, model, rule, cap, root=False):
-        """(root, chance scores) of one tree grown by ``rule`` up to ``cap`` simulations.
-
-        The main tree is seeded as a flat search of the cap, so a solve that
-        never separates returns exactly that search's values. Pilot trees are
-        grown only once the main tree reaches its first checkpoint. For the
-        agent's own decision (``root``) the scores carry certified bounds, and
-        exact scores stop the growth at once, since more simulations cannot
-        change them (Proposition 1); modeled solves keep their validated rule.
-        """
-        checkpoints = rule.checkpoints(cap)
-        main = self._tree(model, cap)
-        calibration = None
-        for simulations in checkpoints:
-            scores = main.grow(simulations, root)
-            values = scores.values
-            if root and scores.exact:
-                return main.root, scores
-            if calibration is None:
-                calibration = [values] + [
-                    self._tree(model, cap, pilot).grow(rule.pilot).values
-                    for pilot in range(1, rule.trees)
-                ]
-            if simulations == cap or rule.separated(
-                values, calibration, simulations, len(checkpoints)
-            ):
-                return main.root, scores
-
     # ------------------------------------------------------------------ #
     # Search
     # ------------------------------------------------------------------ #
@@ -296,20 +254,15 @@ class IPOMCPPlanner(Planner):
         tree = self._tree(model, simulations)
         return tree.root, tree.grow(simulations, bounds)
 
-    def _tree(self, model, simulations, replicate=None):
+    def _tree(self, model, simulations):
         """An empty search tree at ``model``, seeded as a search of ``simulations``.
 
-        The seed keys on the configuration without the stopping rules
-        (``modeled_stopping``, ``root_stopping``), so a flat search keeps its
-        stream whether or not a rule is configured (and every result from before
-        a rule existed is reproduced), and a stopping rule's main tree is a
-        prefix of the flat search of its cap. Pilot trees add their index as
-        ``replicate``.
+        The seed keys on ``seed_config``'s view of the configuration, so a tree
+        grown in stages (a resolution's, an anytime ladder's) is a prefix of the
+        flat search of its cap.
         """
         config = seed_config(self.config)
         settings = {"planner": "I-POMCP", "config": config, "simulations": simulations}
-        if replicate is not None:
-            settings["replicate"] = replicate
         model = self.solver_bank.search_model(model)
         return _GrowingSearch(
             self, model, random.Random(self.solver_bank.search_seed(model, settings))
@@ -444,7 +397,7 @@ class IPOMCPPlanner(Planner):
                     if not config.lazy_expansion:
                         next_model = self._history_successor(history_model, action, observation)
                         self._expand(child, next_model, remaining - 1)
-                    continuation = _pick(child.cert.lo, child.cert.hi, config.unsampled_value)
+                    continuation = child.cert.lo
                 else:
                     next_model = self._history_successor(history_model, action, observation)
                     continuation = self._rollout(depth + 1, next_memory, next_model, rng)
@@ -468,16 +421,15 @@ class IPOMCPPlanner(Planner):
     def _directed_step(self, node, depth, memory, history_model, rng, live):
         """The rest of one descent under a gap-directed outcome rule (``config.outcome``).
 
-        The next observation is an open branch of the selected action: the one
-        with the largest probability-weighted gap between its bounds
-        (``"gap"``), or one drawn in proportion to that gap (``"gap_sample"``).
+        The next observation is the open branch of the selected action with the
+        largest probability-weighted gap between its bounds (``"gap"``).
         The first history on the path that is not yet expanded is expanded and
         the descent ends, so a simulation expands at most one history and the
         next one chooses again from the root with the new bounds. The action
         value kept at each history is the expectation over every branch under
-        its exact probability (a branch without a history counts at the
-        stand-in of its interval), since visit counts no longer follow the
-        chance law.
+        its exact probability (a branch without a history counts at the lower
+        end of its interval), since visit counts no longer follow the chance
+        law.
         """
         config, cert = self.config, node.cert
         remaining = config.depth - depth
@@ -494,10 +446,7 @@ class IPOMCPPlanner(Planner):
             if gap > 0.0:
                 weights[observation] = gap
         if weights:
-            if config.outcome == "gap":
-                observation = max(weights, key=weights.get)
-            else:
-                observation = rng.choices(list(weights), weights=list(weights.values()))[0]
+            observation = max(weights, key=weights.get)
             child = node.get_child(action, observation)
             if child is None:
                 child = node.create_child(action, observation)
@@ -510,8 +459,7 @@ class IPOMCPPlanner(Planner):
             if not child.cert.expanded:
                 self._expand(child, next_model, remaining - 1)
                 child.visit_count += 1
-                estimate = _pick(child.cert.lo, child.cert.hi, config.unsampled_value)
-                child.cert.estimate = child.rollout_value = estimate
+                child.cert.estimate = child.rollout_value = child.cert.lo
             else:
                 next_memory = self.pomdp_model.update_rollout_memory(
                     memory, action, observation, self.key.agent_id
@@ -525,8 +473,7 @@ class IPOMCPPlanner(Planner):
         for observation, probability in cert.law[action].items():
             child = node.get_child(action, observation)
             if child is None:
-                terms.append(_pick(cert.branch_lo[action][observation],
-                                   cert.branch_hi[action][observation], config.unsampled_value))
+                terms.append(cert.branch_lo[action][observation])
             else:
                 terms.append(probability * child.value_estimate())
         reward = dict(self.solver_bank.expected_rewards(history_model))[action]
@@ -538,7 +485,7 @@ class IPOMCPPlanner(Planner):
         """How far apart two bounds may be and still count as equal.
 
         The sampled outcome rule keeps the outward rounding slack relative to
-        the value at hand. The gap-directed rules use one absolute tolerance
+        the value at hand. The gap-directed rule uses one absolute tolerance
         per search, 1e-9 times the return range of the planning horizon, so
         that a history whose children are all closed is closed itself whatever
         the magnitudes of their values (a relative slack does not compose).
@@ -551,9 +498,8 @@ class IPOMCPPlanner(Planner):
         At the root the choice is among the actions that may still be optimal
         and whose own interval is open (``root_rule="open"``): while the
         decision is unresolved such an action exists, and refining any other
-        cannot resolve it. ``root_rule="challenger"`` takes, of the leading
-        action and its strongest challenger, the one with the wider interval.
-        Ties are broken by interval width, then by the order of the actions.
+        cannot resolve it. Ties are broken by interval width, then by the order
+        of the actions.
         """
         def width(action):
             return cert.q_hi[action] - cert.q_lo[action]
@@ -567,16 +513,6 @@ class IPOMCPPlanner(Planner):
             unsettled = [a for a in contenders if width(a) > self._tolerance(cert.q_hi[a])]
             if unsettled:
                 candidates = unsettled
-                if self.config.root_rule == "challenger" and len(contenders) > 1:
-                    index = {
-                        k: max(cert.q_hi[i] for i in contenders if i != k) - cert.q_lo[k]
-                        for k in contenders
-                    }
-                    leader = min(contenders, key=index.get)
-                    challenger = max((k for k in contenders if k != leader), key=cert.q_hi.get)
-                    pair = [a for a in (leader, challenger) if a in unsettled]
-                    if pair:
-                        return max(pair, key=width)
         best = max(cert.q_hi[a] for a in candidates)
         return max((a for a in candidates if cert.q_hi[a] == best), key=width)
 
@@ -606,15 +542,14 @@ class IPOMCPPlanner(Planner):
             return
         self._close(node)
         if config.selection != "ucb" and config.outcome == "sample":
-            # The prior is read only by select_action (PUCT's score, and IEMax's tie-break, which is
-            # PUCT's score). The gap-directed rules choose by _directed_action and never call
-            # select_action, so under them the softmax would be work without a reader. No random
-            # draw is involved either way.
+            # The prior is read only by IEMax.select_action, whose tie-break is PUCT's score. The
+            # gap-directed rule chooses by _directed_action and never calls select_action, so under
+            # it the softmax would be work without a reader. No random draw is involved either way.
             width = self.exploration.return_width(remaining, config.gamma)
             live = [a for a in self.actions if a not in cert.pruned]
             top = max(cert.q_hi[a] for a in live)
             weights = {
-                a: math.exp((cert.q_hi[a] - top) / (config.puct_temperature * width)) for a in live
+                a: math.exp((cert.q_hi[a] - top) / (PUCT_TEMPERATURE * width)) for a in live
             }
             total = math.fsum(weights.values())
             cert.prior = {a: w / total for a, w in weights.items()}
@@ -789,10 +724,11 @@ class _GrowingSearch:
             bounds,
             frontier=frontier,
             scoring=config.scoring,
-            unsampled=config.unsampled_value,
         )
 
 
+# Fields of the retired stopping rules. They match no field of ``PlannerConfig`` any more; they are
+# still listed so that ``seed_config`` is unchanged.
 _STOPPING_FIELDS = ("modeled_stopping", "root_stopping")
 
 
@@ -801,17 +737,13 @@ def _slack(x):
     return 1e-9 * max(1.0, abs(x))
 
 
-def _pick(lo, hi, which):
-    return {"lower": lo, "upper": hi, "mid": 0.5 * (lo + hi)}[which]
-
-
 def seed_config(config):
     """The configuration as it enters the search seed.
 
-    Drops the stopping rules, the scoring-only fields (``config.SCORING_FIELDS``)
-    and every later field that holds its neutral default
-    (``config.NEUTRAL_DEFAULTS``), so a default configuration hashes as it did
-    before those fields existed and scoring variants search the same tree.
+    Drops the scoring-only fields (``config.SCORING_FIELDS``) and every later
+    field that holds its neutral default (``config.NEUTRAL_DEFAULTS``), so a
+    default configuration hashes as it did before those fields existed and
+    scoring variants search the same tree.
     """
     return {
         k: v

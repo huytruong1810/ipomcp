@@ -194,12 +194,12 @@ def test_modeled_solves_skip_bounds_and_keep_their_values():
 # --------------------------------------------------------------------------- #
 
 
-def certified(planner, scoring="legacy", unsampled="lower", frontier=True):
+def certified(planner, scoring="legacy", frontier=True):
     bank, model = planner.solver_bank, planner.model()
     bounds = bank.frontier_bounds(model, planner.config.gamma, planner.config.depth) if frontier else None
     return score_tree(
         planner.root, model, planner.config.depth, bank, planner._history_successor,
-        planner.config.gamma, True, frontier=bounds, scoring=scoring, unsampled=unsampled,
+        planner.config.gamma, True, frontier=bounds, scoring=scoring,
     )
 
 
@@ -224,7 +224,7 @@ def test_pw_equals_legacy_on_complete_trees(p):
 
 def test_pw_weights_sampled_branches_exactly():
     # Remove one sampled branch at three steps to go: the action's value becomes
-    # ER + gamma * (sum of exact-weighted child values + the stand-in of the missing branch).
+    # ER + gamma * (sum of exact-weighted child values + the lower end of the missing branch's interval).
     planner = make_planner(depth=3, simulations=3000, p=0.7)
     planner.policy_for(planner.model())
     bank, model, gamma = planner.solver_bank, planner.model(), planner.config.gamma
@@ -236,23 +236,18 @@ def test_pw_weights_sampled_branches_exactly():
     nb = frontier.node_bounds(model, 3, bank)
     reference = BestResponseReference(planner.pomdp_model, bank, gamma)
     exact = reference.q_values(model, 3)
-    for unsampled in ("lower", "mid", "upper"):
-        scores = certified(planner, "pw", unsampled)
-        stand_in = {
-            "lower": nb.branch_lo[action][removed],
-            "upper": nb.branch_hi[action][removed],
-            "mid": 0.5 * (nb.branch_lo[action][removed] + nb.branch_hi[action][removed]),
-        }[unsampled]
-        reward = dict(bank.expected_rewards(model))[action]
-        others = math.fsum(
-            p * max(reference.q_values(planner._history_successor(model, action, o), 2).values())
-            for o, p in law if o != removed
-        )
-        expected = reward + gamma * (others + stand_in)
-        assert scores.values[action] == pytest.approx(expected, abs=1e-9)
-        assert scores.heuristic_branches == 1 and scores.heuristic_mass == removed_p
-        lo, hi = scores.bounds[action]
-        assert lo - 1e-9 <= exact[action] <= hi + 1e-9
+    scores = certified(planner, "pw")
+    stand_in = nb.branch_lo[action][removed]
+    reward = dict(bank.expected_rewards(model))[action]
+    others = math.fsum(
+        p * max(reference.q_values(planner._history_successor(model, action, o), 2).values())
+        for o, p in law if o != removed
+    )
+    expected = reward + gamma * (others + stand_in)
+    assert scores.values[action] == pytest.approx(expected, abs=1e-9)
+    assert scores.heuristic_branches == 1 and scores.heuristic_mass == removed_p
+    lo, hi = scores.bounds[action]
+    assert lo - 1e-9 <= exact[action] <= hi + 1e-9
 
 
 @pytest.mark.parametrize("depth, simulations", [(3, 12), (3, 60), (4, 50), (4, 800)])

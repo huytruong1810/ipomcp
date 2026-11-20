@@ -75,7 +75,7 @@ def test_level_three_rungs_are_whole_stacks_and_reproduce_the_search(tmp_path):
         horizons=[2],
         budget=30,
         modeled="20/5",
-        ladder=("20/5", "40s[20,2,0.05]/exact"),
+        ladder=("20/5", "40/exact"),
         seeds=[0],
         problems=partial(
             tiger_problems, beliefs=(0.3,), opponent_beliefs=(0.5,), nested_beliefs=(0.2, 0.8)
@@ -83,12 +83,12 @@ def test_level_three_rungs_are_whole_stacks_and_reproduce_the_search(tmp_path):
         workers=1,
     )
     assert failures == []
-    assert set(summary["rung"]) == {"20/5", "40s[20,2,0.05]/exact"}
+    assert set(summary["rung"]) == {"20/5", "40/exact"}
     assert set(summary["level"]) == {3}
     assert (summary["mean_cpu_seconds"] > 0).all()
     rows = json.loads((tmp_path / "q3" / "rows.json").read_text())
     assert {tuple(r["nested_beliefs"]) for r in rows} == {(0.2,), (0.8,)}
-    assert qualifying[(3, 2, 30, "20/5", 0)] in ("20/5", "40s[20,2,0.05]/exact", None)
+    assert qualifying[(3, 2, 30, "20/5", 0)] in ("20/5", "40/exact", None)
 
 
 @pytest.mark.slow

@@ -18,7 +18,7 @@ Specifications load from TOML:
     [agents.i]
     level = 2
     planner = { kind = "ipomcp", simulations = 1000, depth = 4, modeled_simulations = 100 }
-    modeled = "6400s"
+    modeled = "400"
     level_weights = { 1 = 0.8, 0 = 0.2 }
 
     [agents.j]
@@ -48,7 +48,7 @@ from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.escalation import EscalatingPlanner
 from ipomdp.planning.random_planner import RandomPlanner
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
-from ipomdp.planning.stopping import ModeledResolution, ModeledStopping
+from ipomdp.planning.stopping import ModeledResolution
 from ipomdp.reference.exact_agent import build_exact_agent
 
 DOMAINS = {
@@ -126,9 +126,9 @@ class AgentSpec:
             no belief bound.
         modeled: How each intentional level below this agent is solved, as a
             stack label of ``experiments.modeled_levels`` (top-down, e.g.
-            ``"6400s/100"`` at level 3: every level-2 model with stopping capped
-            at 6,400, every level-1 model with a flat 100), for both agents at
-            each level. The modeled levels share the planner's kind, depth,
+            ``"400/100"`` at level 3: every level-2 model with a flat 400,
+            every level-1 model with a flat 100), for both agents at each
+            level. The modeled levels share the planner's kind, depth,
             discount and exploration. None: every level uses ``planner``.
             Exact levels are not allowed: their cost is unbounded in an episode.
         particles: None for exact beliefs, or the bound N on belief supports.
@@ -356,8 +356,6 @@ def _planner_config(entry):
             if stated:
                 raise ValueError(f"The profile sets {', '.join(stated)}; drop them from the planner")
             options |= own
-        if isinstance(options.get("root_stopping"), dict):
-            options["root_stopping"] = ModeledStopping(**options["root_stopping"])
         if isinstance(options.get("modeled_resolution"), dict):
             options["modeled_resolution"] = ModeledResolution(**options["modeled_resolution"])
         return PlannerConfig(**options)
@@ -435,8 +433,6 @@ def _modeled_configs(agent_spec):
         raise ValueError("Exact modeled levels are not supported in episode studies")
     base = _planner_config(agent_spec.planner)
     if profile is not None:
-        if any(solve.stopping is not None for solve in stack):
-            raise ValueError("A profile resolves modeled levels to their budgets; drop the stopping rule")
         return {
             level: _profiled(base, solve.budget, profile)
             for level, solve in zip(range(levels, 0, -1), stack)
@@ -449,7 +445,6 @@ def _modeled_configs(agent_spec):
             base.depth,
             base.gamma,
             getattr(base, "exploration", None),
-            solve.stopping,
         )
         for level, solve in zip(range(levels, 0, -1), stack)
     }

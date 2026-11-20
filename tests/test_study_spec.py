@@ -4,7 +4,6 @@ import pytest
 
 from ipomdp.experiments.study import AgentSpec, StudySpec, build_agents
 from ipomdp.planning.solver_types import SolverKey
-from ipomdp.planning.stopping import ModeledStopping
 
 PLANNER = {"kind": "ipomcp", "simulations": 50, "depth": 2, "modeled_simulations": 50}
 
@@ -23,13 +22,13 @@ def spec(modeled, level=3):
 
 
 def test_a_stack_label_sets_each_modeled_level_for_both_agents():
-    _, planners = build_agents(spec("400s/30"), seed=0)
+    _, planners = build_agents(spec("400/30"), seed=0)
     bank = planners["i"].solver_bank
     for agent in ("i", "j"):
         two = bank.get_solver(SolverKey(agent, 2)).config
         one = bank.get_solver(SolverKey(agent, 1)).config
-        assert (two.modeled_simulations, two.modeled_stopping) == (400, ModeledStopping())
-        assert (one.modeled_simulations, one.modeled_stopping) == (30, None)
+        assert two.modeled_simulations == 400
+        assert one.modeled_simulations == 30
         assert two.depth == one.depth == PLANNER["depth"]
     # The real agent keeps its own planner.
     assert planners["i"].config.simulations == PLANNER["simulations"]
@@ -41,10 +40,10 @@ def test_a_stack_label_loads_from_toml(tmp_path):
         'name = "s"\ndomain = "tiger"\ntrials = 1\nsteps = 1\n'
         "[agents.i]\nlevel = 2\n"
         'planner = { kind = "ipomcp", simulations = 50, depth = 2, modeled_simulations = 50 }\n'
-        'modeled = "6400s"\n'
+        'modeled = "6400"\n'
         "[agents.j]\nlevel = 0\n"
     )
-    assert StudySpec.from_toml(path).agents["i"].modeled == "6400s"
+    assert StudySpec.from_toml(path).agents["i"].modeled == "6400"
 
 
 @pytest.mark.parametrize(
@@ -103,7 +102,7 @@ def _decide_arguments(**changes):
     """The `decide` flags at their defaults under --profile certified, with a modeled budget of 30."""
     from types import SimpleNamespace
 
-    flags = dict(frontier_bounds="scalar", scoring="legacy", unsampled="lower", exact_tail=False, prune=False,
+    flags = dict(frontier_bounds="scalar", scoring="legacy", exact_tail=False, prune=False,
                  leaf_eval="rollout", lazy=False, selection=None, profile="certified", modeled_exact=False,
                  modeled=30, budget=50, modeled_resolve=False, modeled_pilot=50, modeled_prediction="argmax")
     return SimpleNamespace(**flags | changes)
@@ -189,7 +188,6 @@ def test_the_suite_builders_pass_a_profile_to_every_agent_and_modeled_level():
     [
         (PROFILED | {"prune": True}, "30", "The profile sets prune"),
         (PROFILED | {"modeled_prediction": "argmax"}, "30", "The profile sets modeled_prediction"),
-        (PROFILED, "400s", "drop the stopping rule"),
         (PROFILED | {"profile": "fast"}, "30", "Unknown profile"),
     ],
 )

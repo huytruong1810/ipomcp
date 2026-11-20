@@ -5,13 +5,10 @@ exact reference at level 1 (a uniformly random opponent). The claims of the
 method are about nested reasoning, so this file repeats the check where the
 opponent is itself an optimizing agent: levels 2 and 3, with every modeled
 level solved exactly, in two domains (one of which ends episodes), at the
-prior and after a first step, for each of the four observation and root rules
-of the method gate:
+prior and after a first step, for each of the two observation and root rules:
 
 - A: the next observation is sampled with its probability;
-- B: the open branch with the largest probability-weighted gap;
-- C: an open branch sampled in proportion to that gap;
-- D: as B, with the leader-against-challenger rule at the root.
+- B: the open branch with the largest probability-weighted gap.
 
 With exact modeled levels and exact beliefs the searched model is the exact
 I-POMDP, so the reference (``BestResponseReference`` on the same bank, itself
@@ -40,8 +37,6 @@ SLACK = 1e-9
 ARMS = {
     "A": {},
     "B": dict(outcome="gap", root_rule="open"),
-    "C": dict(outcome="gap_sample", root_rule="open"),
-    "D": dict(outcome="gap", root_rule="challenger"),
 }
 # (domain, level, horizon, simulations): every cell runs in about a second or less.
 CELLS = [
@@ -138,12 +133,11 @@ def test_intervals_contain_the_exact_values_and_resolved_decisions_are_optimal(
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("arm", ["B", "C", "D"])
 @pytest.mark.parametrize("domain, level, horizon", [("tiger-joint", 2, 3), ("uav2", 2, 3), ("tiger-joint", 3, 3)])
-def test_a_gap_directed_search_resolves_every_small_decision_within_its_budget(arm, domain, level, horizon):
-    """The gap rules terminate with a certificate on a finite tree; 2,000 simulations is far above these trees."""
+def test_a_gap_directed_search_resolves_every_small_decision_within_its_budget(domain, level, horizon):
+    """The gap rule terminates with a certificate on a finite tree; 2,000 simulations is far above these trees."""
     physics = physics_of(domain)
-    certified = profile.own_options("certified") | ARMS[arm]
+    certified = profile.own_options("certified") | ARMS["B"]
     planner = _planner(physics, "mcts", 5, 2000, horizon, level, 2000, 0, "sampled",
                        modeled_exact=True, certified=certified)
     policy = planner.policy_for(planner.model())

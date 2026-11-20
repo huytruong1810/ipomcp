@@ -21,15 +21,15 @@ not converge, traded corrected errors for new ones, or did not generalise
 beyond Tiger. A switch that selects a non-convergent estimator is a way to
 produce wrong results, not a feature.
 
-What remains are computational budgets, optional rules for spending the
-modeled and root budgets adaptively (``stopping.ModeledStopping``), and two
-scalars of the decision problem.
+What remains are computational budgets, an optional rule for spending the
+modeled budget adaptively (``stopping.ModeledResolution``), the options of
+certified search, and two scalars of the decision problem.
 """
 
 import math
 from dataclasses import dataclass
 
-from ipomdp.planning.stopping import ModeledResolution, ModeledStopping
+from ipomdp.planning.stopping import ModeledResolution
 
 
 @dataclass(frozen=True)
@@ -47,14 +47,6 @@ class PlannerConfig:
         gamma: Discount factor of the planning objective.
         exploration: Dimensionless UCB constant multiplying the horizon-scaled
             reward width (see ``exploration.HorizonBoundUCB``).
-        modeled_stopping: When set, a modeled policy is solved by one tree
-            grown until its decision is separated, with ``modeled_simulations``
-            as the cap (``stopping``). When None, one search of
-            ``modeled_simulations``.
-        root_stopping: The same rule for this agent's own decisions, with
-            ``simulations`` as the cap: near-tie root escalation. The root tree grows by doubling until its two leading
-            actions separate or its scores are exact; at the cap it is the flat
-            search of ``simulations``. When None, one search of ``simulations``.
         frontier_bounds: Bounds on what search left unknown, used by certified
             scoring. ``"scalar"`` (default) is the horizon-only range of
             ``chance_scoring._Span``; ``"ifib"`` is the belief-dependent
@@ -64,17 +56,15 @@ class PlannerConfig:
             more steps to go; ``"pw"`` weights every branch by its exact
             probability, puts a bounded stand-in on the unsampled ones and clips
             each value into its certified interval (it always computes bounds).
-        unsampled_value: Point of an unsampled branch's interval used as its
-            stand-in under ``scoring="pw"``: ``"lower"``, ``"mid"`` or ``"upper"``.
+            The stand-in of an unsampled branch is the lower end of its interval.
         exact_tail: Solve a history with two steps to go exactly when search
             first expands it (certified search, ``i_pomcp._simulate_certified``).
         prune: Keep belief-dependent bounds on every expanded history, drop an
             action whose upper bound falls below the history's lower bound, and
             stop the search once the root decision is resolved.
-        selection: ``"ucb"`` (default), ``"puct"`` (prior from the I-FIB upper
-            bounds) or ``"iemax"`` (largest upper bound first).
-        puct_temperature: Temperature of the PUCT prior, in units of the
-            return width.
+        selection: ``"ucb"`` (default) or ``"iemax"`` (largest upper bound
+            first; ties by the PUCT score, whose prior is a softmax of the
+            I-FIB upper bounds, ``exploration.IEMax``).
         leaf_eval: Value of a new frontier: ``"rollout"`` (default) or
             ``"bound"``, a point of its I-FIB branch interval (no belief update).
         lazy_expansion: With bound leaves, compute a frontier's belief only at
@@ -83,7 +73,7 @@ class PlannerConfig:
         modeled_resolution: When set, a modeled policy is solved by one tree
             grown by doubling until its certified intervals resolve which
             actions are optimal (``stopping.ModeledResolution``), with
-            ``modeled_simulations`` as the cap. Excludes ``modeled_stopping``.
+            ``modeled_simulations`` as the cap.
         modeled_prediction: ``"argmax"`` (default): a modeled agent plays its
             greedy maximizers; ``"plausible"``: uniformly the actions its
             intervals cannot rule out (bi-level soundness, THEORY.md); needs ``modeled_resolution``.
@@ -92,26 +82,23 @@ class PlannerConfig:
             a new history is a frontier and is expanded at its second visit
             (``lazy_expansion``). ``"gap"``: the open branch with the largest
             probability-weighted gap between its bounds, the rule of
-            bound-directed solvers (HSVI); ``"gap_sample"``: an open branch
-            drawn in proportion to that weighted gap (BRTDP). Under both gap
-            rules the first history on the path that is not yet expanded is
-            expanded and the simulation ends (one expansion per simulation),
-            ties between actions are broken without the random stream, and
-            ``leaf_eval`` and ``lazy_expansion`` have no effect. They need
-            ``prune`` and ``selection="iemax"``.
-        root_rule: Which root action a gap rule refines. ``"upper"`` (default,
+            bound-directed solvers (HSVI). Under the gap rule the first history
+            on the path that is not yet expanded is expanded and the simulation
+            ends (one expansion per simulation), ties between actions are
+            broken without the random stream, and ``leaf_eval`` and
+            ``lazy_expansion`` have no effect. It needs ``prune`` and
+            ``selection="iemax"``.
+        root_rule: Which root action the gap rule refines. ``"upper"`` (default,
             the only value under ``outcome="sample"``): the largest upper
-            bound. ``"open"``: the largest upper bound among the actions that
-            may still be optimal and whose own interval is open, so that a
-            decision is never left unresolved because the action that keeps it
-            open is not the largest upper bound. ``"challenger"``: of the
-            leading action and its strongest challenger, the one with the
-            wider interval (the leader-and-challenger rule of best-arm
-            identification), restricted in the same way.
+            bound. ``"open"`` (the only value under ``outcome="gap"``): the
+            largest upper bound among the actions that may still be optimal and
+            whose own interval is open, so that a decision is never left
+            unresolved because the action that keeps it open is not the largest
+            upper bound.
 
     Every certified-search field needs ``frontier_bounds != "scalar"``.
 
-    The search seed ignores the stopping rules and the scoring-only fields
+    The search seed ignores the scoring-only fields
     (``SCORING_FIELDS``: they read a finished tree and never touch the search
     stream, so scoring variants score the same tree). Search-changing fields
     added later enter the seed only when they differ from their defaults
@@ -124,15 +111,11 @@ class PlannerConfig:
     modeled_simulations: int
     gamma: float = 0.95
     exploration: float = 1.0
-    modeled_stopping: ModeledStopping | None = None
-    root_stopping: ModeledStopping | None = None
     frontier_bounds: str = "scalar"
     scoring: str = "legacy"
-    unsampled_value: str = "lower"
     exact_tail: bool = False
     prune: bool = False
     selection: str = "ucb"
-    puct_temperature: float = 0.25
     leaf_eval: str = "rollout"
     lazy_expansion: bool = False
     modeled_resolution: ModeledResolution | None = None
@@ -149,20 +132,10 @@ class PlannerConfig:
             raise ValueError("gamma must lie in [0, 1]")
         if not math.isfinite(self.exploration) or self.exploration <= 0:
             raise ValueError("exploration must be finite and positive")
-        if self.modeled_stopping is not None:
-            if type(self.modeled_stopping) is not ModeledStopping:
-                raise TypeError("modeled_stopping must be a ModeledStopping")
-            self.modeled_stopping.checkpoints(self.modeled_simulations)
-        if self.root_stopping is not None:
-            if type(self.root_stopping) is not ModeledStopping:
-                raise TypeError("root_stopping must be a ModeledStopping")
-            self.root_stopping.checkpoints(self.simulations)
         if self.frontier_bounds not in FRONTIER_BOUNDS:
             raise ValueError(f"frontier_bounds must be one of {FRONTIER_BOUNDS}")
         if self.scoring not in SCORING:
             raise ValueError(f"scoring must be one of {SCORING}")
-        if self.unsampled_value not in UNSAMPLED_VALUES:
-            raise ValueError(f"unsampled_value must be one of {UNSAMPLED_VALUES}")
         for name in ("exact_tail", "prune", "lazy_expansion"):
             if type(getattr(self, name)) is not bool:
                 raise TypeError(f"{name} must be a bool")
@@ -170,8 +143,6 @@ class PlannerConfig:
             raise ValueError(f"selection must be one of {SELECTIONS}")
         if self.leaf_eval not in LEAF_EVALS:
             raise ValueError(f"leaf_eval must be one of {LEAF_EVALS}")
-        if not math.isfinite(self.puct_temperature) or self.puct_temperature <= 0:
-            raise ValueError("puct_temperature must be finite and positive")
         if self.certified_search and self.frontier_bounds == "scalar":
             raise ValueError("Certified search needs belief-dependent frontier bounds")
         if self.lazy_expansion and self.leaf_eval != "bound":
@@ -179,8 +150,6 @@ class PlannerConfig:
         if self.modeled_resolution is not None:
             if type(self.modeled_resolution) is not ModeledResolution:
                 raise TypeError("modeled_resolution must be a ModeledResolution")
-            if self.modeled_stopping is not None:
-                raise ValueError("Choose one modeled rule: stopping or resolution")
             self.modeled_resolution.checkpoints(self.modeled_simulations)
         if self.modeled_prediction not in PREDICTIONS:
             raise ValueError(f"modeled_prediction must be one of {PREDICTIONS}")
@@ -191,12 +160,12 @@ class PlannerConfig:
         if self.root_rule not in ROOT_RULES:
             raise ValueError(f"root_rule must be one of {ROOT_RULES}")
         if self.outcome == "sample" and self.root_rule != "upper":
-            raise ValueError("The root rules 'open' and 'challenger' belong to a gap-directed outcome rule")
+            raise ValueError("The root rule 'open' belongs to a gap-directed outcome rule")
         if self.outcome != "sample":
             if self.selection != "iemax" or not self.prune:
                 raise ValueError("A gap-directed outcome rule needs pruning and selection by upper bound")
             if self.root_rule == "upper":
-                raise ValueError("A gap-directed outcome rule needs the root rule 'open' or 'challenger'")
+                raise ValueError("A gap-directed outcome rule needs the root rule 'open'")
 
     @property
     def certified_search(self):
@@ -213,19 +182,22 @@ class PlannerConfig:
 
 FRONTIER_BOUNDS = ("scalar", "ifib")
 SCORING = ("legacy", "pw")
-UNSAMPLED_VALUES = ("lower", "mid", "upper")
-SELECTIONS = ("ucb", "puct", "iemax")
+SELECTIONS = ("ucb", "iemax")
 PREDICTIONS = ("argmax", "plausible")
 LEAF_EVALS = ("rollout", "bound")
-OUTCOMES = ("sample", "gap", "gap_sample")
-ROOT_RULES = ("upper", "open", "challenger")
+OUTCOMES = ("sample", "gap")
+ROOT_RULES = ("upper", "open")
 
 # Fields that read the finished tree only, or decide how a finished modeled solve is
-# turned into a prediction; never part of the search seed (a resolution's main tree
-# is seeded as the flat search of its cap, like a stopping rule's).
+# turned into a prediction; never part of the search seed (a resolution's tree is
+# seeded as the flat search of its cap). "unsampled_value" names a retired field (the
+# stand-in of an unsampled branch is now always its lower end); it is still listed so
+# that the seed computation is unchanged, and it matches no field.
 SCORING_FIELDS = ("frontier_bounds", "scoring", "unsampled_value", "modeled_resolution", "modeled_prediction")
 
 # Search-changing fields added later, dropped from the seed while they hold these values.
+# "puct_temperature" names a retired field (now the constant exploration.PUCT_TEMPERATURE,
+# its former default); it is still listed so that the seed computation is unchanged.
 NEUTRAL_DEFAULTS = {
     "exact_tail": False,
     "prune": False,
