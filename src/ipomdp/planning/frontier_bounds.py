@@ -35,13 +35,6 @@ bound p_o * V^{r-1}(b_ao) from the parent's belief, without computing b_ao.
 The other agent's own observations and model updates never enter: the helper
 and the adversary see the state, which dominates any model of the other agent.
 
-``kind="itib"`` (the interactive tight-informed bound) replaces the upper
-continuation by Qbar_T on the one-step beliefs beta_{s,a_i,a_j,o}: at each
-later step the helper still picks the other agent's action, but the state is
-only known through the one-step belief, so stochastic transitions are not
-resolved for free. Q_I-TIB <= Q_I-FIB; with deterministic transitions every
-one-step belief is a point mass and the two coincide (both computed anyway).
-
 This is the reference path: exact Python floats with ``math.fsum``, memoized
 per physical state. Equal inputs give equal bounds; nothing here is random.
 """
@@ -51,9 +44,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from ipomdp.belief.finite_filter import checked_distribution
-
-KINDS = ("ifib", "itib")
-
 
 @dataclass(frozen=True)
 class NodeBounds:
@@ -75,18 +65,16 @@ class NodeBounds:
 class FrontierBounds:
     """I-FIB tables for one agent of one physics, shared by every belief of that agent."""
 
-    def __init__(self, physics, agent_id, other_id, gamma, depth, kind="ifib", cache_size=65536):
-        if kind not in KINDS:
-            raise ValueError(f"kind must be one of {KINDS}")
+    def __init__(self, physics, agent_id, other_id, gamma, depth, cache_size=65536):
         if not math.isfinite(gamma) or not 0 <= gamma <= 1:
             raise ValueError("gamma must lie in [0, 1]")
         if type(depth) is not int or depth < 1:
             raise ValueError("depth must be a positive integer")
         self.physics, self.agent_id, self.other_id = physics, agent_id, other_id
-        self.gamma, self.depth, self.kind = gamma, depth, kind
+        self.gamma, self.depth = gamma, depth
         self.actions = tuple(physics.get_all_actions(agent_id))
         self.other_actions = tuple(physics.get_all_actions(other_id))
-        self._kernels, self._qbar, self._alpha, self._qbar_t = {}, {}, {}, {}
+        self._kernels, self._qbar, self._alpha = {}, {}, {}
         self.node_bounds = lru_cache(maxsize=cache_size)(self._node_bounds)
 
     def clear_caches(self):
@@ -175,61 +163,6 @@ class FrontierBounds:
         self._alpha[key] = values
         return values
 
-    def _one_step(self, state, action, other_action, observation):
-        """(kappa, ((s', beta(s')), ...)): the one-step belief beta_{s,a_i,a_j,o} over alive s' and its weight."""
-        _, _, by_observation = self._kernel(state, action, other_action)
-        rows = by_observation.get(observation, ())
-        kappa = math.fsum(w for _, w in rows)
-        return kappa, tuple((s, w / kappa) for s, w in rows) if kappa > 0 else ()
-
-    def qbar_t(self, r, key):
-        """Qbar_T^r(beta, .) over the agent's actions for the one-step belief ``key`` = (s, a_i, a_j, o)."""
-        if r == 0:
-            return tuple(0.0 for _ in self.actions)
-        cache_key = (r, key)
-        cached = self._qbar_t.get(cache_key)
-        if cached is not None:
-            return cached
-        _, beta = self._one_step(*key)
-        values = []
-        for k, action in enumerate(self.actions):
-            unit = math.fsum(p * self.qbar(r, s)[k] for s, p in beta)
-            reward = math.fsum(
-                p * max(self._kernel(s, action, aj)[0] for aj in self.other_actions) for s, p in beta
-            )
-            # Every next observation o' that some state of beta and some action of the other agent can
-            # produce (a dict keeps first-seen order; the sum below does not depend on it).
-            observations = {}
-            for s, p in beta:
-                for aj in self.other_actions:
-                    observations.update(dict.fromkeys(self._kernel(s, action, aj)[2]))
-            continuation = []
-            for observation in observations:
-                best = -math.inf
-                for kk in range(len(self.actions)):
-                    terms = []
-                    for s, p in beta:
-                        # The maximum ranges over every action of the other agent. One under
-                        # which this observation cannot occur (kappa = 0) adds nothing to the
-                        # branch, so it enters at zero; leaving it out would charge the branch
-                        # in full and fall below the exact value when continuations are negative.
-                        options = []
-                        for aj in self.other_actions:
-                            kappa, _ = self._one_step(s, action, aj, observation)
-                            options.append(
-                                kappa * self.qbar_t(r - 1, (s, action, aj, observation))[kk]
-                                if kappa > 0
-                                else 0.0
-                            )
-                        terms.append(p * max(options))
-                    best = max(best, math.fsum(terms))
-                continuation.append(best)
-            tight = reward + self.gamma * math.fsum(continuation)
-            values.append(min(unit, tight))
-        values = tuple(values)
-        self._qbar_t[cache_key] = values
-        return values
-
     # ------------------------------------------------------------------ #
     # Per-belief bounds
     # ------------------------------------------------------------------ #
@@ -273,17 +206,6 @@ class FrontierBounds:
                     math.fsum(p * self.qbar(r - 1, s)[k] for s, p in posterior.items())
                     for k in range(n)
                 )
-                if self.kind == "itib":
-                    tight = max(
-                        math.fsum(
-                            weight * kappa * self.qbar_t(r - 1, (state, action, other_action, observation))[k]
-                            for (state, other_action), weight in weights.items()
-                            for kappa in [self._one_step(state, action, other_action, observation)[0]]
-                            if weight > 0 and kappa > 0
-                        )
-                        for k in range(n)
-                    )
-                    highs[observation] = min(highs[observation], tight)
                 lows[observation] = max(
                     math.fsum(p * self.alpha_lo(r - 1, s)[k] for s, p in posterior.items())
                     for k in range(n)

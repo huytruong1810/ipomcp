@@ -211,7 +211,7 @@ class PlannerConfig:
         )
 
 
-FRONTIER_BOUNDS = ("scalar", "ifib", "itib")
+FRONTIER_BOUNDS = ("scalar", "ifib")
 SCORING = ("legacy", "pw")
 UNSAMPLED_VALUES = ("lower", "mid", "upper")
 SELECTIONS = ("ucb", "puct", "iemax")

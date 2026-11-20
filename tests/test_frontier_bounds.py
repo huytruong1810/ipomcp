@@ -185,39 +185,7 @@ def test_the_bank_shares_one_table_per_agent_and_clears_only_beliefs():
     assert frontier.node_bounds(first, 3, bank) == before
 
 
-@pytest.mark.slow
-@pytest.mark.parametrize("domain, level, depth", CASES)
-def test_itib_lies_between_the_exact_value_and_ifib(domain, level, depth):
-    physics, states, bank = setup(domain, level, depth)
-    reference = BestResponseReference(physics, bank, GAMMA)
-    rng = random.Random(4)
-    tighter = 0
-    for _ in range(30 if level == 1 else 8):
-        model = random_model(physics, level, rng, rng.sample(states, rng.randint(1, len(states))))
-        ifib = bank.frontier_bounds(model, GAMMA, depth, "ifib")
-        itib = bank.frontier_bounds(model, GAMMA, depth, "itib")
-        for r in range(1, depth + 1):
-            exact = reference.q_values(model, r)
-            a, b = ifib.node_bounds(model, r, bank), itib.node_bounds(model, r, bank)
-            for action in ifib.actions:
-                assert exact[action] <= b.q_hi[action] + SLACK
-                assert b.q_hi[action] <= a.q_hi[action] + SLACK
-                tighter += b.q_hi[action] < a.q_hi[action] - 1e-9
-                if domain == "uav":  # deterministic transitions: the two coincide
-                    assert math.isclose(b.q_hi[action], a.q_hi[action], rel_tol=0, abs_tol=1e-9)
-            if r >= 2:
-                for action in ifib.actions:
-                    _, branches = reference.branches(model, action)
-                    for o, p, successor in branches:
-                        if p > 0:
-                            value = p * max(reference.q_values(successor, r - 1).values())
-                            assert value <= b.branch_hi[action][o] + SLACK
-    # Measured (Nov 12): I-TIB equals I-FIB on these tiger cells too (a reset's observation is
-    # uninformative, and I-FIB already conditions i's next action on the observation only).
-    assert tighter >= 0
-
-
-def test_itib_keeps_opponent_actions_that_an_observation_excludes():
+def test_ifib_keeps_opponent_actions_that_an_observation_excludes():
     # Every reward is -1, so Q^3 = -(1 + 0.95 + 0.95^2) whatever anyone does, and both upper
     # bounds must equal it. Maximizing only over the opponent actions that can produce an
     # observation gave -3.755 here: each of i's two observations was charged a full branch.
@@ -228,8 +196,7 @@ def test_itib_keeps_opponent_actions_that_an_observation_excludes():
         FiniteBelief(((InteractiveState("A", MentalModel(AgentFrame("j", 0, physics))), 1.0),)),
     )
     exact = BestResponseReference(physics, bank, GAMMA).q_values(model, 3)
-    for kind in ("ifib", "itib"):
-        upper = bank.frontier_bounds(model, GAMMA, 3, kind).node_bounds(model, 3, bank).q_hi
-        for action, value in exact.items():
-            assert math.isclose(value, -(1 + GAMMA + GAMMA**2), rel_tol=0, abs_tol=1e-12)
-            assert math.isclose(upper[action], value, rel_tol=0, abs_tol=1e-9)
+    upper = bank.frontier_bounds(model, GAMMA, 3).node_bounds(model, 3, bank).q_hi
+    for action, value in exact.items():
+        assert math.isclose(value, -(1 + GAMMA + GAMMA**2), rel_tol=0, abs_tol=1e-12)
+        assert math.isclose(upper[action], value, rel_tol=0, abs_tol=1e-9)

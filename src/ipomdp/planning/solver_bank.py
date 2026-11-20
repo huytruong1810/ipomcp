@@ -321,10 +321,10 @@ class SolverBank:
         law = ((o, math.fsum(weights)) for o, weights in terms.items())
         return tuple((o, p) for o, p in law if p > 0)
 
-    def frontier_bounds(self, model, gamma, depth, kind="ifib"):
+    def frontier_bounds(self, model, gamma, depth):
         """The shared ``FrontierBounds`` of ``model``'s agent (``planning.frontier_bounds``).
 
-        One instance per (physics, agent, opponent, gamma, depth, kind), so real
+        One instance per (physics, agent, opponent, gamma, depth), so real
         decisions and modeled solves of the same agent share the state tables.
         """
         physics, agent_id = model.frame.pomdp_model, model.frame.agent_id
@@ -332,10 +332,10 @@ class SolverBank:
         if len(others) != 1:
             raise ValueError("Frontier bounds need exactly one opponent agent")
         other_id = others.pop()
-        key = (physics, agent_id, other_id, gamma, depth, kind)
+        key = (physics, agent_id, other_id, gamma, depth)
         bounds = self._frontier_bounds.get(key)
         if bounds is None:
-            bounds = FrontierBounds(physics, agent_id, other_id, gamma, depth, kind)
+            bounds = FrontierBounds(physics, agent_id, other_id, gamma, depth)
             self._frontier_bounds[key] = bounds
         return bounds
 

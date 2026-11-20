@@ -43,7 +43,7 @@ and the last decision uses max_a E[R | b_h, a]. Terminal mass contributes zero a
 
 Certified search (`i_pomcp._simulate_certified`, enabled by the certified options of `PlannerConfig`; the profile `experiments.profile` "certified" sets all of them) keeps an interval [q⁻(h, a), q⁺(h, a)] for every action at every expanded history.
 
-- **Frontier bounds** (`planning.frontier_bounds`): `"scalar"` uses only the horizon's return range [ℓ_r, u_r], with ℓ_r = R_min + γ min(0, ℓ_{r−1}) and u_r = R_max + γ max(0, u_{r−1}); `"ifib"` uses the belief-dependent interactive fast-informed bound and blind-policy lower bound of "Frontier bounds" below; `"itib"` adds the tighter informed bound on one-step beliefs.
+- **Frontier bounds** (`planning.frontier_bounds`): `"scalar"` uses only the horizon's return range [ℓ_r, u_r], with ℓ_r = R_min + γ min(0, ℓ_{r−1}) and u_r = R_max + γ max(0, u_{r−1}); `"ifib"` uses the belief-dependent interactive fast-informed bound and blind-policy lower bound of "Frontier bounds" below.
 - **Exact two-step tail** (`exact_tail`): a history with two steps to go is solved exactly when it is expanded; every child is the last decision, whose value needs only its posterior.
 - **Pruning** (`prune`): bounds are backed up along every descent and only tighten; an action ruled out by its bounds is never selected again; the search stops when the root decision is settled.
 - **Leaves** (`leaf_eval`, `lazy_expansion`): a new frontier is valued by a point of its interval (`"bound"`) or by a rollout clipped into it, and with lazy expansion its belief is computed only when it is visited again (its interval comes from the parent's belief meanwhile).
@@ -79,7 +79,7 @@ With Q̄^r(s, a) the partner-optimistic vectors (each later action of j maximize
 
     ℓ_r ≤ L^r(b, a) ≤ Q_s^r(b, a) ≤ Q^r_ITIB(b, a) ≤ Q^r_IFIB(b, a) ≤ Σ_s b(s) Q̄^r(s, a) ≤ u_r,
 
-and each observation branch is bounded from the parent's belief, without computing the child's: max_{a'} Σ μ α̲^r_{a'} ≤ P(o, alive) U_s^r(b_ao) ≤ max_{a'} Σ μ Q̄^r(·, a'). When T_i is deterministic, I-TIB equals I-FIB. The tables have size |S||A_i||A_j|, not the size of the reachable model space. Tests: `test_frontier_bounds.py` (the chain at random beliefs against the exact solver).
+and each observation branch is bounded from the parent's belief, without computing the child's: max_{a'} Σ μ α̲^r_{a'} ≤ P(o, alive) U_s^r(b_ao) ≤ max_{a'} Σ μ Q̄^r(·, a'). The tables have size |S||A_i||A_j|, not the size of the reachable model space. Tests: `test_frontier_bounds.py` (the chain at random beliefs against the exact solver).
 
 ### Compression slack
 

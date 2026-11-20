@@ -390,9 +390,7 @@ class IPOMCPPlanner(Planner):
     def _bounds_for(self, model):
         """This agent's shared ``FrontierBounds`` (one table per agent, physics and horizon)."""
         if self._frontier_bounds is None:
-            self._frontier_bounds = self.solver_bank.frontier_bounds(
-                model, self.config.gamma, self.config.depth, self.config.frontier_bounds
-            )
+            self._frontier_bounds = self.solver_bank.frontier_bounds(model, self.config.gamma, self.config.depth)
         return self._frontier_bounds
 
     def _simulate_certified(self, node, depth, memory, history_model, rng):
@@ -780,9 +778,7 @@ class _GrowingSearch:
         bounds = bounds or config.scoring == "pw"
         frontier = None
         if bounds and config.frontier_bounds != "scalar":
-            frontier = planner.solver_bank.frontier_bounds(
-                self.model, config.gamma, config.depth, config.frontier_bounds
-            )
+            frontier = planner.solver_bank.frontier_bounds(self.model, config.gamma, config.depth)
         return score_tree(
             self.root,
             self.model,
