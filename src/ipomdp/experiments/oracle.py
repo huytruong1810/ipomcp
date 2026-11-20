@@ -211,7 +211,7 @@ def evaluate_case(
     estimates = dict(planner.recommendation_values)
     row = {
         "planner": planner_kind,
-        "planner_config": _recorded_config(config),
+        "planner_config": asdict(config),
         "level": level,
         "opponent": _opponent_description(
             level, opponent_depth, opponent_belief, stack, nested_beliefs
@@ -403,28 +403,6 @@ def _nested_chain(level, nested_beliefs):
     if not all(0 <= p <= 1 for p in chain):
         raise ValueError("Nested beliefs must lie in [0,1]")
     return chain
-
-
-# Planner options retired in the consolidation release, keyed by the field they followed in
-# ``PlannerConfig``, at the only values an oracle planner ever held for them. Rows keep recording
-# them, so a row of a remaining configuration is the row it was before the release.
-_RETIRED_FIELDS = {
-    "exploration": {"modeled_stopping": None, "root_stopping": None},
-    "scoring": {"unsampled_value": "lower"},
-    "selection": {"puct_temperature": 0.25},
-}
-
-
-def _recorded_config(config):
-    """``asdict(config)``, with an I-POMCP configuration's retired fields in their former places."""
-    data = asdict(config)
-    if not isinstance(config, PlannerConfig):
-        return data
-    recorded = {}
-    for key, value in data.items():
-        recorded[key] = value
-        recorded.update(_RETIRED_FIELDS.get(key, {}))
-    return recorded
 
 
 def _opponent_description(level, depth, belief, stack, nested_beliefs):

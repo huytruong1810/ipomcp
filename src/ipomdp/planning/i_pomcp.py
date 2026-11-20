@@ -64,7 +64,7 @@ from dataclasses import asdict
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.planning.chance_scoring import deviation_bound, exact_two_step, score_tree
-from ipomdp.planning.config import NEUTRAL_DEFAULTS, SCORING_FIELDS, PlannerConfig
+from ipomdp.planning.config import SCORING_FIELDS, PlannerConfig
 from ipomdp.planning.exploration import PUCT_TEMPERATURE, SELECTORS
 from ipomdp.planning.generative_model import InteractiveGenerativeModel
 from ipomdp.planning.node import CertifiedState, POMCPNode
@@ -727,31 +727,19 @@ class _GrowingSearch:
         )
 
 
-# Fields of the retired stopping rules. They match no field of ``PlannerConfig`` any more; they are
-# still listed so that ``seed_config`` is unchanged.
-_STOPPING_FIELDS = ("modeled_stopping", "root_stopping")
-
-
 def _slack(x):
     """Outward rounding slack of every comparison that prunes or certifies (THEORY.md, "Tolerances")."""
     return 1e-9 * max(1.0, abs(x))
 
 
 def seed_config(config):
-    """The configuration as it enters the search seed.
+    """The configuration as it enters the search seed: every field but the scoring-only ones.
 
-    Drops the scoring-only fields (``config.SCORING_FIELDS``) and every later
-    field that holds its neutral default (``config.NEUTRAL_DEFAULTS``), so a
-    default configuration hashes as it did before those fields existed and
-    scoring variants search the same tree.
+    The scoring-only fields (``config.SCORING_FIELDS``) read a finished tree, so
+    scoring variants search the same tree; every other field can change the
+    search, so it enters the seed.
     """
-    return {
-        k: v
-        for k, v in asdict(config).items()
-        if k not in _STOPPING_FIELDS
-        and k not in SCORING_FIELDS
-        and not (k in NEUTRAL_DEFAULTS and v == NEUTRAL_DEFAULTS[k])
-    }
+    return {k: v for k, v in asdict(config).items() if k not in SCORING_FIELDS}
 
 
 def _policy(scores):

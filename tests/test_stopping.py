@@ -29,7 +29,7 @@ def j_planner(seed, simulations=600, depth=3):
     return planner, physics
 
 
-def test_a_default_config_hashes_as_before_the_certified_fields():
+def test_the_search_seed_holds_every_search_field_and_no_scoring_field():
     from dataclasses import replace
 
     from ipomdp.belief import canonical
@@ -40,11 +40,16 @@ def test_a_default_config_hashes_as_before_the_certified_fields():
         return canonical.digest([canonical.stable_value(settings)])
 
     config = PlannerConfig(400, 3, 400)
-    # Digest of the default configuration on main at 20b8d6f (tag r-final-start).
-    assert digest(config) == "4a2e7fd99e973874dc2ca2fb8de67ac8151036372dccf5268901640c36f5439b"
+    # Digest of the default configuration since the consolidation release (every search field in the seed).
+    assert digest(config) == "c5c498837181983383f4045757be11c4e59aa425b9ee557ea37b4a108a83eb9d"
     assert seed_config(config) == {
-        "simulations": 400, "depth": 3, "modeled_simulations": 400, "gamma": 0.95, "exploration": 1.0
+        "simulations": 400, "depth": 3, "modeled_simulations": 400, "gamma": 0.95, "exploration": 1.0,
+        "exact_tail": False, "prune": False, "selection": "ucb", "leaf_eval": "rollout", "lazy_expansion": False,
+        "outcome": "sample", "root_rule": "upper",
     }
+    # Every search field changes the seed.
+    with_bounds = replace(config, frontier_bounds="ifib")
+    assert digest(replace(with_bounds, exact_tail=True)) != digest(with_bounds)
     # Scoring-only fields never enter the seed: their variants score the same tree.
     varied = replace(config, frontier_bounds="ifib", scoring="pw")
     assert digest(varied) == digest(config)

@@ -304,15 +304,15 @@ def test_the_certified_profile_selects_by_upper_bound_unless_told_otherwise():
 
 # The gap-directed outcome rule (config.outcome, config.root_rule).
 
-def test_the_default_configuration_and_its_seed_are_unchanged_by_the_gap_options():
+def test_the_outcome_rule_enters_the_search_seed():
     from ipomdp.planning.i_pomcp import seed_config
 
     default = PlannerConfig(100, 3, 20)
     assert (default.outcome, default.root_rule) == ("sample", "upper")
-    assert not {"outcome", "root_rule"} & set(seed_config(default))
     certified = PlannerConfig(100, 3, 20, **CERTIFIED, selection="iemax")
-    assert not {"outcome", "root_rule"} & set(seed_config(certified))
-    assert {"outcome", "root_rule"} <= set(seed_config(replace(certified, outcome="gap", root_rule="open")))
+    gap = replace(certified, outcome="gap", root_rule="open")
+    assert (seed_config(certified)["outcome"], seed_config(gap)["outcome"]) == ("sample", "gap")
+    assert seed_config(certified) != seed_config(gap)
 
 
 @pytest.mark.parametrize(

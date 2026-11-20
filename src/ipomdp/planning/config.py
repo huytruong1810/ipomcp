@@ -98,12 +98,9 @@ class PlannerConfig:
 
     Every certified-search field needs ``frontier_bounds != "scalar"``.
 
-    The search seed ignores the scoring-only fields
+    The search seed holds every field except the scoring-only ones
     (``SCORING_FIELDS``: they read a finished tree and never touch the search
-    stream, so scoring variants score the same tree). Search-changing fields
-    added later enter the seed only when they differ from their defaults
-    (``NEUTRAL_DEFAULTS``), so every stored result is reproduced by a default
-    configuration.
+    stream, so scoring variants score the same tree).
     """
 
     simulations: int
@@ -190,21 +187,5 @@ ROOT_RULES = ("upper", "open")
 
 # Fields that read the finished tree only, or decide how a finished modeled solve is
 # turned into a prediction; never part of the search seed (a resolution's tree is
-# seeded as the flat search of its cap). "unsampled_value" names a retired field (the
-# stand-in of an unsampled branch is now always its lower end); it is still listed so
-# that the seed computation is unchanged, and it matches no field.
-SCORING_FIELDS = ("frontier_bounds", "scoring", "unsampled_value", "modeled_resolution", "modeled_prediction")
-
-# Search-changing fields added later, dropped from the seed while they hold these values.
-# "puct_temperature" names a retired field (now the constant exploration.PUCT_TEMPERATURE,
-# its former default); it is still listed so that the seed computation is unchanged.
-NEUTRAL_DEFAULTS = {
-    "exact_tail": False,
-    "prune": False,
-    "selection": "ucb",
-    "puct_temperature": 0.25,
-    "leaf_eval": "rollout",
-    "lazy_expansion": False,
-    "outcome": "sample",
-    "root_rule": "upper",
-}
+# seeded as the flat search of its cap).
+SCORING_FIELDS = ("frontier_bounds", "scoring", "modeled_resolution", "modeled_prediction")
