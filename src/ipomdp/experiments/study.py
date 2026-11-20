@@ -454,9 +454,8 @@ def _profiled(base, budget, profile):
     """A modeled level of a profile agent: the flat configuration at ``budget`` with the profile's options."""
     return replace(
         planner_config("mcts", budget, base.depth, base.gamma, base.exploration),
-        **profiles.modeled_options(profile, budget, base.selection),
-        outcome=base.outcome,
-        root_rule=base.root_rule,
+        **(profiles.modeled_options(profile, budget, base.selection)
+           | dict(outcome=base.outcome, root_rule=base.root_rule)),
     )
 
 

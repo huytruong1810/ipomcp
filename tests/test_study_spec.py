@@ -219,18 +219,17 @@ def test_an_episode_runs_under_the_certified_profile():
     assert decided == again
 
 
-def test_a_profile_study_passes_the_gap_options_to_every_modeled_level_as_decide_does():
+def test_the_profile_gives_the_agent_and_every_modeled_level_the_gap_rule_as_decide_does():
     from ipomdp.experiments.reachable_decisions import _planner, certified_options, modeled_options
 
-    arguments = _decide_arguments(outcome="gap", root_rule="open")
+    arguments = _decide_arguments()
     study = StudySpec(
         name="profile-gap",
         domain="tiger",
         trials=1,
         steps=1,
         agents={
-            "i": AgentSpec(level=3, planner=PROFILED | {"outcome": "gap", "root_rule": "open"}, modeled="30/30",
-                           particles=16),
+            "i": AgentSpec(level=3, planner=PROFILED, modeled="30/30", particles=16),
             "j": AgentSpec(level=0),
         },
     )
@@ -244,3 +243,15 @@ def test_a_profile_study_passes_the_gap_options_to_every_modeled_level_as_decide
             ours = planners["i"].solver_bank.get_solver(key).config
             assert ours == decided.solver_bank.get_solver(key).config
             assert (ours.outcome, ours.root_rule) == ("gap", "open")
+
+
+def test_a_profile_study_rejects_an_outcome_rule_stated_beside_the_profile():
+    with pytest.raises(ValueError, match="The profile sets outcome"):
+        StudySpec(
+            name="profile-stated",
+            domain="tiger",
+            trials=1,
+            steps=1,
+            agents={"i": AgentSpec(level=2, planner=PROFILED | {"outcome": "gap"}, modeled="30", particles=16),
+                    "j": AgentSpec(level=0)},
+        )
