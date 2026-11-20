@@ -84,9 +84,9 @@ def decision_jobs(out):
                     f"--seed {seed}", f"--steps {steps}", f"--out {reference}"), 500.0))
                 arms = {
                     "ipomcp-sample": ("--planner mcts --budget 300 --modeled-exact --particles 0 "
-                                      "--ladder 10 30 100 --profile certified"),
+                                      "--ladder 10 30 100 --profile certified --profile-off gap"),
                     "ipomcp-gap": ("--planner mcts --budget 300 --modeled-exact --particles 0 "
-                                   "--ladder 10 30 100 --profile certified --outcome gap --root-rule open"),
+                                   "--ladder 10 30 100 --profile certified"),
                     "ipf-rts": "--planner rts --budget 4 --particles 64 --rts-published",
                     "intmcp": "--planner intmcp --budget 1000 --intmcp-variant tuned",
                 }

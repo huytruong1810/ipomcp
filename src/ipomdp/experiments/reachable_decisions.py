@@ -534,10 +534,14 @@ def _stage(simulations, scores, cpu_seconds, q):
 
 def certified_options(args):
     """``PlannerConfig`` options of i's own planner from the ``decide`` flags."""
+    outcome, root_rule = getattr(args, "outcome", None), getattr(args, "root_rule", None)
+    if args.profile is not None and (outcome is not None or root_rule is not None):
+        raise ValueError("The profile sets the outcome and root rules; drop --outcome and --root-rule "
+                         "(--profile-off gap gives the sampled rule)")
     options = dict(frontier_bounds=args.frontier_bounds, scoring=args.scoring,
                    exact_tail=args.exact_tail, prune=args.prune,
                    selection=args.selection or "ucb", leaf_eval=args.leaf_eval, lazy_expansion=args.lazy,
-                   outcome=getattr(args, "outcome", "sample"), root_rule=getattr(args, "root_rule", "upper"))
+                   outcome=outcome or "sample", root_rule=root_rule or "upper")
     if args.profile is not None:
         options |= profile.own_options(args.profile, args.selection)
         options = profile.switch_off(options, getattr(args, "profile_off", None))
@@ -631,11 +635,12 @@ def main():
     dec.add_argument("--count-work", action="store_true",
                      help="with --ladder: grow the ladder before the decision's search, so each stage's updates and "
                           "nested_solves count the work from a cold start")
-    dec.add_argument("--outcome", choices=OUTCOMES, default="sample",
-                     help="certified search: next observation sampled (default), or the open branch with the "
-                          "largest probability-weighted gap (gap)")
-    dec.add_argument("--root-rule", choices=ROOT_RULES, default="upper",
-                     help="with the gap outcome rule: open (largest upper bound among undecided actions)")
+    dec.add_argument("--outcome", choices=OUTCOMES, default=None,
+                     help="certified search without --profile: next observation sampled (default), or the open "
+                          "branch with the largest probability-weighted gap (gap); the profile sets it")
+    dec.add_argument("--root-rule", choices=ROOT_RULES, default=None,
+                     help="with the gap outcome rule, without --profile: open (largest upper bound among undecided "
+                          "actions); the profile sets it")
     dec.add_argument("--profile", choices=profile.PROFILES,
                      help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune --selection iemax "
                           "--outcome gap --root-rule open (an explicit --selection ucb returns to the sampled rule)")

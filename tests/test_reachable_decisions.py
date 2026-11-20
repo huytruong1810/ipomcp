@@ -106,7 +106,7 @@ def _profile_args(**changes):
     from types import SimpleNamespace
 
     base = dict(frontier_bounds="scalar", scoring="legacy", exact_tail=False, prune=False, selection=None,
-                leaf_eval="rollout", lazy=False, outcome="sample", root_rule="upper", profile="certified",
+                leaf_eval="rollout", lazy=False, outcome=None, root_rule=None, profile="certified",
                 profile_off=None, modeled_exact=False, modeled=400, budget=1000, modeled_resolve=False,
                 modeled_pilot=50, modeled_prediction="argmax")
     return SimpleNamespace(**(base | changes))
@@ -153,3 +153,12 @@ def test_components_the_gap_rule_needs_cannot_be_switched_off_while_it_runs(off)
 
     with pytest.raises(ValueError, match="needs 'gap' off too"):
         certified_options(_profile_args(profile_off=off))
+
+
+def test_decide_refuses_an_outcome_rule_stated_beside_the_profile():
+    from ipomdp.experiments.reachable_decisions import certified_options
+
+    with pytest.raises(ValueError, match="The profile sets the outcome"):
+        certified_options(_profile_args(outcome="gap"))
+    assert certified_options(_profile_args(profile=None, outcome="gap", root_rule="open", selection="iemax",
+                                           prune=True, frontier_bounds="ifib"))["outcome"] == "gap"

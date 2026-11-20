@@ -82,7 +82,6 @@ from ipomdp.experiments.problems import chain_model, tiger_chain
 from ipomdp.infra.paths import REPOSITORY_ROOT
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.infra.source_lock import source_hashes
-from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.policy import greedy_policy
 from ipomdp.planning.solver_bank import FILTERS, SolverBank
 from ipomdp.planning.solver_types import SolverKey
