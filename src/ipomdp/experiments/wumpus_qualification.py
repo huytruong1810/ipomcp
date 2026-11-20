@@ -48,6 +48,7 @@ import json
 import random
 import time
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 
 from ipomdp.baselines.rts import RTSConfig
@@ -55,7 +56,7 @@ from ipomdp.belief import canonical
 from ipomdp.belief.finite_filter import UnsupportedObservation
 from ipomdp.domains.wumpus.model import WumpusModel
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
-from ipomdp.experiments.oracle import REFERENCE_BRANCHES, optimal_q_error
+from ipomdp.experiments.oracle import REFERENCE_BRANCHES, max_abs_q_error, optimal_q_error, unvalued
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
 from ipomdp.reference.best_response import BestResponseReference
@@ -185,6 +186,8 @@ def human(
     planner="mcts",
     particles=0,
     particle_filter="sampled",
+    planner_options=None,
+    level_options=None,
 ):
     """The level-``level`` human with exact real beliefs and searches on ``search_particles`` atoms.
 
@@ -199,11 +202,17 @@ def human(
     of the update sampled), "smoothed" (with the zero-likelihood repair), or
     "published" and "published-smoothed" (Doshi and Gmytrasiewicz, 2009). ``particles`` 0 is exact
     beliefs, which isolates RTS's search.
+
+    ``planner_options`` (I-POMCP only) are ``PlannerConfig`` fields that replace those of the
+    human's configuration; ``level_options(modeled)`` gives those of every modeled level
+    (``experiments.profile``).
     """
     modeled = modeled or simulations
     published = particle_filter.startswith("published")
     if published and planner != "rts":
         raise ValueError("The published IPF is the IPF + RTS baseline's filter")
+    if (planner_options is not None or level_options is not None) and planner != "mcts":
+        raise ValueError("Planner options are I-POMCP options")
     if planner == "rts":
         # "published" / "published-smoothed": IPF + RTS exactly as Doshi and Gmytrasiewicz (2009) publish it: their filter,
         # their RTS backup, and every level-1 model (their level 0) solved exactly.
@@ -222,6 +231,10 @@ def human(
         lower = PlannerConfig(
             simulations=modeled, depth=horizon, modeled_simulations=modeled, gamma=GAMMA
         )
+        if planner_options is not None:
+            config = replace(config, **planner_options)
+        if level_options is not None:
+            lower = replace(lower, **level_options(modeled))
         # The exact real filter needs more than the default branch guard when the
         # human moves at the 94,500-atom prior (x 3 wumpus actions).
         bank = SolverBank(
@@ -391,11 +404,11 @@ def evaluate(
     scored = dict(
         loss=best - oracle[chosen],
         optimal_q_error=optimal_q_error(values, oracle),
-        max_abs_q_error=max(abs(values[a] - oracle[a]) for a in oracle),
+        max_abs_q_error=max_abs_q_error(values, oracle),
         cpu_seconds=cpu,
         values=values,
         oracle_q=oracle,
-    )
+    ) | unvalued(values, oracle)
     if planner_kind == "mcts":
         bounds = planner.scores.bounds
         scored |= dict(

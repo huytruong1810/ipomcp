@@ -1,4 +1,4 @@
-"""Planner profiles, defined once for ``reachable_decisions decide`` and for study specs.
+"""Planner profiles, defined once for ``reachable_decisions decide``, the panel and study specs.
 
 A profile names a full I-POMCP configuration, so a single decision and an episode that
 state the same profile run the same planner. ``certified`` is certified search directed by
@@ -14,6 +14,7 @@ Selecting ``"ucb"`` instead (ablation of bound-directed search) also returns the
 the sampled outcome rule, since the gap rule chooses by bounds and needs IEMax.
 """
 
+from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.stopping import ModeledResolution
 
 PROFILES = ("certified",)
@@ -68,6 +69,23 @@ def switch_off(options, components, modeled=False):
         options.pop("modeled_resolution", None)
         options["modeled_prediction"] = "argmax"
     return options
+
+
+def planner_options(profile, selection=None, off=None):
+    """``own_options`` with the components ``off`` switched off (an agent's own planner)."""
+    return switch_off(own_options(profile, selection), off)
+
+
+def level_options(profile, cap, selection=None, off=None, pilot=MODELED_PILOT):
+    """``modeled_options`` with the components ``off`` switched off (a modeled level of budget ``cap``)."""
+    return switch_off(modeled_options(profile, cap, selection, pilot), off, modeled=True)
+
+
+def recorded(options):
+    """``options`` as a row records them: the fields that differ from ``PlannerConfig``'s defaults."""
+    defaults = PlannerConfig(1, 1, 1)
+    return {k: (str(v) if k == "modeled_resolution" else v)
+            for k, v in options.items() if getattr(defaults, k) != v}
 
 
 def _check(profile):

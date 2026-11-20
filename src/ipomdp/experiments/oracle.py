@@ -63,13 +63,14 @@ import itertools
 import json
 import random
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from functools import partial
 from pathlib import Path
 
 from ipomdp.belief.finite_belief import MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import LISTEN, OPEN_LEFT, TigerModel
+from ipomdp.experiments import profile
 from ipomdp.experiments.modeled_levels import (
     EXACT,
     make_planner,
@@ -112,6 +113,8 @@ def evaluate_case(
     chain=None,
     problem=None,
     history_actions=None,
+    planner_options=None,
+    level_options=None,
 ):
     """Solve one matched problem with the planner and the exact reference.
 
@@ -151,10 +154,20 @@ def evaluate_case(
     response to uniform L0 (``BestResponseReference``), which is the same
     exact value by enumeration. ``history_actions`` are i's actions for
     ``history_steps`` (default ``HISTORY_ACTIONS``, Tiger's).
+
+    ``planner_options`` (I-POMCP only) are ``PlannerConfig`` fields that replace
+    those of i's configuration; ``level_options`` maps the budget of a finite
+    modeled level to such fields for that level (``experiments.profile``:
+    ``planner_options`` and ``level_options``). The row records those that differ
+    from the defaults, as ``decide`` does: ``certified`` for i, and
+    ``modeled_options`` with one entry per modeled level, top-down (None for an
+    exact level). None leaves every configuration as it is.
     """
     stack = _validate_problem(
         planner_kind, level, opponent_depth, opponent_belief, modeled, reference, particles
     )
+    if (planner_options is not None or level_options is not None) and planner_kind != "mcts":
+        raise ValueError("Planner options are I-POMCP options")
     if history_steps and level == 1:
         raise ValueError("The L1 alpha-vector reference is solved at the prior; use level 2")
     if opponent_observer is not None and level == 1:
@@ -164,6 +177,8 @@ def evaluate_case(
     bank = SolverBank(seed, particles=particles, particle_filter=particle_filter)
     key = SolverKey("i", level)
     config = planner_config(planner_kind, budget, horizon, gamma, exploration)
+    if planner_options is not None:
+        config = replace(config, **planner_options)
     planner = make_planner(planner_kind, key, model, bank, config)
     bank.register_solver(key, planner)
     best_response = BestResponseReference(model, bank, gamma)
@@ -185,6 +200,7 @@ def evaluate_case(
         gamma=gamma,
         exploration=exploration,
         wrap=observed,
+        level_options=level_options,
     )
     if chain is None:
         chain = tiger_chain(belief_p, opponent_belief, nested_beliefs)
@@ -231,6 +247,14 @@ def evaluate_case(
         "policy": policy,
         "planner_cpu_seconds": planner_cpu_seconds,
     }
+    if planner_options is not None:
+        certified = profile.recorded(planner_options)
+        if certified:
+            row["certified"] = certified
+    if level_options is not None and any(stack):
+        row["modeled_options"] = [
+            None if solve is None else profile.recorded(level_options(solve.budget)) for solve in stack
+        ]
     if reference == "none":
         return [row]
     started = time.process_time()
@@ -245,7 +269,9 @@ def evaluate_case(
     else:
         oracle_q = best_response.q_values(planner.model(), horizon)
     oracle_cpu_seconds = time.process_time() - started
-    if set(estimates) != set(oracle_q):
+    # Certified search leaves the root actions it pruned without a value; every other planner values them all.
+    certified_search = planner_kind == "mcts" and planner.config.certified_search
+    if not set(estimates) <= set(oracle_q) or (set(estimates) != set(oracle_q) and not certified_search):
         raise ValueError("Planner must evaluate every legal action")
     value = max(oracle_q.values())
 
@@ -253,7 +279,7 @@ def evaluate_case(
         return value - sum(prob * oracle_q[action] for action, prob in policy.items())
 
     def q_error(estimates):
-        return max(abs(estimates[a] - oracle_q[a]) for a in oracle_q)
+        return max_abs_q_error(estimates, oracle_q)
 
     search = {}
     if planner_kind == "mcts":
@@ -283,6 +309,7 @@ def evaluate_case(
             "optimal_q_error": optimal_q_error(estimates, oracle_q),
             **search,
         }
+        | unvalued(estimates, oracle_q)
     ]
 
 
@@ -300,9 +327,31 @@ def optimal_q_error(estimates, exact):
     continuation values stay noisy while the decision is unaffected (L1 H5 at 5,000 simulations, 1.35 over all actions vs 0.12 on
     the optimal one). Error bounds on the value an agent acts on are reported
     with this metric; both are recorded.
+
+    Certified search may leave pruned actions without an estimate; they are skipped, and None is returned when no
+    optimal action has one. With exact beliefs and opponents its bounds hold for the reference, so it never prunes an
+    optimal action.
     """
     best = max(exact.values())
-    return max(abs(estimates[a] - q) for a, q in exact.items() if q >= best - OPTIMALITY_TOLERANCE)
+    errors = [abs(estimates[a] - q) for a, q in exact.items() if q >= best - OPTIMALITY_TOLERANCE and a in estimates]
+    return max(errors) if errors else None
+
+
+def max_abs_q_error(estimates, exact):
+    """max_a |Q_hat(b, a) - Q*(b, a)| over every legal action; None when an action has no estimate.
+
+    Certified search leaves the root actions it pruned without a value (their bounds rule them out), so for its
+    rows the all-action error is not defined; ``unvalued`` lists those actions.
+    """
+    if set(estimates) != set(exact):
+        return None
+    return max(abs(estimates[a] - exact[a]) for a in exact)
+
+
+def unvalued(estimates, exact):
+    """``{"unvalued_actions": [...]}`` for the legal actions without an estimate, or ``{}`` when every one has one."""
+    missing = sorted(set(exact) - set(estimates), key=str)
+    return {"unvalued_actions": missing} if missing else {}
 
 
 class _ObservedSolver:

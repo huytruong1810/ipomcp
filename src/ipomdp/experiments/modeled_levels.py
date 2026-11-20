@@ -25,7 +25,7 @@ means ``400/400`` and ``exact`` means an exact hierarchy.
 
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ipomdp.baselines.rts import RTSConfig, RTSPlanner
 from ipomdp.planning.config import PlannerConfig
@@ -137,6 +137,7 @@ def register_levels(
     gamma=0.95,
     exploration=1.0,
     wrap=None,
+    level_options=None,
 ):
     """Register both uniform L0 agents and every intentional level below ``agent``.
 
@@ -146,6 +147,8 @@ def register_levels(
     ``ModeledSolve``'s; an exact level is the exact best response at ``depth`` to
     whatever is registered below it. ``wrap(key, solver)`` may replace a
     solver before registration (for example to observe its queries).
+    ``level_options(budget)`` (I-POMCP only) gives ``PlannerConfig`` fields that
+    replace those of each finite level's configuration (``experiments.profile``).
     """
     keys = modeled_keys(agent, level)
     if len(stack) != len(keys):
@@ -159,5 +162,7 @@ def register_levels(
             solver = ExactIPOMDPPlanner(key, physics, bank, best_response, depth)
         else:
             config = planner_config(planner_kind, solve.budget, depth, gamma, exploration)
+            if level_options is not None:
+                config = replace(config, **level_options(solve.budget))
             solver = make_planner(planner_kind, key, physics, bank, config)
         bank.register_solver(key, solver if wrap is None else wrap(key, solver))

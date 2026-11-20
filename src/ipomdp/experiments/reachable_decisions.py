@@ -543,8 +543,7 @@ def certified_options(args):
                    selection=args.selection or "ucb", leaf_eval=args.leaf_eval, lazy_expansion=args.lazy,
                    outcome=outcome or "sample", root_rule=root_rule or "upper")
     if args.profile is not None:
-        options |= profile.own_options(args.profile, args.selection)
-        options = profile.switch_off(options, getattr(args, "profile_off", None))
+        options |= profile.planner_options(args.profile, args.selection, getattr(args, "profile_off", None))
     return options
 
 
@@ -558,13 +557,16 @@ def modeled_options(args):
     if args.modeled_exact:
         return options  # exact modeled levels: nothing to search or resolve
     cap = args.modeled or args.budget
-    if args.modeled_resolve or args.profile is not None:
+    if args.profile is not None:
+        certified = certified_options(args)
+        levels = profile.level_options(args.profile, cap, args.selection, getattr(args, "profile_off", None),
+                                       args.modeled_pilot)
+        # Keys in the order rows have recorded them: the resolution's, then those of certified_options.
+        order = ("modeled_resolution", "modeled_prediction", *certified, *levels)
+        return {k: levels[k] for k in order if k in levels}
+    if args.modeled_resolve:
         options["modeled_resolution"] = ModeledResolution(pilot=min(args.modeled_pilot, cap))
         options["modeled_prediction"] = args.modeled_prediction
-    if args.profile is not None:
-        options |= certified_options(args) | profile.modeled_options(
-            args.profile, cap, args.selection, args.modeled_pilot)
-        options = profile.switch_off(options, getattr(args, "profile_off", None), modeled=True)
     return options
 
 

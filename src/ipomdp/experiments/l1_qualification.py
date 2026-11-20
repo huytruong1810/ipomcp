@@ -22,6 +22,7 @@ import argparse
 import json
 import math
 import time
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
@@ -30,8 +31,9 @@ import pandas as pd
 from ipomdp.belief.finite_belief import FiniteBelief, InteractiveState, MentalModel
 from ipomdp.belief.frame import AgentFrame
 from ipomdp.domains.tiger import TIGER_LEFT, TIGER_RIGHT, TigerModel
+from ipomdp.experiments import profile
 from ipomdp.experiments.bootstrapper import HierarchyBuilder
-from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, optimal_q_error
+from ipomdp.experiments.oracle import OPTIMALITY_TOLERANCE, max_abs_q_error, optimal_q_error, unvalued
 from ipomdp.infra.process_supervisor import supervise_jobs
 from ipomdp.planning.config import PlannerConfig
 from ipomdp.planning.solver_bank import SolverBank
@@ -40,14 +42,23 @@ from ipomdp.reference.pomdp_exact_vi import ExactPOMDPSolver
 BELIEFS = (0.02, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.85, 0.9, 0.95, 0.98)
 
 
-def evaluate_cell(budget, horizon, seeds, beliefs=BELIEFS, gamma=0.95):
-    """All (seed, belief) rows of one (budget, horizon) cell."""
+def evaluate_cell(budget, horizon, seeds, beliefs=BELIEFS, gamma=0.95, planner_options=None):
+    """All (seed, belief) rows of one (budget, horizon) cell.
+
+    ``planner_options`` are ``PlannerConfig`` fields that replace those of the
+    planner's configuration (``experiments.profile.planner_options``); each row
+    records those that differ from the defaults as ``certified``.
+    """
     physics = TigerModel()
     exact = ExactPOMDPSolver(physics, horizon=horizon, gamma=gamma)
     exact.solve()
     config = PlannerConfig(
         simulations=budget, depth=horizon, modeled_simulations=budget, gamma=gamma
     )
+    certified = {}
+    if planner_options is not None:
+        config = replace(config, **planner_options)
+        certified = profile.recorded(planner_options)
     rows = []
     for seed in seeds:
         bank = SolverBank(seed)
@@ -78,11 +89,15 @@ def evaluate_cell(budget, horizon, seeds, beliefs=BELIEFS, gamma=0.95):
                     optimal=all(
                         q[a] >= best - OPTIMALITY_TOLERANCE for a, w in policy.items() if w > 0
                     ),
-                    max_abs_q_error=max(abs(estimate[a] - q[a]) for a in q),
+                    max_abs_q_error=max_abs_q_error(estimate, q),
                     optimal_q_error=optimal_q_error(estimate, q),
                     planner_cpu_seconds=cpu,
                 )
+                | unvalued(estimate, q)
             )
+    if certified:
+        for row in rows:
+            row["certified"] = certified
     return rows
 
 

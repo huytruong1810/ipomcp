@@ -67,6 +67,7 @@ from ipomdp.analysis.statistics import clopper_pearson
 from ipomdp.belief import canonical
 from ipomdp.domains.tiger import JointTigerModel, TigerModel
 from ipomdp.domains.uav import UAVModel
+from ipomdp.experiments import profile as profiles
 from ipomdp.experiments.modeled_levels import EXACT, parse_stack, stack_label
 from ipomdp.experiments.oracle import (
     CERTIFICATION_EPSILON,
@@ -109,8 +110,14 @@ def evaluate_cell(
     seed,
     problems=tiger_problems,
     physics=None,
+    planner_options=None,
+    level_options=None,
 ):
-    """Every problem of ``problems(level)`` for one cell and seed."""
+    """Every problem of ``problems(level)`` for one cell and seed.
+
+    ``planner_options`` and ``level_options`` (I-POMCP only) are passed to
+    ``oracle.evaluate_case``.
+    """
     if level not in (1, 2, 3, 4):
         raise ValueError("The panel scores levels 1 to 4")
     opponent = {}
@@ -131,6 +138,8 @@ def evaluate_cell(
                 particle_filter=particle_filter if particles else "compressed",
                 history_steps=history,
                 physics=physics,
+                planner_options=planner_options,
+                level_options=level_options,
                 **opponent,
                 **{k: v for k, v in problem.case.items() if k != "belief_p"},
             )[0],
@@ -228,14 +237,29 @@ def run_panel(
     timeout_seconds=7200,
     max_rss_mb=4096,
     physics=None,
+    profile=None,
+    profile_off=None,
 ):
     """Run every (cell, seed) job under supervision; write rows, failures and summary.
 
     ``problems(level)`` lists each level's problems; it must pickle (a module
     function or a ``functools.partial`` of one). ``physics`` is the model of
     every problem (None: the published Tiger).
+
+    ``profile`` (``experiments.profile``) runs every I-POMCP cell, i and each
+    finite modeled level, in that planner profile with the components
+    ``profile_off`` switched off; RTS cells are unchanged. The manifest records
+    both.
     """
     output = Path(output)
+    options = {}
+    if profile is not None:
+        options = dict(
+            planner_options=profiles.planner_options(profile, off=profile_off),
+            level_options=partial(profiles.level_options, profile, off=profile_off),
+        )
+    elif profile_off:
+        raise ValueError("Switching profile components off needs a profile")
     output.mkdir(parents=True, exist_ok=False)
     # One label per configuration, so "400" and "400/400" at level 3 share a cell.
     cells = [
@@ -256,12 +280,21 @@ def run_panel(
         },
         physics=canonical.physics_identity(TigerModel() if physics is None else physics),
     )
+    if profile is not None:
+        manifest |= dict(profile=profile, profile_off=list(profile_off or ()))
     (output / "manifest.json").write_text(
         json.dumps(dict(panel=manifest, source_sha256=lock), indent=2)
     )
     jobs_index = list(itertools.product(cells, seeds))
     jobs = {
-        i: partial(evaluate_cell, *cell, seed, problems=problems, physics=physics)
+        i: partial(
+            evaluate_cell,
+            *cell,
+            seed,
+            problems=problems,
+            physics=physics,
+            **(options if cell[0] == "mcts" else {}),
+        )
         for i, (cell, seed) in enumerate(jobs_index)
     }
     rows, failures = [], []
@@ -327,6 +360,18 @@ def main():
         type=float,
         help="JointTigerModel's reward for opening the safe door together (unset: published Tiger)",
     )
+    parser.add_argument(
+        "--profile",
+        choices=profiles.PROFILES,
+        help="run every I-POMCP cell, i and each finite modeled level, in this planner profile",
+    )
+    parser.add_argument(
+        "--profile-off",
+        nargs="+",
+        choices=profiles.OFF_COMPONENTS,
+        default=None,
+        help="with --profile: switch these components off in i's planner and every modeled level",
+    )
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -358,7 +403,14 @@ def main():
             nested_beliefs=tuple(args.nested_beliefs),
         )
     summary, failures = run_panel(
-        args.output, cells, args.seeds, args.workers, problems, physics=physics
+        args.output,
+        cells,
+        args.seeds,
+        args.workers,
+        problems,
+        physics=physics,
+        profile=args.profile,
+        profile_off=args.profile_off,
     )
     print(summary.round(4).to_string(index=False))
     if failures:
