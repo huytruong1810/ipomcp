@@ -540,6 +540,7 @@ def certified_options(args):
                    outcome=getattr(args, "outcome", "sample"), root_rule=getattr(args, "root_rule", "upper"))
     if args.profile is not None:
         options |= profile.own_options(args.profile, args.selection)
+        options = profile.switch_off(options, getattr(args, "profile_off", None))
     return options
 
 
@@ -559,6 +560,7 @@ def modeled_options(args):
     if args.profile is not None:
         options |= certified_options(args) | profile.modeled_options(
             args.profile, cap, args.selection, args.modeled_pilot)
+        options = profile.switch_off(options, getattr(args, "profile_off", None), modeled=True)
     return options
 
 
@@ -635,8 +637,11 @@ def main():
     dec.add_argument("--root-rule", choices=ROOT_RULES, default="upper",
                      help="with the gap outcome rule: open (largest upper bound among undecided actions)")
     dec.add_argument("--profile", choices=profile.PROFILES,
-                     help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune "
-                          "--leaf-eval bound --lazy --selection iemax (an explicit --selection overrides)")
+                     help="certified: --frontier-bounds ifib --scoring pw --exact-tail --prune --selection iemax "
+                          "--outcome gap --root-rule open (an explicit --selection ucb returns to the sampled rule)")
+    dec.add_argument("--profile-off", nargs="+", choices=profile.OFF_COMPONENTS, default=None,
+                     help="with --profile: switch these components off, in i's planner and every modeled level "
+                          "(one ablation row each; 'prune' and 'bound_leaves' need 'gap' off too)")
     dec.add_argument("--modeled-resolve", action="store_true",
                      help="modeled levels: deterministic resolution to the --modeled cap (bi-level soundness)")
     dec.add_argument("--modeled-pilot", type=int, default=50, help="first resolution checkpoint")

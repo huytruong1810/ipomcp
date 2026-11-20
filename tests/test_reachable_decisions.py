@@ -5,6 +5,7 @@ import json
 import pytest
 
 from ipomdp.experiments import reachable_decisions as rd
+from ipomdp.planning.config import PlannerConfig
 
 
 def test_reference_history_is_reproducible_and_reachable():
@@ -99,3 +100,56 @@ def test_counting_work_needs_a_ladder():
     problem = json.loads(json.dumps(rd.reference("tiger-joint", 2, 2, seed=1, steps=1)))
     with pytest.raises(ValueError, match="needs a ladder"):
         rd.decide(problem, "mcts", 100, seed=0, modeled_exact=True, count_work=True)
+
+
+def _profile_args(**changes):
+    from types import SimpleNamespace
+
+    base = dict(frontier_bounds="scalar", scoring="legacy", exact_tail=False, prune=False, selection=None,
+                leaf_eval="rollout", lazy=False, outcome="sample", root_rule="upper", profile="certified",
+                profile_off=None, modeled_exact=False, modeled=400, budget=1000, modeled_resolve=False,
+                modeled_pilot=50, modeled_prediction="argmax")
+    return SimpleNamespace(**(base | changes))
+
+
+def test_the_certified_profile_is_the_gap_rule_and_switching_nothing_off_changes_nothing():
+    from ipomdp.experiments.reachable_decisions import certified_options, modeled_options
+
+    own, modeled = certified_options(_profile_args()), modeled_options(_profile_args())
+    assert (own["outcome"], own["root_rule"], own["selection"], own["prune"]) == ("gap", "open", "iemax", True)
+    assert (modeled["outcome"], modeled["root_rule"], modeled["modeled_prediction"]) == ("gap", "open", "plausible")
+    assert certified_options(_profile_args(profile_off=[])) == own
+    PlannerConfig(simulations=10, depth=3, modeled_simulations=10, **own)  # a valid planner
+
+
+@pytest.mark.parametrize("off, changed", [
+    (["exact_tail"], dict(exact_tail=False)),
+    (["pw_scoring"], dict(scoring="legacy")),
+    (["gap"], dict(outcome="sample", root_rule="upper")),
+    (["gap", "prune"], dict(outcome="sample", root_rule="upper", prune=False)),
+    (["gap", "bound_leaves"], dict(outcome="sample", root_rule="upper", leaf_eval="rollout", lazy_expansion=False)),
+])
+def test_each_profile_component_switches_off_alone_in_the_agent_and_every_modeled_level(off, changed):
+    from ipomdp.experiments.reachable_decisions import certified_options, modeled_options
+
+    base_own, base_modeled = certified_options(_profile_args()), modeled_options(_profile_args())
+    own, modeled = certified_options(_profile_args(profile_off=off)), modeled_options(_profile_args(profile_off=off))
+    assert own == base_own | changed
+    assert modeled == base_modeled | changed
+    PlannerConfig(simulations=10, depth=3, modeled_simulations=10, **own)
+
+
+def test_switching_off_resolution_acts_on_modeled_levels_only():
+    from ipomdp.experiments.reachable_decisions import certified_options, modeled_options
+
+    assert certified_options(_profile_args(profile_off=["resolution"])) == certified_options(_profile_args())
+    modeled = modeled_options(_profile_args(profile_off=["resolution"]))
+    assert "modeled_resolution" not in modeled and modeled["modeled_prediction"] == "argmax"
+
+
+@pytest.mark.parametrize("off", [["prune"], ["bound_leaves"]])
+def test_components_the_gap_rule_needs_cannot_be_switched_off_while_it_runs(off):
+    from ipomdp.experiments.reachable_decisions import certified_options
+
+    with pytest.raises(ValueError, match="needs 'gap' off too"):
+        certified_options(_profile_args(profile_off=off))
